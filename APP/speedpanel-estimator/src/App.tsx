@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import {
   Layers, AlertTriangle, Lock, ChevronDown, RotateCcw,
   Box, Frame, Hammer, Plus, Trash2, Copy, Settings,
-  Smartphone, Monitor, Wand2,
+  Smartphone, Monitor, TabletSmartphone,
 } from "lucide-react";
 import { useLayoutMode, type EffectiveLayout, type LayoutPreference } from "./useLayoutMode";
 
@@ -3422,7 +3422,7 @@ function useCalculatorState({ computeFn, makeDefaultWall, orient, dimUnit, onWal
 // Single icon button that cycles Auto -> Phone -> Web -> Auto. Placed in the
 // header next to the reset button.
 const LAYOUT_ICON: Record<LayoutPreference, React.ReactNode> = {
-  auto: <Wand2 size={16} />,
+  auto: <TabletSmartphone size={16} />,
   phone: <Smartphone size={16} />,
   web: <Monitor size={16} />,
 };
