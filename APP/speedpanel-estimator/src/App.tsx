@@ -2,7 +2,9 @@ import { useState, useMemo } from "react";
 import {
   Layers, AlertTriangle, Lock, ChevronDown, RotateCcw,
   Box, Frame, Hammer, Plus, Trash2, Copy, Settings,
+  Smartphone, Monitor, Wand2,
 } from "lucide-react";
+import { useLayoutMode, type EffectiveLayout, type LayoutPreference } from "./useLayoutMode";
 
 // --- Design tokens ------------------------------------------------------------
 const NAVY      = "#0B1233"; // primary body/heading text colour
@@ -2718,6 +2720,97 @@ const PanelScheduleCard = ({ title, icon, customSchedule, groups, packSize, stoc
   </Card>
 );
 
+// --- PanelScheduleTable ---------------------------------------------------------
+// Web/tablet counterpart to PanelScheduleCard: same props, same underlying
+// data (stockStatus/StockBadge/PackNote/typeFromPackSize), just rendered as a
+// real <table> (matching SpanTable's TH/TD conventions) instead of stacked rows.
+const PanelScheduleTable = ({ title, icon, customSchedule, groups, packSize, stocks, wastePct, orient, showCustomNote = true }: {
+  title: string; icon: React.ReactNode;
+  customSchedule?: CustomScheduleEntry[] | null; groups?: PanelGroup[];
+  packSize: number; stocks: number[]; wastePct?: number; orient?: string; showCustomNote?: boolean;
+}) => {
+  const TH = "py-2.5 px-3 text-left text-xs font-bold uppercase tracking-widest text-slate-500 border-b border-slate-100";
+  const TD = "py-2.5 px-3 text-sm text-slate-600 border-b border-slate-100 last:border-0";
+  const TDm = "py-2.5 px-3 text-sm font-semibold border-b border-slate-100 last:border-0";
+  const hasCustom = customSchedule && customSchedule.length > 0;
+
+  return (
+    <div className={`mt-3 ${cx.card}`}>
+      <div className={cx.cardTitle} style={{ color: NAVY }}>
+        <span style={{ color: BLUE }}>{icon}</span>{title}
+      </div>
+      {hasCustom && showCustomNote && (
+        <p className={`mb-2 ${cx.footnote}`} style={{ paddingTop: 0 }}>
+          {orient === "horizontal" ? "Factory-cut row widths." : "Factory-cut panels (max 9000 mm)."} Pack of {packSize}. Confirm with Speedpanel.
+        </p>
+      )}
+      <table className="w-full">
+        <thead>
+          <tr>
+            <th className={TH}>{hasCustom ? "Length" : "Stock"}</th>
+            <th className={TH}>Status</th>
+            <th className={TH}>Required</th>
+            <th className={TH}>Packs</th>
+            <th className={TH}>Ordered</th>
+            <th className={TH}>Spare</th>
+          </tr>
+        </thead>
+        <tbody>
+          {hasCustom ? customSchedule!.map((s, i) => {
+            const status = stockStatus(s.mm, stocks);
+            return (
+              <tr key={i}>
+                <td className={TDm} style={{ color: NAVY }}>
+                  {s.packNumber != null && (
+                    <span className="mr-1.5 rounded-md px-1.5 py-0.5 text-xs font-bold" style={{ background: BLUE, color: "#fff" }}>
+                      {s.packs > 1 ? `Pack ${s.packNumber}-${s.packNumber + s.packs - 1}` : `Pack ${s.packNumber}`}
+                    </span>
+                  )}
+                  {s.mm.toLocaleString()} mm
+                </td>
+                <td className={TD}><StockBadge status={status} /></td>
+                <td className={TD}>{s.qty}</td>
+                <td className={TD}>{s.packs} of {packSize}</td>
+                <td className={TDm} style={{ color: BLUE }}>{s.ordered}</td>
+                <td className={TD}>{s.ordered - s.qty}</td>
+              </tr>
+            );
+          }) : (groups || []).map((g, i) => {
+            const status = stockStatus(g.stock * 1000, stocks);
+            return (
+              <tr key={i}>
+                <td className={TDm} style={{ color: NAVY }}>{r1(g.stock)} m</td>
+                <td className={TD}><StockBadge status={status} /></td>
+                <td className={TD}>{g.pieces}</td>
+                <td className={TD}>{g.packs} of {g.ps || packSize}</td>
+                <td className={TDm} style={{ color: BLUE }}>{g.ordered}</td>
+                <td className={TD}>
+                  {g.spare}
+                  {(g.underPack || g.spare > 3) && <PackNote type={typeFromPackSize(g.ps || packSize)} spare={g.spare} />}
+                </td>
+              </tr>
+            );
+          })}
+          {!hasCustom && (!groups || groups.length === 0) && (
+            <tr><td className={TD} colSpan={6}>No panels yet</td></tr>
+          )}
+        </tbody>
+      </table>
+      <div className={cx.hr}>
+        {hasCustom ? (
+          <>
+            <Row k="Total required" v={`${customSchedule!.reduce((a, s) => a + s.qty, 0)} panels`} />
+            <Row k="Total to order" v={`${customSchedule!.reduce((a, s) => a + s.ordered, 0)} panels`} hl />
+            <Row k="Spare" v={`${customSchedule!.reduce((a, s) => a + s.ordered, 0) - customSchedule!.reduce((a, s) => a + s.qty, 0)} panels`} dim />
+          </>
+        ) : (
+          <Row k="Wastage (order)" v={`${r1(wastePct || 0)}%`} dim />
+        )}
+      </div>
+    </div>
+  );
+};
+
 // --- FixingSealantCard --------------------------------------------------------
 const FixingSealantCard = ({ title, boxes30, fix30, boxes16, fix16, sealantBoxes, sausages, area, sealantLabel, sealantRate, footnote, p2pNote, p2pEnhanced }: {
   title: string; boxes30: number; fix30: number; boxes16: number; fix16: number;
@@ -3114,6 +3207,58 @@ const WallsCard = ({ walls, results, activeId, setActiveId, active, update, addB
   </div>
 );
 
+// --- WallsSummaryTable ----------------------------------------------------------
+// Web/tablet-only "all walls at a glance" table. No new state -- driven entirely
+// by data already computed by useCalculatorState (results/activeId/warnById);
+// clicking a row calls the same setActiveId used by WallsCard's tab strip.
+const WallsSummaryTable = ({ results, activeId, setActiveId, warnById, toDisp, dimUnit }: {
+  results: WallResult[]; activeId: number; setActiveId: (id: number) => void;
+  warnById: Record<number, boolean>; toDisp: (m: string) => string; dimUnit: string;
+}) => {
+  const TH = "py-2.5 px-3 text-left text-xs font-bold uppercase tracking-widest text-slate-500 border-b border-slate-100";
+  const TD = "py-2.5 px-3 text-sm text-slate-600 border-b border-slate-100 last:border-0";
+  const TDm = "py-2.5 px-3 text-sm font-semibold border-b border-slate-100 last:border-0";
+  const dim = (m: string) => (m ? `${toDisp(m)} ${dimUnit}` : "--");
+  return (
+    <div className={`mt-3 ${cx.card}`}>
+      <div className={cx.cardTitle} style={{ color: NAVY }}>
+        <span style={{ color: BLUE }}><Frame size={14} /></span>Walls ({results.length})
+      </div>
+      <table className="w-full">
+        <thead>
+          <tr>
+            <th className={TH}>Wall</th>
+            <th className={TH}>Type</th>
+            <th className={TH}>Width</th>
+            <th className={TH}>Height</th>
+            <th className={TH}>Area</th>
+            <th className={TH}>Panels</th>
+          </tr>
+        </thead>
+        <tbody>
+          {results.map(({ wall, out }) => {
+            const on = wall.id === activeId;
+            return (
+              <tr key={wall.id} onClick={() => setActiveId(wall.id)}
+                className={`cursor-pointer transition-colors ${on ? "bg-blue-50/60" : "hover:bg-slate-50"}`}>
+                <td className={TDm} style={{ color: NAVY }}>
+                  {warnById[wall.id] && <span className="mr-1.5 inline-block h-2 w-2 rounded-full align-middle" style={{ background: GOLD }} />}
+                  {wall.name}
+                </td>
+                <td className={TD}>P{wall.type}</td>
+                <td className={TD}>{dim(wall.width)}</td>
+                <td className={TD}>{dim(wall.height)}</td>
+                <td className={TD}>{out.empty ? "--" : `${out.area} m2`}</td>
+                <td className={TD}>{out.empty ? "--" : (out.chosen?.panels ?? out.result?.panels ?? "--")}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+};
+
 // --- useCalculatorState -------------------------------------------------------
 // Custom hook that owns all wall-management and project-length state that is
 // identical between ExternalCalculator and SpeedpanelEstimator. Parameterised
@@ -3273,6 +3418,40 @@ function useCalculatorState({ computeFn, makeDefaultWall, orient, dimUnit, onWal
   };
 }
 
+// --- LayoutModeToggle -----------------------------------------------------------
+// Single icon button that cycles Auto -> Phone -> Web -> Auto. Placed in the
+// header next to the reset button.
+const LAYOUT_ICON: Record<LayoutPreference, React.ReactNode> = {
+  auto: <Wand2 size={16} />,
+  phone: <Smartphone size={16} />,
+  web: <Monitor size={16} />,
+};
+const LAYOUT_LABEL: Record<LayoutPreference, string> = { auto: "Auto", phone: "Phone", web: "Web" };
+
+const LayoutModeToggle = ({ preference, cyclePreference }: { preference: LayoutPreference; cyclePreference: () => void }) => (
+  <button
+    onClick={cyclePreference}
+    title={`Layout: ${LAYOUT_LABEL[preference]} (click to change)`}
+    className="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 bg-white text-slate-400 shadow-sm active:scale-95 transition-all"
+  >
+    {LAYOUT_ICON[preference]}
+  </button>
+);
+
+// --- CalculatorShell --------------------------------------------------------
+// Composes the same sidebar/main/footer content differently depending on
+// layout mode. Phone reproduces today's stacked order exactly (byte-for-byte
+// equivalent JSX, just relocated into variables); web arranges it as a sticky
+// sidebar + wider main column.
+const CalculatorShell = ({ layoutMode, sidebar, main, footer }: {
+  layoutMode: EffectiveLayout; sidebar: React.ReactNode; main: React.ReactNode; footer: React.ReactNode;
+}) => (
+  <div className="grid grid-cols-[360px_1fr] items-start gap-6">
+    <aside className="sticky top-5 space-y-1">{sidebar}</aside>
+    <div className="min-w-0 space-y-1">{main}{footer}</div>
+  </div>
+);
+
 // --- ExternalCalculator -------------------------------------------------------
 // orient is derived from sys.orient in the parent and passed as a prop.
 // It is safe here because switchSystem() in the parent resets walls and resets
@@ -3280,7 +3459,7 @@ function useCalculatorState({ computeFn, makeDefaultWall, orient, dimUnit, onWal
 // remount with the new orient value. If ExternalCalculator is ever kept mounted
 // across system switches, orient MUST remain in the useMemo dependency array
 // (it already is) to prevent stale compute results.
-function ExternalCalculator({ orient, dimUnit, setDimUnit, systemSelector }: { orient: "vertical" | "horizontal"; dimUnit: string; setDimUnit: (u: string) => void; systemSelector?: React.ReactNode }) {
+function ExternalCalculator({ orient, dimUnit, setDimUnit, systemSelector, layoutMode }: { orient: "vertical" | "horizontal"; dimUnit: string; setDimUnit: (u: string) => void; systemSelector?: React.ReactNode; layoutMode: EffectiveLayout }) {
   const [extMode, setExtMode] = useState("project");
   const [showTakeoff, setShowTakeoff] = useState(true);
   const [showLocked, setShowLocked] = useState(false);
@@ -3306,8 +3485,10 @@ function ExternalCalculator({ orient, dimUnit, setDimUnit, systemSelector }: { o
     { key: "headFlash", label: HEAD_FLASH_LABEL, sublabel: HEAD_FLASH_SUBLABEL, value: active.headFlash, onToggle: () => update({ headFlash: !active.headFlash }) },
   ];
 
-  return (
-    <div>
+  const ScheduleComp = layoutMode === "web" ? PanelScheduleTable : PanelScheduleCard;
+
+  const sidebarNode = (
+    <>
       <WallsCard
         walls={walls} results={results} activeId={activeId} setActiveId={setActiveId}
         active={active} update={update} addBlankWall={addBlankWall}
@@ -3423,7 +3604,10 @@ function ExternalCalculator({ orient, dimUnit, setDimUnit, systemSelector }: { o
             </div>
           </div>
           <DimensionInputs active={active} toDisp={toDisp} toM={toM} updDim={updDim} onUpdate={update} out={out} orient={orient} />
-          <SpanTable orient={orient} type={78} />
+          {/* Phone: span table stays inline here, matching the original layout.
+              Web: relocated to the top of the main column (see mainNode) since
+              it's already a real table and reads better with the extra width. */}
+          {layoutMode === "phone" && <SpanTable orient={orient} type={78} />}
         </div>
       </div>
 
@@ -3438,6 +3622,15 @@ function ExternalCalculator({ orient, dimUnit, setDimUnit, systemSelector }: { o
 
       <WarningsList warnings={!out.empty ? out.warnings : null} />
       <EstimateModeSelector visible={!out.empty} mode={extMode} setMode={setExtMode} />
+    </>
+  );
+
+  const mainNode = (
+    <>
+      {layoutMode === "web" && <SpanTable orient={orient} type={78} />}
+      {layoutMode === "web" && (
+        <WallsSummaryTable results={results} activeId={activeId} setActiveId={setActiveId} warnById={warnById} toDisp={toDisp} dimUnit={dimUnit} />
+      )}
 
       {!out.empty && !project && out.result && (
         <>
@@ -3458,7 +3651,7 @@ function ExternalCalculator({ orient, dimUnit, setDimUnit, systemSelector }: { o
                     {active.colourType === "special" && <span className="ml-auto text-xs font-bold uppercase tracking-wide text-amber-600">Special order</span>}
                   </div>
               )}
-              <PanelScheduleCard title="Panel order schedule -- P78 coloured" icon={<Box size={14} />}
+              <ScheduleComp title="Panel order schedule -- P78 coloured" icon={<Box size={14} />}
                 customSchedule={out.customSchedule}
                 groups={out.result.groups.map((g: PanelGroup) => ({ ...g, ps: EXT_PACK }))}
                 packSize={EXT_PACK} stocks={EXT_STOCK} wastePct={out.result.wastePct} orient={orient} />
@@ -3497,15 +3690,24 @@ function ExternalCalculator({ orient, dimUnit, setDimUnit, systemSelector }: { o
             sealantLabel="Sikaflex 400 Fire PU" sealantRate={2} footnote="Est. fixings pooled - 1000/box." />
         </>
       )}
+    </>
+  );
 
+  const footerNode = (
+    <>
       <button onClick={() => setShowLocked(!showLocked)} className={cx.accordion}>
         <span className="flex items-center gap-2"><Lock size={13} className="text-slate-400" /> Locked external system data</span>
         <ChevronDown size={16} className={`text-blue-300 transition-transform ${showLocked ? "rotate-180" : ""}`} />
       </button>
       {showLocked && <LockedDataExt />}
       <button className={cx.exportBtn} style={{ background: NAVY }}>Export PDF</button>
-    </div>
+    </>
   );
+
+  if (layoutMode === "phone") {
+    return <div>{sidebarNode}{mainNode}{footerNode}</div>;
+  }
+  return <CalculatorShell layoutMode={layoutMode} sidebar={sidebarNode} main={mainNode} footer={footerNode} />;
 }
 
 // --- Main app -----------------------------------------------------------------
@@ -3516,6 +3718,7 @@ export default function SpeedpanelEstimator() {
   const [showWall, setShowWall]               = useState(true);
   const [showTrackFinish, setShowTrackFinish] = useState(false);
   const [dimUnit, setDimUnit] = useState("m");
+  const { preference: layoutPreference, effective: layoutMode, cyclePreference } = useLayoutMode();
 
   const sys    = SYSTEMS.find(s => s.id === system) || SYSTEMS[0];
   const isExt  = sys.ext;
@@ -3595,7 +3798,7 @@ export default function SpeedpanelEstimator() {
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans" style={{ color: NAVY }}>
-      <div className="mx-auto w-full max-w-md px-3 sm:px-4 pb-24 pt-5">
+      <div className={layoutMode === "web" ? "mx-auto w-full max-w-[1400px] px-6 pb-16 pt-6" : "mx-auto w-full max-w-md px-3 sm:px-4 pb-24 pt-5"}>
 
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -3607,14 +3810,16 @@ export default function SpeedpanelEstimator() {
             />
             <p className={cx.lbl} style={{marginTop:"6px", paddingLeft:0}}>Wall Systems Estimator</p>
           </div>
-          <button onClick={resetAll} className="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 bg-white text-slate-400 shadow-sm active:scale-95 transition-all">
-            <RotateCcw size={16} />
-          </button>
+          <div className="flex items-center gap-2">
+            <LayoutModeToggle preference={layoutPreference} cyclePreference={cyclePreference} />
+            <button onClick={resetAll} className="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 bg-white text-slate-400 shadow-sm active:scale-95 transition-all">
+              <RotateCcw size={16} />
+            </button>
+          </div>
         </div>
         <div className="mt-4 h-[2px] w-full rounded-full" style={{ background: `linear-gradient(90deg, ${NAVY} 0%, ${BLUE} 55%, ${GOLD} 100%)` }} />
 
-        {/* System configuration */}
-        <SectionLabel icon={<Settings size={13} />}>System configuration</SectionLabel>
+        {/* System configuration + calculator body */}
         {(() => {
           const findSys = (orientVal: "vertical" | "horizontal", ext: boolean) =>
             SYSTEMS.find(s => s.orient === orientVal && s.ext === ext)!;
@@ -3667,213 +3872,235 @@ export default function SpeedpanelEstimator() {
           };
 
           const systemButtons = <SystemRows />;
+
           if (isExt) return (
-            <div className="mt-1">
-              <ExternalCalculator orient={orient} dimUnit={dimUnit} setDimUnit={switchDimUnit} systemSelector={systemButtons} />
-            </div>
-          );
-          return (
-            <WallsCard
-              walls={walls} results={results} activeId={activeId} setActiveId={setActiveId}
-              active={active} update={update} addBlankWall={addBlankWall}
-              duplicateWall={duplicateWall} deleteWall={deleteWall} warnById={warnById}
-              showTypes={true} systemSelector={systemButtons} orient={orient}
-              onCornerLink={linkCornerPartner}
-              onShaftLink={linkShaftPartner}
-            />
-          );
-        })()}
-
-        {/* Internal calculator */}
-        {!isExt && (
-          <>
-
-            {/* Profile and dimensions */}
-            <SectionLabel icon={<Frame size={13} />}>Wall geometry</SectionLabel>
-            <div className={cx.section}>
-              <ProfileSection profile={active.profile} onChange={id => update({ profile: id })} />
-              <div className="border-t border-slate-100 pt-3">
-                <div className="mb-2 flex items-center justify-between">
-                  <span className={cx.cardHd} style={{marginBottom:0}}>Dimensions</span>
-                  <div className="flex items-center gap-2">
-                    <UnitToggle unit={dimUnit} setUnit={switchDimUnit} />
-                  </div>
-                </div>
-                <DimensionInputs active={active} toDisp={toDisp} toM={toM} updDim={updDim} onUpdate={update} out={out} orient={orient} />
-                <SpanTable orient={orient} type={active.type} wallSystem={active.wallSystem} />
+            <>
+              <SectionLabel icon={<Settings size={13} />}>System configuration</SectionLabel>
+              <div className="mt-1">
+                <ExternalCalculator orient={orient} dimUnit={dimUnit} setDimUnit={switchDimUnit} systemSelector={systemButtons} layoutMode={layoutMode} />
               </div>
-              <div className="border-t border-slate-100 pt-3">
-                <div className="mb-1.5 flex items-center justify-between">
-                  <span className={cx.cardHd} style={{marginBottom:0,display:"inline"}}>Panel length</span>
-                  <ToggleSwitch
-                    active={projectLock}
-                    label={projectLock ? "Project locked" : "Lock to project"}
-                    onToggle={() => {
-                      const currentStock = projectLock ? projectStock : (active.forcedStock || "");
-                      setProjectLength(customActive ? "" : currentStock, !projectLock);
-                      if (projectLock) { clearCustomLength(); }
+            </>
+          );
+
+          const ScheduleComp = layoutMode === "web" ? PanelScheduleTable : PanelScheduleCard;
+
+          const sidebarNode = (
+            <>
+              <SectionLabel icon={<Settings size={13} />}>System configuration</SectionLabel>
+              <WallsCard
+                walls={walls} results={results} activeId={activeId} setActiveId={setActiveId}
+                active={active} update={update} addBlankWall={addBlankWall}
+                duplicateWall={duplicateWall} deleteWall={deleteWall} warnById={warnById}
+                showTypes={true} systemSelector={systemButtons} orient={orient}
+                onCornerLink={linkCornerPartner}
+                onShaftLink={linkShaftPartner}
+              />
+
+              {/* Profile and dimensions */}
+              <SectionLabel icon={<Frame size={13} />}>Wall geometry</SectionLabel>
+              <div className={cx.section}>
+                <ProfileSection profile={active.profile} onChange={id => update({ profile: id })} />
+                <div className="border-t border-slate-100 pt-3">
+                  <div className="mb-2 flex items-center justify-between">
+                    <span className={cx.cardHd} style={{marginBottom:0}}>Dimensions</span>
+                    <div className="flex items-center gap-2">
+                      <UnitToggle unit={dimUnit} setUnit={switchDimUnit} />
+                    </div>
+                  </div>
+                  <DimensionInputs active={active} toDisp={toDisp} toM={toM} updDim={updDim} onUpdate={update} out={out} orient={orient} />
+                  {/* Phone: span table stays inline here, matching the original layout.
+                      Web: relocated to the top of the main column (see mainNode). */}
+                  {layoutMode === "phone" && <SpanTable orient={orient} type={active.type} wallSystem={active.wallSystem} />}
+                </div>
+                <div className="border-t border-slate-100 pt-3">
+                  <div className="mb-1.5 flex items-center justify-between">
+                    <span className={cx.cardHd} style={{marginBottom:0,display:"inline"}}>Panel length</span>
+                    <ToggleSwitch
+                      active={projectLock}
+                      label={projectLock ? "Project locked" : "Lock to project"}
+                      onToggle={() => {
+                        const currentStock = projectLock ? projectStock : (active.forcedStock || "");
+                        setProjectLength(customActive ? "" : currentStock, !projectLock);
+                        if (projectLock) { clearCustomLength(); }
+                      }}
+                    />
+                  </div>
+                  <LengthExplorer
+                    pieces={"pieces" in out && out.pieces ? out.pieces : []}
+                    stocks={STOCK_LENGTHS}
+                    packType={active.type}
+                    currentStock={customActive ? "" : (projectLock ? projectStock : (active.forcedStock || ""))}
+                    onSelect={val => {
+                      clearCustomLength();
+                      if (projectLock) { setProjectLength(val, true); }
+                      else { update({ forcedStock: val }); }
                     }}
                   />
+
+                  {/* Custom length -- same visual treatment as the panel length selector above */}
+                  <CustomLengthSection
+                    dimUnit={dimUnit} customLengthInput={customLengthInput} customActive={customActive}
+                    projectLock={projectLock} projectStock={projectStock} wallCount={walls.length}
+                    commitCustomLength={commitCustomLength} toggleCustom={toggleCustom}
+                  />
+
+                  {/* Project lock confirmation for stocked lengths */}
+                  {projectLock && !customActive && projectStock && (
+                    <ProjectLockNote wallCount={walls.length} stock={projectStock} dimUnit={dimUnit} />
+                  )}
                 </div>
-                <LengthExplorer
-                  pieces={"pieces" in out && out.pieces ? out.pieces : []}
-                  stocks={STOCK_LENGTHS}
-                  packType={active.type}
-                  currentStock={customActive ? "" : (projectLock ? projectStock : (active.forcedStock || ""))}
-                  onSelect={val => {
-                    clearCustomLength();
-                    if (projectLock) { setProjectLength(val, true); }
-                    else { update({ forcedStock: val }); }
-                  }}
-                />
-
-                {/* Custom length -- same visual treatment as the panel length selector above */}
-                <CustomLengthSection
-                  dimUnit={dimUnit} customLengthInput={customLengthInput} customActive={customActive}
-                  projectLock={projectLock} projectStock={projectStock} wallCount={walls.length}
-                  commitCustomLength={commitCustomLength} toggleCustom={toggleCustom}
-                />
-
-                {/* Project lock confirmation for stocked lengths */}
-                {projectLock && !customActive && projectStock && (
-                  <ProjectLockNote wallCount={walls.length} stock={projectStock} dimUnit={dimUnit} />
-                )}
               </div>
-            </div>
 
-            {/* Tracks and flashing */}
-            <SectionLabel icon={<Lock size={13} />}>TRACKS AND FLASHING</SectionLabel>
-            <EdgeRestraintSelector
-              edges={active.edges}
-              onEdgeToggle={k => update({ edges: { ...active.edges, [k]: !active.edges[k] } })}
-              options={[{ key: "headFlash", label: HEAD_FLASH_LABEL, sublabel: HEAD_FLASH_SUBLABEL, value: active.headFlash, onToggle: () => update({ headFlash: !active.headFlash }) }]}
-              orient={orient}
-              locked={orient === "horizontal" && active.wallSystem === "standard"}
-              showTrackFinish={showTrackFinish}
-              setShowTrackFinish={setShowTrackFinish}
-              activeFinishes={{ headFinish: active.headFinish, bottomFinish: active.bottomFinish, leftFinish: active.leftFinish, rightFinish: active.rightFinish }}
-              onFinishChange={(field, val) => update({ [field]: val } as Pick<Wall, FinishKey>)}
-              corners={{ intCorners: active.intCorners, extCorners: active.extCorners, onChange: (f: CornersField, v: string) => update({ [f]: v } as Pick<Wall, CornersField>) }}
-            />
+              {/* Tracks and flashing */}
+              <SectionLabel icon={<Lock size={13} />}>TRACKS AND FLASHING</SectionLabel>
+              <EdgeRestraintSelector
+                edges={active.edges}
+                onEdgeToggle={k => update({ edges: { ...active.edges, [k]: !active.edges[k] } })}
+                options={[{ key: "headFlash", label: HEAD_FLASH_LABEL, sublabel: HEAD_FLASH_SUBLABEL, value: active.headFlash, onToggle: () => update({ headFlash: !active.headFlash }) }]}
+                orient={orient}
+                locked={orient === "horizontal" && active.wallSystem === "standard"}
+                showTrackFinish={showTrackFinish}
+                setShowTrackFinish={setShowTrackFinish}
+                activeFinishes={{ headFinish: active.headFinish, bottomFinish: active.bottomFinish, leftFinish: active.leftFinish, rightFinish: active.rightFinish }}
+                onFinishChange={(field, val) => update({ [field]: val } as Pick<Wall, FinishKey>)}
+                corners={{ intCorners: active.intCorners, extCorners: active.extCorners, onChange: (f: CornersField, v: string) => update({ [f]: v } as Pick<Wall, CornersField>) }}
+              />
 
-            <WarningsList warnings={!out.empty ? out.warnings : null} />
-            <EstimateModeSelector visible={!out.empty} mode={mode} setMode={setMode} />
+              <WarningsList warnings={!out.empty ? out.warnings : null} />
+              <EstimateModeSelector visible={!out.empty} mode={mode} setMode={setMode} />
+            </>
+          );
 
-            {/* Single wall estimate */}
-            {!out.empty && !project && out.chosen && !out.chosen.invalid && (
-              <>
-                <button onClick={() => setShowWall(!showWall)} className={cx.accordion}>
-                  <span>Wall estimate -- {active.name}</span>
-                  <ChevronDown size={15} className={`transition-transform ${showWall ? "rotate-180" : ""}`} />
-                </button>
-                {showWall && (
-                  <div className="mt-3">
-                    <StatsRow area={`${out.area} m2`} panels={out.chosen.panels} panelType={`P${active.type}`} />
-                    <PanelScheduleCard title={`Panel schedule -- P${active.type}`} icon={<Box size={14} />}
-                      customSchedule={out.customSchedule}
-                      groups={out.chosen.groups}
-                      packSize={PACK[active.type]} stocks={STOCK_LENGTHS}
-                      wastePct={out.chosen.wastePct} orient={orient} />
-                    <TrackFlashingCardInt out={out} headFlashActive={active.headFlash} wall={active} />
-                    {active.wallSystem === "shaft" && <ShaftVerticalCard out={out} />}
-                    {cornerPair && (() => {
-                      const partner = walls.find(w => w.id === active.cornerPartnerId);
-                      return <CornerKitCard kit={cornerPair} partnerName={partner ? partner.name : "linked run"} />;
-                    })()}
-                    {shaftPair && (() => {
-                      const partner = walls.find(w => w.id === active.shaftPartnerId);
-                      return <ShaftJunctionCard kit={shaftPair} partnerName={partner ? partner.name : "linked wall"} />;
-                    })()}
-                    {active.wallSystem === "shaft" && <ShaftSlabCard out={out} />}
-                    <FixingSealantCard title="Fixing and sealant quantities"
-                      boxes30={out.boxes30 || 0} fix30={out.fix30 || 0}
-                      boxes16={out.boxes16 || 0} fix16={out.fix16 || 0}
-                      sealantBoxes={out.sealantBoxes || 0} sausages={out.sausages || 0} area={out.area || 0}
-                      sealantLabel="Hilti CP606 sealant" sealantRate={4}
-                      p2pNote={out.p2pNote} p2pEnhanced={out.p2pEnhanced} />
-                    {out.notes && out.notes.length > 0 && <NotesList notes={out.notes} />}
-                  </div>
-                )}
-              </>
-            )}
+          const mainNode = (
+            <>
+              {layoutMode === "web" && <SpanTable orient={orient} type={active.type} wallSystem={active.wallSystem} />}
+              {layoutMode === "web" && (
+                <WallsSummaryTable results={results} activeId={activeId} setActiveId={setActiveId} warnById={warnById} toDisp={toDisp} dimUnit={dimUnit} />
+              )}
 
-            {/* Project aggregate */}
-            {project && (
-              <>
-                <ProjectSeparator />
-                <StatsRow
-                  area={projChosenAgg ? `${projChosenAgg.totalArea} m2` : "--"}
-                  panels={projChosenAgg ? projChosenAgg.totalPanels : "--"}
-                  panelType={`P${active.type}`}
-                />
-                <Card title="Project order estimate" icon={<Box size={14} />}>
-                  {projChosenAgg && (
-                    <>
-                      {projChosenAgg.panels.map((p: AggPanelEntry, i: number) => (
-                        <StockGroupRow key={i}
-                          stock={p.stock} ordered={p.ordered} pieces={p.pieces}
-                          packs={p.packs} packSize={p.ps ?? PACK[p.type]} spare={p.spare}
-                          stocks={STOCK_LENGTHS} isLast={i === projChosenAgg.panels.length - 1 && projChosenAgg.customPanels.length === 0}
-                          typeLabel={`P${p.type}`}
-                          packNote={(p.underPack || p.spare > 3) ? <PackNote type={p.type} spare={p.spare} /> : undefined}
-                        />
-                      ))}
-                      {projChosenAgg.customPanels.length > 0 && (
-                        <>
-                          {projChosenAgg.panels.length > 0 && <p className={cx.cardHd + " pt-2 pb-1"}>Custom lengths</p>}
-                          {projChosenAgg.customPanels.map((s: AggCustomEntry, i: number) => (
-                            <div key={i}>
-                              <ScheduleRow mm={s.mm} ordered={s.ordered} qty={s.qty} packs={s.packs} packSize={s.packSize} stocks={STOCK_LENGTHS} isLast={i === projChosenAgg.customPanels.length - 1} />
-                              {(s.qty < s.packSize || s.spare > 3) && <PackNote type={s.type} spare={s.spare} />}
-                            </div>
-                          ))}
-                        </>
-                      )}
-                      {projChosenAgg.panels.length === 0 && projChosenAgg.customPanels.length === 0 && <Row k="No panels yet" v="--" dim />}
-                      <div className={cx.hr}><Row k="Wastage (order)" v={`${r1(projChosenAgg.wastePct)}%`} dim /></div>
-                    </>
+              {/* Single wall estimate */}
+              {!out.empty && !project && out.chosen && !out.chosen.invalid && (
+                <>
+                  <button onClick={() => setShowWall(!showWall)} className={cx.accordion}>
+                    <span>Wall estimate -- {active.name}</span>
+                    <ChevronDown size={15} className={`transition-transform ${showWall ? "rotate-180" : ""}`} />
+                  </button>
+                  {showWall && (
+                    <div className="mt-3">
+                      <StatsRow area={`${out.area} m2`} panels={out.chosen.panels} panelType={`P${active.type}`} />
+                      <ScheduleComp title={`Panel schedule -- P${active.type}`} icon={<Box size={14} />}
+                        customSchedule={out.customSchedule}
+                        groups={out.chosen.groups}
+                        packSize={PACK[active.type]} stocks={STOCK_LENGTHS}
+                        wastePct={out.chosen.wastePct} orient={orient} />
+                      <TrackFlashingCardInt out={out} headFlashActive={active.headFlash} wall={active} />
+                      {active.wallSystem === "shaft" && <ShaftVerticalCard out={out} />}
+                      {cornerPair && (() => {
+                        const partner = walls.find(w => w.id === active.cornerPartnerId);
+                        return <CornerKitCard kit={cornerPair} partnerName={partner ? partner.name : "linked run"} />;
+                      })()}
+                      {shaftPair && (() => {
+                        const partner = walls.find(w => w.id === active.shaftPartnerId);
+                        return <ShaftJunctionCard kit={shaftPair} partnerName={partner ? partner.name : "linked wall"} />;
+                      })()}
+                      {active.wallSystem === "shaft" && <ShaftSlabCard out={out} />}
+                      <FixingSealantCard title="Fixing and sealant quantities"
+                        boxes30={out.boxes30 || 0} fix30={out.fix30 || 0}
+                        boxes16={out.boxes16 || 0} fix16={out.fix16 || 0}
+                        sealantBoxes={out.sealantBoxes || 0} sausages={out.sausages || 0} area={out.area || 0}
+                        sealantLabel="Hilti CP606 sealant" sealantRate={4}
+                        p2pNote={out.p2pNote} p2pEnhanced={out.p2pEnhanced} />
+                      {out.notes && out.notes.length > 0 && <NotesList notes={out.notes} />}
+                    </div>
                   )}
-                  {!projChosenAgg && <Row k="No panels yet" v="--" dim />}
-                </Card>
-                <TrackFlashingCardIntProj agg={projChosenAgg} />
-                <Card title="Fixing and sealant -- whole project" icon={<Hammer size={14} />}>
-                  {projChosenAgg && (
-                    <>
-                      <Row k="10g 30mm SDS" v={`${projChosenAgg.boxes30} box${plural(projChosenAgg.boxes30)}`} hl />
-                      <Row k="QTY req" v={`${projChosenAgg.fix30}`} dim />
-                      <Row k="10g 16mm SDS" v={`${projChosenAgg.boxes16} box${plural(projChosenAgg.boxes16)}`} hl />
-                      <Row k="QTY req" v={`${projChosenAgg.fix16}`} dim />
-                      <Row k="Structure fixings (base track)" v="By others / engineer" dim />
-                      <div className={cx.hr}>
-                        <Row k="Hilti CP606 sealant" v={`${projChosenAgg.sealantBoxes} box${plural(projChosenAgg.sealantBoxes)} (${projChosenAgg.sausages} sausages)`} hl />
-                        <Row k="total area / 4 m2/sausage" v={`${projChosenAgg.totalArea} m2`} dim />
-                      </div>
-                      {projChosenAgg.slabPassSausages > 0 && (
+                </>
+              )}
+
+              {/* Project aggregate */}
+              {project && (
+                <>
+                  <ProjectSeparator />
+                  <StatsRow
+                    area={projChosenAgg ? `${projChosenAgg.totalArea} m2` : "--"}
+                    panels={projChosenAgg ? projChosenAgg.totalPanels : "--"}
+                    panelType={`P${active.type}`}
+                  />
+                  <Card title="Project order estimate" icon={<Box size={14} />}>
+                    {projChosenAgg && (
+                      <>
+                        {projChosenAgg.panels.map((p: AggPanelEntry, i: number) => (
+                          <StockGroupRow key={i}
+                            stock={p.stock} ordered={p.ordered} pieces={p.pieces}
+                            packs={p.packs} packSize={p.ps ?? PACK[p.type]} spare={p.spare}
+                            stocks={STOCK_LENGTHS} isLast={i === projChosenAgg.panels.length - 1 && projChosenAgg.customPanels.length === 0}
+                            typeLabel={`P${p.type}`}
+                            packNote={(p.underPack || p.spare > 3) ? <PackNote type={p.type} spare={p.spare} /> : undefined}
+                          />
+                        ))}
+                        {projChosenAgg.customPanels.length > 0 && (
+                          <>
+                            {projChosenAgg.panels.length > 0 && <p className={cx.cardHd + " pt-2 pb-1"}>Custom lengths</p>}
+                            {projChosenAgg.customPanels.map((s: AggCustomEntry, i: number) => (
+                              <div key={i}>
+                                <ScheduleRow mm={s.mm} ordered={s.ordered} qty={s.qty} packs={s.packs} packSize={s.packSize} stocks={STOCK_LENGTHS} isLast={i === projChosenAgg.customPanels.length - 1} />
+                                {(s.qty < s.packSize || s.spare > 3) && <PackNote type={s.type} spare={s.spare} />}
+                              </div>
+                            ))}
+                          </>
+                        )}
+                        {projChosenAgg.panels.length === 0 && projChosenAgg.customPanels.length === 0 && <Row k="No panels yet" v="--" dim />}
+                        <div className={cx.hr}><Row k="Wastage (order)" v={`${r1(projChosenAgg.wastePct)}%`} dim /></div>
+                      </>
+                    )}
+                    {!projChosenAgg && <Row k="No panels yet" v="--" dim />}
+                  </Card>
+                  <TrackFlashingCardIntProj agg={projChosenAgg} />
+                  <Card title="Fixing and sealant -- whole project" icon={<Hammer size={14} />}>
+                    {projChosenAgg && (
+                      <>
+                        <Row k="10g 30mm SDS" v={`${projChosenAgg.boxes30} box${plural(projChosenAgg.boxes30)}`} hl />
+                        <Row k="QTY req" v={`${projChosenAgg.fix30}`} dim />
+                        <Row k="10g 16mm SDS" v={`${projChosenAgg.boxes16} box${plural(projChosenAgg.boxes16)}`} hl />
+                        <Row k="QTY req" v={`${projChosenAgg.fix16}`} dim />
+                        <Row k="Structure fixings (base track)" v="By others / engineer" dim />
                         <div className={cx.hr}>
-                          <Row k="Slab-pass sealant" v={`${projChosenAgg.slabPassSealantBoxes} box${plural(projChosenAgg.slabPassSealantBoxes)} (${projChosenAgg.slabPassSausages} sausages)`} hl />
+                          <Row k="Hilti CP606 sealant" v={`${projChosenAgg.sealantBoxes} box${plural(projChosenAgg.sealantBoxes)} (${projChosenAgg.sausages} sausages)`} hl />
+                          <Row k="total area / 4 m2/sausage" v={`${projChosenAgg.totalArea} m2`} dim />
                         </div>
-                      )}
-                      {projChosenAgg.slabAnchors > 0 && (
-                        <Row k="Slab-edge anchors - by others, not a Speedpanel part" v={`~${projChosenAgg.slabAnchors}`} dim />
-                      )}
-                      <p className={cx.footnote}>Est. fixings pooled - 1000/box.</p>
-                      {results.some(r => r.out.p2pEnhanced) && (
-                        <p className="pt-1 text-sm leading-relaxed text-amber-700">One or more P78 vertical walls &gt; 5.0 m: enhanced panel-to-panel pattern applied.</p>
-                      )}
-                    </>
-                  )}
-                </Card>
-              </>
-            )}
+                        {projChosenAgg.slabPassSausages > 0 && (
+                          <div className={cx.hr}>
+                            <Row k="Slab-pass sealant" v={`${projChosenAgg.slabPassSealantBoxes} box${plural(projChosenAgg.slabPassSealantBoxes)} (${projChosenAgg.slabPassSausages} sausages)`} hl />
+                          </div>
+                        )}
+                        {projChosenAgg.slabAnchors > 0 && (
+                          <Row k="Slab-edge anchors - by others, not a Speedpanel part" v={`~${projChosenAgg.slabAnchors}`} dim />
+                        )}
+                        <p className={cx.footnote}>Est. fixings pooled - 1000/box.</p>
+                        {results.some(r => r.out.p2pEnhanced) && (
+                          <p className="pt-1 text-sm leading-relaxed text-amber-700">One or more P78 vertical walls &gt; 5.0 m: enhanced panel-to-panel pattern applied.</p>
+                        )}
+                      </>
+                    )}
+                  </Card>
+                </>
+              )}
+            </>
+          );
 
-            <button onClick={() => setShowData(!showData)} className={cx.accordion}>
-              <span className="flex items-center gap-2"><Lock size={13} className="text-slate-400" /> Locked system data</span>
-              <ChevronDown size={16} className={`text-blue-300 transition-transform ${showData ? "rotate-180" : ""}`} />
-            </button>
-            {showData && <LockedDataInt />}
-            <button className={cx.exportBtn} style={{ background: NAVY }}>Export PDF</button>
-          </>
-        )}
+          const footerNode = (
+            <>
+              <button onClick={() => setShowData(!showData)} className={cx.accordion}>
+                <span className="flex items-center gap-2"><Lock size={13} className="text-slate-400" /> Locked system data</span>
+                <ChevronDown size={16} className={`text-blue-300 transition-transform ${showData ? "rotate-180" : ""}`} />
+              </button>
+              {showData && <LockedDataInt />}
+              <button className={cx.exportBtn} style={{ background: NAVY }}>Export PDF</button>
+            </>
+          );
+
+          if (layoutMode === "phone") return <>{sidebarNode}{mainNode}{footerNode}</>;
+          return <CalculatorShell layoutMode={layoutMode} sidebar={sidebarNode} main={mainNode} footer={footerNode} />;
+        })()}
 
         {/* Disclaimer */}
         <div className="mt-8 flex gap-3 rounded-xl border border-amber-200 bg-amber-50/80 px-4 py-3.5">
