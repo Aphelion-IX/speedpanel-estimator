@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import {
   Layers, AlertTriangle, Lock, ChevronDown, RotateCcw,
   Box, Frame, Hammer, Plus, Trash2, Copy, Settings,
-  Smartphone, Monitor, TabletSmartphone,
+  Smartphone, Monitor,
 } from "lucide-react";
 import { useLayoutMode, type EffectiveLayout, type LayoutPreference } from "./useLayoutMode";
 
@@ -3419,22 +3419,15 @@ function useCalculatorState({ computeFn, makeDefaultWall, orient, dimUnit, onWal
 }
 
 // --- LayoutModeToggle -----------------------------------------------------------
-// Single icon button that cycles Auto -> Phone -> Web -> Auto. Placed in the
-// header next to the reset button.
-const LAYOUT_ICON: Record<LayoutPreference, React.ReactNode> = {
-  auto: <TabletSmartphone size={16} />,
-  phone: <Smartphone size={16} />,
-  web: <Monitor size={16} />,
-};
-const LAYOUT_LABEL: Record<LayoutPreference, string> = { auto: "Auto", phone: "Phone", web: "Web" };
-
-const LayoutModeToggle = ({ preference, cyclePreference }: { preference: LayoutPreference; cyclePreference: () => void }) => (
+// Icon button showing whichever layout is currently in effect; click forces
+// the other one. Placed in the header next to the reset button.
+const LayoutModeToggle = ({ effective, onToggle }: { effective: EffectiveLayout; onToggle: () => void }) => (
   <button
-    onClick={cyclePreference}
-    title={`Layout: ${LAYOUT_LABEL[preference]} (click to change)`}
+    onClick={onToggle}
+    title={effective === "phone" ? "Layout: Phone (click for Web)" : "Layout: Web (click for Phone)"}
     className="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 bg-white text-slate-400 shadow-sm active:scale-95 transition-all"
   >
-    {LAYOUT_ICON[preference]}
+    {effective === "phone" ? <Smartphone size={16} /> : <Monitor size={16} />}
   </button>
 );
 
@@ -3718,7 +3711,7 @@ export default function SpeedpanelEstimator() {
   const [showWall, setShowWall]               = useState(true);
   const [showTrackFinish, setShowTrackFinish] = useState(false);
   const [dimUnit, setDimUnit] = useState("m");
-  const { preference: layoutPreference, effective: layoutMode, cyclePreference } = useLayoutMode();
+  const { effective: layoutMode, toggleLayout } = useLayoutMode();
 
   const sys    = SYSTEMS.find(s => s.id === system) || SYSTEMS[0];
   const isExt  = sys.ext;
@@ -3811,7 +3804,7 @@ export default function SpeedpanelEstimator() {
             <p className={cx.lbl} style={{marginTop:"6px", paddingLeft:0}}>Wall Systems Estimator</p>
           </div>
           <div className="flex items-center gap-2">
-            <LayoutModeToggle preference={layoutPreference} cyclePreference={cyclePreference} />
+            <LayoutModeToggle effective={layoutMode} onToggle={toggleLayout} />
             <button onClick={resetAll} className="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 bg-white text-slate-400 shadow-sm active:scale-95 transition-all">
               <RotateCcw size={16} />
             </button>

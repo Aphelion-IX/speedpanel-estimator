@@ -36,9 +36,9 @@ export function useLayoutMode() {
   const effective: EffectiveLayout =
     preference === "auto" ? (isWideViewport ? "web" : "phone") : preference;
 
-  const cyclePreference = useCallback(() => {
-    setPreference(p => (p === "auto" ? "phone" : p === "phone" ? "web" : "auto"));
-  }, []);
+  const toggleLayout = useCallback(() => {
+    setPreference(effective === "phone" ? "web" : "phone");
+  }, [effective]);
 
-  return { preference, effective, setPreference, cyclePreference };
+  return { preference, effective, setPreference, toggleLayout };
 }
