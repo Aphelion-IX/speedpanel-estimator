@@ -3574,10 +3574,7 @@ function ExternalCalculator({ store, orient, dimUnit, setDimUnit, systemSelector
             </div>
           </div>
           <DimensionInputs active={active} toDisp={toDisp} toM={toM} updDim={updDim} onUpdate={update} out={out} orient={orient} />
-          {/* Phone: span table stays inline here, matching the original layout.
-              Web: relocated to the top of the main column (see mainNode) since
-              it's already a real table and reads better with the extra width. */}
-          {layoutMode === "phone" && <SpanTable orient={orient} type={78} />}
+          <SpanTable orient={orient} type={78} />
         </div>
       </div>
 
@@ -3597,7 +3594,6 @@ function ExternalCalculator({ store, orient, dimUnit, setDimUnit, systemSelector
 
   const mainNode = (
     <>
-      {layoutMode === "web" && <SpanTable orient={orient} type={78} />}
       {layoutMode === "web" && (
         <WallsSummaryTable results={results} activeId={activeId} setActiveId={setActiveId} warnById={warnById} toDisp={toDisp} dimUnit={dimUnit} />
       )}
@@ -4106,9 +4102,7 @@ export default function SpeedpanelEstimator() {
                     </div>
                   </div>
                   <DimensionInputs active={active} toDisp={toDisp} toM={toM} updDim={updDim} onUpdate={update} out={out} orient={orient} />
-                  {/* Phone: span table stays inline here, matching the original layout.
-                      Web: relocated to the top of the main column (see mainNode). */}
-                  {layoutMode === "phone" && <SpanTable orient={orient} type={active.type} wallSystem={active.wallSystem} />}
+                  <SpanTable orient={orient} type={active.type} wallSystem={active.wallSystem} />
                 </div>
                 <div className="border-t border-slate-100 pt-3">
                   <div className="mb-1.5 flex items-center justify-between">
@@ -4171,7 +4165,6 @@ export default function SpeedpanelEstimator() {
 
           const mainNode = (
             <>
-              {layoutMode === "web" && <SpanTable orient={orient} type={active.type} wallSystem={active.wallSystem} />}
               {layoutMode === "web" && (
                 <WallsSummaryTable results={results} activeId={activeId} setActiveId={setActiveId} warnById={warnById} toDisp={toDisp} dimUnit={dimUnit} />
               )}
