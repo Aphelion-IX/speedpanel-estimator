@@ -1,10 +1,10 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   Layers, AlertTriangle, Lock, ChevronDown, RotateCcw,
   Box, Frame, Hammer, Plus, Trash2, Copy, Settings,
   Smartphone, Monitor,
 } from "lucide-react";
-import { useLayoutMode, type EffectiveLayout, type LayoutPreference } from "./useLayoutMode";
+import { useLayoutMode, type EffectiveLayout } from "./useLayoutMode";
 
 // --- Design tokens ------------------------------------------------------------
 const NAVY      = "#0B1233"; // primary body/heading text colour
@@ -1690,6 +1690,10 @@ const SYSTEMS = [
   { id: "ext-horiz", label: "Horizontal", sub: "External Wall", ext: true,  orient: "horizontal" as const },
 ];
 
+// Single default-wall factory shared by both Internal and External. The colour
+// fields are only read by External (Internal ignores them), but every wall
+// carries them so the same wall list can be shown/computed in either mode --
+// see useWallStore, which keeps one shared list across all system switches.
 const defaultWall = (id: number): Wall => ({
   id, name: `Wall ${id}`, type: 78, profile: "standard", wallSystem: "standard",
   cornerPartnerId: null, cornerSide: "right",
@@ -1697,20 +1701,9 @@ const defaultWall = (id: number): Wall => ({
   width: "", height: "", leftH: "", rightH: "", eavesH: "", apexH: "", ridgeX: "",
   headFinish: "C", bottomFinish: "C", leftFinish: "C", rightFinish: "C",
   intCorners: "", extCorners: "",
+  colour: "OW", colourType: "stocked",
   edges: { top: true, bottom: true, left: true, right: true },
   headFlash: true, forcedStock: "", fullyEngaged: false, steelStructure: false,
-});
-
-const defaultExtWall = (id: number): Wall => ({
-  id, name: `Wall ${id}`, type: 78, profile: "standard", wallSystem: "standard",
-  cornerPartnerId: null, cornerSide: "right",
-  floorHeight: "", shaftPartnerId: null,
-  width: "", height: "", leftH: "", rightH: "", eavesH: "", apexH: "", ridgeX: "",
-  headFinish: "C", bottomFinish: "C", leftFinish: "C", rightFinish: "C",
-  intCorners: "", extCorners: "",
-  colour: "OW", colourType: "stocked", forcedStock: "",
-  edges: { top: true, bottom: true, left: true, right: true },
-  headFlash: true, fullyEngaged: false, steelStructure: false,
 });
 
 
@@ -3209,7 +3202,7 @@ const WallsCard = ({ walls, results, activeId, setActiveId, active, update, addB
 
 // --- WallsSummaryTable ----------------------------------------------------------
 // Web/tablet-only "all walls at a glance" table. No new state -- driven entirely
-// by data already computed by useCalculatorState (results/activeId/warnById);
+// by data already computed by the wall store / useWallResults (results/activeId/warnById);
 // clicking a row calls the same setActiveId used by WallsCard's tab strip.
 const WallsSummaryTable = ({ results, activeId, setActiveId, warnById, toDisp, dimUnit }: {
   results: WallResult[]; activeId: number; setActiveId: (id: number) => void;
@@ -3259,28 +3252,58 @@ const WallsSummaryTable = ({ results, activeId, setActiveId, warnById, toDisp, d
   );
 };
 
-// --- useCalculatorState -------------------------------------------------------
-// Custom hook that owns all wall-management and project-length state that is
-// identical between ExternalCalculator and SpeedpanelEstimator. Parameterised
-// only by the compute function (internal vs external) and the default-wall
-// factory (defaultWall vs defaultExtWall). onWallAdded is called after a new
-// wall is added so callers can show their wall-detail accordion if needed.
-interface UseCalculatorStateOptions {
-  computeFn: (inp: WallInput) => ComputeOut;
-  makeDefaultWall: (id: number) => Wall;
-  orient: "vertical" | "horizontal";
-  dimUnit: string;
-  onWallAdded?: () => void;
+// --- useWallStore -------------------------------------------------------------
+// Owns the single, SHARED wall/project state used by BOTH the Internal
+// (SpeedpanelEstimator) and External (ExternalCalculator) calculators. One list
+// survives every orientation/wall-type switch (the raw Wall shape is identical
+// across modes -- orientation is not stored on a wall, and External compute
+// ignores the Internal-only fields), and is persisted to the device so the
+// project restores on reopen. Compute-agnostic: per-mode results are derived
+// separately via useWallResults.
+const PROJECT_KEY = "speedpanel:project";
+
+interface PersistedProject {
+  v: number;
+  walls: Wall[];
+  activeId: number;
+  nextId: number;
+  projectStock: string;
+  projectLock: boolean;
+  customLengthInput: string;
+  customActive: boolean;
 }
 
-function useCalculatorState({ computeFn, makeDefaultWall, orient, dimUnit, onWallAdded }: UseCalculatorStateOptions) {
-  const [walls, setWalls]               = useState<Wall[]>(() => [makeDefaultWall(1)]);
-  const [activeId, setActiveId]         = useState(1);
-  const [nextId, setNextId]             = useState(2);
-  const [projectStock, setProjectStock] = useState("");
-  const [projectLock, setProjectLock]   = useState(false);
-  const [customLengthInput, setCustomLengthInput] = useState("");
-  const [customActive, setCustomActive] = useState(false);
+function loadProject(): PersistedProject | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(PROJECT_KEY);
+    if (!raw) return null;
+    const p = JSON.parse(raw);
+    if (!p || p.v !== 1 || !Array.isArray(p.walls) || p.walls.length === 0) return null;
+    return p as PersistedProject;
+  } catch {
+    return null;
+  }
+}
+
+function useWallStore({ dimUnit, onWallAdded }: { dimUnit: string; onWallAdded?: () => void }) {
+  const saved = loadProject();
+  const [walls, setWalls]               = useState<Wall[]>(() => saved ? saved.walls : [defaultWall(1)]);
+  const [activeId, setActiveId]         = useState(() => saved ? saved.activeId : 1);
+  const [nextId, setNextId]             = useState(() => saved ? saved.nextId : 2);
+  const [projectStock, setProjectStock] = useState(() => saved ? saved.projectStock : "");
+  const [projectLock, setProjectLock]   = useState(() => saved ? saved.projectLock : false);
+  const [customLengthInput, setCustomLengthInput] = useState(() => saved ? saved.customLengthInput : "");
+  const [customActive, setCustomActive] = useState(() => saved ? saved.customActive : false);
+
+  // Persist the whole project to the device on any change.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const payload: PersistedProject = {
+      v: 1, walls, activeId, nextId, projectStock, projectLock, customLengthInput, customActive,
+    };
+    try { window.localStorage.setItem(PROJECT_KEY, JSON.stringify(payload)); } catch { /* ignore quota/serialization errors */ }
+  }, [walls, activeId, nextId, projectStock, projectLock, customLengthInput, customActive]);
 
   const active = walls.find(w => w.id === activeId) || walls[0];
   const update = (patch: Partial<Wall>) =>
@@ -3289,24 +3312,6 @@ function useCalculatorState({ computeFn, makeDefaultWall, orient, dimUnit, onWal
   const toM    = makeToM(dimUnit);
   const updDim = (field: DimField, d: string) =>
     update({ [field]: toM(d) } as Pick<Wall, DimField>);
-
-  // PERF NOTE: walls array reference changes on every keystroke (setWalls creates
-  // a new array), so this memo re-runs all wall computations on each input event.
-  // For typical project sizes (<=20 walls) this is fast enough. If wall counts
-  // grow, consider a per-wall memo keyed by wall id + a shallow hash of inputs.
-  const results = useMemo<WallResult[]>(
-    () => walls.map(w => ({ wall: w, out: computeFn({ ...w, orient }) })),
-    [walls, orient] // eslint-disable-line react-hooks/exhaustive-deps
-  );
-  const out = useMemo(
-    () => (results.find(r => r.wall.id === activeId) || { out: { empty: true, warnings: [], notes: [] } }).out
-       || { empty: true, warnings: [], notes: [] },
-    [results, activeId]
-  );
-
-  const warnById = Object.fromEntries(
-    results.map(r => [r.wall.id, !!(r.out.warnings && r.out.warnings.length > 0)])
-  );
 
   // Apply or clear the project-wide stocked length across all walls.
   const setProjectLength = (stock: string, locked: boolean) => {
@@ -3329,7 +3334,7 @@ function useCalculatorState({ computeFn, makeDefaultWall, orient, dimUnit, onWal
 
   const addBlankWall = () => {
     const id = nextId;
-    setWalls(ws => [...ws, { ...makeDefaultWall(id), forcedStock: projectForcedStock() }]);
+    setWalls(ws => [...ws, { ...defaultWall(id), forcedStock: projectForcedStock() }]);
     setNextId(id + 1);
     setActiveId(id);
     onWallAdded?.();
@@ -3392,9 +3397,10 @@ function useCalculatorState({ computeFn, makeDefaultWall, orient, dimUnit, onWal
     }
   };
 
-  // Reset all wall state back to a single blank wall. Used by switchSystem/resetAll.
+  // Reset all wall state back to a single blank wall. Used by resetAll (the
+  // header reset button) -- NOT by switchSystem anymore, which now preserves walls.
   const resetWalls = () => {
-    setWalls([makeDefaultWall(1)]);
+    setWalls([defaultWall(1)]);
     setActiveId(1);
     setNextId(2);
     setProjectStock("");
@@ -3411,11 +3417,43 @@ function useCalculatorState({ computeFn, makeDefaultWall, orient, dimUnit, onWal
     walls, setWalls, activeId, setActiveId, nextId, setNextId,
     projectStock, projectLock, customLengthInput, customActive,
     active, update, toDisp, toM, updDim,
-    results, out, warnById,
     setProjectLength, projectForcedStock,
     addBlankWall, duplicateWall, deleteWall,
     commitCustomLength, toggleCustom, resetWalls, clearCustomLength,
   };
+}
+
+// Shared store type, threaded from SpeedpanelEstimator down into ExternalCalculator
+// so both calculators read/write the same wall list.
+type WallStore = ReturnType<typeof useWallStore>;
+
+// --- useWallResults -----------------------------------------------------------
+// Derives the per-mode compute results from the shared wall list. Called once
+// per active calculator with that mode's compute function (compute vs
+// computeExternal), so the same walls produce Internal or External estimates
+// without touching the stored data.
+function useWallResults(
+  walls: Wall[], activeId: number,
+  computeFn: (inp: WallInput) => ComputeOut,
+  orient: "vertical" | "horizontal",
+) {
+  // PERF NOTE: walls array reference changes on every keystroke (setWalls creates
+  // a new array), so this memo re-runs all wall computations on each input event.
+  // For typical project sizes (<=20 walls) this is fast enough. If wall counts
+  // grow, consider a per-wall memo keyed by wall id + a shallow hash of inputs.
+  const results = useMemo<WallResult[]>(
+    () => walls.map(w => ({ wall: w, out: computeFn({ ...w, orient }) })),
+    [walls, orient] // eslint-disable-line react-hooks/exhaustive-deps
+  );
+  const out = useMemo(
+    () => (results.find(r => r.wall.id === activeId) || { out: { empty: true, warnings: [], notes: [] } }).out
+       || { empty: true, warnings: [], notes: [] },
+    [results, activeId]
+  );
+  const warnById = Object.fromEntries(
+    results.map(r => [r.wall.id, !!(r.out.warnings && r.out.warnings.length > 0)])
+  );
+  return { results, out, warnById };
 }
 
 // --- LayoutModeToggle -----------------------------------------------------------
@@ -3446,13 +3484,12 @@ const CalculatorShell = ({ layoutMode, sidebar, main, footer }: {
 );
 
 // --- ExternalCalculator -------------------------------------------------------
-// orient is derived from sys.orient in the parent and passed as a prop.
-// It is safe here because switchSystem() in the parent resets walls and resets
-// activeId whenever the system changes, which causes ExternalCalculator to
-// remount with the new orient value. If ExternalCalculator is ever kept mounted
-// across system switches, orient MUST remain in the useMemo dependency array
-// (it already is) to prevent stale compute results.
-function ExternalCalculator({ orient, dimUnit, setDimUnit, systemSelector, layoutMode }: { orient: "vertical" | "horizontal"; dimUnit: string; setDimUnit: (u: string) => void; systemSelector?: React.ReactNode; layoutMode: EffectiveLayout }) {
+// orient is derived from sys.orient in the parent and passed as a prop. The
+// wall list comes from the shared `store` (owned by SpeedpanelEstimator) so it
+// survives switching in/out of External mode. orient stays in useWallResults'
+// dependency array to prevent stale compute if this component is kept mounted
+// across orientation switches.
+function ExternalCalculator({ store, orient, dimUnit, setDimUnit, systemSelector, layoutMode }: { store: WallStore; orient: "vertical" | "horizontal"; dimUnit: string; setDimUnit: (u: string) => void; systemSelector?: React.ReactNode; layoutMode: EffectiveLayout }) {
   const [extMode, setExtMode] = useState("project");
   const [showTakeoff, setShowTakeoff] = useState(true);
   const [showLocked, setShowLocked] = useState(false);
@@ -3461,14 +3498,10 @@ function ExternalCalculator({ orient, dimUnit, setDimUnit, systemSelector, layou
     walls, activeId, setActiveId,
     projectStock, projectLock, customLengthInput, customActive,
     active, update, toDisp, toM, updDim,
-    results, out, warnById,
     setProjectLength, addBlankWall, duplicateWall, deleteWall,
     commitCustomLength, toggleCustom, clearCustomLength,
-  } = useCalculatorState({
-    computeFn: computeExternal,
-    makeDefaultWall: defaultExtWall,
-    orient, dimUnit,
-  });
+  } = store;
+  const { results, out, warnById } = useWallResults(walls, activeId, computeExternal, orient);
 
   const switchDimUnit = (u: string) => { setDimUnit(u); clearCustomLength(); };
   const project  = extMode === "project";
@@ -3703,40 +3736,68 @@ function ExternalCalculator({ orient, dimUnit, setDimUnit, systemSelector, layou
   return <CalculatorShell layoutMode={layoutMode} sidebar={sidebarNode} main={mainNode} footer={footerNode} />;
 }
 
+// --- Session persistence ------------------------------------------------------
+// The current view (which system/orientation, project-vs-single mode, and unit)
+// is saved alongside the wall project so reopening the app restores the exact
+// screen. Kept separate from the wall data (PROJECT_KEY) since it's parent-level.
+const SESSION_KEY = "speedpanel:session";
+interface PersistedSession { v: number; system: string; mode: string; dimUnit: string; }
+function loadSession(): PersistedSession | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(SESSION_KEY);
+    if (!raw) return null;
+    const s = JSON.parse(raw);
+    if (!s || s.v !== 1 || !SYSTEMS.some(sys => sys.id === s.system)) return null;
+    return s as PersistedSession;
+  } catch {
+    return null;
+  }
+}
+
 // --- Main app -----------------------------------------------------------------
 export default function SpeedpanelEstimator() {
-  const [system, setSystem] = useState("int-vert");
-  const [mode, setMode]     = useState("project");
+  const savedSession = loadSession();
+  const [system, setSystem] = useState(() => savedSession ? savedSession.system : "int-vert");
+  const [mode, setMode]     = useState(() => savedSession ? savedSession.mode : "project");
   const [showData, setShowData]               = useState(false);
   const [showWall, setShowWall]               = useState(true);
   const [showTrackFinish, setShowTrackFinish] = useState(false);
-  const [dimUnit, setDimUnit] = useState("m");
+  const [dimUnit, setDimUnit] = useState(() => savedSession ? savedSession.dimUnit : "m");
   const { effective: layoutMode, toggleLayout } = useLayoutMode();
+
+  // Persist the current view on change.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try { window.localStorage.setItem(SESSION_KEY, JSON.stringify({ v: 1, system, mode, dimUnit })); } catch { /* ignore */ }
+  }, [system, mode, dimUnit]);
 
   const sys    = SYSTEMS.find(s => s.id === system) || SYSTEMS[0];
   const isExt  = sys.ext;
   const orient = sys.orient;
   const project = mode === "project";
 
+  // Single SHARED wall store (persisted); the External calculator receives the
+  // same `store` so walls survive switching in/out of External mode.
+  const store = useWallStore({ dimUnit, onWallAdded: () => setShowWall(true) });
   const {
     walls, setWalls, activeId, setActiveId,
     projectStock, projectLock, customLengthInput, customActive,
     active, update, toDisp, toM, updDim,
-    results, out, warnById,
     setProjectLength, addBlankWall, duplicateWall, deleteWall,
     commitCustomLength, toggleCustom, resetWalls, clearCustomLength,
-  } = useCalculatorState({
-    computeFn: compute,
-    makeDefaultWall: defaultWall,
-    orient, dimUnit,
-    onWallAdded: () => setShowWall(true),
-  });
+  } = store;
+  const { results, out, warnById } = useWallResults(walls, activeId, compute, orient);
 
   const projChosenAgg = useMemo(() => aggregate(results), [results]);
 
   const switchDimUnit = (u: string) => { setDimUnit(u); clearCustomLength(); };
+  // Deliberate "start over": reset the shared store + view. The persistence
+  // effects immediately re-save the clean default, so a later reload stays clear.
   const resetAll     = () => { resetWalls(); setMode("project"); setSystem("int-vert"); setDimUnit("m"); };
-  const switchSystem = (id: string) => { setSystem(id); resetWalls(); setMode("project"); setShowWall(true); setDimUnit("m"); };
+  // Switching system no longer clears walls -- the shared store is preserved
+  // across every orientation/wall-type change.
+  const switchSystem = (id: string) => { setSystem(id); setShowWall(true); };
 
   // Symmetric corner-wall linking: setting the active wall's partner to
   // targetId also points targetId back at the active wall, and un-links
@@ -3870,7 +3931,7 @@ export default function SpeedpanelEstimator() {
             <>
               <SectionLabel icon={<Settings size={13} />}>System configuration</SectionLabel>
               <div className="mt-1">
-                <ExternalCalculator orient={orient} dimUnit={dimUnit} setDimUnit={switchDimUnit} systemSelector={systemButtons} layoutMode={layoutMode} />
+                <ExternalCalculator store={store} orient={orient} dimUnit={dimUnit} setDimUnit={switchDimUnit} systemSelector={systemButtons} layoutMode={layoutMode} />
               </div>
             </>
           );
