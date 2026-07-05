@@ -1645,11 +1645,17 @@ const LengthExplorer = ({
 // gracefully drops to fewer columns (down to 1) on a narrower web viewport,
 // rather than a fixed column count. On phone layout this renders children
 // exactly as before (no wrapper), so phone output is byte-identical.
+//
+// Column gap only (gap-x-3, matching the app's "mt-3 -- between related
+// groups" rhythm) -- no row gap. Every card placed in here (Card,
+// PanelScheduleTable, etc.) already carries its own baked-in mt-3 top
+// margin for normal block-flow stacking; adding a row gap on top of that
+// would double the spacing whenever the grid wraps to a second row.
 const CardGrid = ({ layoutMode, minWidth = 320, children }: {
   layoutMode: EffectiveLayout; minWidth?: number; children: React.ReactNode;
 }) => (
   layoutMode === "web"
-    ? <div className="grid gap-4 items-start" style={{ gridTemplateColumns: `repeat(auto-fit, minmax(${minWidth}px, 1fr))` }}>{children}</div>
+    ? <div className="grid gap-x-3 items-start" style={{ gridTemplateColumns: `repeat(auto-fit, minmax(${minWidth}px, 1fr))` }}>{children}</div>
     : <>{children}</>
 );
 
@@ -3708,7 +3714,7 @@ const SystemBreakdownWallCard = ({ wall, out, walls, ScheduleComp }: {
   wall: Wall; out: ComputeOut; walls: Wall[];
   ScheduleComp: typeof PanelScheduleCard;
 }) => {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
   const cornerPartner = wall.wallSystem === "corner" && wall.cornerPartnerId != null
     ? walls.find(w => w.id === wall.cornerPartnerId) : undefined;
   const cornerKit = cornerPartner ? computeCornerPair(wall, cornerPartner, INT_CONFIG) : null;
@@ -3717,8 +3723,11 @@ const SystemBreakdownWallCard = ({ wall, out, walls, ScheduleComp }: {
   const shaftKit = shaftPartner ? computeShaftPair(wall, shaftPartner, INT_CONFIG) : null;
 
   return (
+    // cx.accordionInner (no baked-in mt-5, unlike cx.accordion) -- the wrapper's own
+    // mt-3 provides the top gap instead, since this card is a CardGrid item and needs
+    // consistent mt-3 spacing between wrapped rows, not the mt-5 "new section" gap.
     <div className="mt-3">
-      <button onClick={() => setOpen(v => !v)} className={cx.accordion}>
+      <button onClick={() => setOpen(v => !v)} className={cx.accordionInner}>
         <span>
           {wall.name} -- {wall.orient === "vertical" ? "Vertical" : "Horizontal"}, Internal, P{wall.type}
           {!out.empty ? ` -- ${out.area} m2` : ""}
@@ -3803,13 +3812,16 @@ const ConnectionBreakdownCard = ({ connections }: { connections: ConnectionMater
 const SystemBreakdownWallCardExt = ({ wall, out, ScheduleComp }: {
   wall: Wall; out: ComputeOut; ScheduleComp: typeof PanelScheduleCard;
 }) => {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
   const colourEntry = wall.colour ? EXT_STOCKED_COLOURS.find(c => c.code === wall.colour) : null;
   const colourDisplay = colourEntry ? `${colourEntry.label} (${colourEntry.code})` : wall.colour;
 
   return (
+    // cx.accordionInner (no baked-in mt-5, unlike cx.accordion) -- the wrapper's own
+    // mt-3 provides the top gap instead, since this card is a CardGrid item and needs
+    // consistent mt-3 spacing between wrapped rows, not the mt-5 "new section" gap.
     <div className="mt-3">
-      <button onClick={() => setOpen(v => !v)} className={cx.accordion}>
+      <button onClick={() => setOpen(v => !v)} className={cx.accordionInner}>
         <span>
           {wall.name} -- {wall.orient === "vertical" ? "Vertical" : "Horizontal"}, External, P78
           {!out.empty ? ` -- ${out.area} m2` : ""}
