@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, Fragment } from "react";
 import {
   Layers, AlertTriangle, Lock, ChevronDown, RotateCcw,
   Box, Frame, Hammer, Plus, Trash2, Copy, Settings,
@@ -1636,6 +1636,23 @@ const LengthExplorer = ({
   );
 };
 
+// --- CardGrid -------------------------------------------------------------
+// On web layout, arranges its children (cards) side by side in a responsive
+// grid instead of one full-width stacked column -- fixes cards stretching to
+// the whole (~1000px) main column with sparse, empty-feeling rows, and keeps
+// the main column from growing far taller than the sticky sidebar when
+// several cards/wall breakdowns are shown at once. auto-fit/minmax means it
+// gracefully drops to fewer columns (down to 1) on a narrower web viewport,
+// rather than a fixed column count. On phone layout this renders children
+// exactly as before (no wrapper), so phone output is byte-identical.
+const CardGrid = ({ layoutMode, minWidth = 320, children }: {
+  layoutMode: EffectiveLayout; minWidth?: number; children: React.ReactNode;
+}) => (
+  layoutMode === "web"
+    ? <div className="grid gap-4 items-start" style={{ gridTemplateColumns: `repeat(auto-fit, minmax(${minWidth}px, 1fr))` }}>{children}</div>
+    : <>{children}</>
+);
+
 // --- UI primitives ------------------------------------------------------------
 const SectionLabel = ({ icon, children }: { icon: React.ReactNode; children: React.ReactNode }) => (
   <div className={cx.sectionLbl}>
@@ -2585,9 +2602,9 @@ const PanelScheduleTable = ({ title, icon, customSchedule, groups, packSize, sto
   customSchedule?: CustomScheduleEntry[] | null; groups?: PanelGroup[];
   packSize: number; stocks: number[]; wastePct?: number; orient?: string; showCustomNote?: boolean;
 }) => {
-  const TH = "py-2.5 px-3 text-left text-xs font-bold uppercase tracking-widest text-slate-500 border-b border-slate-100";
-  const TD = "py-2.5 px-3 text-sm text-slate-600 border-b border-slate-100 last:border-0";
-  const TDm = "py-2.5 px-3 text-sm font-semibold border-b border-slate-100 last:border-0";
+  const TH = "py-2.5 px-2 text-left text-xs font-bold uppercase tracking-wide text-slate-500 border-b border-slate-100";
+  const TD = "py-2.5 px-2 text-sm text-slate-600 border-b border-slate-100 last:border-0";
+  const TDm = "py-2.5 px-2 text-sm font-semibold border-b border-slate-100 last:border-0";
   const hasCustom = customSchedule && customSchedule.length > 0;
 
   return (
@@ -2600,14 +2617,15 @@ const PanelScheduleTable = ({ title, icon, customSchedule, groups, packSize, sto
           {orient === "horizontal" ? "Factory-cut row widths." : "Factory-cut panels (max 9000 mm)."} Pack of {packSize}. Confirm with Speedpanel.
         </p>
       )}
-      <table className="w-full">
+      <div className="overflow-x-auto">
+      <table className="w-full min-w-[400px]">
         <thead>
           <tr>
             <th className={TH}>{hasCustom ? "Length" : "Stock"}</th>
             <th className={TH}>Status</th>
-            <th className={TH}>Required</th>
+            <th className={TH}>Req.</th>
             <th className={TH}>Packs</th>
-            <th className={TH}>Ordered</th>
+            <th className={TH}>Ord.</th>
             <th className={TH}>Spare</th>
           </tr>
         </thead>
@@ -2633,18 +2651,25 @@ const PanelScheduleTable = ({ title, icon, customSchedule, groups, packSize, sto
             );
           }) : (groups || []).map((g, i) => {
             const status = stockStatus(g.stock * 1000, stocks);
+            const showNote = g.underPack || g.spare > 3;
             return (
-              <tr key={i}>
-                <td className={TDm} style={{ color: NAVY }}>{r1(g.stock)} m</td>
-                <td className={TD}><StockBadge status={status} /></td>
-                <td className={TD}>{g.pieces}</td>
-                <td className={TD}>{g.packs} of {g.ps || packSize}</td>
-                <td className={TDm} style={{ color: BLUE }}>{g.ordered}</td>
-                <td className={TD}>
-                  {g.spare}
-                  {(g.underPack || g.spare > 3) && <PackNote type={typeFromPackSize(g.ps || packSize)} spare={g.spare} />}
-                </td>
-              </tr>
+              <Fragment key={i}>
+                <tr>
+                  <td className={TDm} style={{ color: NAVY }}>{r1(g.stock)} m</td>
+                  <td className={TD}><StockBadge status={status} /></td>
+                  <td className={TD}>{g.pieces}</td>
+                  <td className={TD}>{g.packs} of {g.ps || packSize}</td>
+                  <td className={TDm} style={{ color: BLUE }}>{g.ordered}</td>
+                  <td className={showNote ? "py-2.5 px-2 text-sm text-slate-600" : TD}>{g.spare}</td>
+                </tr>
+                {showNote && (
+                  <tr>
+                    <td colSpan={6} className="pb-2.5 border-b border-slate-100 last:border-0">
+                      <PackNote type={typeFromPackSize(g.ps || packSize)} spare={g.spare} />
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
             );
           })}
           {!hasCustom && (!groups || groups.length === 0) && (
@@ -2652,6 +2677,7 @@ const PanelScheduleTable = ({ title, icon, customSchedule, groups, packSize, sto
           )}
         </tbody>
       </table>
+      </div>
       <div className={cx.hr}>
         {hasCustom ? (
           <>
@@ -2866,7 +2892,9 @@ const TrackFlashingCardExt = ({ out, orient, headFlashActive }: { out: ComputeOu
 );
 
 // --- TrackFlashingCardExtProj -------------------------------------------------
-const TrackFlashingCardExtProj = ({ agg }: { agg: ReturnType<typeof buildExtProjAgg> }) => (
+const TrackFlashingCardExtProj = ({ agg, connectionLM = 0, connectionPieces = 0 }: {
+  agg: ReturnType<typeof buildExtProjAgg>; connectionLM?: number; connectionPieces?: number;
+}) => (
   <Card title="Track and flashing" icon={<Frame size={14} />}>
     {agg.cLM > 0 && (
       <LMLineItem
@@ -2888,7 +2916,12 @@ const TrackFlashingCardExtProj = ({ agg }: { agg: ReturnType<typeof buildExtProj
         label="Head track flashing 0.7 mm BMT x 130 mm GAL"
         pieces={agg.flashPieces} lm={agg.flashLM} stockLabel={`@ ${r1(FLASH_STOCK)} m`} />
     )}
-    {agg.cLM === 0 && agg.jLM === 0 && agg.zLM === 0 && <Row k="No track yet" v="--" dim />}
+    {connectionPieces > 0 && (
+      <LMLineItem
+        label="Extra C/J track (combined wall junctions)"
+        pieces={connectionPieces} lm={connectionLM} stockLabel={`stocked @ ${r1(HORIZ_CTRACK_STOCK)} m`} />
+    )}
+    {agg.cLM === 0 && agg.jLM === 0 && agg.zLM === 0 && connectionPieces === 0 && <Row k="No track yet" v="--" dim />}
   </Card>
 );
 
@@ -2973,7 +3006,7 @@ interface WallsCardProps {
   orient?: "vertical" | "horizontal"; // gates the horizontal-only wall system dropdown
   onCornerLink?: (targetId: number | null) => void; // Corner wall run linking (internal only)
   onShaftLink?: (targetId: number | null) => void; // Shaft wall primary/secondary linking (internal only)
-  onJunctionLink?: (targetId: number | null) => void; // Generic adjoining-wall linking, any orient/wallSystem (internal only)
+  onJunctionLink?: (targetId: number | null) => void; // Generic adjoining-wall linking -- any orient/wallSystem, Internal or External
 }
 const WallsCard = ({ walls, results, activeId, setActiveId, active, update, addBlankWall, duplicateWall, deleteWall, warnById, showTypes = true, systemSelector, orient, onCornerLink, onShaftLink, onJunctionLink }: WallsCardProps) => (
   <div className={cx.section}>
@@ -3003,10 +3036,11 @@ const WallsCard = ({ walls, results, activeId, setActiveId, active, update, addB
         )}
       </>
     )}
-    {/* 1c -- Generic adjoining-wall junction link (internal only). Not gated by
-        orient/wallSystem -- available on every wall, since a junction can occur
-        between any two walls in the project (see JunctionLinkSelector). */}
-    {showTypes && onJunctionLink && walls.length > 1 && (
+    {/* 1c -- Generic adjoining-wall junction link. Not gated by showTypes/
+        orient/wallSystem -- available on every wall in either calculator
+        (Internal or External), since a junction can occur between any two
+        walls in the project (see JunctionLinkSelector). */}
+    {onJunctionLink && walls.length > 1 && (
       <JunctionLinkSelector active={active} walls={walls} onLink={onJunctionLink} />
     )}
     {/* 2 -- Panel configuration (internal only). Shaft wall is always 78 mm --
@@ -3096,7 +3130,8 @@ const WallsSummaryTable = ({ results, activeId, setActiveId, warnById, toDisp, d
       <div className={cx.cardTitle} style={{ color: NAVY }}>
         <span style={{ color: BLUE }}><Frame size={14} /></span>Walls ({results.length})
       </div>
-      <table className="w-full">
+      <div className="overflow-x-auto">
+      <table className="w-full min-w-[560px]">
         <thead>
           <tr>
             <th className={TH}>Wall</th>
@@ -3129,6 +3164,7 @@ const WallsSummaryTable = ({ results, activeId, setActiveId, warnById, toDisp, d
           })}
         </tbody>
       </table>
+      </div>
     </div>
   );
 };
@@ -3297,6 +3333,25 @@ function useWallStore({ dimUnit, onWallAdded }: { dimUnit: string; onWallAdded?:
   // typed value (e.g. "7200" entered in mm mode) doesn't linger in m mode.
   const clearCustomLength = () => { setCustomLengthInput(""); setCustomActive(false); };
 
+  // Symmetric junction linking (see Wall.junctionPartnerId): marks two walls as
+  // physically adjoining for the combined estimate's connection/junction
+  // material calculation (src/estimate/calculateConnectionMaterials.ts). Lives
+  // here (rather than per-calculator) since it's generic -- available on any
+  // wall regardless of orientation/wallSystem, and needed by both the Internal
+  // and External calculators, which share this one store.
+  const linkJunctionPartner = (targetId: number | null) => {
+    setWalls(ws => {
+      const prevPartnerId = ws.find(w => w.id === activeId)?.junctionPartnerId ?? null;
+      return ws.map(w => {
+        if (w.id === activeId) return { ...w, junctionPartnerId: targetId };
+        if (targetId !== null && w.id === targetId) return { ...w, junctionPartnerId: activeId };
+        if (prevPartnerId !== null && w.id === prevPartnerId && w.id !== targetId) return { ...w, junctionPartnerId: null };
+        if (targetId !== null && w.junctionPartnerId === targetId && w.id !== activeId) return { ...w, junctionPartnerId: null };
+        return w;
+      });
+    });
+  };
+
   return {
     walls, setWalls, activeId, setActiveId, nextId, setNextId,
     projectStock, projectLock, customLengthInput, customActive,
@@ -3304,6 +3359,7 @@ function useWallStore({ dimUnit, onWallAdded }: { dimUnit: string; onWallAdded?:
     setProjectLength, projectForcedStock,
     addBlankWall, duplicateWall, deleteWall,
     commitCustomLength, toggleCustom, resetWalls, clearCustomLength,
+    linkJunctionPartner,
   };
 }
 
@@ -3385,12 +3441,14 @@ function ExternalCalculator({ store, orient, dimUnit, setDimUnit, systemSelector
     active, update, toDisp, toM, updDim,
     setProjectLength, addBlankWall, duplicateWall, deleteWall,
     commitCustomLength, toggleCustom, clearCustomLength,
+    linkJunctionPartner,
   } = store;
   const { results, out, warnById } = useWallResults(walls, activeId, computeExternal);
 
   const switchDimUnit = (u: string) => { setDimUnit(u); clearCustomLength(); };
   const project  = extMode === "project";
   const projAgg  = useMemo(() => buildExtProjAgg(results), [results]);
+  const combinedEstimate = useCombinedEstimateCalc(walls);
 
   const edgeOptions = [
     { key: "headFlash", label: HEAD_FLASH_LABEL, sublabel: HEAD_FLASH_SUBLABEL, value: active.headFlash, onToggle: () => update({ headFlash: !active.headFlash }) },
@@ -3405,6 +3463,7 @@ function ExternalCalculator({ store, orient, dimUnit, setDimUnit, systemSelector
         active={active} update={update} addBlankWall={addBlankWall}
         duplicateWall={duplicateWall} deleteWall={deleteWall} warnById={warnById} showTypes={false}
         systemSelector={systemSelector} orient={orient}
+        onJunctionLink={linkJunctionPartner}
       />
 
       <SectionLabel icon={<Box size={13} />}>Panel configuration</SectionLabel>
@@ -3515,10 +3574,7 @@ function ExternalCalculator({ store, orient, dimUnit, setDimUnit, systemSelector
             </div>
           </div>
           <DimensionInputs active={active} toDisp={toDisp} toM={toM} updDim={updDim} onUpdate={update} out={out} orient={orient} />
-          {/* Phone: span table stays inline here, matching the original layout.
-              Web: relocated to the top of the main column (see mainNode) since
-              it's already a real table and reads better with the extra width. */}
-          {layoutMode === "phone" && <SpanTable orient={orient} type={78} />}
+          <SpanTable orient={orient} type={78} />
         </div>
       </div>
 
@@ -3538,7 +3594,6 @@ function ExternalCalculator({ store, orient, dimUnit, setDimUnit, systemSelector
 
   const mainNode = (
     <>
-      {layoutMode === "web" && <SpanTable orient={orient} type={78} />}
       {layoutMode === "web" && (
         <WallsSummaryTable results={results} activeId={activeId} setActiveId={setActiveId} warnById={warnById} toDisp={toDisp} dimUnit={dimUnit} />
       )}
@@ -3562,16 +3617,18 @@ function ExternalCalculator({ store, orient, dimUnit, setDimUnit, systemSelector
                     {active.colourType === "special" && <span className="ml-auto text-xs font-bold uppercase tracking-wide text-amber-600">Special order</span>}
                   </div>
               )}
-              <ScheduleComp title="Panel order schedule -- P78 coloured" icon={<Box size={14} />}
-                customSchedule={out.customSchedule}
-                groups={out.result.groups.map((g: PanelGroup) => ({ ...g, ps: EXT_PACK }))}
-                packSize={EXT_PACK} stocks={EXT_STOCK} wastePct={out.result.wastePct} orient={orient} />
-              <TrackFlashingCardExt out={out} orient={orient} headFlashActive={active.headFlash} />
-              <FixingSealantCard title="Fixing and sealant quantities"
-                boxes30={out.boxes30 || 0} fix30={out.fix30 || 0}
-                boxes16={out.boxes16 || 0} fix16={out.fix16 || 0}
-                sealantBoxes={out.sealantBoxes || 0} sausages={out.sausages || 0} area={out.area || 0}
-                sealantLabel="Sikaflex 400 Fire PU" sealantRate={2} footnote="Est. fixings -- 1000/box." />
+              <CardGrid layoutMode={layoutMode} minWidth={380}>
+                <ScheduleComp title="Panel order schedule -- P78 coloured" icon={<Box size={14} />}
+                  customSchedule={out.customSchedule}
+                  groups={out.result.groups.map((g: PanelGroup) => ({ ...g, ps: EXT_PACK }))}
+                  packSize={EXT_PACK} stocks={EXT_STOCK} wastePct={out.result.wastePct} orient={orient} />
+                <TrackFlashingCardExt out={out} orient={orient} headFlashActive={active.headFlash} />
+                <FixingSealantCard title="Fixing and sealant quantities"
+                  boxes30={out.boxes30 || 0} fix30={out.fix30 || 0}
+                  boxes16={out.boxes16 || 0} fix16={out.fix16 || 0}
+                  sealantBoxes={out.sealantBoxes || 0} sausages={out.sausages || 0} area={out.area || 0}
+                  sealantLabel="Sikaflex 400 Fire PU" sealantRate={2} footnote="Est. fixings -- 1000/box." />
+              </CardGrid>
               {out.notes && out.notes.length > 0 && <NotesList notes={out.notes} />}
             </div>
             );
@@ -3582,23 +3639,41 @@ function ExternalCalculator({ store, orient, dimUnit, setDimUnit, systemSelector
       {project && (
         <>
           <ProjectSeparator />
-          <StatsRow area={`${projAgg.totalArea} m2`} panels={projAgg.panels} panelType="P78" />
-          <Card title="Project order estimate" icon={<Box size={14} />}>
-            {projAgg.groups.map((g: ExtAggGroup, i: number) => (
-              <StockGroupRow key={i}
-                stock={g.stock} ordered={g.ordered} pieces={g.pieces}
-                packs={g.packs} packSize={EXT_PACK} spare={g.spare}
-                stocks={EXT_STOCK} isLast={i === projAgg.groups.length - 1}
-              />
+
+          {/* System Breakdown: shows HOW the estimate was built, wall by wall */}
+          <SectionLabel icon={<Layers size={13} />}>System breakdown</SectionLabel>
+          <CardGrid layoutMode={layoutMode} minWidth={420}>
+            {results.map(({ wall: w, out: o }) => (
+              <SystemBreakdownWallCardExt key={w.id} wall={w} out={o} ScheduleComp={ScheduleComp} />
             ))}
-            {projAgg.groups.length === 0 && <Row k="No panels yet" v="--" dim />}
-          </Card>
-          <TrackFlashingCardExtProj agg={projAgg} />
-          <FixingSealantCard title="Fixing and sealant -- whole project"
-            boxes30={projAgg.boxes30} fix30={projAgg.fix30}
-            boxes16={projAgg.boxes16} fix16={projAgg.fix16}
-            sealantBoxes={projAgg.sealantBoxes} sausages={projAgg.sausages} area={projAgg.totalArea}
-            sealantLabel="Sikaflex 400 Fire PU" sealantRate={2} footnote="Est. fixings pooled - 1000/box." />
+          </CardGrid>
+
+          {/* Connection Breakdown: shows WHY extra materials were added */}
+          <SectionLabel icon={<Frame size={13} />}>Connection breakdown</SectionLabel>
+          <ConnectionBreakdownCard connections={combinedEstimate.connections} />
+
+          {/* Easy to Order: shows WHAT needs to be ordered -- one combined material list */}
+          <SectionLabel icon={<Box size={13} />}>Easy to order -- combined material summary</SectionLabel>
+          <StatsRow area={`${projAgg.totalArea} m2`} panels={projAgg.panels} panelType="P78" />
+          <CardGrid layoutMode={layoutMode} minWidth={300}>
+            <Card title="Project order estimate" icon={<Box size={14} />}>
+              {projAgg.groups.map((g: ExtAggGroup, i: number) => (
+                <StockGroupRow key={i}
+                  stock={g.stock} ordered={g.ordered} pieces={g.pieces}
+                  packs={g.packs} packSize={EXT_PACK} spare={g.spare}
+                  stocks={EXT_STOCK} isLast={i === projAgg.groups.length - 1}
+                />
+              ))}
+              {projAgg.groups.length === 0 && <Row k="No panels yet" v="--" dim />}
+            </Card>
+            <TrackFlashingCardExtProj agg={projAgg}
+              connectionLM={combinedEstimate.connectionLM} connectionPieces={combinedEstimate.connectionPieces} />
+            <FixingSealantCard title="Fixing and sealant -- whole project"
+              boxes30={projAgg.boxes30} fix30={projAgg.fix30}
+              boxes16={projAgg.boxes16} fix16={projAgg.fix16}
+              sealantBoxes={projAgg.sealantBoxes} sausages={projAgg.sausages} area={projAgg.totalArea}
+              sealantLabel="Sikaflex 400 Fire PU" sealantRate={2} footnote="Est. fixings pooled - 1000/box." />
+          </CardGrid>
         </>
       )}
     </>
@@ -3720,6 +3795,63 @@ const ConnectionBreakdownCard = ({ connections }: { connections: ConnectionMater
   </Card>
 );
 
+// --- SystemBreakdownWallCardExt -------------------------------------------------
+// External-system counterpart to SystemBreakdownWallCard: one wall's own
+// section of the combined estimate's System Breakdown, reusing the same
+// single-wall display components the External "Selected wall estimate" view
+// uses (colour badge, TrackFlashingCardExt, External fixing/sealant rates).
+const SystemBreakdownWallCardExt = ({ wall, out, ScheduleComp }: {
+  wall: Wall; out: ComputeOut; ScheduleComp: typeof PanelScheduleCard;
+}) => {
+  const [open, setOpen] = useState(true);
+  const colourEntry = wall.colour ? EXT_STOCKED_COLOURS.find(c => c.code === wall.colour) : null;
+  const colourDisplay = colourEntry ? `${colourEntry.label} (${colourEntry.code})` : wall.colour;
+
+  return (
+    <div className="mt-3">
+      <button onClick={() => setOpen(v => !v)} className={cx.accordion}>
+        <span>
+          {wall.name} -- {wall.orient === "vertical" ? "Vertical" : "Horizontal"}, External, P78
+          {!out.empty ? ` -- ${out.area} m2` : ""}
+        </span>
+        <ChevronDown size={15} className={`transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && (
+        <div className="mt-3">
+          {out.empty || !out.result ? (
+            <Card title={wall.name} icon={<Frame size={14} />}>
+              <Row k="Enter width and height to estimate this wall" v="--" dim />
+            </Card>
+          ) : (
+            <>
+              <StatsRow area={`${out.area} m2`} panels={out.result.panels} panelType="P78" />
+              {wall.colour && (
+                <div className="mt-2 flex items-center gap-2 rounded-lg border px-3 py-2.5" style={{ borderColor: GOLD, background: "#fffbeb" }}>
+                  <span className="text-xs font-bold uppercase tracking-wide text-amber-700">Colour</span>
+                  <span className="text-sm font-semibold" style={{ color: NAVY }}>{colourDisplay}</span>
+                  {wall.colourType === "special" && <span className="ml-auto text-xs font-bold uppercase tracking-wide text-amber-600">Special order</span>}
+                </div>
+              )}
+              <ScheduleComp title="Panel order schedule -- P78 coloured" icon={<Box size={14} />}
+                customSchedule={out.customSchedule}
+                groups={out.result.groups.map((g: PanelGroup) => ({ ...g, ps: EXT_PACK }))}
+                packSize={EXT_PACK} stocks={EXT_STOCK} wastePct={out.result.wastePct} orient={wall.orient} />
+              <TrackFlashingCardExt out={out} orient={wall.orient} headFlashActive={wall.headFlash} />
+              <FixingSealantCard title="Fixing and sealant quantities"
+                boxes30={out.boxes30 || 0} fix30={out.fix30 || 0}
+                boxes16={out.boxes16 || 0} fix16={out.fix16 || 0}
+                sealantBoxes={out.sealantBoxes || 0} sausages={out.sausages || 0} area={out.area || 0}
+                sealantLabel="Sikaflex 400 Fire PU" sealantRate={2} footnote="Est. fixings -- 1000/box." />
+              <WarningsList warnings={out.warnings} />
+              {out.notes && out.notes.length > 0 && <NotesList notes={out.notes} />}
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
 // --- Session persistence ------------------------------------------------------
 // The current view (which system/orientation, project-vs-single mode, and unit)
 // is saved alongside the wall project so reopening the app restores the exact
@@ -3769,6 +3901,7 @@ export default function SpeedpanelEstimator() {
     active, update, toDisp, toM, updDim,
     setProjectLength, addBlankWall, duplicateWall, deleteWall,
     commitCustomLength, toggleCustom, resetWalls, clearCustomLength,
+    linkJunctionPartner,
   } = store;
   // Orientation is per-wall (see Wall.orient) -- this is the ACTIVE wall's own
   // orientation, used only to drive which fields/selectors are shown for it.
@@ -3836,24 +3969,6 @@ export default function SpeedpanelEstimator() {
     if (!partner) return null;
     return computeShaftPair(active, partner, INT_CONFIG);
   }, [orient, active, walls]);
-
-  // Symmetric junction linking (see Wall.junctionPartnerId): marks two walls as
-  // physically adjoining for the combined estimate's connection/junction
-  // material calculation (src/estimate/calculateConnectionMaterials.ts). Same
-  // symmetric-link pattern as linkCornerPartner/linkShaftPartner, but generic
-  // -- available on any wall regardless of orientation/wallSystem.
-  const linkJunctionPartner = (targetId: number | null) => {
-    setWalls(ws => {
-      const prevPartnerId = ws.find(w => w.id === activeId)?.junctionPartnerId ?? null;
-      return ws.map(w => {
-        if (w.id === activeId) return { ...w, junctionPartnerId: targetId };
-        if (targetId !== null && w.id === targetId) return { ...w, junctionPartnerId: activeId };
-        if (prevPartnerId !== null && w.id === prevPartnerId && w.id !== targetId) return { ...w, junctionPartnerId: null };
-        if (targetId !== null && w.junctionPartnerId === targetId && w.id !== activeId) return { ...w, junctionPartnerId: null };
-        return w;
-      });
-    });
-  };
 
   const combinedEstimate = useCombinedEstimateCalc(walls);
 
@@ -3987,9 +4102,7 @@ export default function SpeedpanelEstimator() {
                     </div>
                   </div>
                   <DimensionInputs active={active} toDisp={toDisp} toM={toM} updDim={updDim} onUpdate={update} out={out} orient={orient} />
-                  {/* Phone: span table stays inline here, matching the original layout.
-                      Web: relocated to the top of the main column (see mainNode). */}
-                  {layoutMode === "phone" && <SpanTable orient={orient} type={active.type} wallSystem={active.wallSystem} />}
+                  <SpanTable orient={orient} type={active.type} wallSystem={active.wallSystem} />
                 </div>
                 <div className="border-t border-slate-100 pt-3">
                   <div className="mb-1.5 flex items-center justify-between">
@@ -4052,7 +4165,6 @@ export default function SpeedpanelEstimator() {
 
           const mainNode = (
             <>
-              {layoutMode === "web" && <SpanTable orient={orient} type={active.type} wallSystem={active.wallSystem} />}
               {layoutMode === "web" && (
                 <WallsSummaryTable results={results} activeId={activeId} setActiveId={setActiveId} warnById={warnById} toDisp={toDisp} dimUnit={dimUnit} />
               )}
@@ -4067,28 +4179,30 @@ export default function SpeedpanelEstimator() {
                   {showWall && (
                     <div className="mt-3">
                       <StatsRow area={`${out.area} m2`} panels={out.chosen.panels} panelType={`P${active.type}`} />
-                      <ScheduleComp title={`Panel schedule -- P${active.type}`} icon={<Box size={14} />}
-                        customSchedule={out.customSchedule}
-                        groups={out.chosen.groups}
-                        packSize={PACK[active.type]} stocks={STOCK_LENGTHS}
-                        wastePct={out.chosen.wastePct} orient={orient} />
-                      <TrackFlashingCardInt out={out} headFlashActive={active.headFlash} wall={active} />
-                      {active.wallSystem === "shaft" && <ShaftVerticalCard out={out} />}
-                      {cornerPair && (() => {
-                        const partner = walls.find(w => w.id === active.cornerPartnerId);
-                        return <CornerKitCard kit={cornerPair} partnerName={partner ? partner.name : "linked run"} />;
-                      })()}
-                      {shaftPair && (() => {
-                        const partner = walls.find(w => w.id === active.shaftPartnerId);
-                        return <ShaftJunctionCard kit={shaftPair} partnerName={partner ? partner.name : "linked wall"} />;
-                      })()}
-                      {active.wallSystem === "shaft" && <ShaftSlabCard out={out} />}
-                      <FixingSealantCard title="Fixing and sealant quantities"
-                        boxes30={out.boxes30 || 0} fix30={out.fix30 || 0}
-                        boxes16={out.boxes16 || 0} fix16={out.fix16 || 0}
-                        sealantBoxes={out.sealantBoxes || 0} sausages={out.sausages || 0} area={out.area || 0}
-                        sealantLabel="Hilti CP606 sealant" sealantRate={4}
-                        p2pNote={out.p2pNote} p2pEnhanced={out.p2pEnhanced} />
+                      <CardGrid layoutMode={layoutMode} minWidth={420}>
+                        <ScheduleComp title={`Panel schedule -- P${active.type}`} icon={<Box size={14} />}
+                          customSchedule={out.customSchedule}
+                          groups={out.chosen.groups}
+                          packSize={PACK[active.type]} stocks={STOCK_LENGTHS}
+                          wastePct={out.chosen.wastePct} orient={orient} />
+                        <TrackFlashingCardInt out={out} headFlashActive={active.headFlash} wall={active} />
+                        {active.wallSystem === "shaft" && <ShaftVerticalCard out={out} />}
+                        {cornerPair && (() => {
+                          const partner = walls.find(w => w.id === active.cornerPartnerId);
+                          return <CornerKitCard kit={cornerPair} partnerName={partner ? partner.name : "linked run"} />;
+                        })()}
+                        {shaftPair && (() => {
+                          const partner = walls.find(w => w.id === active.shaftPartnerId);
+                          return <ShaftJunctionCard kit={shaftPair} partnerName={partner ? partner.name : "linked wall"} />;
+                        })()}
+                        {active.wallSystem === "shaft" && <ShaftSlabCard out={out} />}
+                        <FixingSealantCard title="Fixing and sealant quantities"
+                          boxes30={out.boxes30 || 0} fix30={out.fix30 || 0}
+                          boxes16={out.boxes16 || 0} fix16={out.fix16 || 0}
+                          sealantBoxes={out.sealantBoxes || 0} sausages={out.sausages || 0} area={out.area || 0}
+                          sealantLabel="Hilti CP606 sealant" sealantRate={4}
+                          p2pNote={out.p2pNote} p2pEnhanced={out.p2pEnhanced} />
+                      </CardGrid>
                       {out.notes && out.notes.length > 0 && <NotesList notes={out.notes} />}
                     </div>
                   )}
@@ -4102,9 +4216,11 @@ export default function SpeedpanelEstimator() {
 
                   {/* System Breakdown: shows HOW the estimate was built, wall by wall */}
                   <SectionLabel icon={<Layers size={13} />}>System breakdown</SectionLabel>
-                  {results.map(({ wall: w, out: o }) => (
-                    <SystemBreakdownWallCard key={w.id} wall={w} out={o} walls={walls} ScheduleComp={ScheduleComp} />
-                  ))}
+                  <CardGrid layoutMode={layoutMode} minWidth={420}>
+                    {results.map(({ wall: w, out: o }) => (
+                      <SystemBreakdownWallCard key={w.id} wall={w} out={o} walls={walls} ScheduleComp={ScheduleComp} />
+                    ))}
+                  </CardGrid>
 
                   {/* Connection Breakdown: shows WHY extra materials were added */}
                   <SectionLabel icon={<Frame size={13} />}>Connection breakdown</SectionLabel>
@@ -4117,64 +4233,66 @@ export default function SpeedpanelEstimator() {
                     panels={projChosenAgg ? projChosenAgg.totalPanels : "--"}
                     panelType={`P${active.type}`}
                   />
-                  <Card title="Project order estimate" icon={<Box size={14} />}>
-                    {projChosenAgg && (
-                      <>
-                        {projChosenAgg.panels.map((p: AggPanelEntry, i: number) => (
-                          <StockGroupRow key={i}
-                            stock={p.stock} ordered={p.ordered} pieces={p.pieces}
-                            packs={p.packs} packSize={p.ps ?? PACK[p.type]} spare={p.spare}
-                            stocks={STOCK_LENGTHS} isLast={i === projChosenAgg.panels.length - 1 && projChosenAgg.customPanels.length === 0}
-                            typeLabel={`P${p.type}`}
-                            packNote={(p.underPack || p.spare > 3) ? <PackNote type={p.type} spare={p.spare} /> : undefined}
-                          />
-                        ))}
-                        {projChosenAgg.customPanels.length > 0 && (
-                          <>
-                            {projChosenAgg.panels.length > 0 && <p className={cx.cardHd + " pt-2 pb-1"}>Custom lengths</p>}
-                            {projChosenAgg.customPanels.map((s: AggCustomEntry, i: number) => (
-                              <div key={i}>
-                                <ScheduleRow mm={s.mm} ordered={s.ordered} qty={s.qty} packs={s.packs} packSize={s.packSize} stocks={STOCK_LENGTHS} isLast={i === projChosenAgg.customPanels.length - 1} />
-                                {(s.qty < s.packSize || s.spare > 3) && <PackNote type={s.type} spare={s.spare} />}
-                              </div>
-                            ))}
-                          </>
-                        )}
-                        {projChosenAgg.panels.length === 0 && projChosenAgg.customPanels.length === 0 && <Row k="No panels yet" v="--" dim />}
-                        <div className={cx.hr}><Row k="Wastage (order)" v={`${r1(projChosenAgg.wastePct)}%`} dim /></div>
-                      </>
-                    )}
-                    {!projChosenAgg && <Row k="No panels yet" v="--" dim />}
-                  </Card>
-                  <TrackFlashingCardIntProj agg={projChosenAgg}
-                    connectionLM={combinedEstimate.connectionLM} connectionPieces={combinedEstimate.connectionPieces} />
-                  <Card title="Fixing and sealant -- whole project" icon={<Hammer size={14} />}>
-                    {projChosenAgg && (
-                      <>
-                        <Row k="10g 30mm SDS" v={`${projChosenAgg.boxes30} box${plural(projChosenAgg.boxes30)}`} hl />
-                        <Row k="QTY req" v={`${projChosenAgg.fix30}`} dim />
-                        <Row k="10g 16mm SDS" v={`${projChosenAgg.boxes16} box${plural(projChosenAgg.boxes16)}`} hl />
-                        <Row k="QTY req" v={`${projChosenAgg.fix16}`} dim />
-                        <Row k="Structure fixings (base track)" v="By others / engineer" dim />
-                        <div className={cx.hr}>
-                          <Row k="Hilti CP606 sealant" v={`${projChosenAgg.sealantBoxes} box${plural(projChosenAgg.sealantBoxes)} (${projChosenAgg.sausages} sausages)`} hl />
-                          <Row k="total area / 4 m2/sausage" v={`${projChosenAgg.totalArea} m2`} dim />
-                        </div>
-                        {projChosenAgg.slabPassSausages > 0 && (
+                  <CardGrid layoutMode={layoutMode} minWidth={300}>
+                    <Card title="Project order estimate" icon={<Box size={14} />}>
+                      {projChosenAgg && (
+                        <>
+                          {projChosenAgg.panels.map((p: AggPanelEntry, i: number) => (
+                            <StockGroupRow key={i}
+                              stock={p.stock} ordered={p.ordered} pieces={p.pieces}
+                              packs={p.packs} packSize={p.ps ?? PACK[p.type]} spare={p.spare}
+                              stocks={STOCK_LENGTHS} isLast={i === projChosenAgg.panels.length - 1 && projChosenAgg.customPanels.length === 0}
+                              typeLabel={`P${p.type}`}
+                              packNote={(p.underPack || p.spare > 3) ? <PackNote type={p.type} spare={p.spare} /> : undefined}
+                            />
+                          ))}
+                          {projChosenAgg.customPanels.length > 0 && (
+                            <>
+                              {projChosenAgg.panels.length > 0 && <p className={cx.cardHd + " pt-2 pb-1"}>Custom lengths</p>}
+                              {projChosenAgg.customPanels.map((s: AggCustomEntry, i: number) => (
+                                <div key={i}>
+                                  <ScheduleRow mm={s.mm} ordered={s.ordered} qty={s.qty} packs={s.packs} packSize={s.packSize} stocks={STOCK_LENGTHS} isLast={i === projChosenAgg.customPanels.length - 1} />
+                                  {(s.qty < s.packSize || s.spare > 3) && <PackNote type={s.type} spare={s.spare} />}
+                                </div>
+                              ))}
+                            </>
+                          )}
+                          {projChosenAgg.panels.length === 0 && projChosenAgg.customPanels.length === 0 && <Row k="No panels yet" v="--" dim />}
+                          <div className={cx.hr}><Row k="Wastage (order)" v={`${r1(projChosenAgg.wastePct)}%`} dim /></div>
+                        </>
+                      )}
+                      {!projChosenAgg && <Row k="No panels yet" v="--" dim />}
+                    </Card>
+                    <TrackFlashingCardIntProj agg={projChosenAgg}
+                      connectionLM={combinedEstimate.connectionLM} connectionPieces={combinedEstimate.connectionPieces} />
+                    <Card title="Fixing and sealant -- whole project" icon={<Hammer size={14} />}>
+                      {projChosenAgg && (
+                        <>
+                          <Row k="10g 30mm SDS" v={`${projChosenAgg.boxes30} box${plural(projChosenAgg.boxes30)}`} hl />
+                          <Row k="QTY req" v={`${projChosenAgg.fix30}`} dim />
+                          <Row k="10g 16mm SDS" v={`${projChosenAgg.boxes16} box${plural(projChosenAgg.boxes16)}`} hl />
+                          <Row k="QTY req" v={`${projChosenAgg.fix16}`} dim />
+                          <Row k="Structure fixings (base track)" v="By others / engineer" dim />
                           <div className={cx.hr}>
-                            <Row k="Slab-pass sealant" v={`${projChosenAgg.slabPassSealantBoxes} box${plural(projChosenAgg.slabPassSealantBoxes)} (${projChosenAgg.slabPassSausages} sausages)`} hl />
+                            <Row k="Hilti CP606 sealant" v={`${projChosenAgg.sealantBoxes} box${plural(projChosenAgg.sealantBoxes)} (${projChosenAgg.sausages} sausages)`} hl />
+                            <Row k="total area / 4 m2/sausage" v={`${projChosenAgg.totalArea} m2`} dim />
                           </div>
-                        )}
-                        {projChosenAgg.slabAnchors > 0 && (
-                          <Row k="Slab-edge anchors - by others, not a Speedpanel part" v={`~${projChosenAgg.slabAnchors}`} dim />
-                        )}
-                        <p className={cx.footnote}>Est. fixings pooled - 1000/box.</p>
-                        {results.some(r => r.out.p2pEnhanced) && (
-                          <p className="pt-1 text-sm leading-relaxed text-amber-700">One or more P78 vertical walls &gt; 5.0 m: enhanced panel-to-panel pattern applied.</p>
-                        )}
-                      </>
-                    )}
-                  </Card>
+                          {projChosenAgg.slabPassSausages > 0 && (
+                            <div className={cx.hr}>
+                              <Row k="Slab-pass sealant" v={`${projChosenAgg.slabPassSealantBoxes} box${plural(projChosenAgg.slabPassSealantBoxes)} (${projChosenAgg.slabPassSausages} sausages)`} hl />
+                            </div>
+                          )}
+                          {projChosenAgg.slabAnchors > 0 && (
+                            <Row k="Slab-edge anchors - by others, not a Speedpanel part" v={`~${projChosenAgg.slabAnchors}`} dim />
+                          )}
+                          <p className={cx.footnote}>Est. fixings pooled - 1000/box.</p>
+                          {results.some(r => r.out.p2pEnhanced) && (
+                            <p className="pt-1 text-sm leading-relaxed text-amber-700">One or more P78 vertical walls &gt; 5.0 m: enhanced panel-to-panel pattern applied.</p>
+                          )}
+                        </>
+                      )}
+                    </Card>
+                  </CardGrid>
                 </>
               )}
             </>
