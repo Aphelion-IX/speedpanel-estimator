@@ -2,9 +2,10 @@ import { useState, useMemo, useEffect, Fragment } from "react";
 import {
   Layers, AlertTriangle, Lock, ChevronDown, RotateCcw,
   Box, Frame, Hammer, Plus, Trash2, Copy, Settings,
-  Smartphone, Monitor,
+  Smartphone, Monitor, Sun, Moon,
 } from "lucide-react";
 import { useLayoutMode, type EffectiveLayout } from "./useLayoutMode";
+import { useThemeMode, type EffectiveTheme } from "./useThemeMode";
 import {
   type PanelType, type SystemConfig,
   PANELS, TYPES, typeFromPackSize,
@@ -24,14 +25,18 @@ import { useCombinedEstimateCalc } from "./estimate/useCombinedEstimateCalc";
 import type { ConnectionMaterial } from "./estimate/estimate.types";
 
 // --- Design tokens ------------------------------------------------------------
-const NAVY      = "#0B1233"; // primary body/heading text colour
-const BLUE      = "#0075CC"; // primary brand colour -- selected states, links, key values
-const LOGO_BLUE = "#00B0FF"; // lighter blue from the Speedpanel logo mark
-const GOLD      = "#F0A800"; // accent colour -- highlights, warnings, custom/special-order badge
-const WHITE     = "#FFFFFF"; // text/icon colour on filled (BLUE/GOLD) backgrounds
-const MUTED     = "#94A3B8"; // inactive/unselected text & icon colour
-const BORDER    = "#E2E8F0"; // standard unselected border colour
-const MUTED_BG  = "#F8FAFC"; // standard unselected fill colour
+// Each references a CSS custom property (defined in index.css for :root and
+// overridden under .dark) instead of a literal hex code, so every existing
+// style={{color: NAVY}}-style usage below becomes dark-mode-aware for free --
+// no need to touch each individual usage site.
+const NAVY      = "var(--navy)";      // primary body/heading text colour
+const BLUE      = "var(--blue)";      // primary brand colour -- selected states, links, key values
+const LOGO_BLUE = "var(--logo-blue)"; // lighter blue from the Speedpanel logo mark
+const GOLD      = "var(--gold)";      // accent colour -- highlights, warnings, custom/special-order badge
+const WHITE     = "var(--on-fill)";   // text/icon colour on filled (BLUE/GOLD) backgrounds
+const MUTED     = "var(--muted)";     // inactive/unselected text & icon colour
+const BORDER    = "var(--border)";    // standard unselected border colour
+const MUTED_BG  = "var(--muted-bg)";  // standard unselected fill colour
 
 // --- Single source of truth for all text sizes and spacing -------------------
 //
@@ -52,62 +57,64 @@ const MUTED_BG  = "#F8FAFC"; // standard unselected fill colour
 //
 const cx = {
   // -- Inputs & labels --------------------------------------------------------
-  input:     "w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 shadow-sm transition-shadow focus:border-blue-300 focus:shadow-md focus:outline-none",
-  lbl:       "mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500 pl-1",
-  wallName:  "min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-800 shadow-sm outline-none transition-shadow focus:border-blue-300 focus:shadow-md",
+  input:     "w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 text-sm text-slate-800 dark:text-slate-100 shadow-sm transition-shadow focus:border-blue-300 dark:focus:border-blue-600 focus:shadow-md focus:outline-none",
+  lbl:       "mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 pl-1",
+  wallName:  "min-w-0 flex-1 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 text-sm font-semibold text-slate-800 dark:text-slate-100 shadow-sm outline-none transition-shadow focus:border-blue-300 dark:focus:border-blue-600 focus:shadow-md",
 
   // -- Layout containers ------------------------------------------------------
-  card:      "rounded-xl border border-slate-200 bg-white p-5 shadow-sm",
-  section:   "rounded-xl border border-slate-200 bg-white p-5 shadow-sm space-y-4",
+  card:      "rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5 shadow-sm",
+  section:   "rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5 shadow-sm space-y-4",
 
   // -- Interactive controls ---------------------------------------------------
   // Accordions: collapsible section toggles
-  accordion:      "mt-5 flex w-full items-center justify-between rounded-xl border border-blue-100 bg-blue-50/60 px-4 py-3.5 text-xs font-bold uppercase tracking-widest text-slate-500 transition-colors hover:bg-blue-100/70",
-  accordionInner: "flex w-full items-center justify-between rounded-xl border border-blue-100 bg-blue-50/60 px-4 py-3.5 text-xs font-bold uppercase tracking-widest text-slate-500 transition-colors hover:bg-blue-100/70",
+  accordion:      "mt-5 flex w-full items-center justify-between rounded-xl border border-blue-100 dark:border-blue-900/60 bg-blue-50/60 dark:bg-blue-950/40 px-4 py-3.5 text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 transition-colors hover:bg-blue-100/70 dark:hover:bg-blue-900/40",
+  accordionInner: "flex w-full items-center justify-between rounded-xl border border-blue-100 dark:border-blue-900/60 bg-blue-50/60 dark:bg-blue-950/40 px-4 py-3.5 text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 transition-colors hover:bg-blue-100/70 dark:hover:bg-blue-900/40",
   // Export/CTA button
-  exportBtn: "mt-8 w-full rounded-xl py-4 text-sm font-bold tracking-widest text-white cursor-not-allowed opacity-50",
+  // Fixed dark fill regardless of theme (a disabled/not-yet-implemented CTA,
+  // not meant to visually flip with light/dark like body text does).
+  exportBtn: "mt-8 w-full rounded-xl py-4 text-sm font-bold tracking-widest text-white bg-slate-800 cursor-not-allowed opacity-50",
 
   // -- Informational boxes ----------------------------------------------------
   // Amber warning boxes
-  warnbox:   "flex gap-3 rounded-xl border border-amber-200 bg-amber-50/80 p-4 text-sm leading-relaxed text-amber-800",
+  warnbox:   "flex gap-3 rounded-xl border border-amber-200 dark:border-amber-800/60 bg-amber-50/80 dark:bg-amber-950/30 p-4 text-sm leading-relaxed text-amber-800 dark:text-amber-300",
   // Blue info / note boxes
-  infoNote:  "mt-3 flex gap-2.5 rounded-xl border border-blue-100 bg-blue-50/70 px-4 py-3 text-sm leading-relaxed text-blue-700",
+  infoNote:  "mt-3 flex gap-2.5 rounded-xl border border-blue-100 dark:border-blue-900/60 bg-blue-50/70 dark:bg-blue-950/40 px-4 py-3 text-sm leading-relaxed text-blue-700 dark:text-blue-300",
   // Pack notes (amber, inside cards)
-  packNote:  "mt-2 flex gap-2 rounded-xl bg-amber-50 px-3.5 py-2.5 text-sm leading-relaxed text-amber-700",
+  packNote:  "mt-2 flex gap-2 rounded-xl bg-amber-50 dark:bg-amber-950/30 px-3.5 py-2.5 text-sm leading-relaxed text-amber-700 dark:text-amber-400",
 
   // -- Data rows -------------------------------------------------------------
   // Row key (left side label)
-  rowKey:    "text-sm font-medium text-slate-400",
-  rowKeyDim: "text-sm font-medium text-slate-300",
+  rowKey:    "text-sm font-medium text-slate-400 dark:text-slate-500",
+  rowKeyDim: "text-sm font-medium text-slate-300 dark:text-slate-600",
   // Row value (right side)
   rowVal:    "text-right text-sm font-semibold shrink-0",
   // Sub-detail line beneath a primary row value (stocked @ etc.)
-  rowSub:    "mt-1 text-xs text-slate-400",
+  rowSub:    "mt-1 text-xs text-slate-400 dark:text-slate-500",
   // Dividers
-  rowBorder: "border-b border-slate-100 pb-3 last:border-0",
-  hr:        "mt-3 border-t border-slate-100 pt-3",
+  rowBorder: "border-b border-slate-100 dark:border-slate-800 pb-3 last:border-0",
+  hr:        "mt-3 border-t border-slate-100 dark:border-slate-800 pt-3",
 
   // -- Section headings -------------------------------------------------------
   // Card sub-heading (Restrained edges, Corner angles, etc.)
-  cardHd:    "mb-2 block text-xs font-bold uppercase tracking-widest text-slate-500 pl-1",
-  cardTitle: "mb-3.5 flex items-center gap-2 border-b border-slate-100 pb-3 text-xs font-bold uppercase tracking-widest",
+  cardHd:    "mb-2 block text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 pl-1",
+  cardTitle: "mb-3.5 flex items-center gap-2 border-b border-slate-100 dark:border-slate-800 pb-3 text-xs font-bold uppercase tracking-widest",
   // Section label with icon
-  sectionLbl:"mb-2 mt-5 flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-slate-500",
+  sectionLbl:"mb-2 mt-5 flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400",
 
   // -- Badges & pills ---------------------------------------------------------
   pill:      "rounded-full px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-white",
   badge:     "shrink-0 rounded-full px-2.5 py-0.5 text-xs font-bold uppercase tracking-wide",
 
   // -- Footnotes & auxiliary text ---------------------------------------------
-  footnote:  "pt-2 text-sm leading-relaxed text-slate-400",
+  footnote:  "pt-2 text-sm leading-relaxed text-slate-400 dark:text-slate-500",
   // Locked-data panel wrapper
-  ldWrap:    "mt-2 space-y-2.5 rounded-xl border border-slate-200 bg-white p-5 text-sm text-slate-500",
-  ldHead:    "pt-3 pb-1 text-xs font-bold uppercase tracking-widest text-slate-500",
+  ldWrap:    "mt-2 space-y-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5 text-sm text-slate-500 dark:text-slate-400",
+  ldHead:    "pt-3 pb-1 text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400",
   // Highlighted info box inside a card (C-track section, etc.)
-  infoBox:   "rounded-lg border border-blue-100 bg-blue-50/60 px-3.5 py-2.5",
-  infoBoxHd: "text-xs font-bold uppercase tracking-widest text-slate-500",
+  infoBox:   "rounded-lg border border-blue-100 dark:border-blue-900/60 bg-blue-50/60 dark:bg-blue-950/40 px-3.5 py-2.5",
+  infoBoxHd: "text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400",
   infoBoxVal:"mt-1 text-sm font-bold",
-  infoBoxSub:"mt-1 text-sm text-slate-500",
+  infoBoxSub:"mt-1 text-sm text-slate-500 dark:text-slate-400",
 };
 
 // --- TypeScript interfaces ----------------------------------------------------
@@ -1484,9 +1491,9 @@ const buildExtProjAgg = (wallResults: WallResult[]) => {
 // --- Locked system data -------------------------------------------------------
 // INT_LOCKED / EXT_LOCKED (display-only reference tables) now live in ./data.
 const DataRow = ({ k, v }: { k: string; v: string }) => (
-  <div className="flex justify-between gap-2 border-b border-slate-100 pb-2.5 last:border-0">
-    <span className="shrink-0 text-sm font-medium text-slate-400">{k}</span>
-    <span className="text-right text-sm font-semibold text-slate-700">{v}</span>
+  <div className="flex justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-2.5 last:border-0">
+    <span className="shrink-0 text-sm font-medium text-slate-400 dark:text-slate-500">{k}</span>
+    <span className="text-right text-sm font-semibold text-slate-700 dark:text-slate-200">{v}</span>
   </div>
 );
 const LDRow = ({ row }: { row: string[] }) =>
@@ -1574,13 +1581,13 @@ const LengthExplorer = ({
       : "Length: automatic";
 
   return (
-    <div className="mt-3 rounded-xl border border-slate-200 bg-white overflow-hidden shadow-sm">
+    <div className="mt-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 overflow-hidden shadow-sm">
       <button
         onClick={() => setOpen(v => !v)}
-        className="flex w-full items-center justify-between px-4 py-3.5 text-xs font-bold uppercase tracking-widest text-slate-500 bg-blue-50/60 transition-colors hover:bg-blue-100/70"
+        className="flex w-full items-center justify-between px-4 py-3.5 text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 bg-blue-50/60 dark:bg-blue-950/40 transition-colors hover:bg-blue-100/70 dark:hover:bg-blue-900/40"
       >
         <span style={{ color: autoSelected ? "#94a3b8" : NAVY }}>{headerLabel}</span>
-        <ChevronDown size={14} className={`text-slate-400 transition-transform ${open ? "rotate-180" : ""}`} />
+        <ChevronDown size={14} className={`text-slate-400 dark:text-slate-500 transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
 
       {open && (
@@ -1588,13 +1595,13 @@ const LengthExplorer = ({
           {/* Auto option */}
           <button
             onClick={() => { onSelect(""); setOpen(false); }}
-            className={`w-full flex items-center justify-between px-4 py-3 text-left transition-colors ${autoSelected ? "bg-blue-50" : "hover:bg-slate-50"}`}
+            className={`w-full flex items-center justify-between px-4 py-3 text-left transition-colors ${autoSelected ? "bg-blue-50 dark:bg-blue-950/40" : "hover:bg-slate-50 dark:hover:bg-slate-800"}`}
           >
             <div>
               <div className="text-sm font-semibold" style={{ color: autoSelected ? BLUE : NAVY }}>
                 {autoSelected && "✓ "}Automatic
               </div>
-              <div className="text-xs text-slate-400 mt-0.5">
+              <div className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
                 {autoRaw ? `Best fit — ${autoRaw.panels} panels, ${Math.round(((autoRaw.offcut ?? 0) / (autoRaw.panels || 1) / ((autoRaw.groups?.[0]?.stock) || 1)) * 1000) / 10}% cut/panel` : "Let the estimator choose"}
               </div>
             </div>
@@ -1609,22 +1616,22 @@ const LengthExplorer = ({
               <button
                 key={opt.stock}
                 onClick={() => { onSelect(String(opt.stock)); setOpen(false); }}
-                className={`w-full px-4 py-3 text-left transition-colors ${isSelected ? "bg-blue-50" : "hover:bg-slate-50"}`}
+                className={`w-full px-4 py-3 text-left transition-colors ${isSelected ? "bg-blue-50 dark:bg-blue-950/40" : "hover:bg-slate-50 dark:hover:bg-slate-800"}`}
               >
                 <div className="flex items-center justify-between gap-3 mb-2">
                   <span className="text-sm font-bold" style={{ color: isSelected ? BLUE : NAVY }}>
                     {isSelected && "✓ "}{opt.label}
                   </span>
-                  <span className="text-sm font-bold text-slate-500">{opt.offcutPct}% cut</span>
+                  <span className="text-sm font-bold text-slate-500 dark:text-slate-400">{opt.offcutPct}% cut</span>
                 </div>
                 {/* Waste bar — wider = more cut off, scaled to 50% max */}
-                <div className="h-2 w-full rounded-full bg-slate-100 overflow-hidden">
+                <div className="h-2 w-full rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
                   <div
                     className="h-full rounded-full transition-all"
                     style={{ width: `${Math.min(100, opt.offcutPct * 2)}%`, background: BLUE, opacity: 0.35 }}
                   />
                 </div>
-                <div className="mt-1.5 text-xs text-slate-400">
+                <div className="mt-1.5 text-xs text-slate-400 dark:text-slate-500">
                   {opt.panels} panels · {opt.packs} pack{opt.packs !== 1 ? "s" : ""} · {opt.ordered} ordered
                 </div>
               </button>
@@ -1645,11 +1652,22 @@ const LengthExplorer = ({
 // gracefully drops to fewer columns (down to 1) on a narrower web viewport,
 // rather than a fixed column count. On phone layout this renders children
 // exactly as before (no wrapper), so phone output is byte-identical.
+//
+// Margin ownership: a grid container blocks normal margin collapsing at its
+// boundary (unlike a plain block sibling), so relying on each child's own
+// baked-in mt-3 (as every card component does, for normal block-flow
+// stacking on phone) produces MORE visible gap on web than phone -- the
+// preceding heading's mb-2 no longer collapses away into the child's larger
+// mt-3, it just adds on top of it. Fix: the grid container itself carries
+// mt-3 (so it collapses normally with whatever precedes it, exactly like a
+// plain card would), gap-3 provides uniform row/column spacing, and
+// [&>*]:!mt-0 neutralizes each child's own top margin so it can't ALSO
+// contribute -- one spacing source instead of two independent ones.
 const CardGrid = ({ layoutMode, minWidth = 320, children }: {
   layoutMode: EffectiveLayout; minWidth?: number; children: React.ReactNode;
 }) => (
   layoutMode === "web"
-    ? <div className="grid gap-4 items-start" style={{ gridTemplateColumns: `repeat(auto-fit, minmax(${minWidth}px, 1fr))` }}>{children}</div>
+    ? <div className="mt-3 grid gap-3 items-start [&>*]:!mt-0" style={{ gridTemplateColumns: `repeat(auto-fit, minmax(${minWidth}px, 1fr))` }}>{children}</div>
     : <>{children}</>
 );
 
@@ -1670,10 +1688,11 @@ const Num = ({ label, value, onChange }: { label: string; value: string; onChang
 );
 
 const UnitToggle = ({ unit, setUnit }: { unit: string; setUnit: (u: string) => void }) => (
-  <div className="flex overflow-hidden rounded-lg border border-slate-200 text-xs font-bold shadow-sm">
+  <div className="flex overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-bold shadow-sm">
     {["m", "mm"].map(u => (
-      <button key={u} onClick={() => setUnit(u)} className="w-11 py-2 text-center transition-all"
-        style={unit === u ? { background: BLUE, color: "#fff" } : { background: "#fff", color: "#94a3b8" }}>{u}</button>
+      <button key={u} onClick={() => setUnit(u)}
+        className={`w-11 py-2 text-center transition-all ${unit === u ? "" : "bg-white dark:bg-slate-800 text-slate-400 dark:text-slate-500"}`}
+        style={unit === u ? { background: BLUE, color: WHITE } : undefined}>{u}</button>
     ))}
   </div>
 );
@@ -1711,9 +1730,9 @@ const StatsRow = ({ area, panels, panelType }: { area: string | number; panels: 
 const NotesList = ({ notes }: { notes?: string[] | null }) => {
   if (!notes || notes.length === 0) return null;
   return (
-    <div className="mt-3 space-y-2 rounded-xl border border-slate-200 bg-slate-50/70 p-3.5">
+    <div className="mt-3 space-y-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-900/40 p-3.5">
       {notes.map((n, i) => (
-        <p key={i} className="flex gap-2 text-sm leading-relaxed text-slate-500">
+        <p key={i} className="flex gap-2 text-sm leading-relaxed text-slate-500 dark:text-slate-400">
           <span style={{ color: BLUE }}>›</span>{n}
         </p>
       ))}
@@ -1736,9 +1755,9 @@ const ProjectLockNote = ({ wallCount, stock, dimUnit, numM, customActive }: {
 };
 
 const Stat = ({ value, label }: { value: string | number; label: string }) => (
-  <div className="rounded-xl border border-slate-200 bg-white px-2 py-4 text-center shadow-sm" style={{ borderTop: `2px solid ${GOLD}` }}>
+  <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-4 text-center shadow-sm" style={{ borderTop: `2px solid ${GOLD}` }}>
     <div className="text-xl font-extrabold leading-none tracking-tight" style={{ color: BLUE }}>{value}</div>
-    <div className="mt-2 text-[10px] font-bold uppercase tracking-wide text-slate-400">{label}</div>
+    <div className="mt-2 text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">{label}</div>
   </div>
 );
 
@@ -1768,7 +1787,7 @@ const LMLineItem = ({ label, pieces, lm, stockLabel, bordered = true }: {
 }) => (
   <div className={bordered ? cx.rowBorder : undefined}>
     <div className="flex items-center justify-between gap-2">
-      <span className="text-sm font-medium text-slate-500">{label}</span>
+      <span className="text-sm font-medium text-slate-500 dark:text-slate-400">{label}</span>
       <span className="text-base font-bold shrink-0" style={{ color: BLUE }}>{pieces} length{plural(pieces)}</span>
     </div>
     <div className={cx.rowSub}>{lm} m total - {stockLabel}</div>
@@ -1781,7 +1800,7 @@ const LMLineItem = ({ label, pieces, lm, stockLabel, bordered = true }: {
 const HeadFlashingCard = ({ dim, pieces, lm, stock }: { dim: string; pieces: number; lm: number; stock: number }) => (
   <Card title="Head track flashing" icon={<Layers size={14} />}>
     <div className="flex items-center justify-between gap-2">
-      <span className="text-sm font-medium text-slate-500">{dim}</span>
+      <span className="text-sm font-medium text-slate-500 dark:text-slate-400">{dim}</span>
       <span className="text-base font-bold shrink-0" style={{ color: BLUE }}>{pieces} length{plural(pieces)}</span>
     </div>
     <div className={cx.rowSub}>{lm} m total - stocked @ {r1(stock)} m</div>
@@ -1794,7 +1813,7 @@ const HeadFlashingCard = ({ dim, pieces, lm, stock }: { dim: string; pieces: num
  * Part 2). Shown identically on both linked walls. */
 const CornerKitCard = ({ kit, partnerName }: { kit: CornerPairResult; partnerName: string }) => (
   <Card title="Corner kit" icon={<Frame size={14} />}>
-    <p className={`mb-2 text-xs leading-relaxed text-slate-400`}>Shared with {partnerName} -- calculated once per corner.</p>
+    <p className={`mb-2 text-xs leading-relaxed text-slate-400 dark:text-slate-500`}>Shared with {partnerName} -- calculated once per corner.</p>
     <LMLineItem
       label={`Corner post - ${kit.section}`}
       pieces={kit.postPieces} lm={kit.postLM}
@@ -1812,7 +1831,7 @@ const CornerKitCard = ({ kit, partnerName }: { kit: CornerPairResult; partnerNam
       </p>
     ))}
     {kit.warnings.map((w, i) => (
-      <p key={`w${i}`} className="mt-2 flex gap-1.5 text-sm leading-relaxed text-amber-700">
+      <p key={`w${i}`} className="mt-2 flex gap-1.5 text-sm leading-relaxed text-amber-700 dark:text-amber-400">
         <AlertTriangle size={13} className="mt-0.5 shrink-0" />
         {w}
       </p>
@@ -1868,7 +1887,7 @@ const ShaftSlabCard = ({ out }: { out: ComputeOut }) => (
 /** Shaft wall back-to-back junction kit, shared between a linked primary + secondary split wall. */
 const ShaftJunctionCard = ({ kit, partnerName }: { kit: ShaftPairResult; partnerName: string }) => (
   <Card title="Back-to-back junction" icon={<Frame size={14} />}>
-    <p className="mb-2 text-xs leading-relaxed text-slate-400">Shared with {partnerName} -- calculated once per split.</p>
+    <p className="mb-2 text-xs leading-relaxed text-slate-400 dark:text-slate-500">Shared with {partnerName} -- calculated once per split.</p>
     <div className={`mb-3 ${cx.infoBox}`}>
       <div className={cx.infoBoxHd}>Selected junction track section</div>
       <div className={cx.infoBoxVal} style={{ color: NAVY }}>{kit.section}</div>
@@ -1886,7 +1905,7 @@ const ShaftJunctionCard = ({ kit, partnerName }: { kit: ShaftPairResult; partner
       </p>
     ))}
     {kit.warnings.map((w, i) => (
-      <p key={`w${i}`} className="mt-2 flex gap-1.5 text-sm leading-relaxed text-amber-700">
+      <p key={`w${i}`} className="mt-2 flex gap-1.5 text-sm leading-relaxed text-amber-700 dark:text-amber-400">
         <AlertTriangle size={13} className="mt-0.5 shrink-0" />
         {w}
       </p>
@@ -1908,10 +1927,10 @@ const PackNote = ({ type, spare }: { type: number; spare?: number }) => {
 
 const StockBadge = ({ status }: { status: ReturnType<typeof stockStatus> }) => {
   if (status.type === "stocked")
-    return <span className={`${cx.badge} bg-emerald-50 text-emerald-700`}>Stocked</span>;
+    return <span className={`${cx.badge} bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400`}>Stocked</span>;
   if (status.type === "near-stock")
-    return <span className={`${cx.badge} bg-blue-50 text-blue-600`}>^ {r1(status.length)} m</span>;
-  return <span className={`${cx.badge} bg-amber-50 text-amber-700`}>Custom</span>;
+    return <span className={`${cx.badge} bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400`}>^ {r1(status.length)} m</span>;
+  return <span className={`${cx.badge} bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400`}>Custom</span>;
 };
 
 const ScheduleRow = ({ mm, ordered, qty, packs, packSize, stocks, isLast, packNumber }: {
@@ -1919,7 +1938,7 @@ const ScheduleRow = ({ mm, ordered, qty, packs, packSize, stocks, isLast, packNu
 }) => {
   const status = stockStatus(mm, stocks);
   return (
-    <div className={`py-3.5 ${isLast ? "" : "border-b border-slate-100"}`}>
+    <div className={`py-3.5 ${isLast ? "" : "border-b border-slate-100 dark:border-slate-800"}`}>
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2.5 min-w-0">
           {packNumber != null && (
@@ -1943,32 +1962,32 @@ const ScheduleRow = ({ mm, ordered, qty, packs, packSize, stocks, isLast, packNu
 // --- SpanTable ----------------------------------------------------------------
 const SpanTable = ({ orient, type, wallSystem }: { orient: string; type: number; wallSystem?: WallSystemId }) => {
   const [open, setOpen] = useState(false);
-  const TH = "py-2.5 px-3 text-left text-xs font-bold uppercase tracking-widest text-slate-500 border-b border-slate-100";
-  const TD = "py-2.5 px-3 text-sm text-slate-600 border-b border-slate-100 last:border-0";
-  const TDm = "py-2.5 px-3 text-sm font-semibold border-b border-slate-100 last:border-0";
+  const TH = "py-2.5 px-3 text-left text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-800";
+  const TD = "py-2.5 px-3 text-sm text-slate-600 dark:text-slate-300 border-b border-slate-100 dark:border-slate-800 last:border-0";
+  const TDm = "py-2.5 px-3 text-sm font-semibold border-b border-slate-100 dark:border-slate-800 last:border-0";
   const label = orient === "vertical" ? `Span table - P${type}` : `C-track span table - P${type}`;
 
   if (orient === "vertical") {
     const rows = SPAN_TABLE_VERT.filter(r => r.type === `P${type}`);
     return (
-      <div className="mt-4 rounded-xl border border-slate-200 bg-white overflow-hidden shadow-sm">
+      <div className="mt-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 overflow-hidden shadow-sm">
         <button onClick={() => setOpen(v => !v)} className={cx.accordionInner}>
           <span>{label}</span>
-          <ChevronDown size={14} className={`text-slate-400 transition-transform ${open ? "rotate-180" : ""}`} />
+          <ChevronDown size={14} className={`text-slate-400 dark:text-slate-500 transition-transform ${open ? "rotate-180" : ""}`} />
         </button>
         {open && (
           <>
-            <table className="w-full border-t border-slate-100">
+            <table className="w-full border-t border-slate-100 dark:border-slate-800">
               <thead><tr><th className={TH}>Panel</th><th className={TH}>Max W</th><th className={TH}>Max H</th></tr></thead>
               <tbody>{rows.map((r, i) => (
-                <tr key={i} className="bg-blue-50/60">
+                <tr key={i} className="bg-blue-50/60 dark:bg-blue-950/40">
                   <td className={TDm} style={{ color: BLUE }}>{r.type}</td>
                   <td className={TD}>{r.maxW}</td>
                   <td className={TD}>{r.maxH}</td>
                 </tr>
               ))}</tbody>
             </table>
-            <div className="px-3.5 py-2.5 text-sm text-slate-400">Height limits apply without steel structure.</div>
+            <div className="px-3.5 py-2.5 text-sm text-slate-400 dark:text-slate-500">Height limits apply without steel structure.</div>
           </>
         )}
       </div>
@@ -1984,14 +2003,14 @@ const SpanTable = ({ orient, type, wallSystem }: { orient: string; type: number;
   // shown inline in the corner-kit card once linked, not here.)
   if (wallSystem === "standard" || wallSystem === "corner") {
     return (
-      <div className="mt-4 rounded-xl border border-slate-200 bg-white overflow-hidden shadow-sm">
+      <div className="mt-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 overflow-hidden shadow-sm">
         <button onClick={() => setOpen(v => !v)} className={cx.accordionInner}>
           <span>{label}</span>
-          <ChevronDown size={14} className={`text-slate-400 transition-transform ${open ? "rotate-180" : ""}`} />
+          <ChevronDown size={14} className={`text-slate-400 dark:text-slate-500 transition-transform ${open ? "rotate-180" : ""}`} />
         </button>
         {open && (
           <>
-            <table className="w-full border-t border-slate-100">
+            <table className="w-full border-t border-slate-100 dark:border-slate-800">
               <thead><tr><th className={TH}>Max W</th><th className={TH}>Max H</th><th className={TH}>C-track</th><th className={TH}>Fix</th></tr></thead>
               <tbody>
                 <tr>
@@ -2002,7 +2021,7 @@ const SpanTable = ({ orient, type, wallSystem }: { orient: string; type: number;
                 </tr>
               </tbody>
             </table>
-            <div className="px-3.5 py-2.5 text-sm text-slate-400">
+            <div className="px-3.5 py-2.5 text-sm text-slate-400 dark:text-slate-500">
               {wallSystem === "standard"
                 ? "Standard wall: fixed C-track section, no span-table lookup. All four edges restrained."
                 : "Corner wall: fixed C-track section on the supported side. The free-corner post has its own size table -- see the corner kit once linked."}
@@ -2020,14 +2039,14 @@ const SpanTable = ({ orient, type, wallSystem }: { orient: string; type: number;
   // height) appears in the Vertical track card once floor height is entered.
   if (wallSystem === "shaft") {
     return (
-      <div className="mt-4 rounded-xl border border-slate-200 bg-white overflow-hidden shadow-sm">
+      <div className="mt-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 overflow-hidden shadow-sm">
         <button onClick={() => setOpen(v => !v)} className={cx.accordionInner}>
           <span>Vertical track table - P78</span>
-          <ChevronDown size={14} className={`text-slate-400 transition-transform ${open ? "rotate-180" : ""}`} />
+          <ChevronDown size={14} className={`text-slate-400 dark:text-slate-500 transition-transform ${open ? "rotate-180" : ""}`} />
         </button>
         {open && (
           <>
-            <table className="w-full border-t border-slate-100">
+            <table className="w-full border-t border-slate-100 dark:border-slate-800">
               <thead><tr><th className={TH}>Floor height up to</th><th className={TH}>Vertical track</th><th className={TH}>Screws each side</th></tr></thead>
               <tbody>{SHAFT_TRACK_TABLE.map((r, i) => (
                 <tr key={i}>
@@ -2037,7 +2056,7 @@ const SpanTable = ({ orient, type, wallSystem }: { orient: string; type: number;
                 </tr>
               ))}</tbody>
             </table>
-            <div className="px-3.5 py-2.5 text-sm text-slate-400">Sized by floor height (slab to soffit), not total shaft height. Total height stacks to any height.</div>
+            <div className="px-3.5 py-2.5 text-sm text-slate-400 dark:text-slate-500">Sized by floor height (slab to soffit), not total shaft height. Total height stacks to any height.</div>
           </>
         )}
       </div>
@@ -2046,17 +2065,17 @@ const SpanTable = ({ orient, type, wallSystem }: { orient: string; type: number;
 
   const rows = SPAN_TABLE_HORIZ[type] || SPAN_TABLE_HORIZ[78];
   return (
-    <div className="mt-4 rounded-xl border border-slate-200 bg-white overflow-hidden shadow-sm">
+    <div className="mt-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 overflow-hidden shadow-sm">
       <button onClick={() => setOpen(v => !v)} className={cx.accordionInner}>
         <span>{label}</span>
-        <ChevronDown size={14} className={`text-slate-400 transition-transform ${open ? "rotate-180" : ""}`} />
+        <ChevronDown size={14} className={`text-slate-400 dark:text-slate-500 transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
       {open && (
         <>
-          <table className="w-full border-t border-slate-100">
+          <table className="w-full border-t border-slate-100 dark:border-slate-800">
             <thead><tr><th className={TH}>Max W</th><th className={TH}>Max H</th><th className={TH}>C-track</th><th className={TH}>Fix</th></tr></thead>
             <tbody>{rows.map((r, i) => (
-              <tr key={i} className={r.note ? "bg-amber-50/60" : ""}>
+              <tr key={i} className={r.note ? "bg-amber-50/60 dark:bg-amber-950/20" : ""}>
                 <td className={TDm} style={{ color: NAVY }}>{r.maxW}</td>
                 <td className={TD}>{r.maxH}</td>
                 <td className={TD} style={{ fontFamily: "monospace", fontSize: "11px" }}>{r.cTrack}</td>
@@ -2064,7 +2083,7 @@ const SpanTable = ({ orient, type, wallSystem }: { orient: string; type: number;
               </tr>
             ))}</tbody>
           </table>
-          {type === 78 && <div className="px-3.5 py-2.5 text-sm text-slate-400">Stacked/shaft condition (W 4.5-5.0 m): height unlimited for material estimating only.</div>}
+          {type === 78 && <div className="px-3.5 py-2.5 text-sm text-slate-400 dark:text-slate-500">Stacked/shaft condition (W 4.5-5.0 m): height unlimited for material estimating only.</div>}
         </>
       )}
     </div>
@@ -2078,7 +2097,7 @@ const ProfileSelector = ({ value, onChange }: { value: ProfileId; onChange: (id:
       const on = value === id;
       return (
         <button key={id} onClick={() => onChange(id)}
-          className={"w-full rounded-xl border-2 py-3.5 px-4 text-sm font-semibold text-center active:scale-95 transition-all " + (on ? "" : "border-slate-200 bg-white")}
+          className={"w-full rounded-xl border-2 py-3.5 px-4 text-sm font-semibold text-center active:scale-95 transition-all " + (on ? "" : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800")}
           style={on ? { borderColor: BLUE, background: BLUE, color: "#fff" } : { color: BLUE }}>{lbl}</button>
       );
     })}
@@ -2100,14 +2119,14 @@ const WALL_SYSTEMS: [WallSystemId, string][] = [
 ];
 
 const WallSystemSelector = ({ value, onChange }: { value: WallSystemId; onChange: (id: WallSystemId) => void }) => (
-  <div className="border-t border-slate-100 pt-3">
+  <div className="border-t border-slate-100 dark:border-slate-800 pt-3">
     <div className={cx.cardHd}>Wall system</div>
     <div className="grid grid-cols-3 items-end gap-1.5">
       {WALL_SYSTEMS.map(([id, label]) => {
         const on = value === id;
         return (
           <button key={id} onClick={() => onChange(id)}
-            className={"w-full rounded-xl border-2 py-3.5 px-2 text-sm font-semibold text-center active:scale-95 transition-all " + (on ? "" : "border-slate-200 bg-white")}
+            className={"w-full rounded-xl border-2 py-3.5 px-2 text-sm font-semibold text-center active:scale-95 transition-all " + (on ? "" : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800")}
             style={on ? { borderColor: BLUE, background: BLUE, color: "#fff" } : { color: BLUE }}>
             {label.replace(" wall", "")}
           </button>
@@ -2133,11 +2152,11 @@ const CornerLinkSelector = ({ active, walls, onLink, onSideChange }: {
   );
   const partner = walls.find(w => w.id === active.cornerPartnerId);
   return (
-    <div className="border-t border-slate-100 pt-3">
+    <div className="border-t border-slate-100 dark:border-slate-800 pt-3">
       <div className={cx.cardHd}>Corner partner run</div>
       <div className="space-y-1.5">
         <button onClick={() => onLink(null)}
-          className={"w-full rounded-xl border-2 py-3 px-4 text-sm font-semibold text-left active:scale-95 transition-all " + (!partner ? "" : "border-slate-200 bg-white")}
+          className={"w-full rounded-xl border-2 py-3 px-4 text-sm font-semibold text-left active:scale-95 transition-all " + (!partner ? "" : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800")}
           style={!partner ? { borderColor: BLUE, background: BLUE, color: "#fff" } : { color: BLUE }}>
           Not linked
         </button>
@@ -2145,7 +2164,7 @@ const CornerLinkSelector = ({ active, walls, onLink, onSideChange }: {
           const on = partner?.id === w.id;
           return (
             <button key={w.id} onClick={() => onLink(w.id)}
-              className={"w-full rounded-xl border-2 py-3 px-4 text-sm font-semibold text-left active:scale-95 transition-all " + (on ? "" : "border-slate-200 bg-white")}
+              className={"w-full rounded-xl border-2 py-3 px-4 text-sm font-semibold text-left active:scale-95 transition-all " + (on ? "" : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800")}
               style={on ? { borderColor: BLUE, background: BLUE, color: "#fff" } : { color: BLUE }}>
               {w.name}
             </button>
@@ -2153,7 +2172,7 @@ const CornerLinkSelector = ({ active, walls, onLink, onSideChange }: {
         })}
       </div>
       {!partner && (
-        <p className="mt-1.5 text-xs leading-relaxed text-slate-400">
+        <p className="mt-1.5 text-xs leading-relaxed text-slate-400 dark:text-slate-500">
           Link this run to another Corner wall run to calculate the shared corner post, screws, sealant, and protection strip.
         </p>
       )}
@@ -2166,7 +2185,7 @@ const CornerLinkSelector = ({ active, walls, onLink, onSideChange }: {
                 const on = (active.cornerSide ?? "right") === side;
                 return (
                   <button key={side} onClick={() => onSideChange(side)}
-                    className={"w-full rounded-xl border-2 py-3 px-4 text-sm font-semibold text-center active:scale-95 transition-all " + (on ? "" : "border-slate-200 bg-white")}
+                    className={"w-full rounded-xl border-2 py-3 px-4 text-sm font-semibold text-center active:scale-95 transition-all " + (on ? "" : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800")}
                     style={on ? { borderColor: BLUE, background: BLUE, color: "#fff" } : { color: BLUE }}>
                     {side === "left" ? "Left" : "Right"}
                   </button>
@@ -2174,7 +2193,7 @@ const CornerLinkSelector = ({ active, walls, onLink, onSideChange }: {
               })}
             </div>
           </div>
-          <p className="mt-1.5 text-xs leading-relaxed text-slate-400">
+          <p className="mt-1.5 text-xs leading-relaxed text-slate-400 dark:text-slate-500">
             Linked to <span className="font-semibold">{partner.name}</span>. This run's {active.cornerSide === "left" ? "left" : "right"} edge is the free corner -- no track/screws on that side; the corner kit covers it.
           </p>
         </>
@@ -2200,11 +2219,11 @@ const ShaftLinkSelector = ({ active, walls, onLink }: {
   );
   const partner = walls.find(w => w.id === active.shaftPartnerId);
   return (
-    <div className="border-t border-slate-100 pt-3">
+    <div className="border-t border-slate-100 dark:border-slate-800 pt-3">
       <div className={cx.cardHd}>Secondary split wall</div>
       <div className="space-y-1.5">
         <button onClick={() => onLink(null)}
-          className={"w-full rounded-xl border-2 py-3 px-4 text-sm font-semibold text-left active:scale-95 transition-all " + (!partner ? "" : "border-slate-200 bg-white")}
+          className={"w-full rounded-xl border-2 py-3 px-4 text-sm font-semibold text-left active:scale-95 transition-all " + (!partner ? "" : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800")}
           style={!partner ? { borderColor: BLUE, background: BLUE, color: "#fff" } : { color: BLUE }}>
           Not linked
         </button>
@@ -2212,14 +2231,14 @@ const ShaftLinkSelector = ({ active, walls, onLink }: {
           const on = partner?.id === w.id;
           return (
             <button key={w.id} onClick={() => onLink(w.id)}
-              className={"w-full rounded-xl border-2 py-3 px-4 text-sm font-semibold text-left active:scale-95 transition-all " + (on ? "" : "border-slate-200 bg-white")}
+              className={"w-full rounded-xl border-2 py-3 px-4 text-sm font-semibold text-left active:scale-95 transition-all " + (on ? "" : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800")}
               style={on ? { borderColor: BLUE, background: BLUE, color: "#fff" } : { color: BLUE }}>
               {w.name}
             </button>
           );
         })}
       </div>
-      <p className="mt-1.5 text-xs leading-relaxed text-slate-400">
+      <p className="mt-1.5 text-xs leading-relaxed text-slate-400 dark:text-slate-500">
         {partner
           ? <>Linked to <span className="font-semibold">{partner.name}</span>. Both stack walls are estimated independently, plus a shared back-to-back C-track junction where they split.</>
           : "Link this wall to a secondary split stack wall if the shaft has one, to calculate the shared back-to-back junction track."}
@@ -2246,11 +2265,11 @@ const JunctionLinkSelector = ({ active, walls, onLink }: {
   );
   const partner = walls.find(w => w.id === active.junctionPartnerId);
   return (
-    <div className="border-t border-slate-100 pt-3">
+    <div className="border-t border-slate-100 dark:border-slate-800 pt-3">
       <div className={cx.cardHd}>Adjoining wall (junction)</div>
       <div className="space-y-1.5">
         <button onClick={() => onLink(null)}
-          className={"w-full rounded-xl border-2 py-3 px-4 text-sm font-semibold text-left active:scale-95 transition-all " + (!partner ? "" : "border-slate-200 bg-white")}
+          className={"w-full rounded-xl border-2 py-3 px-4 text-sm font-semibold text-left active:scale-95 transition-all " + (!partner ? "" : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800")}
           style={!partner ? { borderColor: BLUE, background: BLUE, color: "#fff" } : { color: BLUE }}>
           Not linked
         </button>
@@ -2258,14 +2277,14 @@ const JunctionLinkSelector = ({ active, walls, onLink }: {
           const on = partner?.id === w.id;
           return (
             <button key={w.id} onClick={() => onLink(w.id)}
-              className={"w-full rounded-xl border-2 py-3 px-4 text-sm font-semibold text-left active:scale-95 transition-all " + (on ? "" : "border-slate-200 bg-white")}
+              className={"w-full rounded-xl border-2 py-3 px-4 text-sm font-semibold text-left active:scale-95 transition-all " + (on ? "" : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800")}
               style={on ? { borderColor: BLUE, background: BLUE, color: "#fff" } : { color: BLUE }}>
               {w.name} <span className="font-normal" style={{ color: on ? "rgba(255,255,255,0.7)" : MUTED }}>({w.orient === "vertical" ? "Vert" : "Horiz"})</span>
             </button>
           );
         })}
       </div>
-      <p className="mt-1.5 text-xs leading-relaxed text-slate-400">
+      <p className="mt-1.5 text-xs leading-relaxed text-slate-400 dark:text-slate-500">
         {partner
           ? partner.orient !== active.orient
             ? <>Linked to <span className="font-semibold">{partner.name}</span>. Combined estimate includes an extra C/J track allowance where these two walls meet.</>
@@ -2285,7 +2304,7 @@ const EstimateModeSelector = ({ visible, mode, setMode }: { visible: boolean; mo
         const on = mode === k;
         return (
           <button key={k} onClick={() => setMode(k)}
-            className={"w-full rounded-xl border-2 py-3.5 px-4 text-sm font-semibold text-center active:scale-95 transition-all " + (on ? "" : "border-slate-200 bg-white")}
+            className={"w-full rounded-xl border-2 py-3.5 px-4 text-sm font-semibold text-center active:scale-95 transition-all " + (on ? "" : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800")}
             style={on ? { borderColor: BLUE, background: BLUE, color: "#fff" } : { color: BLUE }}>{lbl}</button>
         );
       })}
@@ -2300,7 +2319,7 @@ const WarningsList = ({ warnings }: { warnings?: string[] | null }) => {
     <div className="mt-5 space-y-3">
       {warnings.map((w, i) => (
         <div key={i} className={cx.warnbox}>
-          <AlertTriangle size={14} className="mt-0.5 shrink-0 text-amber-500" /><span>{w}</span>
+          <AlertTriangle size={14} className="mt-0.5 shrink-0 text-amber-500 dark:text-amber-400" /><span>{w}</span>
         </div>
       ))}
     </div>
@@ -2338,7 +2357,7 @@ const EdgeRestraintSelector = ({
     const on = locked || edges[edgeKey];
     return (
       <button onClick={locked ? undefined : () => onEdgeToggle(edgeKey)} disabled={locked}
-        className={"w-full rounded-xl border-2 py-3.5 px-4 text-sm font-semibold text-center transition-all " + (locked ? "cursor-default" : "active:scale-95") + (on ? "" : " border-slate-200 bg-white")}
+        className={"w-full rounded-xl border-2 py-3.5 px-4 text-sm font-semibold text-center transition-all " + (locked ? "cursor-default" : "active:scale-95") + (on ? "" : " border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800")}
         style={on ? { borderColor: BLUE, background: BLUE, color: "#fff", opacity: locked ? 0.85 : 1 } : { color: "#94a3b8" }}>
         {on ? "✓ " : ""}{label}
       </button>
@@ -2348,10 +2367,10 @@ const EdgeRestraintSelector = ({
   const TrackSwitch = ({ field, label }: { field: FinishKey; label: string }) => {
     const isJ = activeFinishes ? activeFinishes[field] === "J" : false;
     return (
-      <div className="flex items-center justify-between gap-3 py-3 border-b border-slate-100 last:border-0">
-        <span className="text-sm font-semibold text-slate-600">{label}</span>
+      <div className="flex items-center justify-between gap-3 py-3 border-b border-slate-100 dark:border-slate-800 last:border-0">
+        <span className="text-sm font-semibold text-slate-600 dark:text-slate-300">{label}</span>
         <div className="flex items-center gap-3 shrink-0">
-          <span className="text-sm font-bold text-slate-500">{isJ ? "J-track" : "C-track"}</span>
+          <span className="text-sm font-bold text-slate-500 dark:text-slate-400">{isJ ? "J-track" : "C-track"}</span>
           <button onClick={() => onFinishChange && onFinishChange(field, isJ ? "C" : "J")}
             style={{ background: isJ ? BLUE : "#cbd5e1", width: 44, height: 24, borderRadius: 12, position: "relative", border: "none", cursor: "pointer", transition: "background 0.2s", flexShrink: 0 }}>
             <span style={{ position: "absolute", top: 2, left: isJ ? 22 : 2, width: 20, height: 20, borderRadius: "50%", background: "#fff", boxShadow: "0 1px 3px rgba(0,0,0,0.2)", transition: "left 0.2s", display: "block" }} />
@@ -2373,7 +2392,7 @@ const EdgeRestraintSelector = ({
           <EdgeBtn edgeKey="right" label="Right" />
         </div>
         {locked && (
-          <p className="mt-2 text-xs leading-relaxed text-slate-400">
+          <p className="mt-2 text-xs leading-relaxed text-slate-400 dark:text-slate-500">
             Standard wall assumes all four edges restrained (slab, soffit, and structure both sides).
           </p>
         )}
@@ -2385,10 +2404,10 @@ const EdgeRestraintSelector = ({
           <button onClick={() => setShowTrackFinish(v => !v)}
             className={`${cx.accordionInner} active:scale-95`}>
             <span>Advanced track selection</span>
-            <ChevronDown size={13} className={`text-slate-400 transition-transform ${showTrackFinish ? "rotate-180" : ""}`} />
+            <ChevronDown size={13} className={`text-slate-400 dark:text-slate-500 transition-transform ${showTrackFinish ? "rotate-180" : ""}`} />
           </button>
           {showTrackFinish && (
-            <div className="mt-2 rounded-xl border border-slate-200 bg-white px-3">
+            <div className="mt-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3">
               {(([
                 edges.top    ? { field: "headFinish"   as FinishKey, label: "Head" }   : null,
                 edges.bottom ? { field: "bottomFinish" as FinishKey, label: "Base" }   : null,
@@ -2398,9 +2417,9 @@ const EdgeRestraintSelector = ({
                 <TrackSwitch key={label} field={field} label={label} />
               ))}
               {!edges.top && !edges.bottom && !edges.left && !edges.right && (
-                <p className="py-3 text-center text-sm text-slate-400">No restrained edges selected</p>
+                <p className="py-3 text-center text-sm text-slate-400 dark:text-slate-500">No restrained edges selected</p>
               )}
-              <p className="py-2.5 text-sm text-slate-400">J-track available on P78 panels only</p>
+              <p className="py-2.5 text-sm text-slate-400 dark:text-slate-500">J-track available on P78 panels only</p>
             </div>
           )}
         </div>
@@ -2408,7 +2427,7 @@ const EdgeRestraintSelector = ({
 
       {/* Head track flashing */}
       {flashOption && (
-        <div className="flex w-full items-center justify-between rounded-xl border border-blue-100 bg-blue-50/60 px-4 py-2">
+        <div className="flex w-full items-center justify-between rounded-xl border border-blue-100 dark:border-blue-900/60 bg-blue-50/60 dark:bg-blue-950/40 px-4 py-2">
           <span className={cx.cardHd} style={{marginBottom:0,display:"inline"}}>Head track flashing</span>
           <button onClick={flashOption.onToggle}
             style={{
@@ -2430,17 +2449,17 @@ const EdgeRestraintSelector = ({
         <div className="space-y-2">
           {options.filter(o => o.key !== "headFlash").map(({ key, label, sublabel, value, onToggle }) => (
             <button key={key} onClick={onToggle}
-              className={"w-full rounded-xl border-2 py-3.5 px-4 text-sm font-semibold text-left active:scale-95 transition-all " + (value ? "" : "border-slate-200 bg-white text-slate-500")}
+              className={"w-full rounded-xl border-2 py-3.5 px-4 text-sm font-semibold text-left active:scale-95 transition-all " + (value ? "" : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400")}
               style={value ? { borderColor: BLUE, background: BLUE, color: "#fff" } : undefined}>
               {value ? "✓ " : ""}{label}
-              {sublabel && <span className={`text-sm font-normal ${value ? "text-white/70" : "text-slate-400"}`}> {sublabel}</span>}
+              {sublabel && <span className={`text-sm font-normal ${value ? "text-white/70" : "text-slate-400 dark:text-slate-500"}`}> {sublabel}</span>}
             </button>
           ))}
         </div>
       )}
 
       {/* Corner angles */}
-      <div className="border-t border-slate-100 pt-3">
+      <div className="border-t border-slate-100 dark:border-slate-800 pt-3">
         <div className={cx.cardHd}>Corner angles</div>
         <div className="grid grid-cols-2 items-end gap-2">
           <div>
@@ -2468,9 +2487,9 @@ const EdgeRestraintSelector = ({
 /** Decorative "Project quantities" section divider used in both calculators. */
 const ProjectSeparator = () => (
   <div className="mt-4 mb-2 flex items-center gap-2">
-    <div className="h-px flex-1" style={{ background: "#bfdbfe" }} />
+    <div className="h-px flex-1 bg-blue-200 dark:bg-blue-900/50" />
     <span className={cx.pill} style={{ background: BLUE }}>Project quantities</span>
-    <div className="h-px flex-1" style={{ background: "#bfdbfe" }} />
+    <div className="h-px flex-1 bg-blue-200 dark:bg-blue-900/50" />
   </div>
 );
 
@@ -2481,7 +2500,7 @@ const StockGroupRow = ({ stock, ordered, pieces, packs, packSize, spare, stocks,
   typeLabel?: string; // e.g. "P78" prefix -- omit for external which has no type column
   packNote?: React.ReactNode;
 }) => (
-  <div className={`py-2 ${!isLast ? "border-b border-slate-100" : ""}`}>
+  <div className={`py-2 ${!isLast ? "border-b border-slate-100 dark:border-slate-800" : ""}`}>
     <div className="flex items-center justify-between gap-2">
       <div className="flex items-center gap-2">
         <span className="text-base font-bold" style={{ color: NAVY }}>
@@ -2513,7 +2532,7 @@ const CustomLengthSection = ({ dimUnit, customLengthInput, customActive, project
   const numM = parseFloat(parsedM);
   const overMax = numM > CUSTOM_MAX_LENGTH + 1e-9;
   return (
-    <div className="border-t border-slate-100 pt-3 mt-3">
+    <div className="border-t border-slate-100 dark:border-slate-800 pt-3 mt-3">
       <div className="mb-1.5 flex items-center justify-between">
         <label className={cx.cardHd} style={{marginBottom:0,display:"inline"}}>Custom length</label>
         <ToggleSwitch active={customActive} label={customActive ? "Active" : "Off"} onToggle={toggleCustom} />
@@ -2531,7 +2550,7 @@ const CustomLengthSection = ({ dimUnit, customLengthInput, customActive, project
           opacity: customActive ? 1 : 0.5,
         }} />
       {overMax && customActive && (
-        <p className="mt-1.5 flex gap-1 text-sm leading-relaxed text-amber-700">
+        <p className="mt-1.5 flex gap-1 text-sm leading-relaxed text-amber-700 dark:text-amber-400">
           <AlertTriangle size={11} className="mt-0.5 shrink-0" />
           Exceeds {CUSTOM_MAX_LENGTH} m maximum -- contact Speedpanel.
         </p>
@@ -2571,7 +2590,7 @@ const PanelScheduleCard = ({ title, icon, customSchedule, groups, packSize, stoc
         {(groups || []).map((g, i) => {
           const status = stockStatus(g.stock * 1000, stocks);
           return (
-            <div key={i} className={`py-2 ${i < (groups!.length - 1) ? "border-b border-slate-100" : ""}`}>
+            <div key={i} className={`py-2 ${i < (groups!.length - 1) ? "border-b border-slate-100 dark:border-slate-800" : ""}`}>
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                   <span className="text-base font-bold" style={{ color: NAVY }}>{r1(g.stock)} m</span>
@@ -2602,9 +2621,9 @@ const PanelScheduleTable = ({ title, icon, customSchedule, groups, packSize, sto
   customSchedule?: CustomScheduleEntry[] | null; groups?: PanelGroup[];
   packSize: number; stocks: number[]; wastePct?: number; orient?: string; showCustomNote?: boolean;
 }) => {
-  const TH = "py-2.5 px-2 text-left text-xs font-bold uppercase tracking-wide text-slate-500 border-b border-slate-100";
-  const TD = "py-2.5 px-2 text-sm text-slate-600 border-b border-slate-100 last:border-0";
-  const TDm = "py-2.5 px-2 text-sm font-semibold border-b border-slate-100 last:border-0";
+  const TH = "py-2.5 px-2 text-left text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-800";
+  const TD = "py-2.5 px-2 text-sm text-slate-600 dark:text-slate-300 border-b border-slate-100 dark:border-slate-800 last:border-0";
+  const TDm = "py-2.5 px-2 text-sm font-semibold border-b border-slate-100 dark:border-slate-800 last:border-0";
   const hasCustom = customSchedule && customSchedule.length > 0;
 
   return (
@@ -2660,11 +2679,11 @@ const PanelScheduleTable = ({ title, icon, customSchedule, groups, packSize, sto
                   <td className={TD}>{g.pieces}</td>
                   <td className={TD}>{g.packs} of {g.ps || packSize}</td>
                   <td className={TDm} style={{ color: BLUE }}>{g.ordered}</td>
-                  <td className={showNote ? "py-2.5 px-2 text-sm text-slate-600" : TD}>{g.spare}</td>
+                  <td className={showNote ? "py-2.5 px-2 text-sm text-slate-600 dark:text-slate-300" : TD}>{g.spare}</td>
                 </tr>
                 {showNote && (
                   <tr>
-                    <td colSpan={6} className="pb-2.5 border-b border-slate-100 last:border-0">
+                    <td colSpan={6} className="pb-2.5 border-b border-slate-100 dark:border-slate-800 last:border-0">
                       <PackNote type={typeFromPackSize(g.ps || packSize)} spare={g.spare} />
                     </td>
                   </tr>
@@ -2711,11 +2730,11 @@ const FixingSealantCard = ({ title, boxes30, fix30, boxes16, fix16, sealantBoxes
       <Row k={`area / ${sealantRate} m2/sausage`} v={`${area} m2`} dim />
     </div>
     {p2pEnhanced !== undefined ? (
-      <div className="mt-1.5 border-t border-slate-100 pt-1.5 space-y-1">
+      <div className="mt-1.5 border-t border-slate-100 dark:border-slate-800 pt-1.5 space-y-1">
         {p2pEnhanced ? (
           <>
             <p className="text-sm font-bold" style={{ color: NAVY }}>P78 vertical &gt; 5.0 m -- enhanced panel-to-panel pattern:</p>
-            <p className="text-sm leading-relaxed text-slate-500">Joints 1-2 @500mm - 3-4 @750mm - rest @1000mm - one face.</p>
+            <p className="text-sm leading-relaxed text-slate-500 dark:text-slate-400">Joints 1-2 @500mm - 3-4 @750mm - rest @1000mm - one face.</p>
           </>
         ) : (
           <p className={cx.footnote} style={{paddingTop:0}}>Est. fixings -- 1000/box. {p2pNote}</p>
@@ -2766,7 +2785,7 @@ const TrackFlashingCardInt = ({ out, headFlashActive, wall }: { out: ComputeOut;
           <div className={cx.rowBorder}><Row k="No track yet" v="--" dim /></div>
         )}
         {wall && wall.wallSystem !== "corner" && wall.wallSystem !== "shaft" && (
-          <div className="border-t border-slate-100 pt-3">
+          <div className="border-t border-slate-100 dark:border-slate-800 pt-3">
             <div className={cx.cardHd}>Corner angles</div>
             <Row
               k={`Internal corners${wall.intCorners ? ` x ${wall.intCorners}` : ""}`}
@@ -2981,7 +3000,7 @@ const DimensionInputs = ({ active, toDisp, toM, updDim, onUpdate, out, orient }:
         )}
       </div>
       {isShaft && (
-        <p className="mt-1.5 text-xs leading-relaxed text-slate-400">
+        <p className="mt-1.5 text-xs leading-relaxed text-slate-400 dark:text-slate-500">
           Shaft wall stacks continuously -- total height drives panel/screw counts; floor height sizes the vertical track (see estimate_shaft_wall.md).
         </p>
       )}
@@ -3046,14 +3065,14 @@ const WallsCard = ({ walls, results, activeId, setActiveId, active, update, addB
     {/* 2 -- Panel configuration (internal only). Shaft wall is always 78 mm --
         hidden rather than shown-but-disabled, since it's not a user choice. */}
     {showTypes && active.wallSystem !== "shaft" && (
-      <div className={systemSelector ? "border-t border-slate-100 pt-3" : ""}>
+      <div className={systemSelector ? "border-t border-slate-100 dark:border-slate-800 pt-3" : ""}>
         <div className={cx.cardHd}>Panel configuration</div>
         <div className="grid grid-cols-3 items-end gap-1.5">
           {TYPES.map(t => {
             const on = active.type === t.id;
             return (
               <button key={t.id} onClick={() => update({ type: t.id })}
-                className={"w-full rounded-xl border-2 py-3 px-1.5 text-center active:scale-95 transition-all " + (on ? "" : "border-slate-200 bg-white")}
+                className={"w-full rounded-xl border-2 py-3 px-1.5 text-center active:scale-95 transition-all " + (on ? "" : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800")}
                 style={on ? { borderColor: BLUE, background: BLUE } : undefined}>
                 <div className="text-base font-black leading-none tracking-tight" style={{ color: on ? "#fff" : BLUE }}>{t.label}</div>
                 <div className="mt-1 text-xs font-semibold tracking-wide" style={{ color: on ? "rgba(255,255,255,0.7)" : "#94a3b8" }}>{t.depth}</div>
@@ -3065,7 +3084,7 @@ const WallsCard = ({ walls, results, activeId, setActiveId, active, update, addB
       </div>
     )}
     {showTypes && active.wallSystem === "shaft" && (
-      <div className={systemSelector ? "border-t border-slate-100 pt-3" : ""}>
+      <div className={systemSelector ? "border-t border-slate-100 dark:border-slate-800 pt-3" : ""}>
         <div className={cx.cardHd}>Panel configuration</div>
         <div className="rounded-xl border-2 py-3 px-4 text-center" style={{ borderColor: BLUE, background: BLUE }}>
           <div className="text-base font-black leading-none tracking-tight text-white">78 mm</div>
@@ -3074,14 +3093,14 @@ const WallsCard = ({ walls, results, activeId, setActiveId, active, update, addB
       </div>
     )}
     {/* 3 -- Wall tabs + name + actions */}
-    <div className={showTypes || systemSelector ? "border-t border-slate-100 pt-3" : ""}>
+    <div className={showTypes || systemSelector ? "border-t border-slate-100 dark:border-slate-800 pt-3" : ""}>
       <div className={cx.cardHd}>Walls ({walls.length})</div>
       <div className="flex flex-wrap gap-2 pb-1">
         {results.map(({ wall: w, out: r }) => {
           const on = w.id === activeId;
           return (
             <button key={w.id} onClick={() => setActiveId(w.id)}
-              className={"relative rounded-xl border-2 px-3.5 py-3 text-left active:scale-95 transition-all " + (on ? "" : "border-slate-200 bg-white")}
+              className={"relative rounded-xl border-2 px-3.5 py-3 text-left active:scale-95 transition-all " + (on ? "" : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800")}
               style={on ? { borderColor: BLUE, background: BLUE } : undefined}>
               {warnById[w.id] && <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full" style={{ background: GOLD }} />}
               <div className="max-w-[80px] overflow-hidden text-ellipsis whitespace-nowrap text-sm font-bold" style={{ color: on ? "#fff" : NAVY }}>{w.name}</div>
@@ -3092,7 +3111,7 @@ const WallsCard = ({ walls, results, activeId, setActiveId, active, update, addB
           );
         })}
         <button onClick={addBlankWall}
-          className="shrink-0 rounded-xl border-2 border-dashed px-3.5 py-3 text-left active:scale-95 transition-all bg-white"
+          className="shrink-0 rounded-xl border-2 border-dashed px-3.5 py-3 text-left active:scale-95 transition-all bg-white dark:bg-slate-800"
           style={{ borderColor: BLUE }}>
           <div className="flex items-center gap-1">
             <Plus size={14} style={{ color: BLUE }} />
@@ -3103,9 +3122,9 @@ const WallsCard = ({ walls, results, activeId, setActiveId, active, update, addB
       </div>
       <div className="flex items-center gap-2 mt-2">
         <input value={active.name} onChange={e => update({ name: e.target.value })} maxLength={32} className={cx.wallName} style={{ color: NAVY }} />
-        <button onClick={duplicateWall} title="Duplicate" className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-slate-200 bg-white text-slate-400 shadow-sm active:scale-95"><Copy size={15} /></button>
+        <button onClick={duplicateWall} title="Duplicate" className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-400 dark:text-slate-500 shadow-sm active:scale-95"><Copy size={15} /></button>
         <button onClick={deleteWall} disabled={walls.length === 1} title="Delete"
-          className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl border shadow-sm active:scale-95 ${walls.length === 1 ? "border-slate-100 text-slate-300" : "border-slate-200 bg-white text-red-400"}`}>
+          className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl border shadow-sm active:scale-95 ${walls.length === 1 ? "border-slate-100 dark:border-slate-800 text-slate-300 dark:text-slate-600" : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-red-400 dark:text-red-400"}`}>
           <Trash2 size={15} />
         </button>
       </div>
@@ -3121,9 +3140,9 @@ const WallsSummaryTable = ({ results, activeId, setActiveId, warnById, toDisp, d
   results: WallResult[]; activeId: number; setActiveId: (id: number) => void;
   warnById: Record<number, boolean>; toDisp: (m: string) => string; dimUnit: string;
 }) => {
-  const TH = "py-2.5 px-3 text-left text-xs font-bold uppercase tracking-widest text-slate-500 border-b border-slate-100";
-  const TD = "py-2.5 px-3 text-sm text-slate-600 border-b border-slate-100 last:border-0";
-  const TDm = "py-2.5 px-3 text-sm font-semibold border-b border-slate-100 last:border-0";
+  const TH = "py-2.5 px-3 text-left text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-800";
+  const TD = "py-2.5 px-3 text-sm text-slate-600 dark:text-slate-300 border-b border-slate-100 dark:border-slate-800 last:border-0";
+  const TDm = "py-2.5 px-3 text-sm font-semibold border-b border-slate-100 dark:border-slate-800 last:border-0";
   const dim = (m: string) => (m ? `${toDisp(m)} ${dimUnit}` : "--");
   return (
     <div className={`mt-3 ${cx.card}`}>
@@ -3148,7 +3167,7 @@ const WallsSummaryTable = ({ results, activeId, setActiveId, warnById, toDisp, d
             const on = wall.id === activeId;
             return (
               <tr key={wall.id} onClick={() => setActiveId(wall.id)}
-                className={`cursor-pointer transition-colors ${on ? "bg-blue-50/60" : "hover:bg-slate-50"}`}>
+                className={`cursor-pointer transition-colors ${on ? "bg-blue-50/60 dark:bg-blue-950/40" : "hover:bg-slate-50 dark:hover:bg-slate-800"}`}>
                 <td className={TDm} style={{ color: NAVY }}>
                   {warnById[wall.id] && <span className="mr-1.5 inline-block h-2 w-2 rounded-full align-middle" style={{ background: GOLD }} />}
                   {wall.name}
@@ -3404,9 +3423,22 @@ const LayoutModeToggle = ({ effective, onToggle }: { effective: EffectiveLayout;
   <button
     onClick={onToggle}
     title={effective === "phone" ? "Layout: Phone (click for Web)" : "Layout: Web (click for Phone)"}
-    className="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 bg-white text-slate-400 shadow-sm active:scale-95 transition-all"
+    className="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-400 dark:text-slate-500 shadow-sm active:scale-95 transition-all"
   >
     {effective === "phone" ? <Smartphone size={16} /> : <Monitor size={16} />}
+  </button>
+);
+
+// --- ThemeToggle -----------------------------------------------------------
+// Icon button showing whichever theme is currently in effect; click forces
+// the other one -- same pattern as LayoutModeToggle, placed right next to it.
+const ThemeToggle = ({ effective, onToggle }: { effective: EffectiveTheme; onToggle: () => void }) => (
+  <button
+    onClick={onToggle}
+    title={effective === "dark" ? "Theme: Dark (click for Light)" : "Theme: Light (click for Dark)"}
+    className="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-400 dark:text-slate-500 shadow-sm active:scale-95 transition-all"
+  >
+    {effective === "dark" ? <Moon size={16} /> : <Sun size={16} />}
   </button>
 );
 
@@ -3418,9 +3450,15 @@ const LayoutModeToggle = ({ effective, onToggle }: { effective: EffectiveLayout;
 const CalculatorShell = ({ layoutMode, sidebar, main, footer }: {
   layoutMode: EffectiveLayout; sidebar: React.ReactNode; main: React.ReactNode; footer: React.ReactNode;
 }) => (
+  // No space-y-* here: every child component already carries its own correct
+  // top margin (mt-3/mt-5/etc., matching phone layout exactly). space-y-*'s
+  // generated selector (> :not([hidden]) ~ :not([hidden])) has HIGHER CSS
+  // specificity than a plain utility class like mt-5, so it was silently
+  // overriding every child's real margin down to a flat 4px -- the actual
+  // cause of web layout's spacing looking compressed/inconsistent vs phone.
   <div className="grid grid-cols-[360px_1fr] items-start gap-6">
-    <aside className="sticky top-5 space-y-1">{sidebar}</aside>
-    <div className="min-w-0 space-y-1">{main}{footer}</div>
+    <aside className="sticky top-5">{sidebar}</aside>
+    <div className="min-w-0">{main}{footer}</div>
   </div>
 );
 
@@ -3489,7 +3527,7 @@ function ExternalCalculator({ store, orient, dimUnit, setDimUnit, systemSelector
           );
         })()}
         {/* Colour selection */}
-        <div className="border-t border-slate-100 pt-3">
+        <div className="border-t border-slate-100 dark:border-slate-800 pt-3">
           <div className={cx.cardHd}>Colour selection</div>
           <div className="grid grid-cols-3 gap-2 items-stretch">
             {[...EXT_STOCKED_COLOURS.map(c => {
@@ -3513,7 +3551,7 @@ function ExternalCalculator({ store, orient, dimUnit, setDimUnit, systemSelector
               const selected = active.colourType === "special";
               return (
                 <button key="special" onClick={() => update({ colourType: "special", colour: "" })}
-                  className={"w-full rounded-xl border-2 py-3 px-1.5 text-center active:scale-95 transition-all " + (selected ? "" : "border-slate-200 bg-white")}
+                  className={"w-full rounded-xl border-2 py-3 px-1.5 text-center active:scale-95 transition-all " + (selected ? "" : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800")}
                   style={selected ? { borderColor: BLUE, background: BLUE } : undefined}>
                   <div className="text-[10px] font-bold uppercase leading-tight"
                     style={{ color: selected ? "#fff" : BLUE }}>Custom</div>
@@ -3523,7 +3561,7 @@ function ExternalCalculator({ store, orient, dimUnit, setDimUnit, systemSelector
           </div>
         </div>
 
-        <div className="border-t border-slate-100 pt-3">
+        <div className="border-t border-slate-100 dark:border-slate-800 pt-3">
           <div className="mb-1.5 flex items-center justify-between">
             <span className={cx.cardHd} style={{marginBottom:0,display:"inline"}}>Panel length</span>
             <ToggleSwitch
@@ -3566,7 +3604,7 @@ function ExternalCalculator({ store, orient, dimUnit, setDimUnit, systemSelector
       <SectionLabel icon={<Frame size={13} />}>Wall geometry</SectionLabel>
       <div className={cx.section}>
         <ProfileSection profile={active.profile} onChange={id => update({ profile: id })} />
-        <div className="border-t border-slate-100 pt-3">
+        <div className="border-t border-slate-100 dark:border-slate-800 pt-3">
           <div className="mb-2 flex items-center justify-between">
             <span className={cx.cardHd} style={{marginBottom:0}}>Dimensions</span>
             <div className="flex items-center gap-2">
@@ -3607,10 +3645,10 @@ function ExternalCalculator({ store, orient, dimUnit, setDimUnit, systemSelector
             <div className="mt-3">
               <StatsRow area={`${out.area} m2`} panels={out.result!.panels} panelType="P78" />
               {active.colour && (
-                  <div className="mt-2 flex items-center gap-2 rounded-lg border px-3 py-2.5" style={{ borderColor: GOLD, background: "#fffbeb" }}>
-                    <span className="text-xs font-bold uppercase tracking-wide text-amber-700">Colour</span>
+                  <div className="mt-2 flex items-center gap-2 rounded-lg border bg-amber-50 dark:bg-amber-950/30 px-3 py-2.5" style={{ borderColor: GOLD }}>
+                    <span className="text-xs font-bold uppercase tracking-wide text-amber-700 dark:text-amber-400">Colour</span>
                     <span className="text-sm font-semibold" style={{ color: NAVY }}>{colourDisplay}</span>
-                    {active.colourType === "special" && <span className="ml-auto text-xs font-bold uppercase tracking-wide text-amber-600">Special order</span>}
+                    {active.colourType === "special" && <span className="ml-auto text-xs font-bold uppercase tracking-wide text-amber-600 dark:text-amber-400">Special order</span>}
                   </div>
               )}
               <CardGrid layoutMode={layoutMode} minWidth={380}>
@@ -3637,7 +3675,10 @@ function ExternalCalculator({ store, orient, dimUnit, setDimUnit, systemSelector
           <ProjectSeparator />
 
           {layoutMode === "web" && (
-            <WallsSummaryTable results={results} activeId={activeId} setActiveId={setActiveId} warnById={warnById} toDisp={toDisp} dimUnit={dimUnit} />
+            <>
+              <SectionLabel icon={<Frame size={13} />}>Wall list</SectionLabel>
+              <WallsSummaryTable results={results} activeId={activeId} setActiveId={setActiveId} warnById={warnById} toDisp={toDisp} dimUnit={dimUnit} />
+            </>
           )}
 
           {/* System Breakdown: shows HOW the estimate was built, wall by wall */}
@@ -3682,11 +3723,11 @@ function ExternalCalculator({ store, orient, dimUnit, setDimUnit, systemSelector
   const footerNode = (
     <>
       <button onClick={() => setShowLocked(!showLocked)} className={cx.accordion}>
-        <span className="flex items-center gap-2"><Lock size={13} className="text-slate-400" /> Locked external system data</span>
-        <ChevronDown size={16} className={`text-blue-300 transition-transform ${showLocked ? "rotate-180" : ""}`} />
+        <span className="flex items-center gap-2"><Lock size={13} className="text-slate-400 dark:text-slate-500" /> Locked external system data</span>
+        <ChevronDown size={16} className={`text-blue-300 dark:text-blue-700 transition-transform ${showLocked ? "rotate-180" : ""}`} />
       </button>
       {showLocked && <LockedDataExt />}
-      <button className={cx.exportBtn} style={{ background: NAVY }}>Export PDF</button>
+      <button className={cx.exportBtn}>Export PDF</button>
     </>
   );
 
@@ -3708,7 +3749,7 @@ const SystemBreakdownWallCard = ({ wall, out, walls, ScheduleComp }: {
   wall: Wall; out: ComputeOut; walls: Wall[];
   ScheduleComp: typeof PanelScheduleCard;
 }) => {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
   const cornerPartner = wall.wallSystem === "corner" && wall.cornerPartnerId != null
     ? walls.find(w => w.id === wall.cornerPartnerId) : undefined;
   const cornerKit = cornerPartner ? computeCornerPair(wall, cornerPartner, INT_CONFIG) : null;
@@ -3717,8 +3758,11 @@ const SystemBreakdownWallCard = ({ wall, out, walls, ScheduleComp }: {
   const shaftKit = shaftPartner ? computeShaftPair(wall, shaftPartner, INT_CONFIG) : null;
 
   return (
+    // cx.accordionInner (no baked-in mt-5, unlike cx.accordion) -- the wrapper's own
+    // mt-3 provides the top gap instead, since this card is a CardGrid item and needs
+    // consistent mt-3 spacing between wrapped rows, not the mt-5 "new section" gap.
     <div className="mt-3">
-      <button onClick={() => setOpen(v => !v)} className={cx.accordion}>
+      <button onClick={() => setOpen(v => !v)} className={cx.accordionInner}>
         <span>
           {wall.name} -- {wall.orient === "vertical" ? "Vertical" : "Horizontal"}, Internal, P{wall.type}
           {!out.empty ? ` -- ${out.area} m2` : ""}
@@ -3778,15 +3822,15 @@ const ConnectionBreakdownCard = ({ connections }: { connections: ConnectionMater
           <span className="text-sm font-bold" style={{ color: NAVY }}>Extra C/J track</span>
           <span className={cx.rowVal} style={{ color: BLUE }}>{c.pieces} length{plural(c.pieces)}</span>
         </div>
-        <div className="mt-1.5 text-sm text-slate-500">
+        <div className="mt-1.5 text-sm text-slate-500 dark:text-slate-400">
           Between <span className="font-semibold">{c.wallAName}</span> ({c.wallAOrient}) and{" "}
           <span className="font-semibold">{c.wallBName}</span> ({c.wallBOrient})
         </div>
-        <div className="mt-1 text-xs text-slate-400">
+        <div className="mt-1 text-xs text-slate-400 dark:text-slate-500">
           Length {r1(c.lengthM)} lm - qty {c.quantity} - stocked @ {r1(c.stock)} m - {c.reason}
         </div>
         {c.warnings.map((w, i) => (
-          <div key={i} className="mt-1.5 flex gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-700">
+          <div key={i} className="mt-1.5 flex gap-2 rounded-lg bg-amber-50 dark:bg-amber-950/30 px-3 py-2 text-xs leading-relaxed text-amber-700 dark:text-amber-400">
             <AlertTriangle size={12} className="mt-0.5 shrink-0" /><span>{w}</span>
           </div>
         ))}
@@ -3803,13 +3847,16 @@ const ConnectionBreakdownCard = ({ connections }: { connections: ConnectionMater
 const SystemBreakdownWallCardExt = ({ wall, out, ScheduleComp }: {
   wall: Wall; out: ComputeOut; ScheduleComp: typeof PanelScheduleCard;
 }) => {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
   const colourEntry = wall.colour ? EXT_STOCKED_COLOURS.find(c => c.code === wall.colour) : null;
   const colourDisplay = colourEntry ? `${colourEntry.label} (${colourEntry.code})` : wall.colour;
 
   return (
+    // cx.accordionInner (no baked-in mt-5, unlike cx.accordion) -- the wrapper's own
+    // mt-3 provides the top gap instead, since this card is a CardGrid item and needs
+    // consistent mt-3 spacing between wrapped rows, not the mt-5 "new section" gap.
     <div className="mt-3">
-      <button onClick={() => setOpen(v => !v)} className={cx.accordion}>
+      <button onClick={() => setOpen(v => !v)} className={cx.accordionInner}>
         <span>
           {wall.name} -- {wall.orient === "vertical" ? "Vertical" : "Horizontal"}, External, P78
           {!out.empty ? ` -- ${out.area} m2` : ""}
@@ -3826,10 +3873,10 @@ const SystemBreakdownWallCardExt = ({ wall, out, ScheduleComp }: {
             <>
               <StatsRow area={`${out.area} m2`} panels={out.result.panels} panelType="P78" />
               {wall.colour && (
-                <div className="mt-2 flex items-center gap-2 rounded-lg border px-3 py-2.5" style={{ borderColor: GOLD, background: "#fffbeb" }}>
-                  <span className="text-xs font-bold uppercase tracking-wide text-amber-700">Colour</span>
+                <div className="mt-2 flex items-center gap-2 rounded-lg border bg-amber-50 dark:bg-amber-950/30 px-3 py-2.5" style={{ borderColor: GOLD }}>
+                  <span className="text-xs font-bold uppercase tracking-wide text-amber-700 dark:text-amber-400">Colour</span>
                   <span className="text-sm font-semibold" style={{ color: NAVY }}>{colourDisplay}</span>
-                  {wall.colourType === "special" && <span className="ml-auto text-xs font-bold uppercase tracking-wide text-amber-600">Special order</span>}
+                  {wall.colourType === "special" && <span className="ml-auto text-xs font-bold uppercase tracking-wide text-amber-600 dark:text-amber-400">Special order</span>}
                 </div>
               )}
               <ScheduleComp title="Panel order schedule -- P78 coloured" icon={<Box size={14} />}
@@ -3881,6 +3928,7 @@ export default function SpeedpanelEstimator() {
   const [showTrackFinish, setShowTrackFinish] = useState(false);
   const [dimUnit, setDimUnit] = useState(() => savedSession ? savedSession.dimUnit : "m");
   const { effective: layoutMode, toggleLayout } = useLayoutMode();
+  const { effective: themeMode, toggleTheme } = useThemeMode();
 
   // Persist the current view on change.
   useEffect(() => {
@@ -3990,7 +4038,7 @@ export default function SpeedpanelEstimator() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 font-sans" style={{ color: NAVY }}>
+    <div className="min-h-screen bg-slate-50 font-sans dark:bg-slate-950" style={{ color: NAVY }}>
       <div className={layoutMode === "web" ? "mx-auto w-full max-w-[1400px] px-6 pb-16 pt-6" : "mx-auto w-full max-w-md px-3 sm:px-4 pb-24 pt-5"}>
 
         {/* Header */}
@@ -4004,8 +4052,9 @@ export default function SpeedpanelEstimator() {
             <p className={cx.lbl} style={{marginTop:"6px", paddingLeft:0}}>Wall Systems Estimator</p>
           </div>
           <div className="flex items-center gap-2">
+            <ThemeToggle effective={themeMode} onToggle={toggleTheme} />
             <LayoutModeToggle effective={layoutMode} onToggle={toggleLayout} />
-            <button onClick={resetAll} className="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 bg-white text-slate-400 shadow-sm active:scale-95 transition-all">
+            <button onClick={resetAll} className="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-400 dark:text-slate-500 shadow-sm active:scale-95 transition-all">
               <RotateCcw size={16} />
             </button>
           </div>
@@ -4028,7 +4077,7 @@ export default function SpeedpanelEstimator() {
                   <div className={cx.cardHd}>Orientation</div>
                   <div className="grid grid-cols-2 gap-2">
                     <button onClick={() => switchOrient("vertical")}
-                      className={"w-full rounded-xl border-2 py-3 px-3 text-center active:scale-95 transition-all flex items-center justify-center gap-1.5 " + (!isHoriz ? "" : "border-slate-200 bg-white")}
+                      className={"w-full rounded-xl border-2 py-3 px-3 text-center active:scale-95 transition-all flex items-center justify-center gap-1.5 " + (!isHoriz ? "" : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800")}
                       style={!isHoriz ? { borderColor: BLUE, background: BLUE } : undefined}>
                       <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
                         <path d="M3 1.5v10M6.5 1.5v10M10 1.5v10" stroke={!isHoriz ? WHITE : BLUE} strokeWidth="1.4" strokeLinecap="round"/>
@@ -4036,7 +4085,7 @@ export default function SpeedpanelEstimator() {
                       <span className="text-sm font-bold uppercase tracking-wide" style={{ color: !isHoriz ? WHITE : BLUE }}>Vertical</span>
                     </button>
                     <button onClick={() => switchOrient("horizontal")}
-                      className={"w-full rounded-xl border-2 py-3 px-3 text-center active:scale-95 transition-all flex items-center justify-center gap-1.5 " + (isHoriz ? "" : "border-slate-200 bg-white")}
+                      className={"w-full rounded-xl border-2 py-3 px-3 text-center active:scale-95 transition-all flex items-center justify-center gap-1.5 " + (isHoriz ? "" : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800")}
                       style={isHoriz ? { borderColor: BLUE, background: BLUE } : undefined}>
                       <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
                         <path d="M1.5 3h10M1.5 6.5h10M1.5 10h10" stroke={isHoriz ? WHITE : BLUE} strokeWidth="1.4" strokeLinecap="round"/>
@@ -4049,12 +4098,12 @@ export default function SpeedpanelEstimator() {
                   <div className={cx.cardHd}>Wall type</div>
                   <div className="grid grid-cols-2 gap-2">
                     <button onClick={() => switchSystem(findSys(orient, false).id)}
-                      className={"w-full rounded-xl border-2 py-3 px-3 text-center active:scale-95 transition-all " + (!isExt ? "" : "border-slate-200 bg-white")}
+                      className={"w-full rounded-xl border-2 py-3 px-3 text-center active:scale-95 transition-all " + (!isExt ? "" : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800")}
                       style={!isExt ? { borderColor: BLUE, background: BLUE } : undefined}>
                       <span className="text-sm font-bold uppercase tracking-wide" style={{ color: !isExt ? WHITE : BLUE }}>Internal</span>
                     </button>
                     <button onClick={() => switchSystem(findSys(orient, true).id)}
-                      className={"w-full rounded-xl border-2 py-3 px-3 text-center active:scale-95 transition-all " + (isExt ? "" : "border-slate-200 bg-white")}
+                      className={"w-full rounded-xl border-2 py-3 px-3 text-center active:scale-95 transition-all " + (isExt ? "" : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800")}
                       style={isExt ? { borderColor: BLUE, background: BLUE } : undefined}>
                       <span className="text-sm font-bold uppercase tracking-wide" style={{ color: isExt ? WHITE : BLUE }}>External</span>
                     </button>
@@ -4094,7 +4143,7 @@ export default function SpeedpanelEstimator() {
               <SectionLabel icon={<Frame size={13} />}>Wall geometry</SectionLabel>
               <div className={cx.section}>
                 <ProfileSection profile={active.profile} onChange={id => update({ profile: id })} />
-                <div className="border-t border-slate-100 pt-3">
+                <div className="border-t border-slate-100 dark:border-slate-800 pt-3">
                   <div className="mb-2 flex items-center justify-between">
                     <span className={cx.cardHd} style={{marginBottom:0}}>Dimensions</span>
                     <div className="flex items-center gap-2">
@@ -4104,7 +4153,7 @@ export default function SpeedpanelEstimator() {
                   <DimensionInputs active={active} toDisp={toDisp} toM={toM} updDim={updDim} onUpdate={update} out={out} orient={orient} />
                   <SpanTable orient={orient} type={active.type} wallSystem={active.wallSystem} />
                 </div>
-                <div className="border-t border-slate-100 pt-3">
+                <div className="border-t border-slate-100 dark:border-slate-800 pt-3">
                   <div className="mb-1.5 flex items-center justify-between">
                     <span className={cx.cardHd} style={{marginBottom:0,display:"inline"}}>Panel length</span>
                     <ToggleSwitch
@@ -4211,7 +4260,10 @@ export default function SpeedpanelEstimator() {
                   <ProjectSeparator />
 
                   {layoutMode === "web" && (
-                    <WallsSummaryTable results={results} activeId={activeId} setActiveId={setActiveId} warnById={warnById} toDisp={toDisp} dimUnit={dimUnit} />
+                    <>
+                      <SectionLabel icon={<Frame size={13} />}>Wall list</SectionLabel>
+                      <WallsSummaryTable results={results} activeId={activeId} setActiveId={setActiveId} warnById={warnById} toDisp={toDisp} dimUnit={dimUnit} />
+                    </>
                   )}
 
                   {/* System Breakdown: shows HOW the estimate was built, wall by wall */}
@@ -4287,7 +4339,7 @@ export default function SpeedpanelEstimator() {
                           )}
                           <p className={cx.footnote}>Est. fixings pooled - 1000/box.</p>
                           {results.some(r => r.out.p2pEnhanced) && (
-                            <p className="pt-1 text-sm leading-relaxed text-amber-700">One or more P78 vertical walls &gt; 5.0 m: enhanced panel-to-panel pattern applied.</p>
+                            <p className="pt-1 text-sm leading-relaxed text-amber-700 dark:text-amber-400">One or more P78 vertical walls &gt; 5.0 m: enhanced panel-to-panel pattern applied.</p>
                           )}
                         </>
                       )}
@@ -4301,11 +4353,11 @@ export default function SpeedpanelEstimator() {
           const footerNode = (
             <>
               <button onClick={() => setShowData(!showData)} className={cx.accordion}>
-                <span className="flex items-center gap-2"><Lock size={13} className="text-slate-400" /> Locked system data</span>
-                <ChevronDown size={16} className={`text-blue-300 transition-transform ${showData ? "rotate-180" : ""}`} />
+                <span className="flex items-center gap-2"><Lock size={13} className="text-slate-400 dark:text-slate-500" /> Locked system data</span>
+                <ChevronDown size={16} className={`text-blue-300 dark:text-blue-700 transition-transform ${showData ? "rotate-180" : ""}`} />
               </button>
               {showData && <LockedDataInt />}
-              <button className={cx.exportBtn} style={{ background: NAVY }}>Export PDF</button>
+              <button className={cx.exportBtn}>Export PDF</button>
             </>
           );
 
@@ -4314,9 +4366,9 @@ export default function SpeedpanelEstimator() {
         })()}
 
         {/* Disclaimer */}
-        <div className="mt-8 flex gap-3 rounded-xl border border-amber-200 bg-amber-50/80 px-4 py-3.5">
-          <AlertTriangle size={14} className="mt-0.5 shrink-0 text-amber-500" />
-          <p className="text-sm leading-relaxed text-amber-800">
+        <div className="mt-8 flex gap-3 rounded-xl border border-amber-200 dark:border-amber-800/60 bg-amber-50/80 dark:bg-amber-950/30 px-4 py-3.5">
+          <AlertTriangle size={14} className="mt-0.5 shrink-0 text-amber-500 dark:text-amber-400" />
+          <p className="text-sm leading-relaxed text-amber-800 dark:text-amber-300">
             By using this calculator you acknowledge quantities are estimates only and you will not hold Speedpanel liable for over- or under-ordering. Does not confirm compliance, FRL, engineering, restraint, certification or approval.
           </p>
         </div>
