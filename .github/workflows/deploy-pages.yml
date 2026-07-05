@@ -38,7 +38,29 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      url: ${{ steps.deploy.outputs.page_url || steps.deploy-retry1.outputs.page_url || steps.deploy-retry2.outputs.page_url }}
     steps:
-      - id: deployment
+      # actions/deploy-pages intermittently returns "Deployment failed, try again
+      # later" from the Pages API even when the built artifact is fine. Retry a
+      # couple of times after short pauses so transient hiccups self-heal without
+      # a manual re-run. The final attempt has no continue-on-error, so a genuine
+      # outage still fails the job.
+      - name: Deploy to GitHub Pages
+        id: deploy
+        continue-on-error: true
+        uses: actions/deploy-pages@v4
+      - name: Pause before retry 1
+        if: steps.deploy.outcome == 'failure'
+        run: sleep 20
+      - name: Deploy to GitHub Pages (retry 1)
+        id: deploy-retry1
+        if: steps.deploy.outcome == 'failure'
+        continue-on-error: true
+        uses: actions/deploy-pages@v4
+      - name: Pause before retry 2
+        if: steps.deploy.outcome == 'failure' && steps.deploy-retry1.outcome == 'failure'
+        run: sleep 30
+      - name: Deploy to GitHub Pages (retry 2)
+        id: deploy-retry2
+        if: steps.deploy.outcome == 'failure' && steps.deploy-retry1.outcome == 'failure'
         uses: actions/deploy-pages@v4
