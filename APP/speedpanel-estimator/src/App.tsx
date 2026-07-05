@@ -5,6 +5,21 @@ import {
   Smartphone, Monitor,
 } from "lucide-react";
 import { useLayoutMode, type EffectiveLayout } from "./useLayoutMode";
+import {
+  type PanelType, type SystemConfig,
+  PANELS, TYPES, typeFromPackSize,
+  PACK, CTRACK_DIM, JTRACK_DIM, MAX_H_HORIZ,
+  SPAN_TABLE_VERT, SPAN_TABLE_HORIZ, CORNER_POST_TABLE, SHAFT_TRACK_TABLE,
+  PANEL_WIDTH, STOCK_WASTE_THRESHOLD, STOCK_LENGTHS, FLASH_STOCK, FIX_PER_BOX,
+  HORIZ_CTRACK_STOCK, JTRACK_STOCK, SEALANT_PER_BOX,
+  FLASH_DIM, EXT_HORIZ_COVER_DIM, MAX_W_HORIZ, MAX_W_HORIZ_STD_51_64,
+  STEEL_MAX_H_VERT, CUSTOM_MAX_LENGTH, SHAFT_MAX_W, SHAFT_MAX_F,
+  RAKE_NOTE, HEAD_FLASH_LABEL, HEAD_FLASH_SUBLABEL,
+  EXT_STOCK, EXT_PACK, EXT_SEALANT_PER_BOX, EXT_ZFLASH_STOCK,
+  EXT_JTRACK_STOCK, EXT_CTRACK_STOCK,
+  EXT_CTRACK_DIM, EXT_JTRACK_DIM, EXT_ZFLASH_DIM, EXT_STOCKED_COLOURS, COLOUR_HEX,
+  INT_CONFIG, EXT_CONFIG, INT_LOCKED, EXT_LOCKED,
+} from "./data";
 
 // --- Design tokens ------------------------------------------------------------
 const NAVY      = "#0B1233"; // primary body/heading text colour
@@ -100,7 +115,7 @@ interface Wall {
   id: number; name: string;
   // Note: orientation is NOT stored on Wall -- it comes from the system selector (sys.orient)
   // and is passed as a separate argument into computeWall. Do not add orient here.
-  type: 51 | 64 | 78;
+  type: PanelType;
   profile: "standard" | "rake" | "gable";
   // Horizontal-only wall system variant. Not applicable to vertical walls -- UI
   // only shows this selector when orient === "horizontal". "standard" has its
@@ -260,70 +275,8 @@ interface HorizCtrack { horizProfile: string | null; horizFix: number; }
 interface FixingsResult { fix30: number; fix16: number; p2pNote: string; p2pEnhanced: boolean; }
 
 // --- Internal system constants ------------------------------------------------
-const PANEL_WIDTH = 0.25;
-const STOCK_WASTE_THRESHOLD = 0.20;
-const STOCK_LENGTHS = [2.8, 3.0, 3.3, 3.6, 4.0, 4.2, 4.5, 4.8, 5.2, 6.0];
-const PACK: Record<number, number> = { 51: 21, 64: 17, 78: 14 };
-const FLASH_STOCK = 3.0;
-const FIX_PER_BOX = 1000;
-const CTRACK_STOCK: Record<number, number> = { 78: 6.0, 64: 3.0, 51: 3.0 };
-const HORIZ_CTRACK_STOCK = 6.0;
-const JTRACK_STOCK = [6.0, 3.6, 3.0];
-const SEALANT_M2_PER_SAUSAGE = 4;
-const SEALANT_PER_BOX = 20;
-const CTRACK_DIM: Record<number, string> = { 78: "55 x 82 x 55", 64: "55 x 68 x 55", 51: "55 x 56 x 55" };
-const JTRACK_DIM: Record<number, string> = { 78: "55 x 82 x 90", 64: "55 x 68 x 90", 51: "55 x 56 x 90" };
-const FLASH_DIM = "Head track flashing 0.7 mm BMT x 130 mm GAL";
-const EXT_HORIZ_COVER_DIM = "Horizontal external joint cover flashing";
-const MAX_H_VERT: Record<number, number> = { 51: 5.0, 64: 5.0, 78: 6.0 };
-const MAX_H_HORIZ: Record<number, number> = { 51: 5.0, 64: 5.0, 78: 6.0 };
-const MAX_W_HORIZ = 4.5;
-const MAX_W_HORIZ_STD_51_64 = 4.0;
-const MAX_W_HORIZ_STACK_78 = 5.0;
-const STEEL_MAX_H_VERT = 14.0;
-const CUSTOM_MAX_LENGTH = 9.0;
-// Shaft wall (see estimate_shaft_wall.md section 1): widest any single stack
-// wall can be is 5.0 m (the "wider option" primary). A linked secondary's own
-// sub-limit (2.5 m standard split / 2.0 m wider option) is shown as a note
-// rather than hard-enforced here, since primary vs secondary isn't tracked as
-// a distinct role -- shaftPartnerId only records that two walls are linked.
-const SHAFT_MAX_W = 5.0;
-const SHAFT_MAX_F = 6.0;
-
-// Shared profile info-note copy (used in both internal and external dimension cards)
-const RAKE_NOTE = "Raked: H = leftH + (rightH - leftH) x (x / W). Estimated only.";
-const HEAD_FLASH_LABEL = "Head track flashing";
-const HEAD_FLASH_SUBLABEL = "(0.7 mm BMT x 130 mm GAL)";
-
-// --- External system constants ------------------------------------------------
-const EXT_STOCK = [3.0, 3.6, 4.2, 4.5, 5.0, 6.0];
-const EXT_PACK = 14;
-const EXT_SEALANT_M2 = 2;
-const EXT_SEALANT_PER_BOX = 20;
-const EXT_ZFLASH_STOCK = 3.0;
-const EXT_JTRACK_STOCK = [3.0, 3.6, 6.0];
-const EXT_CTRACK_STOCK = [3.0, 3.6, 6.0];
-const EXT_MAX_H_VERT = 6.0;
-const EXT_MAX_W_HORIZ = 4.5;
-const EXT_MAX_W_HORIZ_STACK = 5.0;
-const EXT_CTRACK_DIM = "55 x 82 x 55 - 1.15 BMT";
-const EXT_JTRACK_DIM = "J-track 1.15 BMT - weep holes @ 250 mm";
-const EXT_ZFLASH_DIM = "Z-Flashing 78 mm - 0.7 mm BMT (Coloured)";
-const EXT_STOCKED_COLOURS = [
-  { label: "Off White",   code: "OW" },
-  { label: "Gull Grey",   code: "GG" },
-  { label: "Monolith",    code: "MO" },
-  { label: "Slate Grey",  code: "SL" },
-  { label: "Armour Grey", code: "AG" },
-];
-
-const COLOUR_HEX: Record<string, string> = {
-  OW: "#F5F2EC",
-  GG: "#9BA4A8",
-  MO: "#4A4D52",
-  SL: "#6B7278",
-  AG: "#3D4147",
-};
+// Product data (stock lengths, packs, track dims, span/corner tables, colours,
+// int/ext config, etc.) now lives in ./data -- imported at the top of this file.
 
 // --- Utility functions --------------------------------------------------------
 // ceil subtracts a tiny epsilon before rounding so that values that are
@@ -531,23 +484,7 @@ const pickHorizCtrack = (type: number, W: number, H: number) => {
 // exceeds every column/row, it's outside the table (caller shows a warning).
 interface CornerPostResult { section: string; fixPerCourse: 1 | 2; outsideTable: boolean; }
 
-const CORNER_POST_TABLE: Record<number, { maxW: number; rows: { maxH: number; section: string; fixPerCourse?: 1 | 2 }[] }[]> = {
-  51: [
-    { maxW: 3.0, rows: [{ maxH: 3.0, section: "55 x 56 x 1.15" }, { maxH: 4.0, section: "55 x 57 x 1.50" }, { maxH: 5.0, section: "55 x 58 x 1.95" }] },
-    { maxW: 4.5, rows: [{ maxH: 3.0, section: "55 x 57 x 1.50" }, { maxH: 4.0, section: "55 x 58 x 1.95" }, { maxH: 5.0, section: "55 x 58 x 1.95" }] },
-  ],
-  64: [
-    { maxW: 3.0, rows: [{ maxH: 3.0, section: "55 x 68 x 1.15" }, { maxH: 4.0, section: "55 x 69 x 1.50" }, { maxH: 5.0, section: "55 x 70 x 1.95" }] },
-    { maxW: 4.5, rows: [{ maxH: 3.0, section: "55 x 69 x 1.50" }, { maxH: 4.0, section: "55 x 70 x 1.95" }, { maxH: 5.0, section: "55 x 70 x 1.95" }] },
-  ],
-  78: [
-    // H <= 4.5 m only -- the H > 4.5 m band (up to 6.0 m) is handled separately
-    // above due to the footnote width-breakpoint shift (3.0 m -> 3.5 m at 6.0 m tall).
-    { maxW: 3.0, rows: [{ maxH: 3.0, section: "90 x 82 x 1.15" }, { maxH: 4.5, section: "90 x 83 x 1.50" }] },
-    { maxW: 4.5, rows: [{ maxH: 3.0, section: "90 x 83 x 1.50" }, { maxH: 4.5, section: "90 x 84 x 1.95" }] },
-  ],
-};
-
+// CORNER_POST_TABLE now lives in ./data (derived from the PANELS catalog).
 const pickCornerPost = (type: number, W: number, H: number): CornerPostResult | null => {
   // P78 footnote (dagger/double-dagger in the doc): at 6.0 m tall the 1-screw/
   // course width breakpoint shifts from 3.0 m to 3.5 m -- handle this exact
@@ -572,12 +509,7 @@ const pickCornerPost = (type: number, W: number, H: number): CornerPostResult | 
 // as pickCornerPost: find the first floor-height row >= F, read that cell.
 interface ShaftTrackResult { section: string; fixPerCourse: 1 | 2; outsideTable: boolean; }
 
-const SHAFT_TRACK_TABLE: { maxF: number; section: string; fixPerCourse: 1 | 2 }[] = [
-  { maxF: 3.0, section: "90 x 82 x 1.50", fixPerCourse: 1 },
-  { maxF: 4.5, section: "90 x 84 x 1.95", fixPerCourse: 1 },
-  { maxF: 6.0, section: "90 x 84 x 1.95", fixPerCourse: 2 },
-];
-
+// SHAFT_TRACK_TABLE now lives in ./data.
 const pickShaftVerticalTrack = (F: number): ShaftTrackResult => {
   const row = SHAFT_TRACK_TABLE.find(r => F <= r.maxF + 1e-9);
   if (!row) { const last = SHAFT_TRACK_TABLE[SHAFT_TRACK_TABLE.length - 1]; return { ...last, outsideTable: true }; }
@@ -655,60 +587,7 @@ const horizontalJointCoverLM = (profile: string, rows: number, W: number, leftH:
   return lm;
 };
 
-// --- SystemConfig: single source of truth for int vs ext differences ---------
-interface SystemConfig {
-  stocks: number[];
-  packSizeFn: (type: number) => number;
-  maxHVertFn: (type: number) => number;
-  maxHHorizFn: (type: number) => number;
-  maxWHoriz: number;
-  maxWStack: number;
-  sealantRate: number;
-  ctrackStockFn: (type: number) => number;
-  jtrackStock: number[];
-  jValidFn: (type: number) => boolean;
-  hasZFlash: boolean;
-  flashStock: number;
-  sealantPerBox: number;
-  ctrackDimFn: (type: number, horizProfile: string | null) => string;
-  jtrackDimFn: (type: number) => string;
-}
-
-const INT_CONFIG: SystemConfig = {
-  stocks:          STOCK_LENGTHS,
-  packSizeFn:      (t) => PACK[t],
-  maxHVertFn:      (t) => MAX_H_VERT[t],
-  maxHHorizFn:     (t) => MAX_H_HORIZ[t],
-  maxWHoriz:       MAX_W_HORIZ,
-  maxWStack:       MAX_W_HORIZ_STACK_78,
-  sealantRate:     SEALANT_M2_PER_SAUSAGE,
-  ctrackStockFn:   (t) => CTRACK_STOCK[t],
-  jtrackStock:     JTRACK_STOCK,
-  jValidFn:        (t) => t === 78,
-  hasZFlash:       false,
-  flashStock:      FLASH_STOCK,
-  sealantPerBox:   SEALANT_PER_BOX,
-  ctrackDimFn:     (t, hp) => hp || `${CTRACK_DIM[t]} - 1.15 mm BMT`,
-  jtrackDimFn:     (t) => `${JTRACK_DIM[t]} - 1.15 mm BMT`,
-};
-
-const EXT_CONFIG: SystemConfig = {
-  stocks:          EXT_STOCK,
-  packSizeFn:      (_) => EXT_PACK,
-  maxHVertFn:      (_) => EXT_MAX_H_VERT,
-  maxHHorizFn:     (_) => EXT_MAX_H_VERT,
-  maxWHoriz:       EXT_MAX_W_HORIZ,
-  maxWStack:       EXT_MAX_W_HORIZ_STACK,
-  sealantRate:     EXT_SEALANT_M2,
-  ctrackStockFn:   (_) => EXT_CTRACK_STOCK[0],
-  jtrackStock:     EXT_JTRACK_STOCK,
-  jValidFn:        (_) => true,
-  hasZFlash:       true,
-  flashStock:      FLASH_STOCK,
-  sealantPerBox:   EXT_SEALANT_PER_BOX,
-  ctrackDimFn:     (_, hp) => hp || EXT_CTRACK_DIM,
-  jtrackDimFn:     (_) => EXT_JTRACK_DIM,
-};
+// SystemConfig + INT_CONFIG/EXT_CONFIG now live in ./data.
 
 // --- Unified compute core -----------------------------------------------------
 // computeWall is the single entry point used by both internal and external
@@ -1615,23 +1494,7 @@ const buildExtProjAgg = (wallResults: WallResult[]) => {
 };
 
 // --- Locked system data -------------------------------------------------------
-const INT_LOCKED = [
-  ["Panel width","250 mm (fixed)"],["Stocked lengths","2.8/3.0/3.3/3.6/4.0/4.2/4.5/4.8/5.2/6.0m + custom to 9m"],
-  ["Pack sizes","P51=21 - P64=17 - P78=14"],["Vertical C-track 1.15BMT"],
-  ["P51","55x56x55mm - 3.0m"],["P64","55x68x55mm - 3.0m"],["P78","55x82x55mm - 3.0/3.6/6.0m"],
-  ["J-track (P78)","55x82x90 - 1.15BMT - 3.0/3.6/6.0m"],
-  ["Head track flashing 0.7 mm BMT x 130 mm GAL","3.0m"],
-  ["Fixings/box","1000 (10g-30 and 10g-16)"],["Sealant","Hilti CP606 - 4m2/sausage - 20/box"],
-  ["Vert max H","P51/P64=5.0m - P78=6.0m"],["Horiz max W","P51/P64=4.5m assessed; P78=4.5m general / 5.0m shaft-scissor only"],
-  ["Horiz max H","P51/P64=5.0m - P78=6.0m std"],
-];
-const EXT_LOCKED = [
-  ["Panel","P78 - 250mm wide - coloured only"],["Stocked lengths","3.0/3.6/4.2/4.5/5.0/6.0m"],
-  ["Pack size","14 panels/pack"],["C-track","55x82x55 - 1.15BMT"],
-  ["Base J-track","1.15BMT - weep holes@250mm"],["Z-Flashing","78mm - 0.7mm BMT - Coloured - 3.0m"],
-  ["Sealant","Sikaflex 400 Fire PU - 1 sausage/2m2 - 20/box"],
-  ["Max H (vert)","6.0m"],["Max W (horiz)","4.5m std - 5.0m stacked/shaft"],
-];
+// INT_LOCKED / EXT_LOCKED (display-only reference tables) now live in ./data.
 const DataRow = ({ k, v }: { k: string; v: string }) => (
   <div className="flex justify-between gap-2 border-b border-slate-100 pb-2.5 last:border-0">
     <span className="shrink-0 text-sm font-medium text-slate-400">{k}</span>
@@ -1645,44 +1508,10 @@ const LDRow = ({ row }: { row: string[] }) =>
 const LockedDataInt = () => <div className={cx.ldWrap}>{INT_LOCKED.map((r, i) => <LDRow key={i} row={r} />)}</div>;
 const LockedDataExt = () => <div className={cx.ldWrap}>{EXT_LOCKED.map((r, i) => <LDRow key={i} row={r} />)}</div>;
 
-// --- Span table data ----------------------------------------------------------
-const SPAN_TABLE_VERT = [
-  { type: "P51", maxW: "Unlimited", maxH: "5.0 m" },
-  { type: "P64", maxW: "Unlimited", maxH: "5.0 m" },
-  { type: "P78", maxW: "Unlimited", maxH: "6.0 m" },
-];
-const SPAN_TABLE_HORIZ: Record<number, { maxW: string; maxH: string; cTrack: string; fix: string; note?: string }[]> = {
-  51: [
-    { maxW: "3.0 m", maxH: "3.0 m", cTrack: "55 x 56 x 1.15", fix: "1/face" },
-    { maxW: "4.5 m", maxH: "3.0 m", cTrack: "55 x 57 x 1.50", fix: "1/face" },
-    { maxW: "3.0 m", maxH: "4.0 m", cTrack: "55 x 57 x 1.50", fix: "1/face" },
-    { maxW: "4.5 m", maxH: "4.0 m", cTrack: "55 x 58 x 1.95", fix: "1/face" },
-    { maxW: "4.5 m", maxH: "5.0 m", cTrack: "55 x 58 x 1.95", fix: "1/face" },
-  ],
-  64: [
-    { maxW: "3.0 m", maxH: "3.0 m", cTrack: "55 x 68 x 1.15", fix: "1/face" },
-    { maxW: "4.5 m", maxH: "3.0 m", cTrack: "55 x 69 x 1.50", fix: "1/face" },
-    { maxW: "3.0 m", maxH: "4.0 m", cTrack: "55 x 69 x 1.50", fix: "1/face" },
-    { maxW: "4.5 m", maxH: "4.0 m", cTrack: "55 x 70 x 1.95", fix: "1/face" },
-    { maxW: "4.5 m", maxH: "5.0 m", cTrack: "55 x 70 x 1.95", fix: "1/face" },
-  ],
-  78: [
-    { maxW: "3.0 m", maxH: "3.0 m", cTrack: "90 x 82 x 1.15", fix: "1/face" },
-    { maxW: "4.5 m", maxH: "3.0 m", cTrack: "90 x 83 x 1.50", fix: "1/face" },
-    { maxW: "3.0 m", maxH: "4.5 m", cTrack: "90 x 83 x 1.50", fix: "1/face" },
-    { maxW: "4.5 m", maxH: "4.5 m", cTrack: "90 x 84 x 1.95", fix: "1/face" },
-    { maxW: "3.5 m", maxH: "6.0 m", cTrack: "90 x 84 x 1.95", fix: "1/face" },
-    { maxW: "4.5 m", maxH: "6.0 m", cTrack: "90 x 84 x 1.95", fix: "2/face" },
-    { maxW: "5.0 m", maxH: "Unlimited", cTrack: "90 x 84 x 1.95", fix: "2/face", note: "Stacked/shaft" },
-  ],
-};
+// SPAN_TABLE_VERT / SPAN_TABLE_HORIZ and the panel TYPES list now live in ./data
+// (derived from the PANELS catalog).
 
 // --- Wall and system config ---------------------------------------------------
-const TYPES = [
-  { id: 51 as const, label: "P51", depth: "51 mm", frl: "-/60/60" },
-  { id: 64 as const, label: "P64", depth: "64 mm", frl: "-/90/90" },
-  { id: 78 as const, label: "P78", depth: "78 mm", frl: "-/120/120" },
-];
 const SYSTEMS = [
   { id: "int-vert",  label: "Vertical",   sub: "Internal Wall", ext: false, orient: "vertical"   as const },
   { id: "int-horiz", label: "Horizontal", sub: "Internal Wall", ext: false, orient: "horizontal" as const },
@@ -1941,9 +1770,7 @@ const LMLineItem = ({ label, pieces, lm, stockLabel, bordered = true }: {
   </div>
 );
 
-/** Reverse-lookup: which panel type (51/64/78) a given pack size belongs to. */
-const typeFromPackSize = (packSize: number): number =>
-  +(Object.keys(PACK).find(t => PACK[+t] === packSize) ?? 78);
+// typeFromPackSize now lives in ./data.
 
 /** "Head track flashing" card -- identical layout in all four track/flashing card variants. */
 const HeadFlashingCard = ({ dim, pieces, lm, stock }: { dim: string; pieces: number; lm: number; stock: number }) => (
