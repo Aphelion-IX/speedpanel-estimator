@@ -2866,7 +2866,9 @@ const TrackFlashingCardExt = ({ out, orient, headFlashActive }: { out: ComputeOu
 );
 
 // --- TrackFlashingCardExtProj -------------------------------------------------
-const TrackFlashingCardExtProj = ({ agg }: { agg: ReturnType<typeof buildExtProjAgg> }) => (
+const TrackFlashingCardExtProj = ({ agg, connectionLM = 0, connectionPieces = 0 }: {
+  agg: ReturnType<typeof buildExtProjAgg>; connectionLM?: number; connectionPieces?: number;
+}) => (
   <Card title="Track and flashing" icon={<Frame size={14} />}>
     {agg.cLM > 0 && (
       <LMLineItem
@@ -2888,7 +2890,12 @@ const TrackFlashingCardExtProj = ({ agg }: { agg: ReturnType<typeof buildExtProj
         label="Head track flashing 0.7 mm BMT x 130 mm GAL"
         pieces={agg.flashPieces} lm={agg.flashLM} stockLabel={`@ ${r1(FLASH_STOCK)} m`} />
     )}
-    {agg.cLM === 0 && agg.jLM === 0 && agg.zLM === 0 && <Row k="No track yet" v="--" dim />}
+    {connectionPieces > 0 && (
+      <LMLineItem
+        label="Extra C/J track (combined wall junctions)"
+        pieces={connectionPieces} lm={connectionLM} stockLabel={`stocked @ ${r1(HORIZ_CTRACK_STOCK)} m`} />
+    )}
+    {agg.cLM === 0 && agg.jLM === 0 && agg.zLM === 0 && connectionPieces === 0 && <Row k="No track yet" v="--" dim />}
   </Card>
 );
 
@@ -2973,7 +2980,7 @@ interface WallsCardProps {
   orient?: "vertical" | "horizontal"; // gates the horizontal-only wall system dropdown
   onCornerLink?: (targetId: number | null) => void; // Corner wall run linking (internal only)
   onShaftLink?: (targetId: number | null) => void; // Shaft wall primary/secondary linking (internal only)
-  onJunctionLink?: (targetId: number | null) => void; // Generic adjoining-wall linking, any orient/wallSystem (internal only)
+  onJunctionLink?: (targetId: number | null) => void; // Generic adjoining-wall linking -- any orient/wallSystem, Internal or External
 }
 const WallsCard = ({ walls, results, activeId, setActiveId, active, update, addBlankWall, duplicateWall, deleteWall, warnById, showTypes = true, systemSelector, orient, onCornerLink, onShaftLink, onJunctionLink }: WallsCardProps) => (
   <div className={cx.section}>
@@ -3003,10 +3010,11 @@ const WallsCard = ({ walls, results, activeId, setActiveId, active, update, addB
         )}
       </>
     )}
-    {/* 1c -- Generic adjoining-wall junction link (internal only). Not gated by
-        orient/wallSystem -- available on every wall, since a junction can occur
-        between any two walls in the project (see JunctionLinkSelector). */}
-    {showTypes && onJunctionLink && walls.length > 1 && (
+    {/* 1c -- Generic adjoining-wall junction link. Not gated by showTypes/
+        orient/wallSystem -- available on every wall in either calculator
+        (Internal or External), since a junction can occur between any two
+        walls in the project (see JunctionLinkSelector). */}
+    {onJunctionLink && walls.length > 1 && (
       <JunctionLinkSelector active={active} walls={walls} onLink={onJunctionLink} />
     )}
     {/* 2 -- Panel configuration (internal only). Shaft wall is always 78 mm --
@@ -3297,6 +3305,25 @@ function useWallStore({ dimUnit, onWallAdded }: { dimUnit: string; onWallAdded?:
   // typed value (e.g. "7200" entered in mm mode) doesn't linger in m mode.
   const clearCustomLength = () => { setCustomLengthInput(""); setCustomActive(false); };
 
+  // Symmetric junction linking (see Wall.junctionPartnerId): marks two walls as
+  // physically adjoining for the combined estimate's connection/junction
+  // material calculation (src/estimate/calculateConnectionMaterials.ts). Lives
+  // here (rather than per-calculator) since it's generic -- available on any
+  // wall regardless of orientation/wallSystem, and needed by both the Internal
+  // and External calculators, which share this one store.
+  const linkJunctionPartner = (targetId: number | null) => {
+    setWalls(ws => {
+      const prevPartnerId = ws.find(w => w.id === activeId)?.junctionPartnerId ?? null;
+      return ws.map(w => {
+        if (w.id === activeId) return { ...w, junctionPartnerId: targetId };
+        if (targetId !== null && w.id === targetId) return { ...w, junctionPartnerId: activeId };
+        if (prevPartnerId !== null && w.id === prevPartnerId && w.id !== targetId) return { ...w, junctionPartnerId: null };
+        if (targetId !== null && w.junctionPartnerId === targetId && w.id !== activeId) return { ...w, junctionPartnerId: null };
+        return w;
+      });
+    });
+  };
+
   return {
     walls, setWalls, activeId, setActiveId, nextId, setNextId,
     projectStock, projectLock, customLengthInput, customActive,
@@ -3304,6 +3331,7 @@ function useWallStore({ dimUnit, onWallAdded }: { dimUnit: string; onWallAdded?:
     setProjectLength, projectForcedStock,
     addBlankWall, duplicateWall, deleteWall,
     commitCustomLength, toggleCustom, resetWalls, clearCustomLength,
+    linkJunctionPartner,
   };
 }
 
@@ -3385,12 +3413,14 @@ function ExternalCalculator({ store, orient, dimUnit, setDimUnit, systemSelector
     active, update, toDisp, toM, updDim,
     setProjectLength, addBlankWall, duplicateWall, deleteWall,
     commitCustomLength, toggleCustom, clearCustomLength,
+    linkJunctionPartner,
   } = store;
   const { results, out, warnById } = useWallResults(walls, activeId, computeExternal);
 
   const switchDimUnit = (u: string) => { setDimUnit(u); clearCustomLength(); };
   const project  = extMode === "project";
   const projAgg  = useMemo(() => buildExtProjAgg(results), [results]);
+  const combinedEstimate = useCombinedEstimateCalc(walls);
 
   const edgeOptions = [
     { key: "headFlash", label: HEAD_FLASH_LABEL, sublabel: HEAD_FLASH_SUBLABEL, value: active.headFlash, onToggle: () => update({ headFlash: !active.headFlash }) },
@@ -3405,6 +3435,7 @@ function ExternalCalculator({ store, orient, dimUnit, setDimUnit, systemSelector
         active={active} update={update} addBlankWall={addBlankWall}
         duplicateWall={duplicateWall} deleteWall={deleteWall} warnById={warnById} showTypes={false}
         systemSelector={systemSelector} orient={orient}
+        onJunctionLink={linkJunctionPartner}
       />
 
       <SectionLabel icon={<Box size={13} />}>Panel configuration</SectionLabel>
@@ -3582,6 +3613,19 @@ function ExternalCalculator({ store, orient, dimUnit, setDimUnit, systemSelector
       {project && (
         <>
           <ProjectSeparator />
+
+          {/* System Breakdown: shows HOW the estimate was built, wall by wall */}
+          <SectionLabel icon={<Layers size={13} />}>System breakdown</SectionLabel>
+          {results.map(({ wall: w, out: o }) => (
+            <SystemBreakdownWallCardExt key={w.id} wall={w} out={o} ScheduleComp={ScheduleComp} />
+          ))}
+
+          {/* Connection Breakdown: shows WHY extra materials were added */}
+          <SectionLabel icon={<Frame size={13} />}>Connection breakdown</SectionLabel>
+          <ConnectionBreakdownCard connections={combinedEstimate.connections} />
+
+          {/* Easy to Order: shows WHAT needs to be ordered -- one combined material list */}
+          <SectionLabel icon={<Box size={13} />}>Easy to order -- combined material summary</SectionLabel>
           <StatsRow area={`${projAgg.totalArea} m2`} panels={projAgg.panels} panelType="P78" />
           <Card title="Project order estimate" icon={<Box size={14} />}>
             {projAgg.groups.map((g: ExtAggGroup, i: number) => (
@@ -3593,7 +3637,8 @@ function ExternalCalculator({ store, orient, dimUnit, setDimUnit, systemSelector
             ))}
             {projAgg.groups.length === 0 && <Row k="No panels yet" v="--" dim />}
           </Card>
-          <TrackFlashingCardExtProj agg={projAgg} />
+          <TrackFlashingCardExtProj agg={projAgg}
+            connectionLM={combinedEstimate.connectionLM} connectionPieces={combinedEstimate.connectionPieces} />
           <FixingSealantCard title="Fixing and sealant -- whole project"
             boxes30={projAgg.boxes30} fix30={projAgg.fix30}
             boxes16={projAgg.boxes16} fix16={projAgg.fix16}
@@ -3720,6 +3765,63 @@ const ConnectionBreakdownCard = ({ connections }: { connections: ConnectionMater
   </Card>
 );
 
+// --- SystemBreakdownWallCardExt -------------------------------------------------
+// External-system counterpart to SystemBreakdownWallCard: one wall's own
+// section of the combined estimate's System Breakdown, reusing the same
+// single-wall display components the External "Selected wall estimate" view
+// uses (colour badge, TrackFlashingCardExt, External fixing/sealant rates).
+const SystemBreakdownWallCardExt = ({ wall, out, ScheduleComp }: {
+  wall: Wall; out: ComputeOut; ScheduleComp: typeof PanelScheduleCard;
+}) => {
+  const [open, setOpen] = useState(true);
+  const colourEntry = wall.colour ? EXT_STOCKED_COLOURS.find(c => c.code === wall.colour) : null;
+  const colourDisplay = colourEntry ? `${colourEntry.label} (${colourEntry.code})` : wall.colour;
+
+  return (
+    <div className="mt-3">
+      <button onClick={() => setOpen(v => !v)} className={cx.accordion}>
+        <span>
+          {wall.name} -- {wall.orient === "vertical" ? "Vertical" : "Horizontal"}, External, P78
+          {!out.empty ? ` -- ${out.area} m2` : ""}
+        </span>
+        <ChevronDown size={15} className={`transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && (
+        <div className="mt-3">
+          {out.empty || !out.result ? (
+            <Card title={wall.name} icon={<Frame size={14} />}>
+              <Row k="Enter width and height to estimate this wall" v="--" dim />
+            </Card>
+          ) : (
+            <>
+              <StatsRow area={`${out.area} m2`} panels={out.result.panels} panelType="P78" />
+              {wall.colour && (
+                <div className="mt-2 flex items-center gap-2 rounded-lg border px-3 py-2.5" style={{ borderColor: GOLD, background: "#fffbeb" }}>
+                  <span className="text-xs font-bold uppercase tracking-wide text-amber-700">Colour</span>
+                  <span className="text-sm font-semibold" style={{ color: NAVY }}>{colourDisplay}</span>
+                  {wall.colourType === "special" && <span className="ml-auto text-xs font-bold uppercase tracking-wide text-amber-600">Special order</span>}
+                </div>
+              )}
+              <ScheduleComp title="Panel order schedule -- P78 coloured" icon={<Box size={14} />}
+                customSchedule={out.customSchedule}
+                groups={out.result.groups.map((g: PanelGroup) => ({ ...g, ps: EXT_PACK }))}
+                packSize={EXT_PACK} stocks={EXT_STOCK} wastePct={out.result.wastePct} orient={wall.orient} />
+              <TrackFlashingCardExt out={out} orient={wall.orient} headFlashActive={wall.headFlash} />
+              <FixingSealantCard title="Fixing and sealant quantities"
+                boxes30={out.boxes30 || 0} fix30={out.fix30 || 0}
+                boxes16={out.boxes16 || 0} fix16={out.fix16 || 0}
+                sealantBoxes={out.sealantBoxes || 0} sausages={out.sausages || 0} area={out.area || 0}
+                sealantLabel="Sikaflex 400 Fire PU" sealantRate={2} footnote="Est. fixings -- 1000/box." />
+              <WarningsList warnings={out.warnings} />
+              {out.notes && out.notes.length > 0 && <NotesList notes={out.notes} />}
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
 // --- Session persistence ------------------------------------------------------
 // The current view (which system/orientation, project-vs-single mode, and unit)
 // is saved alongside the wall project so reopening the app restores the exact
@@ -3769,6 +3871,7 @@ export default function SpeedpanelEstimator() {
     active, update, toDisp, toM, updDim,
     setProjectLength, addBlankWall, duplicateWall, deleteWall,
     commitCustomLength, toggleCustom, resetWalls, clearCustomLength,
+    linkJunctionPartner,
   } = store;
   // Orientation is per-wall (see Wall.orient) -- this is the ACTIVE wall's own
   // orientation, used only to drive which fields/selectors are shown for it.
@@ -3836,24 +3939,6 @@ export default function SpeedpanelEstimator() {
     if (!partner) return null;
     return computeShaftPair(active, partner, INT_CONFIG);
   }, [orient, active, walls]);
-
-  // Symmetric junction linking (see Wall.junctionPartnerId): marks two walls as
-  // physically adjoining for the combined estimate's connection/junction
-  // material calculation (src/estimate/calculateConnectionMaterials.ts). Same
-  // symmetric-link pattern as linkCornerPartner/linkShaftPartner, but generic
-  // -- available on any wall regardless of orientation/wallSystem.
-  const linkJunctionPartner = (targetId: number | null) => {
-    setWalls(ws => {
-      const prevPartnerId = ws.find(w => w.id === activeId)?.junctionPartnerId ?? null;
-      return ws.map(w => {
-        if (w.id === activeId) return { ...w, junctionPartnerId: targetId };
-        if (targetId !== null && w.id === targetId) return { ...w, junctionPartnerId: activeId };
-        if (prevPartnerId !== null && w.id === prevPartnerId && w.id !== targetId) return { ...w, junctionPartnerId: null };
-        if (targetId !== null && w.junctionPartnerId === targetId && w.id !== activeId) return { ...w, junctionPartnerId: null };
-        return w;
-      });
-    });
-  };
 
   const combinedEstimate = useCombinedEstimateCalc(walls);
 
