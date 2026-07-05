@@ -10,7 +10,6 @@ permissions:
   contents: read
   pages: write
   id-token: write
-  administration: write
 
 concurrency:
   group: pages
@@ -30,8 +29,6 @@ jobs:
       - run: npm install
       - run: npm run build
       - uses: actions/configure-pages@v5
-        with:
-          enablement: true
       - uses: actions/upload-pages-artifact@v3
         with:
           path: APP/speedpanel-estimator/dist
