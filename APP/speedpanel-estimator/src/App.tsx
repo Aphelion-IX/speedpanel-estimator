@@ -1646,16 +1646,21 @@ const LengthExplorer = ({
 // rather than a fixed column count. On phone layout this renders children
 // exactly as before (no wrapper), so phone output is byte-identical.
 //
-// Column gap only (gap-x-3, matching the app's "mt-3 -- between related
-// groups" rhythm) -- no row gap. Every card placed in here (Card,
-// PanelScheduleTable, etc.) already carries its own baked-in mt-3 top
-// margin for normal block-flow stacking; adding a row gap on top of that
-// would double the spacing whenever the grid wraps to a second row.
+// Margin ownership: a grid container blocks normal margin collapsing at its
+// boundary (unlike a plain block sibling), so relying on each child's own
+// baked-in mt-3 (as every card component does, for normal block-flow
+// stacking on phone) produces MORE visible gap on web than phone -- the
+// preceding heading's mb-2 no longer collapses away into the child's larger
+// mt-3, it just adds on top of it. Fix: the grid container itself carries
+// mt-3 (so it collapses normally with whatever precedes it, exactly like a
+// plain card would), gap-3 provides uniform row/column spacing, and
+// [&>*]:!mt-0 neutralizes each child's own top margin so it can't ALSO
+// contribute -- one spacing source instead of two independent ones.
 const CardGrid = ({ layoutMode, minWidth = 320, children }: {
   layoutMode: EffectiveLayout; minWidth?: number; children: React.ReactNode;
 }) => (
   layoutMode === "web"
-    ? <div className="grid gap-x-3 items-start" style={{ gridTemplateColumns: `repeat(auto-fit, minmax(${minWidth}px, 1fr))` }}>{children}</div>
+    ? <div className="mt-3 grid gap-3 items-start [&>*]:!mt-0" style={{ gridTemplateColumns: `repeat(auto-fit, minmax(${minWidth}px, 1fr))` }}>{children}</div>
     : <>{children}</>
 );
 
@@ -3424,9 +3429,15 @@ const LayoutModeToggle = ({ effective, onToggle }: { effective: EffectiveLayout;
 const CalculatorShell = ({ layoutMode, sidebar, main, footer }: {
   layoutMode: EffectiveLayout; sidebar: React.ReactNode; main: React.ReactNode; footer: React.ReactNode;
 }) => (
+  // No space-y-* here: every child component already carries its own correct
+  // top margin (mt-3/mt-5/etc., matching phone layout exactly). space-y-*'s
+  // generated selector (> :not([hidden]) ~ :not([hidden])) has HIGHER CSS
+  // specificity than a plain utility class like mt-5, so it was silently
+  // overriding every child's real margin down to a flat 4px -- the actual
+  // cause of web layout's spacing looking compressed/inconsistent vs phone.
   <div className="grid grid-cols-[360px_1fr] items-start gap-6">
-    <aside className="sticky top-5 space-y-1">{sidebar}</aside>
-    <div className="min-w-0 space-y-1">{main}{footer}</div>
+    <aside className="sticky top-5">{sidebar}</aside>
+    <div className="min-w-0">{main}{footer}</div>
   </div>
 );
 
