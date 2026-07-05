@@ -443,38 +443,14 @@ const buildOption = (raw: RawPack, type: number): PackResult => {
 };
 
 // --- C-track selection (spec Table 3) ----------------------------------------
+// Data-driven from PANELS[].horizCtrack: return the first ordered band whose
+// W/H envelope contains the wall (the band list is ordered narrower-W/shorter-H
+// first, so this reproduces the original spec-table lookup exactly). Returns
+// null when W/H is beyond every band (e.g. W > 4.5 m).
 const pickHorizCtrack = (type: number, W: number, H: number) => {
-  const r  = (t: string, fix: number) => ({ t, fix, outsideTable: false });
-  const rb = (t: string, fix: number) => ({ t, fix, outsideTable: true });
-  if (type === 51) {
-    if (W <= 3.0 && H <= 3.0)                         return r("55 x 56 x 1.15", 1);
-    if (W > 3.0 && W <= 4.5 && H <= 3.0)             return r("55 x 57 x 1.50", 1);
-    if (W <= 3.0 && H > 3.0 && H <= 4.0)             return r("55 x 57 x 1.50", 1);
-    if (W > 3.0 && W <= 4.5 && H > 3.0 && H <= 4.0) return r("55 x 58 x 1.95", 1);
-    if (W <= 4.5 && H > 4.0 && H <= 5.0)             return r("55 x 58 x 1.95", 1);
-    if (W <= 4.5 && H > 5.0)                         return rb("55 x 58 x 1.95", 1);
-    return null;
-  }
-  if (type === 64) {
-    if (W <= 3.0 && H <= 3.0)                         return r("55 x 68 x 1.15", 1);
-    if (W > 3.0 && W <= 4.5 && H <= 3.0)             return r("55 x 69 x 1.50", 1);
-    if (W <= 3.0 && H > 3.0 && H <= 4.0)             return r("55 x 69 x 1.50", 1);
-    if (W > 3.0 && W <= 4.5 && H > 3.0 && H <= 4.0) return r("55 x 70 x 1.95", 1);
-    if (W <= 4.5 && H > 4.0 && H <= 5.0)             return r("55 x 70 x 1.95", 1);
-    if (W <= 4.5 && H > 5.0)                         return rb("55 x 70 x 1.95", 1);
-    return null;
-  }
-  if (type === 78) {
-    if (W <= 3.0 && H <= 3.0)                         return r("90 x 82 x 1.15", 1);
-    if (W > 3.0 && W <= 4.5 && H <= 3.0)             return r("90 x 83 x 1.50", 1);
-    if (W <= 3.0 && H > 3.0 && H <= 4.5)             return r("90 x 83 x 1.50", 1);
-    if (W > 3.0 && W <= 4.5 && H > 3.0 && H <= 4.5) return r("90 x 84 x 1.95", 1);
-    if (W <= 3.5 && H > 4.5 && H <= 6.0)             return r("90 x 84 x 1.95", 1);
-    if (W > 3.5 && W <= 4.5 && H > 4.5 && H <= 6.0) return r("90 x 84 x 1.95", 2);
-    if (W <= 4.5 && H > 6.0)                         return rb("90 x 84 x 1.95", 2);
-    return null;
-  }
-  return null;
+  const panel = PANELS.find(p => p.type === type);
+  const band = panel?.horizCtrack.find(b => W <= b.wMax && H <= b.hMax);
+  return band ? { t: band.section, fix: band.fix, outsideTable: !!band.outsideTable } : null;
 };
 
 // --- Corner post selection (Corner wall system, spec Table B) ----------------

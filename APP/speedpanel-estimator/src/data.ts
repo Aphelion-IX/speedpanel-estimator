@@ -12,11 +12,11 @@
 // 2. Add one entry to the `PANELS` array with ALL fields -- TypeScript will
 //    error until every field is filled in. That single entry drives the pack
 //    size, C-track/J-track dims, max heights, the vertical & horizontal span
-//    tables, the corner-post table, and the P51/P64/P78 selector buttons.
-// 3. A few per-type rules are IMPERATIVE and still live in App.tsx's compute
-//    engine (they are not pure data). Update them too if the new panel needs
+//    tables, the corner-post table, the horizontal C-track bands, and the
+//    P51/P64/P78 selector buttons.
+// 3. A few per-type rules are still IMPERATIVE in App.tsx's compute engine
+//    (they are not pure data). Update them too if the new panel needs
 //    different behaviour:
-//      - `pickHorizCtrack`  (App.tsx) -- horizontal C-track interval bands
 //      - `pickCornerPost`   (App.tsx) -- P78 tall-wall footnote special case
 //      - `INT_CONFIG.jValidFn` (below) -- which types get a base J-track (P78 only)
 //      - "P78 vertical > 5.0 m enhanced fixing" rule (App.tsx, computeFixings)
@@ -41,6 +41,11 @@ export interface PanelSpec {
   spanVert: { maxW: string; maxH: string };
   spanHoriz: { maxW: string; maxH: string; cTrack: string; fix: string; note?: string }[];
   cornerPost: { maxW: number; rows: { maxH: number; section: string; fixPerCourse?: 1 | 2 }[] }[];
+  // Horizontal C-track selection (spec Table 3), consumed by pickHorizCtrack.
+  // ORDERED bands: the matcher returns the first band where W <= wMax && H <= hMax,
+  // so list narrower-W / shorter-H bands first. The last band uses hMax: Infinity
+  // with outsideTable: true to cover heights beyond the table.
+  horizCtrack: { wMax: number; hMax: number; section: string; fix: 1 | 2; outsideTable?: boolean }[];
 }
 
 export const PANELS: PanelSpec[] = [
@@ -60,6 +65,14 @@ export const PANELS: PanelSpec[] = [
       { maxW: 3.0, rows: [{ maxH: 3.0, section: "55 x 56 x 1.15" }, { maxH: 4.0, section: "55 x 57 x 1.50" }, { maxH: 5.0, section: "55 x 58 x 1.95" }] },
       { maxW: 4.5, rows: [{ maxH: 3.0, section: "55 x 57 x 1.50" }, { maxH: 4.0, section: "55 x 58 x 1.95" }, { maxH: 5.0, section: "55 x 58 x 1.95" }] },
     ],
+    horizCtrack: [
+      { wMax: 3.0, hMax: 3.0, section: "55 x 56 x 1.15", fix: 1 },
+      { wMax: 4.5, hMax: 3.0, section: "55 x 57 x 1.50", fix: 1 },
+      { wMax: 3.0, hMax: 4.0, section: "55 x 57 x 1.50", fix: 1 },
+      { wMax: 4.5, hMax: 4.0, section: "55 x 58 x 1.95", fix: 1 },
+      { wMax: 4.5, hMax: 5.0, section: "55 x 58 x 1.95", fix: 1 },
+      { wMax: 4.5, hMax: Infinity, section: "55 x 58 x 1.95", fix: 1, outsideTable: true },
+    ],
   },
   {
     type: 64, label: "P64", depth: "64 mm", frl: "-/90/90",
@@ -76,6 +89,14 @@ export const PANELS: PanelSpec[] = [
     cornerPost: [
       { maxW: 3.0, rows: [{ maxH: 3.0, section: "55 x 68 x 1.15" }, { maxH: 4.0, section: "55 x 69 x 1.50" }, { maxH: 5.0, section: "55 x 70 x 1.95" }] },
       { maxW: 4.5, rows: [{ maxH: 3.0, section: "55 x 69 x 1.50" }, { maxH: 4.0, section: "55 x 70 x 1.95" }, { maxH: 5.0, section: "55 x 70 x 1.95" }] },
+    ],
+    horizCtrack: [
+      { wMax: 3.0, hMax: 3.0, section: "55 x 68 x 1.15", fix: 1 },
+      { wMax: 4.5, hMax: 3.0, section: "55 x 69 x 1.50", fix: 1 },
+      { wMax: 3.0, hMax: 4.0, section: "55 x 69 x 1.50", fix: 1 },
+      { wMax: 4.5, hMax: 4.0, section: "55 x 70 x 1.95", fix: 1 },
+      { wMax: 4.5, hMax: 5.0, section: "55 x 70 x 1.95", fix: 1 },
+      { wMax: 4.5, hMax: Infinity, section: "55 x 70 x 1.95", fix: 1, outsideTable: true },
     ],
   },
   {
@@ -97,6 +118,16 @@ export const PANELS: PanelSpec[] = [
       // in pickCornerPost due to the footnote width-breakpoint shift (3.0 m -> 3.5 m at 6.0 m tall).
       { maxW: 3.0, rows: [{ maxH: 3.0, section: "90 x 82 x 1.15" }, { maxH: 4.5, section: "90 x 83 x 1.50" }] },
       { maxW: 4.5, rows: [{ maxH: 3.0, section: "90 x 83 x 1.50" }, { maxH: 4.5, section: "90 x 84 x 1.95" }] },
+    ],
+    horizCtrack: [
+      { wMax: 3.0, hMax: 3.0, section: "90 x 82 x 1.15", fix: 1 },
+      { wMax: 4.5, hMax: 3.0, section: "90 x 83 x 1.50", fix: 1 },
+      { wMax: 3.0, hMax: 4.5, section: "90 x 83 x 1.50", fix: 1 },
+      { wMax: 4.5, hMax: 4.5, section: "90 x 84 x 1.95", fix: 1 },
+      // P78 tall-wall band: the 1-screw width breakpoint drops to 3.5 m at 4.5-6.0 m tall.
+      { wMax: 3.5, hMax: 6.0, section: "90 x 84 x 1.95", fix: 1 },
+      { wMax: 4.5, hMax: 6.0, section: "90 x 84 x 1.95", fix: 2 },
+      { wMax: 4.5, hMax: Infinity, section: "90 x 84 x 1.95", fix: 2, outsideTable: true },
     ],
   },
 ];
