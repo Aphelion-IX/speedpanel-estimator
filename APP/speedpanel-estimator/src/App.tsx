@@ -3594,10 +3594,6 @@ function ExternalCalculator({ store, orient, dimUnit, setDimUnit, systemSelector
 
   const mainNode = (
     <>
-      {layoutMode === "web" && (
-        <WallsSummaryTable results={results} activeId={activeId} setActiveId={setActiveId} warnById={warnById} toDisp={toDisp} dimUnit={dimUnit} />
-      )}
-
       {!out.empty && !project && out.result && (
         <>
           <button onClick={() => setShowTakeoff(!showTakeoff)} className={cx.accordion}>
@@ -3639,6 +3635,10 @@ function ExternalCalculator({ store, orient, dimUnit, setDimUnit, systemSelector
       {project && (
         <>
           <ProjectSeparator />
+
+          {layoutMode === "web" && (
+            <WallsSummaryTable results={results} activeId={activeId} setActiveId={setActiveId} warnById={warnById} toDisp={toDisp} dimUnit={dimUnit} />
+          )}
 
           {/* System Breakdown: shows HOW the estimate was built, wall by wall */}
           <SectionLabel icon={<Layers size={13} />}>System breakdown</SectionLabel>
@@ -4165,10 +4165,6 @@ export default function SpeedpanelEstimator() {
 
           const mainNode = (
             <>
-              {layoutMode === "web" && (
-                <WallsSummaryTable results={results} activeId={activeId} setActiveId={setActiveId} warnById={warnById} toDisp={toDisp} dimUnit={dimUnit} />
-              )}
-
               {/* Single wall estimate */}
               {!out.empty && !project && out.chosen && !out.chosen.invalid && (
                 <>
@@ -4213,6 +4209,10 @@ export default function SpeedpanelEstimator() {
               {project && (
                 <>
                   <ProjectSeparator />
+
+                  {layoutMode === "web" && (
+                    <WallsSummaryTable results={results} activeId={activeId} setActiveId={setActiveId} warnById={warnById} toDisp={toDisp} dimUnit={dimUnit} />
+                  )}
 
                   {/* System Breakdown: shows HOW the estimate was built, wall by wall */}
                   <SectionLabel icon={<Layers size={13} />}>System breakdown</SectionLabel>
