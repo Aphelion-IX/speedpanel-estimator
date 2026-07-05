@@ -3654,7 +3654,10 @@ function ExternalCalculator({ store, orient, dimUnit, setDimUnit, systemSelector
           <ProjectSeparator />
 
           {layoutMode === "web" && (
-            <WallsSummaryTable results={results} activeId={activeId} setActiveId={setActiveId} warnById={warnById} toDisp={toDisp} dimUnit={dimUnit} />
+            <>
+              <SectionLabel icon={<Frame size={13} />}>Wall list</SectionLabel>
+              <WallsSummaryTable results={results} activeId={activeId} setActiveId={setActiveId} warnById={warnById} toDisp={toDisp} dimUnit={dimUnit} />
+            </>
           )}
 
           {/* System Breakdown: shows HOW the estimate was built, wall by wall */}
@@ -4234,7 +4237,10 @@ export default function SpeedpanelEstimator() {
                   <ProjectSeparator />
 
                   {layoutMode === "web" && (
-                    <WallsSummaryTable results={results} activeId={activeId} setActiveId={setActiveId} warnById={warnById} toDisp={toDisp} dimUnit={dimUnit} />
+                    <>
+                      <SectionLabel icon={<Frame size={13} />}>Wall list</SectionLabel>
+                      <WallsSummaryTable results={results} activeId={activeId} setActiveId={setActiveId} warnById={warnById} toDisp={toDisp} dimUnit={dimUnit} />
+                    </>
                   )}
 
                   {/* System Breakdown: shows HOW the estimate was built, wall by wall */}
