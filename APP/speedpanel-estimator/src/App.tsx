@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, Fragment } from "react";
 import {
   Layers, AlertTriangle, Lock, ChevronDown, RotateCcw,
   Box, Frame, Hammer, Plus, Trash2, Copy, Settings,
@@ -1636,6 +1636,23 @@ const LengthExplorer = ({
   );
 };
 
+// --- CardGrid -------------------------------------------------------------
+// On web layout, arranges its children (cards) side by side in a responsive
+// grid instead of one full-width stacked column -- fixes cards stretching to
+// the whole (~1000px) main column with sparse, empty-feeling rows, and keeps
+// the main column from growing far taller than the sticky sidebar when
+// several cards/wall breakdowns are shown at once. auto-fit/minmax means it
+// gracefully drops to fewer columns (down to 1) on a narrower web viewport,
+// rather than a fixed column count. On phone layout this renders children
+// exactly as before (no wrapper), so phone output is byte-identical.
+const CardGrid = ({ layoutMode, minWidth = 320, children }: {
+  layoutMode: EffectiveLayout; minWidth?: number; children: React.ReactNode;
+}) => (
+  layoutMode === "web"
+    ? <div className="grid gap-4 items-start" style={{ gridTemplateColumns: `repeat(auto-fit, minmax(${minWidth}px, 1fr))` }}>{children}</div>
+    : <>{children}</>
+);
+
 // --- UI primitives ------------------------------------------------------------
 const SectionLabel = ({ icon, children }: { icon: React.ReactNode; children: React.ReactNode }) => (
   <div className={cx.sectionLbl}>
@@ -2585,9 +2602,9 @@ const PanelScheduleTable = ({ title, icon, customSchedule, groups, packSize, sto
   customSchedule?: CustomScheduleEntry[] | null; groups?: PanelGroup[];
   packSize: number; stocks: number[]; wastePct?: number; orient?: string; showCustomNote?: boolean;
 }) => {
-  const TH = "py-2.5 px-3 text-left text-xs font-bold uppercase tracking-widest text-slate-500 border-b border-slate-100";
-  const TD = "py-2.5 px-3 text-sm text-slate-600 border-b border-slate-100 last:border-0";
-  const TDm = "py-2.5 px-3 text-sm font-semibold border-b border-slate-100 last:border-0";
+  const TH = "py-2.5 px-2 text-left text-xs font-bold uppercase tracking-wide text-slate-500 border-b border-slate-100";
+  const TD = "py-2.5 px-2 text-sm text-slate-600 border-b border-slate-100 last:border-0";
+  const TDm = "py-2.5 px-2 text-sm font-semibold border-b border-slate-100 last:border-0";
   const hasCustom = customSchedule && customSchedule.length > 0;
 
   return (
@@ -2600,14 +2617,15 @@ const PanelScheduleTable = ({ title, icon, customSchedule, groups, packSize, sto
           {orient === "horizontal" ? "Factory-cut row widths." : "Factory-cut panels (max 9000 mm)."} Pack of {packSize}. Confirm with Speedpanel.
         </p>
       )}
-      <table className="w-full">
+      <div className="overflow-x-auto">
+      <table className="w-full min-w-[400px]">
         <thead>
           <tr>
             <th className={TH}>{hasCustom ? "Length" : "Stock"}</th>
             <th className={TH}>Status</th>
-            <th className={TH}>Required</th>
+            <th className={TH}>Req.</th>
             <th className={TH}>Packs</th>
-            <th className={TH}>Ordered</th>
+            <th className={TH}>Ord.</th>
             <th className={TH}>Spare</th>
           </tr>
         </thead>
@@ -2633,18 +2651,25 @@ const PanelScheduleTable = ({ title, icon, customSchedule, groups, packSize, sto
             );
           }) : (groups || []).map((g, i) => {
             const status = stockStatus(g.stock * 1000, stocks);
+            const showNote = g.underPack || g.spare > 3;
             return (
-              <tr key={i}>
-                <td className={TDm} style={{ color: NAVY }}>{r1(g.stock)} m</td>
-                <td className={TD}><StockBadge status={status} /></td>
-                <td className={TD}>{g.pieces}</td>
-                <td className={TD}>{g.packs} of {g.ps || packSize}</td>
-                <td className={TDm} style={{ color: BLUE }}>{g.ordered}</td>
-                <td className={TD}>
-                  {g.spare}
-                  {(g.underPack || g.spare > 3) && <PackNote type={typeFromPackSize(g.ps || packSize)} spare={g.spare} />}
-                </td>
-              </tr>
+              <Fragment key={i}>
+                <tr>
+                  <td className={TDm} style={{ color: NAVY }}>{r1(g.stock)} m</td>
+                  <td className={TD}><StockBadge status={status} /></td>
+                  <td className={TD}>{g.pieces}</td>
+                  <td className={TD}>{g.packs} of {g.ps || packSize}</td>
+                  <td className={TDm} style={{ color: BLUE }}>{g.ordered}</td>
+                  <td className={showNote ? "py-2.5 px-2 text-sm text-slate-600" : TD}>{g.spare}</td>
+                </tr>
+                {showNote && (
+                  <tr>
+                    <td colSpan={6} className="pb-2.5 border-b border-slate-100 last:border-0">
+                      <PackNote type={typeFromPackSize(g.ps || packSize)} spare={g.spare} />
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
             );
           })}
           {!hasCustom && (!groups || groups.length === 0) && (
@@ -2652,6 +2677,7 @@ const PanelScheduleTable = ({ title, icon, customSchedule, groups, packSize, sto
           )}
         </tbody>
       </table>
+      </div>
       <div className={cx.hr}>
         {hasCustom ? (
           <>
@@ -3104,7 +3130,8 @@ const WallsSummaryTable = ({ results, activeId, setActiveId, warnById, toDisp, d
       <div className={cx.cardTitle} style={{ color: NAVY }}>
         <span style={{ color: BLUE }}><Frame size={14} /></span>Walls ({results.length})
       </div>
-      <table className="w-full">
+      <div className="overflow-x-auto">
+      <table className="w-full min-w-[560px]">
         <thead>
           <tr>
             <th className={TH}>Wall</th>
@@ -3137,6 +3164,7 @@ const WallsSummaryTable = ({ results, activeId, setActiveId, warnById, toDisp, d
           })}
         </tbody>
       </table>
+      </div>
     </div>
   );
 };
@@ -3593,16 +3621,18 @@ function ExternalCalculator({ store, orient, dimUnit, setDimUnit, systemSelector
                     {active.colourType === "special" && <span className="ml-auto text-xs font-bold uppercase tracking-wide text-amber-600">Special order</span>}
                   </div>
               )}
-              <ScheduleComp title="Panel order schedule -- P78 coloured" icon={<Box size={14} />}
-                customSchedule={out.customSchedule}
-                groups={out.result.groups.map((g: PanelGroup) => ({ ...g, ps: EXT_PACK }))}
-                packSize={EXT_PACK} stocks={EXT_STOCK} wastePct={out.result.wastePct} orient={orient} />
-              <TrackFlashingCardExt out={out} orient={orient} headFlashActive={active.headFlash} />
-              <FixingSealantCard title="Fixing and sealant quantities"
-                boxes30={out.boxes30 || 0} fix30={out.fix30 || 0}
-                boxes16={out.boxes16 || 0} fix16={out.fix16 || 0}
-                sealantBoxes={out.sealantBoxes || 0} sausages={out.sausages || 0} area={out.area || 0}
-                sealantLabel="Sikaflex 400 Fire PU" sealantRate={2} footnote="Est. fixings -- 1000/box." />
+              <CardGrid layoutMode={layoutMode} minWidth={380}>
+                <ScheduleComp title="Panel order schedule -- P78 coloured" icon={<Box size={14} />}
+                  customSchedule={out.customSchedule}
+                  groups={out.result.groups.map((g: PanelGroup) => ({ ...g, ps: EXT_PACK }))}
+                  packSize={EXT_PACK} stocks={EXT_STOCK} wastePct={out.result.wastePct} orient={orient} />
+                <TrackFlashingCardExt out={out} orient={orient} headFlashActive={active.headFlash} />
+                <FixingSealantCard title="Fixing and sealant quantities"
+                  boxes30={out.boxes30 || 0} fix30={out.fix30 || 0}
+                  boxes16={out.boxes16 || 0} fix16={out.fix16 || 0}
+                  sealantBoxes={out.sealantBoxes || 0} sausages={out.sausages || 0} area={out.area || 0}
+                  sealantLabel="Sikaflex 400 Fire PU" sealantRate={2} footnote="Est. fixings -- 1000/box." />
+              </CardGrid>
               {out.notes && out.notes.length > 0 && <NotesList notes={out.notes} />}
             </div>
             );
@@ -3616,9 +3646,11 @@ function ExternalCalculator({ store, orient, dimUnit, setDimUnit, systemSelector
 
           {/* System Breakdown: shows HOW the estimate was built, wall by wall */}
           <SectionLabel icon={<Layers size={13} />}>System breakdown</SectionLabel>
-          {results.map(({ wall: w, out: o }) => (
-            <SystemBreakdownWallCardExt key={w.id} wall={w} out={o} ScheduleComp={ScheduleComp} />
-          ))}
+          <CardGrid layoutMode={layoutMode} minWidth={420}>
+            {results.map(({ wall: w, out: o }) => (
+              <SystemBreakdownWallCardExt key={w.id} wall={w} out={o} ScheduleComp={ScheduleComp} />
+            ))}
+          </CardGrid>
 
           {/* Connection Breakdown: shows WHY extra materials were added */}
           <SectionLabel icon={<Frame size={13} />}>Connection breakdown</SectionLabel>
@@ -3627,23 +3659,25 @@ function ExternalCalculator({ store, orient, dimUnit, setDimUnit, systemSelector
           {/* Easy to Order: shows WHAT needs to be ordered -- one combined material list */}
           <SectionLabel icon={<Box size={13} />}>Easy to order -- combined material summary</SectionLabel>
           <StatsRow area={`${projAgg.totalArea} m2`} panels={projAgg.panels} panelType="P78" />
-          <Card title="Project order estimate" icon={<Box size={14} />}>
-            {projAgg.groups.map((g: ExtAggGroup, i: number) => (
-              <StockGroupRow key={i}
-                stock={g.stock} ordered={g.ordered} pieces={g.pieces}
-                packs={g.packs} packSize={EXT_PACK} spare={g.spare}
-                stocks={EXT_STOCK} isLast={i === projAgg.groups.length - 1}
-              />
-            ))}
-            {projAgg.groups.length === 0 && <Row k="No panels yet" v="--" dim />}
-          </Card>
-          <TrackFlashingCardExtProj agg={projAgg}
-            connectionLM={combinedEstimate.connectionLM} connectionPieces={combinedEstimate.connectionPieces} />
-          <FixingSealantCard title="Fixing and sealant -- whole project"
-            boxes30={projAgg.boxes30} fix30={projAgg.fix30}
-            boxes16={projAgg.boxes16} fix16={projAgg.fix16}
-            sealantBoxes={projAgg.sealantBoxes} sausages={projAgg.sausages} area={projAgg.totalArea}
-            sealantLabel="Sikaflex 400 Fire PU" sealantRate={2} footnote="Est. fixings pooled - 1000/box." />
+          <CardGrid layoutMode={layoutMode} minWidth={300}>
+            <Card title="Project order estimate" icon={<Box size={14} />}>
+              {projAgg.groups.map((g: ExtAggGroup, i: number) => (
+                <StockGroupRow key={i}
+                  stock={g.stock} ordered={g.ordered} pieces={g.pieces}
+                  packs={g.packs} packSize={EXT_PACK} spare={g.spare}
+                  stocks={EXT_STOCK} isLast={i === projAgg.groups.length - 1}
+                />
+              ))}
+              {projAgg.groups.length === 0 && <Row k="No panels yet" v="--" dim />}
+            </Card>
+            <TrackFlashingCardExtProj agg={projAgg}
+              connectionLM={combinedEstimate.connectionLM} connectionPieces={combinedEstimate.connectionPieces} />
+            <FixingSealantCard title="Fixing and sealant -- whole project"
+              boxes30={projAgg.boxes30} fix30={projAgg.fix30}
+              boxes16={projAgg.boxes16} fix16={projAgg.fix16}
+              sealantBoxes={projAgg.sealantBoxes} sausages={projAgg.sausages} area={projAgg.totalArea}
+              sealantLabel="Sikaflex 400 Fire PU" sealantRate={2} footnote="Est. fixings pooled - 1000/box." />
+          </CardGrid>
         </>
       )}
     </>
@@ -4152,28 +4186,30 @@ export default function SpeedpanelEstimator() {
                   {showWall && (
                     <div className="mt-3">
                       <StatsRow area={`${out.area} m2`} panels={out.chosen.panels} panelType={`P${active.type}`} />
-                      <ScheduleComp title={`Panel schedule -- P${active.type}`} icon={<Box size={14} />}
-                        customSchedule={out.customSchedule}
-                        groups={out.chosen.groups}
-                        packSize={PACK[active.type]} stocks={STOCK_LENGTHS}
-                        wastePct={out.chosen.wastePct} orient={orient} />
-                      <TrackFlashingCardInt out={out} headFlashActive={active.headFlash} wall={active} />
-                      {active.wallSystem === "shaft" && <ShaftVerticalCard out={out} />}
-                      {cornerPair && (() => {
-                        const partner = walls.find(w => w.id === active.cornerPartnerId);
-                        return <CornerKitCard kit={cornerPair} partnerName={partner ? partner.name : "linked run"} />;
-                      })()}
-                      {shaftPair && (() => {
-                        const partner = walls.find(w => w.id === active.shaftPartnerId);
-                        return <ShaftJunctionCard kit={shaftPair} partnerName={partner ? partner.name : "linked wall"} />;
-                      })()}
-                      {active.wallSystem === "shaft" && <ShaftSlabCard out={out} />}
-                      <FixingSealantCard title="Fixing and sealant quantities"
-                        boxes30={out.boxes30 || 0} fix30={out.fix30 || 0}
-                        boxes16={out.boxes16 || 0} fix16={out.fix16 || 0}
-                        sealantBoxes={out.sealantBoxes || 0} sausages={out.sausages || 0} area={out.area || 0}
-                        sealantLabel="Hilti CP606 sealant" sealantRate={4}
-                        p2pNote={out.p2pNote} p2pEnhanced={out.p2pEnhanced} />
+                      <CardGrid layoutMode={layoutMode} minWidth={420}>
+                        <ScheduleComp title={`Panel schedule -- P${active.type}`} icon={<Box size={14} />}
+                          customSchedule={out.customSchedule}
+                          groups={out.chosen.groups}
+                          packSize={PACK[active.type]} stocks={STOCK_LENGTHS}
+                          wastePct={out.chosen.wastePct} orient={orient} />
+                        <TrackFlashingCardInt out={out} headFlashActive={active.headFlash} wall={active} />
+                        {active.wallSystem === "shaft" && <ShaftVerticalCard out={out} />}
+                        {cornerPair && (() => {
+                          const partner = walls.find(w => w.id === active.cornerPartnerId);
+                          return <CornerKitCard kit={cornerPair} partnerName={partner ? partner.name : "linked run"} />;
+                        })()}
+                        {shaftPair && (() => {
+                          const partner = walls.find(w => w.id === active.shaftPartnerId);
+                          return <ShaftJunctionCard kit={shaftPair} partnerName={partner ? partner.name : "linked wall"} />;
+                        })()}
+                        {active.wallSystem === "shaft" && <ShaftSlabCard out={out} />}
+                        <FixingSealantCard title="Fixing and sealant quantities"
+                          boxes30={out.boxes30 || 0} fix30={out.fix30 || 0}
+                          boxes16={out.boxes16 || 0} fix16={out.fix16 || 0}
+                          sealantBoxes={out.sealantBoxes || 0} sausages={out.sausages || 0} area={out.area || 0}
+                          sealantLabel="Hilti CP606 sealant" sealantRate={4}
+                          p2pNote={out.p2pNote} p2pEnhanced={out.p2pEnhanced} />
+                      </CardGrid>
                       {out.notes && out.notes.length > 0 && <NotesList notes={out.notes} />}
                     </div>
                   )}
@@ -4187,9 +4223,11 @@ export default function SpeedpanelEstimator() {
 
                   {/* System Breakdown: shows HOW the estimate was built, wall by wall */}
                   <SectionLabel icon={<Layers size={13} />}>System breakdown</SectionLabel>
-                  {results.map(({ wall: w, out: o }) => (
-                    <SystemBreakdownWallCard key={w.id} wall={w} out={o} walls={walls} ScheduleComp={ScheduleComp} />
-                  ))}
+                  <CardGrid layoutMode={layoutMode} minWidth={420}>
+                    {results.map(({ wall: w, out: o }) => (
+                      <SystemBreakdownWallCard key={w.id} wall={w} out={o} walls={walls} ScheduleComp={ScheduleComp} />
+                    ))}
+                  </CardGrid>
 
                   {/* Connection Breakdown: shows WHY extra materials were added */}
                   <SectionLabel icon={<Frame size={13} />}>Connection breakdown</SectionLabel>
@@ -4202,64 +4240,66 @@ export default function SpeedpanelEstimator() {
                     panels={projChosenAgg ? projChosenAgg.totalPanels : "--"}
                     panelType={`P${active.type}`}
                   />
-                  <Card title="Project order estimate" icon={<Box size={14} />}>
-                    {projChosenAgg && (
-                      <>
-                        {projChosenAgg.panels.map((p: AggPanelEntry, i: number) => (
-                          <StockGroupRow key={i}
-                            stock={p.stock} ordered={p.ordered} pieces={p.pieces}
-                            packs={p.packs} packSize={p.ps ?? PACK[p.type]} spare={p.spare}
-                            stocks={STOCK_LENGTHS} isLast={i === projChosenAgg.panels.length - 1 && projChosenAgg.customPanels.length === 0}
-                            typeLabel={`P${p.type}`}
-                            packNote={(p.underPack || p.spare > 3) ? <PackNote type={p.type} spare={p.spare} /> : undefined}
-                          />
-                        ))}
-                        {projChosenAgg.customPanels.length > 0 && (
-                          <>
-                            {projChosenAgg.panels.length > 0 && <p className={cx.cardHd + " pt-2 pb-1"}>Custom lengths</p>}
-                            {projChosenAgg.customPanels.map((s: AggCustomEntry, i: number) => (
-                              <div key={i}>
-                                <ScheduleRow mm={s.mm} ordered={s.ordered} qty={s.qty} packs={s.packs} packSize={s.packSize} stocks={STOCK_LENGTHS} isLast={i === projChosenAgg.customPanels.length - 1} />
-                                {(s.qty < s.packSize || s.spare > 3) && <PackNote type={s.type} spare={s.spare} />}
-                              </div>
-                            ))}
-                          </>
-                        )}
-                        {projChosenAgg.panels.length === 0 && projChosenAgg.customPanels.length === 0 && <Row k="No panels yet" v="--" dim />}
-                        <div className={cx.hr}><Row k="Wastage (order)" v={`${r1(projChosenAgg.wastePct)}%`} dim /></div>
-                      </>
-                    )}
-                    {!projChosenAgg && <Row k="No panels yet" v="--" dim />}
-                  </Card>
-                  <TrackFlashingCardIntProj agg={projChosenAgg}
-                    connectionLM={combinedEstimate.connectionLM} connectionPieces={combinedEstimate.connectionPieces} />
-                  <Card title="Fixing and sealant -- whole project" icon={<Hammer size={14} />}>
-                    {projChosenAgg && (
-                      <>
-                        <Row k="10g 30mm SDS" v={`${projChosenAgg.boxes30} box${plural(projChosenAgg.boxes30)}`} hl />
-                        <Row k="QTY req" v={`${projChosenAgg.fix30}`} dim />
-                        <Row k="10g 16mm SDS" v={`${projChosenAgg.boxes16} box${plural(projChosenAgg.boxes16)}`} hl />
-                        <Row k="QTY req" v={`${projChosenAgg.fix16}`} dim />
-                        <Row k="Structure fixings (base track)" v="By others / engineer" dim />
-                        <div className={cx.hr}>
-                          <Row k="Hilti CP606 sealant" v={`${projChosenAgg.sealantBoxes} box${plural(projChosenAgg.sealantBoxes)} (${projChosenAgg.sausages} sausages)`} hl />
-                          <Row k="total area / 4 m2/sausage" v={`${projChosenAgg.totalArea} m2`} dim />
-                        </div>
-                        {projChosenAgg.slabPassSausages > 0 && (
+                  <CardGrid layoutMode={layoutMode} minWidth={300}>
+                    <Card title="Project order estimate" icon={<Box size={14} />}>
+                      {projChosenAgg && (
+                        <>
+                          {projChosenAgg.panels.map((p: AggPanelEntry, i: number) => (
+                            <StockGroupRow key={i}
+                              stock={p.stock} ordered={p.ordered} pieces={p.pieces}
+                              packs={p.packs} packSize={p.ps ?? PACK[p.type]} spare={p.spare}
+                              stocks={STOCK_LENGTHS} isLast={i === projChosenAgg.panels.length - 1 && projChosenAgg.customPanels.length === 0}
+                              typeLabel={`P${p.type}`}
+                              packNote={(p.underPack || p.spare > 3) ? <PackNote type={p.type} spare={p.spare} /> : undefined}
+                            />
+                          ))}
+                          {projChosenAgg.customPanels.length > 0 && (
+                            <>
+                              {projChosenAgg.panels.length > 0 && <p className={cx.cardHd + " pt-2 pb-1"}>Custom lengths</p>}
+                              {projChosenAgg.customPanels.map((s: AggCustomEntry, i: number) => (
+                                <div key={i}>
+                                  <ScheduleRow mm={s.mm} ordered={s.ordered} qty={s.qty} packs={s.packs} packSize={s.packSize} stocks={STOCK_LENGTHS} isLast={i === projChosenAgg.customPanels.length - 1} />
+                                  {(s.qty < s.packSize || s.spare > 3) && <PackNote type={s.type} spare={s.spare} />}
+                                </div>
+                              ))}
+                            </>
+                          )}
+                          {projChosenAgg.panels.length === 0 && projChosenAgg.customPanels.length === 0 && <Row k="No panels yet" v="--" dim />}
+                          <div className={cx.hr}><Row k="Wastage (order)" v={`${r1(projChosenAgg.wastePct)}%`} dim /></div>
+                        </>
+                      )}
+                      {!projChosenAgg && <Row k="No panels yet" v="--" dim />}
+                    </Card>
+                    <TrackFlashingCardIntProj agg={projChosenAgg}
+                      connectionLM={combinedEstimate.connectionLM} connectionPieces={combinedEstimate.connectionPieces} />
+                    <Card title="Fixing and sealant -- whole project" icon={<Hammer size={14} />}>
+                      {projChosenAgg && (
+                        <>
+                          <Row k="10g 30mm SDS" v={`${projChosenAgg.boxes30} box${plural(projChosenAgg.boxes30)}`} hl />
+                          <Row k="QTY req" v={`${projChosenAgg.fix30}`} dim />
+                          <Row k="10g 16mm SDS" v={`${projChosenAgg.boxes16} box${plural(projChosenAgg.boxes16)}`} hl />
+                          <Row k="QTY req" v={`${projChosenAgg.fix16}`} dim />
+                          <Row k="Structure fixings (base track)" v="By others / engineer" dim />
                           <div className={cx.hr}>
-                            <Row k="Slab-pass sealant" v={`${projChosenAgg.slabPassSealantBoxes} box${plural(projChosenAgg.slabPassSealantBoxes)} (${projChosenAgg.slabPassSausages} sausages)`} hl />
+                            <Row k="Hilti CP606 sealant" v={`${projChosenAgg.sealantBoxes} box${plural(projChosenAgg.sealantBoxes)} (${projChosenAgg.sausages} sausages)`} hl />
+                            <Row k="total area / 4 m2/sausage" v={`${projChosenAgg.totalArea} m2`} dim />
                           </div>
-                        )}
-                        {projChosenAgg.slabAnchors > 0 && (
-                          <Row k="Slab-edge anchors - by others, not a Speedpanel part" v={`~${projChosenAgg.slabAnchors}`} dim />
-                        )}
-                        <p className={cx.footnote}>Est. fixings pooled - 1000/box.</p>
-                        {results.some(r => r.out.p2pEnhanced) && (
-                          <p className="pt-1 text-sm leading-relaxed text-amber-700">One or more P78 vertical walls &gt; 5.0 m: enhanced panel-to-panel pattern applied.</p>
-                        )}
-                      </>
-                    )}
-                  </Card>
+                          {projChosenAgg.slabPassSausages > 0 && (
+                            <div className={cx.hr}>
+                              <Row k="Slab-pass sealant" v={`${projChosenAgg.slabPassSealantBoxes} box${plural(projChosenAgg.slabPassSealantBoxes)} (${projChosenAgg.slabPassSausages} sausages)`} hl />
+                            </div>
+                          )}
+                          {projChosenAgg.slabAnchors > 0 && (
+                            <Row k="Slab-edge anchors - by others, not a Speedpanel part" v={`~${projChosenAgg.slabAnchors}`} dim />
+                          )}
+                          <p className={cx.footnote}>Est. fixings pooled - 1000/box.</p>
+                          {results.some(r => r.out.p2pEnhanced) && (
+                            <p className="pt-1 text-sm leading-relaxed text-amber-700">One or more P78 vertical walls &gt; 5.0 m: enhanced panel-to-panel pattern applied.</p>
+                          )}
+                        </>
+                      )}
+                    </Card>
+                  </CardGrid>
                 </>
               )}
             </>
