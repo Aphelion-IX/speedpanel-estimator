@@ -20,6 +20,8 @@ import {
   EXT_CTRACK_DIM, EXT_JTRACK_DIM, EXT_ZFLASH_DIM, EXT_STOCKED_COLOURS, COLOUR_HEX,
   INT_CONFIG, EXT_CONFIG, INT_LOCKED, EXT_LOCKED,
 } from "./data";
+import { useCombinedEstimateCalc } from "./estimate/useCombinedEstimateCalc";
+import type { ConnectionMaterial } from "./estimate/estimate.types";
 
 // --- Design tokens ------------------------------------------------------------
 const NAVY      = "#0B1233"; // primary body/heading text colour
@@ -113,8 +115,10 @@ interface EdgeState { top: boolean; bottom: boolean; left: boolean; right: boole
 
 interface Wall {
   id: number; name: string;
-  // Note: orientation is NOT stored on Wall -- it comes from the system selector (sys.orient)
-  // and is passed as a separate argument into computeWall. Do not add orient here.
+  // Orientation is a per-wall property (not a global toggle) so a single
+  // project/combined estimate can freely mix vertical and horizontal walls.
+  // The "Orientation" buttons in the UI edit *this* field on the active wall.
+  orient: "vertical" | "horizontal";
   type: PanelType;
   profile: "standard" | "rake" | "gable";
   // Horizontal-only wall system variant. Not applicable to vertical walls -- UI
@@ -145,6 +149,14 @@ interface Wall {
   // cornerPartnerId: linking/unlinking updates both walls.
   floorHeight?: string;
   shaftPartnerId?: number | null;
+  // Junction partner (any orient/wallSystem): marks this wall as physically
+  // adjoining another wall in the same combined project, so the combined
+  // estimate can allow for the extra C/J track needed where they meet. Unlike
+  // cornerPartnerId/shaftPartnerId (which drive a specific wallSystem's own
+  // kit), this is a generic link available on every wall -- see
+  // src/estimate/calculateConnectionMaterials.ts. Kept symmetric by the UI,
+  // same pattern as the other partner links.
+  junctionPartnerId?: number | null;
   width: string; height: string;
   leftH: string; rightH: string;
   eavesH: string; apexH: string; ridgeX: string;
@@ -239,9 +251,9 @@ interface ExtResult {
 interface WallResult { wall: Wall; out: ComputeOut; }
 
 // --- Input shape for computeWall (replaces `inp: any`) -----------------------
-// Wall fields plus the orientation, which is supplied separately by the
-// system selector rather than stored on Wall itself (see note on Wall above).
-interface WallInput extends Wall { orient: "vertical" | "horizontal"; }
+// Orientation now lives directly on Wall, so WallInput is just an alias kept
+// for readability at computeWall's call sites.
+type WallInput = Wall;
 
 // --- Intermediate pipeline shapes for the computeWall step functions ---------
 // Wall geometry resolved from profile (standard/rake/gable): edge heights,
@@ -1499,10 +1511,10 @@ const SYSTEMS = [
 // fields are only read by External (Internal ignores them), but every wall
 // carries them so the same wall list can be shown/computed in either mode --
 // see useWallStore, which keeps one shared list across all system switches.
-const defaultWall = (id: number): Wall => ({
-  id, name: `Wall ${id}`, type: 78, profile: "standard", wallSystem: "standard",
+const defaultWall = (id: number, orient: "vertical" | "horizontal" = "vertical"): Wall => ({
+  id, name: `Wall ${id}`, orient, type: 78, profile: "standard", wallSystem: "standard",
   cornerPartnerId: null, cornerSide: "right",
-  floorHeight: "", shaftPartnerId: null,
+  floorHeight: "", shaftPartnerId: null, junctionPartnerId: null,
   width: "", height: "", leftH: "", rightH: "", eavesH: "", apexH: "", ridgeX: "",
   headFinish: "C", bottomFinish: "C", leftFinish: "C", rightFinish: "C",
   intCorners: "", extCorners: "",
@@ -2099,7 +2111,7 @@ const CornerLinkSelector = ({ active, walls, onLink, onSideChange }: {
   onSideChange: (side: "left" | "right") => void;
 }) => {
   const linkable = walls.filter(w =>
-    w.id !== active.id && w.wallSystem === "corner" &&
+    w.id !== active.id && w.orient === "horizontal" && w.wallSystem === "corner" &&
     (w.cornerPartnerId == null || w.cornerPartnerId === active.id)
   );
   const partner = walls.find(w => w.id === active.cornerPartnerId);
@@ -2166,7 +2178,7 @@ const ShaftLinkSelector = ({ active, walls, onLink }: {
   onLink: (targetId: number | null) => void;
 }) => {
   const linkable = walls.filter(w =>
-    w.id !== active.id && w.wallSystem === "shaft" &&
+    w.id !== active.id && w.orient === "horizontal" && w.wallSystem === "shaft" &&
     (w.shaftPartnerId == null || w.shaftPartnerId === active.id)
   );
   const partner = walls.find(w => w.id === active.shaftPartnerId);
@@ -2194,6 +2206,54 @@ const ShaftLinkSelector = ({ active, walls, onLink }: {
         {partner
           ? <>Linked to <span className="font-semibold">{partner.name}</span>. Both stack walls are estimated independently, plus a shared back-to-back C-track junction where they split.</>
           : "Link this wall to a secondary split stack wall if the shaft has one, to calculate the shared back-to-back junction track."}
+      </p>
+    </div>
+  );
+};
+
+// --- JunctionLinkSelector -----------------------------------------------------
+// Generic wall-to-wall adjoining link, available on ANY wall regardless of
+// orientation or wallSystem -- unlike Corner/Shaft wall's partner links,
+// this isn't tied to a specific wallSystem's own kit. It only produces an
+// extra C/J track allowance when the two linked walls have different
+// orientations (see src/estimate/calculateConnectionMaterials.ts); linking
+// two walls of the same orientation is harmless (no material is added) but
+// isn't the intended use, so the note below is explicit about that.
+const JunctionLinkSelector = ({ active, walls, onLink }: {
+  active: Wall; walls: Wall[];
+  onLink: (targetId: number | null) => void;
+}) => {
+  const linkable = walls.filter(w =>
+    w.id !== active.id &&
+    (w.junctionPartnerId == null || w.junctionPartnerId === active.id)
+  );
+  const partner = walls.find(w => w.id === active.junctionPartnerId);
+  return (
+    <div className="border-t border-slate-100 pt-3">
+      <div className={cx.cardHd}>Adjoining wall (junction)</div>
+      <div className="space-y-1.5">
+        <button onClick={() => onLink(null)}
+          className={"w-full rounded-xl border-2 py-3 px-4 text-sm font-semibold text-left active:scale-95 transition-all " + (!partner ? "" : "border-slate-200 bg-white")}
+          style={!partner ? { borderColor: BLUE, background: BLUE, color: "#fff" } : { color: BLUE }}>
+          Not linked
+        </button>
+        {linkable.map(w => {
+          const on = partner?.id === w.id;
+          return (
+            <button key={w.id} onClick={() => onLink(w.id)}
+              className={"w-full rounded-xl border-2 py-3 px-4 text-sm font-semibold text-left active:scale-95 transition-all " + (on ? "" : "border-slate-200 bg-white")}
+              style={on ? { borderColor: BLUE, background: BLUE, color: "#fff" } : { color: BLUE }}>
+              {w.name} <span className="font-normal" style={{ color: on ? "rgba(255,255,255,0.7)" : MUTED }}>({w.orient === "vertical" ? "Vert" : "Horiz"})</span>
+            </button>
+          );
+        })}
+      </div>
+      <p className="mt-1.5 text-xs leading-relaxed text-slate-400">
+        {partner
+          ? partner.orient !== active.orient
+            ? <>Linked to <span className="font-semibold">{partner.name}</span>. Combined estimate includes an extra C/J track allowance where these two walls meet.</>
+            : <>Linked to <span className="font-semibold">{partner.name}</span>. Same orientation -- no extra junction material is added.</>
+          : "Mark another wall in this project as physically adjoining this one, so the combined estimate can allow for the extra C/J track needed where a vertical and horizontal wall meet."}
       </p>
     </div>
   );
@@ -2703,7 +2763,9 @@ const TrackFlashingCardInt = ({ out, headFlashActive, wall }: { out: ComputeOut;
 };
 
 // --- TrackFlashingCardIntProj -------------------------------------------------
-const TrackFlashingCardIntProj = ({ agg }: { agg: ReturnType<typeof aggregate> }) => (
+const TrackFlashingCardIntProj = ({ agg, connectionLM = 0, connectionPieces = 0 }: {
+  agg: ReturnType<typeof aggregate>; connectionLM?: number; connectionPieces?: number;
+}) => (
   <Card title="Track and flashing" icon={<Frame size={14} />}>
     {agg && agg.cTracks.map((c: CTrackAggEntry, i: number) => (
       <div key={i} className={cx.rowBorder}>
@@ -2749,7 +2811,12 @@ const TrackFlashingCardIntProj = ({ agg }: { agg: ReturnType<typeof aggregate> }
         label="Protection strips (corner + shaft)"
         pieces={agg.stripPieces} lm={agg.stripLM} stockLabel={`stocked @ ${r1(FLASH_STOCK)} m`} bordered={false} />
     )}
-    {(!agg || (agg.cTracks.length === 0 && agg.jLM === 0 && agg.flashLM === 0 && agg.vertTrackLM === 0 && agg.cornerPostLM === 0 && agg.junctionLM === 0)) && <Row k="No track yet" v="--" dim />}
+    {connectionPieces > 0 && (
+      <LMLineItem
+        label="Extra C/J track (combined wall junctions)"
+        pieces={connectionPieces} lm={connectionLM} stockLabel={`stocked @ ${r1(HORIZ_CTRACK_STOCK)} m`} bordered={false} />
+    )}
+    {(!agg || (agg.cTracks.length === 0 && agg.jLM === 0 && agg.flashLM === 0 && agg.vertTrackLM === 0 && agg.cornerPostLM === 0 && agg.junctionLM === 0)) && connectionPieces === 0 && <Row k="No track yet" v="--" dim />}
   </Card>
 );
 
@@ -2906,8 +2973,9 @@ interface WallsCardProps {
   orient?: "vertical" | "horizontal"; // gates the horizontal-only wall system dropdown
   onCornerLink?: (targetId: number | null) => void; // Corner wall run linking (internal only)
   onShaftLink?: (targetId: number | null) => void; // Shaft wall primary/secondary linking (internal only)
+  onJunctionLink?: (targetId: number | null) => void; // Generic adjoining-wall linking, any orient/wallSystem (internal only)
 }
-const WallsCard = ({ walls, results, activeId, setActiveId, active, update, addBlankWall, duplicateWall, deleteWall, warnById, showTypes = true, systemSelector, orient, onCornerLink, onShaftLink }: WallsCardProps) => (
+const WallsCard = ({ walls, results, activeId, setActiveId, active, update, addBlankWall, duplicateWall, deleteWall, warnById, showTypes = true, systemSelector, orient, onCornerLink, onShaftLink, onJunctionLink }: WallsCardProps) => (
   <div className={cx.section}>
     {/* 1 -- System selector */}
     {systemSelector && (
@@ -2934,6 +3002,12 @@ const WallsCard = ({ walls, results, activeId, setActiveId, active, update, addB
           <ShaftLinkSelector active={active} walls={walls} onLink={onShaftLink} />
         )}
       </>
+    )}
+    {/* 1c -- Generic adjoining-wall junction link (internal only). Not gated by
+        orient/wallSystem -- available on every wall, since a junction can occur
+        between any two walls in the project (see JunctionLinkSelector). */}
+    {showTypes && onJunctionLink && walls.length > 1 && (
+      <JunctionLinkSelector active={active} walls={walls} onLink={onJunctionLink} />
     )}
     {/* 2 -- Panel configuration (internal only). Shaft wall is always 78 mm --
         hidden rather than shown-but-disabled, since it's not a user choice. */}
@@ -2977,7 +3051,9 @@ const WallsCard = ({ walls, results, activeId, setActiveId, active, update, addB
               style={on ? { borderColor: BLUE, background: BLUE } : undefined}>
               {warnById[w.id] && <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full" style={{ background: GOLD }} />}
               <div className="max-w-[80px] overflow-hidden text-ellipsis whitespace-nowrap text-sm font-bold" style={{ color: on ? "#fff" : NAVY }}>{w.name}</div>
-              <div className="mt-1 text-xs font-medium" style={{ color: on ? "rgba(255,255,255,0.7)" : MUTED }}>P{w.type}{r.empty ? "" : ` · ${r.area} m2`}</div>
+              <div className="mt-1 text-xs font-medium" style={{ color: on ? "rgba(255,255,255,0.7)" : MUTED }}>
+                {w.orient === "vertical" ? "Vert" : "Horiz"} · P{w.type}{r.empty ? "" : ` · ${r.area} m2`}
+              </div>
             </button>
           );
         })}
@@ -3024,6 +3100,7 @@ const WallsSummaryTable = ({ results, activeId, setActiveId, warnById, toDisp, d
         <thead>
           <tr>
             <th className={TH}>Wall</th>
+            <th className={TH}>Orientation</th>
             <th className={TH}>Type</th>
             <th className={TH}>Width</th>
             <th className={TH}>Height</th>
@@ -3041,6 +3118,7 @@ const WallsSummaryTable = ({ results, activeId, setActiveId, warnById, toDisp, d
                   {warnById[wall.id] && <span className="mr-1.5 inline-block h-2 w-2 rounded-full align-middle" style={{ background: GOLD }} />}
                   {wall.name}
                 </td>
+                <td className={TD}>{wall.orient === "vertical" ? "Vertical" : "Horizontal"}</td>
                 <td className={TD}>P{wall.type}</td>
                 <td className={TD}>{dim(wall.width)}</td>
                 <td className={TD}>{dim(wall.height)}</td>
@@ -3083,6 +3161,8 @@ function loadProject(): PersistedProject | null {
     if (!raw) return null;
     const p = JSON.parse(raw);
     if (!p || p.v !== 1 || !Array.isArray(p.walls) || p.walls.length === 0) return null;
+    // Backfill orient for projects saved before orientation became per-wall.
+    p.walls = p.walls.map((w: Wall) => ({ ...w, orient: w.orient ?? "vertical" }));
     return p as PersistedProject;
   } catch {
     return null;
@@ -3137,7 +3217,7 @@ function useWallStore({ dimUnit, onWallAdded }: { dimUnit: string; onWallAdded?:
 
   const addBlankWall = () => {
     const id = nextId;
-    setWalls(ws => [...ws, { ...defaultWall(id), forcedStock: projectForcedStock() }]);
+    setWalls(ws => [...ws, { ...defaultWall(id, active.orient), forcedStock: projectForcedStock() }]);
     setNextId(id + 1);
     setActiveId(id);
     onWallAdded?.();
@@ -3164,7 +3244,8 @@ function useWallStore({ dimUnit, onWallAdded }: { dimUnit: string; onWallAdded?:
       // dangling cornerPartnerId/shaftPartnerId would point at a wall that no
       // longer exists.
       .map(w => w.cornerPartnerId === activeId ? { ...w, cornerPartnerId: null } : w)
-      .map(w => w.shaftPartnerId === activeId ? { ...w, shaftPartnerId: null } : w);
+      .map(w => w.shaftPartnerId === activeId ? { ...w, shaftPartnerId: null } : w)
+      .map(w => w.junctionPartnerId === activeId ? { ...w, junctionPartnerId: null } : w);
     setWalls(rest);
     setActiveId(rest[0].id);
   };
@@ -3234,19 +3315,20 @@ type WallStore = ReturnType<typeof useWallStore>;
 // Derives the per-mode compute results from the shared wall list. Called once
 // per active calculator with that mode's compute function (compute vs
 // computeExternal), so the same walls produce Internal or External estimates
-// without touching the stored data.
+// without touching the stored data. Each wall carries its own `orient`, so a
+// combined/project estimate can freely mix vertical and horizontal walls --
+// this must NOT be overridden with a single shared orientation here.
 function useWallResults(
   walls: Wall[], activeId: number,
   computeFn: (inp: WallInput) => ComputeOut,
-  orient: "vertical" | "horizontal",
 ) {
   // PERF NOTE: walls array reference changes on every keystroke (setWalls creates
   // a new array), so this memo re-runs all wall computations on each input event.
   // For typical project sizes (<=20 walls) this is fast enough. If wall counts
   // grow, consider a per-wall memo keyed by wall id + a shallow hash of inputs.
   const results = useMemo<WallResult[]>(
-    () => walls.map(w => ({ wall: w, out: computeFn({ ...w, orient }) })),
-    [walls, orient] // eslint-disable-line react-hooks/exhaustive-deps
+    () => walls.map(w => ({ wall: w, out: computeFn(w) })),
+    [walls]
   );
   const out = useMemo(
     () => (results.find(r => r.wall.id === activeId) || { out: { empty: true, warnings: [], notes: [] } }).out
@@ -3304,7 +3386,7 @@ function ExternalCalculator({ store, orient, dimUnit, setDimUnit, systemSelector
     setProjectLength, addBlankWall, duplicateWall, deleteWall,
     commitCustomLength, toggleCustom, clearCustomLength,
   } = store;
-  const { results, out, warnById } = useWallResults(walls, activeId, computeExternal, orient);
+  const { results, out, warnById } = useWallResults(walls, activeId, computeExternal);
 
   const switchDimUnit = (u: string) => { setDimUnit(u); clearCustomLength(); };
   const project  = extMode === "project";
@@ -3539,6 +3621,105 @@ function ExternalCalculator({ store, orient, dimUnit, setDimUnit, systemSelector
   return <CalculatorShell layoutMode={layoutMode} sidebar={sidebarNode} main={mainNode} footer={footerNode} />;
 }
 
+// --- SystemBreakdownWallCard ---------------------------------------------------
+// One wall's own section of the combined estimate's "System Breakdown" --
+// shows HOW that wall's estimate was built (name, orientation, dimensions,
+// selected system, materials, C/J allowances, flashing, fixings,
+// assumptions/warnings), reusing the exact same single-wall display
+// components the "Selected wall estimate" view uses. Collapsible so a large
+// project doesn't force scrolling past every wall to reach the Easy to Order
+// summary; each wall keeps its own open/closed state.
+const SystemBreakdownWallCard = ({ wall, out, walls, ScheduleComp }: {
+  wall: Wall; out: ComputeOut; walls: Wall[];
+  ScheduleComp: typeof PanelScheduleCard;
+}) => {
+  const [open, setOpen] = useState(true);
+  const cornerPartner = wall.wallSystem === "corner" && wall.cornerPartnerId != null
+    ? walls.find(w => w.id === wall.cornerPartnerId) : undefined;
+  const cornerKit = cornerPartner ? computeCornerPair(wall, cornerPartner, INT_CONFIG) : null;
+  const shaftPartner = wall.wallSystem === "shaft" && wall.shaftPartnerId != null
+    ? walls.find(w => w.id === wall.shaftPartnerId) : undefined;
+  const shaftKit = shaftPartner ? computeShaftPair(wall, shaftPartner, INT_CONFIG) : null;
+
+  return (
+    <div className="mt-3">
+      <button onClick={() => setOpen(v => !v)} className={cx.accordion}>
+        <span>
+          {wall.name} -- {wall.orient === "vertical" ? "Vertical" : "Horizontal"}, Internal, P{wall.type}
+          {!out.empty ? ` -- ${out.area} m2` : ""}
+        </span>
+        <ChevronDown size={15} className={`transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && (
+        <div className="mt-3">
+          {out.empty ? (
+            <Card title={wall.name} icon={<Frame size={14} />}>
+              <Row k="Enter width and height to estimate this wall" v="--" dim />
+            </Card>
+          ) : (
+            <>
+              <StatsRow area={`${out.area} m2`} panels={out.chosen?.panels ?? out.result?.panels ?? "--"} panelType={`P${wall.type}`} />
+              {out.chosen && !out.chosen.invalid && (
+                <ScheduleComp title={`Panel schedule -- P${wall.type}`} icon={<Box size={14} />}
+                  customSchedule={out.customSchedule}
+                  groups={out.chosen.groups}
+                  packSize={PACK[wall.type]} stocks={STOCK_LENGTHS}
+                  wastePct={out.chosen.wastePct} orient={wall.orient} />
+              )}
+              <TrackFlashingCardInt out={out} headFlashActive={wall.headFlash} wall={wall} />
+              {wall.wallSystem === "shaft" && <ShaftVerticalCard out={out} />}
+              {cornerKit && <CornerKitCard kit={cornerKit} partnerName={cornerPartner?.name ?? "linked run"} />}
+              {shaftKit && <ShaftJunctionCard kit={shaftKit} partnerName={shaftPartner?.name ?? "linked wall"} />}
+              {wall.wallSystem === "shaft" && <ShaftSlabCard out={out} />}
+              <FixingSealantCard title="Fixing and sealant quantities"
+                boxes30={out.boxes30 || 0} fix30={out.fix30 || 0}
+                boxes16={out.boxes16 || 0} fix16={out.fix16 || 0}
+                sealantBoxes={out.sealantBoxes || 0} sausages={out.sausages || 0} area={out.area || 0}
+                sealantLabel="Hilti CP606 sealant" sealantRate={4}
+                p2pNote={out.p2pNote} p2pEnhanced={out.p2pEnhanced} />
+              <WarningsList warnings={out.warnings} />
+              {out.notes && out.notes.length > 0 && <NotesList notes={out.notes} />}
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// --- ConnectionBreakdownCard ---------------------------------------------------
+// Shows WHY each junction material was added -- the source walls, the length/
+// quantity, and the reason -- separate from the System Breakdown (which shows
+// each wall's OWN materials) so the connection logic stays visible and easy
+// to audit independently, per the combined-estimate flow.
+const ConnectionBreakdownCard = ({ connections }: { connections: ConnectionMaterial[] }) => (
+  <Card title="Connection breakdown" icon={<Frame size={14} />}>
+    {connections.length === 0 && (
+      <Row k="No adjoining walls linked yet" v="--" dim />
+    )}
+    {connections.map(c => (
+      <div key={c.id} className={cx.rowBorder}>
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-sm font-bold" style={{ color: NAVY }}>Extra C/J track</span>
+          <span className={cx.rowVal} style={{ color: BLUE }}>{c.pieces} length{plural(c.pieces)}</span>
+        </div>
+        <div className="mt-1.5 text-sm text-slate-500">
+          Between <span className="font-semibold">{c.wallAName}</span> ({c.wallAOrient}) and{" "}
+          <span className="font-semibold">{c.wallBName}</span> ({c.wallBOrient})
+        </div>
+        <div className="mt-1 text-xs text-slate-400">
+          Length {r1(c.lengthM)} lm - qty {c.quantity} - stocked @ {r1(c.stock)} m - {c.reason}
+        </div>
+        {c.warnings.map((w, i) => (
+          <div key={i} className="mt-1.5 flex gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-700">
+            <AlertTriangle size={12} className="mt-0.5 shrink-0" /><span>{w}</span>
+          </div>
+        ))}
+      </div>
+    ))}
+  </Card>
+);
+
 // --- Session persistence ------------------------------------------------------
 // The current view (which system/orientation, project-vs-single mode, and unit)
 // is saved alongside the wall project so reopening the app restores the exact
@@ -3577,7 +3758,6 @@ export default function SpeedpanelEstimator() {
 
   const sys    = SYSTEMS.find(s => s.id === system) || SYSTEMS[0];
   const isExt  = sys.ext;
-  const orient = sys.orient;
   const project = mode === "project";
 
   // Single SHARED wall store (persisted); the External calculator receives the
@@ -3590,7 +3770,11 @@ export default function SpeedpanelEstimator() {
     setProjectLength, addBlankWall, duplicateWall, deleteWall,
     commitCustomLength, toggleCustom, resetWalls, clearCustomLength,
   } = store;
-  const { results, out, warnById } = useWallResults(walls, activeId, compute, orient);
+  // Orientation is per-wall (see Wall.orient) -- this is the ACTIVE wall's own
+  // orientation, used only to drive which fields/selectors are shown for it.
+  // It must never be applied to every wall (that was the combined-estimate bug).
+  const orient = active.orient;
+  const { results, out, warnById } = useWallResults(walls, activeId, compute);
 
   const projChosenAgg = useMemo(() => aggregate(results), [results]);
 
@@ -3653,6 +3837,43 @@ export default function SpeedpanelEstimator() {
     return computeShaftPair(active, partner, INT_CONFIG);
   }, [orient, active, walls]);
 
+  // Symmetric junction linking (see Wall.junctionPartnerId): marks two walls as
+  // physically adjoining for the combined estimate's connection/junction
+  // material calculation (src/estimate/calculateConnectionMaterials.ts). Same
+  // symmetric-link pattern as linkCornerPartner/linkShaftPartner, but generic
+  // -- available on any wall regardless of orientation/wallSystem.
+  const linkJunctionPartner = (targetId: number | null) => {
+    setWalls(ws => {
+      const prevPartnerId = ws.find(w => w.id === activeId)?.junctionPartnerId ?? null;
+      return ws.map(w => {
+        if (w.id === activeId) return { ...w, junctionPartnerId: targetId };
+        if (targetId !== null && w.id === targetId) return { ...w, junctionPartnerId: activeId };
+        if (prevPartnerId !== null && w.id === prevPartnerId && w.id !== targetId) return { ...w, junctionPartnerId: null };
+        if (targetId !== null && w.junctionPartnerId === targetId && w.id !== activeId) return { ...w, junctionPartnerId: null };
+        return w;
+      });
+    });
+  };
+
+  const combinedEstimate = useCombinedEstimateCalc(walls);
+
+  // Switches the ACTIVE wall's own orientation (per-wall now -- see Wall.orient),
+  // not a global setting, so other walls in a combined project are unaffected.
+  // Corner/Shaft wall systems only make sense for horizontal walls, so switching
+  // to vertical resets wallSystem back to "standard" and unlinks any partner
+  // (mirroring deleteWall's dangling-partner cleanup) to avoid stale state.
+  const switchOrient = (o: "vertical" | "horizontal") => {
+    if (o === active.orient) return;
+    if (o === "vertical") {
+      if (active.wallSystem === "corner" && active.cornerPartnerId != null) linkCornerPartner(null);
+      if (active.wallSystem === "shaft" && active.shaftPartnerId != null) linkShaftPartner(null);
+      update({ orient: o, wallSystem: "standard" });
+    } else {
+      update({ orient: o });
+    }
+    setShowWall(true);
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 font-sans" style={{ color: NAVY }}>
       <div className={layoutMode === "web" ? "mx-auto w-full max-w-[1400px] px-6 pb-16 pt-6" : "mx-auto w-full max-w-md px-3 sm:px-4 pb-24 pt-5"}>
@@ -3691,7 +3912,7 @@ export default function SpeedpanelEstimator() {
                 <div>
                   <div className={cx.cardHd}>Orientation</div>
                   <div className="grid grid-cols-2 gap-2">
-                    <button onClick={() => switchSystem(findSys("vertical", isExt).id)}
+                    <button onClick={() => switchOrient("vertical")}
                       className={"w-full rounded-xl border-2 py-3 px-3 text-center active:scale-95 transition-all flex items-center justify-center gap-1.5 " + (!isHoriz ? "" : "border-slate-200 bg-white")}
                       style={!isHoriz ? { borderColor: BLUE, background: BLUE } : undefined}>
                       <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
@@ -3699,7 +3920,7 @@ export default function SpeedpanelEstimator() {
                       </svg>
                       <span className="text-sm font-bold uppercase tracking-wide" style={{ color: !isHoriz ? WHITE : BLUE }}>Vertical</span>
                     </button>
-                    <button onClick={() => switchSystem(findSys("horizontal", isExt).id)}
+                    <button onClick={() => switchOrient("horizontal")}
                       className={"w-full rounded-xl border-2 py-3 px-3 text-center active:scale-95 transition-all flex items-center justify-center gap-1.5 " + (isHoriz ? "" : "border-slate-200 bg-white")}
                       style={isHoriz ? { borderColor: BLUE, background: BLUE } : undefined}>
                       <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
@@ -3751,6 +3972,7 @@ export default function SpeedpanelEstimator() {
                 showTypes={true} systemSelector={systemButtons} orient={orient}
                 onCornerLink={linkCornerPartner}
                 onShaftLink={linkShaftPartner}
+                onJunctionLink={linkJunctionPartner}
               />
 
               {/* Profile and dimensions */}
@@ -3873,10 +4095,23 @@ export default function SpeedpanelEstimator() {
                 </>
               )}
 
-              {/* Project aggregate */}
+              {/* Combined estimate: System Breakdown -> Connection Breakdown -> Easy to Order */}
               {project && (
                 <>
                   <ProjectSeparator />
+
+                  {/* System Breakdown: shows HOW the estimate was built, wall by wall */}
+                  <SectionLabel icon={<Layers size={13} />}>System breakdown</SectionLabel>
+                  {results.map(({ wall: w, out: o }) => (
+                    <SystemBreakdownWallCard key={w.id} wall={w} out={o} walls={walls} ScheduleComp={ScheduleComp} />
+                  ))}
+
+                  {/* Connection Breakdown: shows WHY extra materials were added */}
+                  <SectionLabel icon={<Frame size={13} />}>Connection breakdown</SectionLabel>
+                  <ConnectionBreakdownCard connections={combinedEstimate.connections} />
+
+                  {/* Easy to Order: shows WHAT needs to be ordered -- one combined material list */}
+                  <SectionLabel icon={<Box size={13} />}>Easy to order -- combined material summary</SectionLabel>
                   <StatsRow
                     area={projChosenAgg ? `${projChosenAgg.totalArea} m2` : "--"}
                     panels={projChosenAgg ? projChosenAgg.totalPanels : "--"}
@@ -3911,7 +4146,8 @@ export default function SpeedpanelEstimator() {
                     )}
                     {!projChosenAgg && <Row k="No panels yet" v="--" dim />}
                   </Card>
-                  <TrackFlashingCardIntProj agg={projChosenAgg} />
+                  <TrackFlashingCardIntProj agg={projChosenAgg}
+                    connectionLM={combinedEstimate.connectionLM} connectionPieces={combinedEstimate.connectionPieces} />
                   <Card title="Fixing and sealant -- whole project" icon={<Hammer size={14} />}>
                     {projChosenAgg && (
                       <>
