@@ -1,9 +1,9 @@
-import { useState, useMemo, useEffect, Fragment } from "react";
+import { useState, useMemo, useEffect, useRef, Fragment } from "react";
 import {
   Layers, AlertTriangle, Lock, ChevronDown, RotateCcw,
   Box, Frame, Hammer, Plus, Trash2, Copy, Settings,
   Smartphone, Monitor, Sun, Moon, Menu, X,
-  Search, Clock, FileText, Share2, MoreVertical, ChevronRight, Maximize2, Minimize2,
+  Search, Clock, FileText, Share2, MoreVertical, ChevronRight, ChevronLeft, Maximize2, Minimize2,
 } from "lucide-react";
 import { useLayoutMode, type EffectiveLayout } from "./useLayoutMode";
 import { useThemeMode, type EffectiveTheme } from "./useThemeMode";
@@ -27,6 +27,9 @@ import type { ConnectionMaterial } from "./estimate/estimate.types";
 import MiniSearch from "minisearch";
 import eduDocumentsRaw from "./eduDocuments.json";
 import eduSearchIndexJson from "./eduSearchIndex.json?raw";
+import * as pdfjsLib from "pdfjs-dist";
+import pdfjsWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorkerUrl;
 
 // --- Design tokens ------------------------------------------------------------
 // Each references a CSS custom property (defined in index.css for :root and
@@ -3584,7 +3587,7 @@ const FilterChips = ({ active, onChange }: { active: EduCategory; onChange: (c: 
   </div>
 );
 
-const RecentlyViewedStrip = ({ ids, docs, onOpenViewer }: { ids: string[]; docs: EduDocument[]; onOpenViewer: (id: string) => void }) => {
+const RecentlyViewedStrip = ({ ids, docs, onSelect }: { ids: string[]; docs: EduDocument[]; onSelect: (id: string) => void }) => {
   if (ids.length === 0) return null;
   const recentDocs = ids.map(id => docs.find(d => d.id === id)).filter((d): d is EduDocument => !!d);
   return (
@@ -3592,7 +3595,7 @@ const RecentlyViewedStrip = ({ ids, docs, onOpenViewer }: { ids: string[]; docs:
       <SectionLabel icon={<Clock size={14} />}>Recently Viewed</SectionLabel>
       <div className="flex gap-2 overflow-x-auto pb-1">
         {recentDocs.map(d => (
-          <button key={d.id} onClick={() => onOpenViewer(d.id)}
+          <button key={d.id} onClick={() => onSelect(d.id)}
             className="shrink-0 w-56 rounded-xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3.5 py-3 text-left active:scale-95 transition-all">
             <div className="text-sm font-bold truncate" style={{ color: NAVY }}>{d.title}</div>
             <div className="mt-1 flex items-center justify-between gap-2 text-xs font-medium" style={{ color: MUTED }}>
@@ -3606,11 +3609,11 @@ const RecentlyViewedStrip = ({ ids, docs, onOpenViewer }: { ids: string[]; docs:
   );
 };
 
-// Touching anywhere on the card opens the live-viewer overlay on the selected document
-// (see EducationHub's openViewer) -- the action buttons below also route through the same
-// callback (with stopPropagation so a button press doesn't double-fire the card's own handler).
-const DocumentCard = ({ doc, selected, onOpenViewer }: { doc: EduDocument; selected: boolean; onOpenViewer: (id: string) => void }) => (
-  <div onClick={() => onOpenViewer(doc.id)}
+// Touching anywhere on the card selects the document, updating the persistent detail
+// column/panel (see EducationHub) -- the action buttons below route through the same
+// callback (with stopPropagation so a button press doesn't double-fire the card's handler).
+const DocumentCard = ({ doc, selected, onSelect }: { doc: EduDocument; selected: boolean; onSelect: (id: string) => void }) => (
+  <div onClick={() => onSelect(doc.id)}
     className={cx.card + " flex cursor-pointer flex-col gap-3"} style={selected ? { borderColor: BLUE, borderWidth: 2 } : undefined}>
     <div className="h-24 rounded-lg grid place-items-center" style={{ background: doc.swatch }}>
       <FileText size={28} color={WHITE} />
@@ -3629,15 +3632,15 @@ const DocumentCard = ({ doc, selected, onOpenViewer }: { doc: EduDocument; selec
       <span>{doc.edition}</span><span>·</span><span>{doc.date}</span><span>·</span><span>{doc.fileSize}</span>
     </div>
     <div className="mt-1 flex items-center gap-2">
-      <button onClick={e => { e.stopPropagation(); onOpenViewer(doc.id); }}
+      <button onClick={e => { e.stopPropagation(); onSelect(doc.id); }}
         className="flex-1 rounded-xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 py-2 text-xs font-bold active:scale-95 transition-all"
         style={{ color: BLUE }}>Quick Scan</button>
       {doc.fileUrl ? (
-        <a href={doc.fileUrl} target="_blank" rel="noopener noreferrer" onClick={e => { e.stopPropagation(); onOpenViewer(doc.id); }}
+        <a href={doc.fileUrl} target="_blank" rel="noopener noreferrer" onClick={e => { e.stopPropagation(); onSelect(doc.id); }}
           className="flex-1 rounded-xl py-2 text-center text-xs font-bold active:scale-95 transition-all"
           style={{ background: BLUE, color: WHITE }}>Open PDF</a>
       ) : (
-        <button onClick={e => { e.stopPropagation(); onOpenViewer(doc.id); }}
+        <button onClick={e => { e.stopPropagation(); onSelect(doc.id); }}
           className="flex-1 rounded-xl py-2 text-xs font-bold active:scale-95 transition-all"
           style={{ background: BLUE, color: WHITE }}>Open PDF</button>
       )}
@@ -3671,35 +3674,85 @@ const DETAIL_TABS: { key: DetailTab; label: string }[] = [
 ];
 
 // Parses the leading page number out of a section's "pages" string ("8-15" -> 8, "37" -> 37) for
-// jumping the embedded PDF viewer there via its native #page=N URL fragment.
+// jumping the PDF viewer there.
 const firstPage = (pages: string): number => parseInt(pages, 10) || 1;
 
-const DocumentDetailPanel = ({ doc, allDocs, tab, onTabChange, onSelectRelated, fullscreen, onMinimize, onToggleFullscreen, onClose }: {
+// Renders PDF pages ourselves (pdfjs-dist, canvas) with our own Prev/Next controls, rather than
+// relying on the browser's native PDF plugin inside an <iframe> -- that approach looked fine on
+// desktop Chrome but showed no toolbar/controls at all on mobile/touch browsers, since the full
+// PDF.js viewer chrome is a desktop-Chrome-only feature, not a guaranteed <iframe> behavior.
+const PdfViewer = ({ url, page, onPageChange, tall }: { url: string; page: number; onPageChange: (p: number) => void; tall: boolean }) => {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [pdfDoc, setPdfDoc] = useState<pdfjsLib.PDFDocumentProxy | null>(null);
+  const [pageCount, setPageCount] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    setPdfDoc(null);
+    setPageCount(0);
+    pdfjsLib.getDocument({ url }).promise.then(pdf => {
+      if (cancelled) return;
+      setPdfDoc(pdf);
+      setPageCount(pdf.numPages);
+    });
+    return () => { cancelled = true; };
+  }, [url]);
+
+  useEffect(() => {
+    if (!pdfDoc || !canvasRef.current) return;
+    let cancelled = false;
+    const clamped = clamp(page, 1, pdfDoc.numPages);
+    pdfDoc.getPage(clamped).then(pdfPage => {
+      if (cancelled || !canvasRef.current) return;
+      const canvas = canvasRef.current;
+      const containerWidth = canvas.parentElement?.clientWidth || 600;
+      const unscaled = pdfPage.getViewport({ scale: 1 });
+      const viewport = pdfPage.getViewport({ scale: containerWidth / unscaled.width });
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+      pdfPage.render({ canvasContext: ctx, viewport });
+    });
+    return () => { cancelled = true; };
+  }, [pdfDoc, page, tall]);
+
+  return (
+    <div className="mt-1 overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700">
+      <div className="flex items-center justify-between gap-2 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 px-3 py-2">
+        <button onClick={() => onPageChange(page - 1)} disabled={page <= 1} title="Previous page"
+          className="grid h-8 w-8 place-items-center rounded-lg text-slate-500 dark:text-slate-400 disabled:opacity-30">
+          <ChevronLeft size={16} />
+        </button>
+        <span className="text-xs font-bold" style={{ color: MUTED }}>Page {page} of {pageCount || "-"}</span>
+        <button onClick={() => onPageChange(page + 1)} disabled={!pageCount || page >= pageCount} title="Next page"
+          className="grid h-8 w-8 place-items-center rounded-lg text-slate-500 dark:text-slate-400 disabled:opacity-30">
+          <ChevronRight size={16} />
+        </button>
+      </div>
+      <div className={`overflow-auto bg-slate-100 dark:bg-slate-950 ${tall ? "h-[calc(100vh-360px)]" : "h-[60vh]"}`}>
+        <canvas ref={canvasRef} className="mx-auto block" />
+      </div>
+    </div>
+  );
+};
+
+const DocumentDetailPanel = ({ doc, allDocs, tab, onTabChange, onSelectRelated, expanded, onToggleExpand }: {
   doc: EduDocument; allDocs: EduDocument[]; tab: DetailTab; onTabChange: (t: DetailTab) => void;
   onSelectRelated: (id: string) => void;
-  fullscreen: boolean; onMinimize: () => void; onToggleFullscreen: () => void; onClose: () => void;
+  expanded: boolean; onToggleExpand: () => void;
 }) => {
-  const [pageAnchor, setPageAnchor] = useState<number | null>(null);
-  useEffect(() => setPageAnchor(null), [doc.id]);
+  const [currentPage, setCurrentPage] = useState(1);
+  useEffect(() => setCurrentPage(1), [doc.id]);
   const related = allDocs.filter(d => d.id !== doc.id && d.category === doc.category).slice(0, 4);
   return (
     <div className={cx.card}>
       <div className="mb-3 flex items-center justify-between gap-2">
         <span className="truncate text-xs font-bold uppercase tracking-widest" style={{ color: MUTED }}>Document viewer</span>
-        <div className="flex shrink-0 items-center gap-1.5">
-          <button onClick={onMinimize} title="Minimize"
-            className="grid h-8 w-8 place-items-center rounded-lg border border-slate-200 dark:border-slate-700 text-slate-400 dark:text-slate-500">
-            <Minimize2 size={14} />
-          </button>
-          <button onClick={onToggleFullscreen} title={fullscreen ? "Exit full screen" : "Full screen"}
-            className="grid h-8 w-8 place-items-center rounded-lg border border-slate-200 dark:border-slate-700 text-slate-400 dark:text-slate-500">
-            <Maximize2 size={14} />
-          </button>
-          <button onClick={onClose} title="Close"
-            className="grid h-8 w-8 place-items-center rounded-lg border border-slate-200 dark:border-slate-700 text-slate-400 dark:text-slate-500">
-            <X size={14} />
-          </button>
-        </div>
+        <button onClick={onToggleExpand} title={expanded ? "Exit full screen" : "Full screen"}
+          className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-slate-200 dark:border-slate-700 text-slate-400 dark:text-slate-500">
+          {expanded ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+        </button>
       </div>
       <div className="h-32 rounded-lg grid place-items-center" style={{ background: doc.swatch }}>
         <FileText size={32} color={WHITE} />
@@ -3734,13 +3787,9 @@ const DocumentDetailPanel = ({ doc, allDocs, tab, onTabChange, onSelectRelated, 
         {tab === "scan" && (
           doc.fileUrl ? (
             <>
-              {/* Real documents render live in the browser's native PDF viewer -- no extra
-                  dependency needed. "Open Section" below jumps here via the PDF's #page=N
-                  fragment, same file just re-anchored (no reload). */}
-              <iframe key={doc.id} src={`${doc.fileUrl}${pageAnchor ? `#page=${pageAnchor}` : ""}`}
-                title={doc.title} className={`mt-1 w-full rounded-lg border border-slate-200 dark:border-slate-700 ${fullscreen ? "h-[calc(100vh-280px)]" : "h-[70vh]"}`} />
+              <PdfViewer key={doc.id} url={doc.fileUrl} page={currentPage} onPageChange={setCurrentPage} tall={expanded} />
               <div className={cx.cardHd + " mt-4"}>Sections in this guide</div>
-              <SectionsList sections={doc.sections} onOpenSection={pages => setPageAnchor(firstPage(pages))} />
+              <SectionsList sections={doc.sections} onOpenSection={pages => setCurrentPage(firstPage(pages))} />
             </>
           ) : (
             <>
@@ -3781,11 +3830,10 @@ const EducationHub = ({ layoutMode }: { layoutMode: EffectiveLayout }) => {
   const [selectedId, setSelectedId] = useState<string>(EDU_DOCUMENTS[0].id);
   const [recentIds, setRecentIds] = useState<string[]>([]);
   const [detailTab, setDetailTab] = useState<DetailTab>("scan");
-  // "closed": grid only. "open": viewer replaces the grid, inline in the page.
-  // "minimized": grid is back, plus a small floating badge for the still-open viewer.
-  // "fullscreen": viewer covers the entire viewport. Same on phone and web -- there's no
-  // separate always-visible sidebar; opening a document always goes through this overlay.
-  const [viewerMode, setViewerMode] = useState<"closed" | "open" | "minimized" | "fullscreen">("closed");
+  // Grid + a persistent detail panel (aside on web, stacked below on phone) is always the
+  // default view -- expanded is purely an opt-in "make the viewer bigger" toggle, not a
+  // separate mode the user has to enter/exit to see anything.
+  const [expanded, setExpanded] = useState(false);
 
   const filtered = useMemo(() => {
     const q = query.trim();
@@ -3797,19 +3845,10 @@ const EducationHub = ({ layoutMode }: { layoutMode: EffectiveLayout }) => {
     return EDU_DOCUMENTS.filter(d => byCategory(d) && matchIds.has(d.id));
   }, [query, category]);
 
-  // Marks a document as selected/recently-viewed without touching the viewer overlay.
   const selectDoc = (id: string) => {
     setSelectedId(id);
     setRecentIds(prev => [id, ...prev.filter(x => x !== id)].slice(0, 6));
-    setDetailTab("scan"); // every selection path lands on the Quick Scan view, matching what
-    // the button/card promises, whether or not it also opens the viewer.
-  };
-
-  // Selects a document AND opens the live-viewer overlay -- used by the card itself, its Quick
-  // Scan/Open PDF buttons, Recently Viewed, and Related-document links.
-  const openViewer = (id: string) => {
-    selectDoc(id);
-    setViewerMode("open");
+    setDetailTab("scan"); // every selection path lands on the Quick Scan view.
   };
 
   const selectedDoc = EDU_DOCUMENTS.find(d => d.id === selectedId) ?? EDU_DOCUMENTS[0];
@@ -3822,7 +3861,7 @@ const EducationHub = ({ layoutMode }: { layoutMode: EffectiveLayout }) => {
           className="w-full bg-transparent text-sm outline-none" style={{ color: NAVY }} />
       </div>
       <div className="mt-3"><FilterChips active={category} onChange={setCategory} /></div>
-      <RecentlyViewedStrip ids={recentIds} docs={EDU_DOCUMENTS} onOpenViewer={openViewer} />
+      <RecentlyViewedStrip ids={recentIds} docs={EDU_DOCUMENTS} onSelect={selectDoc} />
       <div className="mt-5"><SectionLabel icon={<FileText size={14} />}>All Documents ({filtered.length})</SectionLabel></div>
       {filtered.length === 0 ? (
         <div className={cx.card + " mt-3 text-center"}>
@@ -3831,45 +3870,39 @@ const EducationHub = ({ layoutMode }: { layoutMode: EffectiveLayout }) => {
       ) : (
         <CardGrid layoutMode={layoutMode} minWidth={280}>
           {filtered.map(d => (
-            <DocumentCard key={d.id} doc={d} selected={d.id === selectedId} onOpenViewer={openViewer} />
+            <DocumentCard key={d.id} doc={d} selected={d.id === selectedId} onSelect={selectDoc} />
           ))}
         </CardGrid>
       )}
     </>
   );
 
-  const viewerPanel = (
+  const detailPanel = (
     <DocumentDetailPanel
-      doc={selectedDoc} allDocs={EDU_DOCUMENTS} tab={detailTab} onTabChange={setDetailTab} onSelectRelated={openViewer}
-      fullscreen={viewerMode === "fullscreen"}
-      onMinimize={() => setViewerMode("minimized")}
-      onToggleFullscreen={() => setViewerMode(v => v === "fullscreen" ? "open" : "fullscreen")}
-      onClose={() => setViewerMode("closed")}
+      doc={selectedDoc} allDocs={EDU_DOCUMENTS} tab={detailTab} onTabChange={setDetailTab} onSelectRelated={selectDoc}
+      expanded={expanded} onToggleExpand={() => setExpanded(v => !v)}
     />
   );
 
+  // The wrapper around detailPanel keeps the same element/position across the expanded
+  // toggle -- only its className changes -- so React preserves DocumentDetailPanel's (and
+  // PdfViewer's) component state (current page, loaded PDF) instead of remounting it and
+  // losing all of that whenever full screen is toggled on/off.
+  const expandedClass = "fixed inset-0 z-50 overflow-y-auto bg-slate-50 p-4 dark:bg-slate-950 md:p-8";
+
+  if (layoutMode === "phone") {
+    return (
+      <div className="mt-2">
+        {gridBody}
+        <div className={expanded ? expandedClass : "mt-6"}>{detailPanel}</div>
+      </div>
+    );
+  }
+
   return (
-    <div>
-      {viewerMode !== "open" && viewerMode !== "fullscreen" && <div className="mt-2">{gridBody}</div>}
-      {viewerMode === "open" && <div className="mt-2">{viewerPanel}</div>}
-      {viewerMode === "fullscreen" && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-50 p-4 dark:bg-slate-950 md:p-8">
-          {viewerPanel}
-        </div>
-      )}
-      {viewerMode === "minimized" && (
-        <div className="fixed bottom-5 right-5 z-40 flex max-w-[240px] items-center gap-1 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 pl-4 pr-2 py-3 shadow-lg">
-          <button onClick={() => setViewerMode("open")} title="Restore" className="flex min-w-0 flex-1 items-center gap-2 text-left active:scale-95 transition-all">
-            <FileText size={16} className="shrink-0" style={{ color: BLUE }} />
-            <span className="truncate text-sm font-bold" style={{ color: NAVY }}>{selectedDoc.title}</span>
-            <Maximize2 size={14} className="shrink-0" style={{ color: MUTED }} />
-          </button>
-          <button onClick={() => setViewerMode("closed")} title="Close"
-            className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700">
-            <X size={13} />
-          </button>
-        </div>
-      )}
+    <div className="mt-2 grid grid-cols-[1fr_380px] items-start gap-6">
+      <div className="min-w-0">{gridBody}</div>
+      <aside className={expanded ? expandedClass : "sticky top-5"}>{detailPanel}</aside>
     </div>
   );
 };
