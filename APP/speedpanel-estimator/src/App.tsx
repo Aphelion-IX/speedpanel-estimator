@@ -4,7 +4,7 @@ import {
   Box, Frame, Hammer, Plus, Trash2, Copy, Settings,
   Smartphone, Monitor, Sun, Moon, Menu, X,
   Search, Clock, FileText, Share2, MoreVertical, ChevronRight, ChevronLeft, Maximize2, Minimize2,
-  RectangleHorizontal, CornerDownRight, Building2, Shield, ShieldCheck, RectangleVertical, Check, HelpCircle, Phone,
+  RectangleHorizontal, CornerDownRight, Building2, Shield, RectangleVertical, Check, HelpCircle, Phone,
   CloudRain, Warehouse, Clapperboard, DoorOpen, Building, SquareParking, Wrench, LayoutPanelLeft,
 } from "lucide-react";
 import { useLayoutMode, type EffectiveLayout } from "./useLayoutMode";
@@ -3560,13 +3560,13 @@ const ComingSoonPanel = ({ title }: { title: string }) => (
 // correctly) in addition to switchSystem, or selecting Corner/Shaft after a Vertical
 // system would silently leave the wall vertical with no picker visible.
 type WallSystemOptionId =
-  | "single" | "corner" | "shaft" | "ext-horiz" | "int-vert" | "ext-vert"
+  | "single" | "corner" | "shaft" | "ext-horiz"
   | "external-app" | "separation" | "cinema" | "shaft-app" | "stair" | "intertenancy"
   | "car-park" | "plant-room" | "facade" | "scissor-horiz" | "scissor-vert";
 
 interface WallSystemOption {
   id: WallSystemOptionId;
-  group: "horizontal" | "vertical" | "application";
+  group: "basic" | "application";
   title: string;
   description: string;
   note: string;
@@ -3581,30 +3581,22 @@ interface WallSystemOption {
 }
 
 const WALL_SYSTEM_OPTIONS: WallSystemOption[] = [
-  { id: "single", group: "horizontal", title: "Single Wall",
-    description: "Straight horizontal wall section",
-    note: "Use this when estimating one continuous wall run.",
+  { id: "single", group: "basic", title: "Single Wall",
+    description: "Straight wall section — horizontal or vertical panel installation.",
+    note: "Use this when estimating one continuous wall run, in either orientation.",
     icon: RectangleHorizontal, system: "int-horiz", wallSystem: "standard" },
-  { id: "corner", group: "horizontal", title: "Corner Wall",
+  { id: "corner", group: "basic", title: "Corner Wall",
     description: "Two wall runs meeting at a corner",
     note: "Use this when estimating internal or external corners.",
     icon: CornerDownRight, system: "int-horiz", wallSystem: "corner" },
-  { id: "shaft", group: "horizontal", title: "Shaft Wall",
+  { id: "shaft", group: "basic", title: "Shaft Wall",
     description: "Shaft, stair or lift enclosure walls.",
     note: "Use this when wall runs are broken into sections.",
     icon: Building2, system: "int-horiz", wallSystem: "shaft" },
-  { id: "ext-horiz", group: "horizontal", title: "External Wall",
-    description: "External horizontal wall system.",
-    note: "Use this for weather-facing applications.",
+  { id: "ext-horiz", group: "basic", title: "External Wall",
+    description: "External wall system — horizontal or vertical panel installation, with weather-facing finish.",
+    note: "Use this for weather-facing applications, in either orientation.",
     icon: Shield, system: "ext-horiz" },
-  { id: "int-vert", group: "vertical", title: "Vertical Wall System",
-    description: "Standard vertical panel installation from base to head track.",
-    note: "Use this for internal or general vertical wall applications.",
-    icon: RectangleVertical, system: "int-vert" },
-  { id: "ext-vert", group: "vertical", title: "Vertical External Wall",
-    description: "External vertical wall system with exposed finish.",
-    note: "Use this for weather-facing vertical applications.",
-    icon: ShieldCheck, system: "ext-vert" },
 
   // --- Application-specific systems ---------------------------------------------
   // Broader use-case catalog from the product literature. Several of these describe
@@ -3752,25 +3744,14 @@ const SystemSelector = ({ layoutMode, system, activeWallSystem }: {
         <h1 className="text-2xl font-bold" style={{ color: NAVY }}>What type of wall are you estimating?</h1>
         <p className="mt-1 text-sm" style={{ color: MUTED }}>Start by selecting how the panels will be installed.</p>
       </div>
-      {/* Two clearly separated groups: the 6 core orientation/wall-type systems
-          together in one card, and the broader application catalog in its own. */}
+      {/* Two clearly separated groups: the 4 core wall-type systems together in one
+          card (no more horizontal/vertical split -- Single Wall and External Wall
+          each work in either orientation), and the broader application catalog in
+          its own card. */}
       <div className={cx.card + " mt-5"}>
         <div className={cx.cardHd}>Basic Systems</div>
-        <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-          <div className={cx.sectionLbl + " mt-0"}>Horizontal Systems</div>
-          <span className={cx.pill} style={{ background: BLUE }}>Panels installed horizontally (stacked)</span>
-        </div>
         <CardGrid layoutMode={layoutMode} minWidth={260} stretch>
-          {WALL_SYSTEM_OPTIONS.filter(o => o.group === "horizontal").map(o => (
-            <WallSystemOptionCard key={o.id} option={o} selected={isSelected(o)} />
-          ))}
-        </CardGrid>
-        <div className="mt-5 flex flex-wrap items-center justify-between gap-2">
-          <div className={cx.sectionLbl + " mt-0"}>Vertical Systems</div>
-          <span className={cx.pill + " bg-emerald-600"}>Panels installed vertically</span>
-        </div>
-        <CardGrid layoutMode={layoutMode} minWidth={260} stretch>
-          {WALL_SYSTEM_OPTIONS.filter(o => o.group === "vertical").map(o => (
+          {WALL_SYSTEM_OPTIONS.filter(o => o.group === "basic").map(o => (
             <WallSystemOptionCard key={o.id} option={o} selected={isSelected(o)} />
           ))}
         </CardGrid>
