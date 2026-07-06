@@ -24,6 +24,9 @@ import {
 } from "./data";
 import { useCombinedEstimateCalc } from "./estimate/useCombinedEstimateCalc";
 import type { ConnectionMaterial } from "./estimate/estimate.types";
+import MiniSearch from "minisearch";
+import eduDocumentsRaw from "./eduDocuments.json";
+import eduSearchIndexJson from "./eduSearchIndex.json?raw";
 
 // --- Design tokens ------------------------------------------------------------
 // Each references a CSS custom property (defined in index.css for :root and
@@ -3538,136 +3541,29 @@ const EDU_CATEGORIES = [
 ] as const;
 type EduCategory = typeof EDU_CATEGORIES[number];
 
-// Cycles three colours across card thumbnails so they aren't all one colour.
-// NAVY is deliberately excluded -- in dark mode that token is repurposed as
-// the primary-text colour (a near-white neutral for legibility), not an
-// actual navy fill, so using it here would render a white icon on a
-// near-white block. "#334155" (Tailwind slate-700) is a theme-stable neutral
-// used the same way the app already hardcodes slate-700 elsewhere (borders).
-const EDU_SWATCHES = [BLUE, GOLD, "#334155"];
+// Real documents (with a fileUrl) are catalogued via scripts/add-education-doc.mjs
+// into src/eduDocuments.json / src/eduSearchIndex.json rather than hand-authored here --
+// see that script for the add/update workflow. swatch is stored in JSON as a colour KEY
+// ("blue"/"gold"/"slate"), not a literal value, since JSON can't reference the BLUE/GOLD
+// CSS-variable tokens directly; EDU_SWATCH_MAP resolves it below. NAVY is deliberately
+// excluded from the rotation -- in dark mode that token is repurposed as the primary-text
+// colour (a near-white neutral for legibility), not an actual navy fill, so using it here
+// would render a white icon on a near-white block. "#334155" (Tailwind slate-700) is a
+// theme-stable neutral used the same way the app already hardcodes slate-700 elsewhere.
+const EDU_SWATCH_MAP: Record<string, string> = { blue: BLUE, gold: GOLD, slate: "#334155" };
+const EDU_DOCUMENTS: EduDocument[] = (eduDocumentsRaw as EduDocument[]).map(d => ({
+  ...d,
+  swatch: EDU_SWATCH_MAP[d.swatch] ?? d.swatch,
+  fileUrl: d.fileUrl ? `${import.meta.env.BASE_URL}${d.fileUrl}` : undefined,
+}));
 
-const EDU_DOCUMENTS: EduDocument[] = [
-  {
-    id: "concrete-connections", title: "Concrete Connections", category: "Connection Details",
-    tags: ["Concrete", "Connections", "Shaft Walls", "Corners", "Base Track"],
-    description: "Connection details and installation guidance for Speedpanel systems connected to concrete structures.",
-    edition: "Edition 2 / Release 2", date: "May 2024", fileSize: "18.4 MB", fileType: "PDF", pageCount: 149,
-    swatch: EDU_SWATCHES[0],
-    sections: [
-      { name: "About this guide", description: "Overview, scope and how to use this guide.", pages: "4-7" },
-      { name: "Design considerations", description: "Important design notes and general requirements.", pages: "8-15" },
-      { name: "System components", description: "Speedpanel components used in concrete connections.", pages: "16-27" },
-      { name: "Corners and intersections", description: "Internal and external corner details.", pages: "28-56" },
-      { name: "Penetrations", description: "General penetrations and service installations.", pages: "57-88" },
-      { name: "Shaft walls", description: "Details and guidance for shaft wall applications.", pages: "106-119" },
-      { name: "Stair walls", description: "Details and guidance for stair wall applications.", pages: "120-137" },
-      { name: "Pressurisation details", description: "Pressurisation systems and installation details.", pages: "138-149" },
-    ],
-  },
-  {
-    id: "installation-guide", title: "Installation Guide", category: "Installation",
-    tags: ["Installation", "Vertical", "Horizontal", "Fixings", "Site prep"],
-    description: "Step-by-step installation guide for Speedpanel systems. Vertical and horizontal applications.",
-    edition: "Release 3", date: "Apr 2024", fileSize: "22.1 MB", fileType: "PDF", pageCount: 96,
-    swatch: EDU_SWATCHES[1],
-    sections: [
-      { name: "Pre-installation checklist", description: "Site conditions and tools required.", pages: "1-8" },
-      { name: "Vertical installation", description: "Panel-by-panel vertical fixing sequence.", pages: "9-40" },
-      { name: "Horizontal installation", description: "Row-by-row horizontal fixing sequence.", pages: "41-78" },
-      { name: "Finishing and inspection", description: "Sign-off checklist and common defects.", pages: "79-96" },
-    ],
-  },
-  {
-    id: "external-wall-guide", title: "External Wall Guide", category: "External Walls",
-    tags: ["External", "Wall Systems", "Details", "Weatherproofing"],
-    description: "External wall system applications and construction details.",
-    edition: "Edition 1 / Release 1", date: "Mar 2024", fileSize: "16.7 MB", fileType: "PDF", pageCount: 88,
-    swatch: EDU_SWATCHES[2],
-    sections: [
-      { name: "System overview", description: "External wall system range and applications.", pages: "1-10" },
-      { name: "Base and head details", description: "Base track and head track construction.", pages: "11-42" },
-      { name: "Weatherproofing", description: "Flashing and sealant details.", pages: "43-70" },
-      { name: "Corner conditions", description: "External corner construction detail.", pages: "71-88" },
-    ],
-  },
-  {
-    id: "penetrations-guide", title: "Penetrations Guide", category: "Technical Guides",
-    tags: ["Penetrations", "Services", "Fire Rated"],
-    description: "Details for general penetrations in Speedpanel systems.",
-    edition: "Edition 1 / Release 1", date: "Mar 2024", fileSize: "14.2 MB", fileType: "PDF", pageCount: 64,
-    swatch: EDU_SWATCHES[0],
-    sections: [
-      { name: "Penetration types", description: "Services, structural and general penetrations.", pages: "1-14" },
-      { name: "Fire-rated sealing", description: "Maintaining FRL around service penetrations.", pages: "15-40" },
-      { name: "Inspection and sign-off", description: "Documentation required for certification.", pages: "41-64" },
-    ],
-  },
-  {
-    id: "fire-performance", title: "Fire Resistance - Vertical Walls", category: "Fire & Acoustic",
-    tags: ["Fire Rated", "FRL", "AS 1530.4", "Vertical"],
-    description: "Warringtonfire regulatory information report (28928, Rev RIR4.6) assessing the fire resistance level of 51 mm, 64 mm and 78 mm thick vertically orientated Speedpanel wall systems to AS 1530.4:2014, covering base, head, corner, T-junction, angled and multi-angled connection details.",
-    edition: "Report 28928 / Rev RIR4.6", date: "Jul 2024", fileSize: "3.5 MB", fileType: "PDF", pageCount: 37,
-    swatch: EDU_SWATCHES[1],
-    fileUrl: `${import.meta.env.BASE_URL}docs/speedpanel-vertical-walls-frl-28928-rir4.6.pdf`,
-    sections: [
-      { name: "Introduction", description: "Report scope, sponsor details and referenced test data.", pages: "8" },
-      { name: "Framework for the assessment", description: "Assessment approach and NCC 2022 compliance basis.", pages: "8-9" },
-      { name: "Limitations of this assessment", description: "Conditions and limitations that apply to the assessment.", pages: "9" },
-      { name: "Description of the specimen and variations", description: "System description, referenced tests, variations and full schedule of construction details.", pages: "10-34" },
-      { name: "Conclusion", description: "Summary of FRL outcomes for the assessed wall systems.", pages: "35-36" },
-      { name: "Validity", description: "Validity period and conditions for this report.", pages: "37" },
-    ],
-  },
-  {
-    id: "acoustic-performance", title: "Acoustic Performance", category: "Fire & Acoustic",
-    tags: ["Acoustic", "Rw", "STC"],
-    description: "Acoustic test results and system performance information.",
-    edition: "Release 1", date: "Jan 2024", fileSize: "9.6 MB", fileType: "PDF", pageCount: 40,
-    swatch: EDU_SWATCHES[2],
-    sections: [
-      { name: "Test methodology", description: "Standards and lab conditions referenced.", pages: "1-10" },
-      { name: "Rw / STC results by system", description: "Acoustic ratings per panel type.", pages: "11-32" },
-      { name: "Junction treatments", description: "Maintaining acoustic performance at junctions.", pages: "33-40" },
-    ],
-  },
-  {
-    id: "external-wall-system-guide", title: "External Wall System Guide", category: "External Walls",
-    tags: ["External", "Weep Holes", "Cladding"],
-    description: "Design and installation guidance for external wall systems.",
-    edition: "Edition 1 / Release 1", date: "Mar 2024", fileSize: "21.3 MB", fileType: "PDF", pageCount: 102,
-    swatch: EDU_SWATCHES[0],
-    sections: [
-      { name: "Design guidance", description: "Selecting the right external wall system.", pages: "1-20" },
-      { name: "Cladding attachment", description: "Fixing patterns for external cladding.", pages: "21-60" },
-      { name: "Weep holes and drainage", description: "Drainage path detailing.", pages: "61-84" },
-      { name: "Maintenance", description: "Ongoing maintenance recommendations.", pages: "85-102" },
-    ],
-  },
-  {
-    id: "estimating-guide", title: "Estimating Guide", category: "Estimating",
-    tags: ["Estimating", "Take-off", "Ordering"],
-    description: "How to estimate Speedpanel systems and order materials.",
-    edition: "Release 2", date: "Apr 2024", fileSize: "8.1 MB", fileType: "PDF", pageCount: 36,
-    swatch: EDU_SWATCHES[1],
-    sections: [
-      { name: "Take-off basics", description: "Measuring walls and generating quantities.", pages: "1-14" },
-      { name: "Ordering and packs", description: "Stock lengths, pack sizes and wastage.", pages: "15-28" },
-      { name: "Worked examples", description: "Sample estimates end to end.", pages: "29-36" },
-    ],
-  },
-  {
-    id: "compliance-certificates", title: "Compliance & Certificates", category: "Compliance",
-    tags: ["Compliance", "Certificates", "FRL"],
-    description: "Fire, acoustic and compliance certificates and reports.",
-    edition: "Release 1", date: "Mar 2024", fileSize: "15.7 MB", fileType: "PDF", pageCount: 58,
-    swatch: EDU_SWATCHES[2],
-    sections: [
-      { name: "Certificate index", description: "How to find the right certificate.", pages: "1-10" },
-      { name: "Fire certificates", description: "FRL test and assessment reports.", pages: "11-38" },
-      { name: "Acoustic certificates", description: "Acoustic test reports.", pages: "39-58" },
-    ],
-  },
-];
+// Full-text search over the catalog, generated by scripts/add-education-doc.mjs from each
+// document's extracted PDF text (mock entries with no PDF are indexed on metadata only).
+const eduSearchIndex = MiniSearch.loadJSON(eduSearchIndexJson, {
+  idField: "id",
+  fields: ["title", "tags", "category", "description", "text"],
+  storeFields: ["id"],
+});
 
 // Shared "category" badge look -- reuses the app's existing hardcoded info-badge
 // convention (see cx.infoNote/cx.infoBox) rather than inventing a new token.
@@ -3851,12 +3747,13 @@ const EducationHub = ({ layoutMode }: { layoutMode: EffectiveLayout }) => {
   const [phoneDetailOpen, setPhoneDetailOpen] = useState(false);
 
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return EDU_DOCUMENTS.filter(d => {
-      const matchesCategory = category === "All" || d.category === category;
-      const matchesQuery = !q || d.title.toLowerCase().includes(q) || d.tags.some(t => t.toLowerCase().includes(q)) || d.category.toLowerCase().includes(q);
-      return matchesCategory && matchesQuery;
-    });
+    const q = query.trim();
+    const byCategory = (d: EduDocument) => category === "All" || d.category === category;
+    if (!q) return EDU_DOCUMENTS.filter(byCategory);
+    // Full-text search (title/tags/category/description/extracted PDF text) via the
+    // pre-built MiniSearch index -- see scripts/add-education-doc.mjs.
+    const matchIds = new Set(eduSearchIndex.search(q, { prefix: true, fuzzy: 0.2, boost: { title: 3, tags: 2 } }).map(r => r.id));
+    return EDU_DOCUMENTS.filter(d => byCategory(d) && matchIds.has(d.id));
   }, [query, category]);
 
   const selectDoc = (id: string) => {
