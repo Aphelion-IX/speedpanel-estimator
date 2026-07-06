@@ -3,6 +3,7 @@ import {
   Layers, AlertTriangle, Lock, ChevronDown, RotateCcw,
   Box, Frame, Hammer, Plus, Trash2, Copy, Settings,
   Smartphone, Monitor, Sun, Moon, Menu, X,
+  Search, Clock, FileText, Share2, MoreVertical, ChevronRight, ArrowLeft,
 } from "lucide-react";
 import { useLayoutMode, type EffectiveLayout } from "./useLayoutMode";
 import { useThemeMode, type EffectiveTheme } from "./useThemeMode";
@@ -3517,6 +3518,381 @@ const ComingSoonPanel = ({ title }: { title: string }) => (
   </div>
 );
 
+// --- Education Hub -------------------------------------------------------------
+// Mock document catalog for the Education Hub tab. This is UI placeholder
+// content (not verified product/spec data like ./data), so it lives here
+// rather than in data.ts -- it'll be swapped for a real fetch later.
+interface EduSection { name: string; description: string; pages: string; }
+interface EduDocument {
+  id: string; title: string; category: string; tags: string[]; description: string;
+  edition: string; date: string; fileSize: string; fileType: string; pageCount: number;
+  swatch: string; sections: EduSection[];
+}
+const EDU_CATEGORIES = [
+  "All", "Technical Guides", "Installation", "Connection Details",
+  "Fire & Acoustic", "External Walls", "Estimating", "Compliance",
+] as const;
+type EduCategory = typeof EDU_CATEGORIES[number];
+
+// Cycles three colours across card thumbnails so they aren't all one colour.
+// NAVY is deliberately excluded -- in dark mode that token is repurposed as
+// the primary-text colour (a near-white neutral for legibility), not an
+// actual navy fill, so using it here would render a white icon on a
+// near-white block. "#334155" (Tailwind slate-700) is a theme-stable neutral
+// used the same way the app already hardcodes slate-700 elsewhere (borders).
+const EDU_SWATCHES = [BLUE, GOLD, "#334155"];
+
+const EDU_DOCUMENTS: EduDocument[] = [
+  {
+    id: "concrete-connections", title: "Concrete Connections", category: "Connection Details",
+    tags: ["Concrete", "Connections", "Shaft Walls", "Corners", "Base Track"],
+    description: "Connection details and installation guidance for Speedpanel systems connected to concrete structures.",
+    edition: "Edition 2 / Release 2", date: "May 2024", fileSize: "18.4 MB", fileType: "PDF", pageCount: 149,
+    swatch: EDU_SWATCHES[0],
+    sections: [
+      { name: "About this guide", description: "Overview, scope and how to use this guide.", pages: "4-7" },
+      { name: "Design considerations", description: "Important design notes and general requirements.", pages: "8-15" },
+      { name: "System components", description: "Speedpanel components used in concrete connections.", pages: "16-27" },
+      { name: "Corners and intersections", description: "Internal and external corner details.", pages: "28-56" },
+      { name: "Penetrations", description: "General penetrations and service installations.", pages: "57-88" },
+      { name: "Shaft walls", description: "Details and guidance for shaft wall applications.", pages: "106-119" },
+      { name: "Stair walls", description: "Details and guidance for stair wall applications.", pages: "120-137" },
+      { name: "Pressurisation details", description: "Pressurisation systems and installation details.", pages: "138-149" },
+    ],
+  },
+  {
+    id: "installation-guide", title: "Installation Guide", category: "Installation",
+    tags: ["Installation", "Vertical", "Horizontal", "Fixings", "Site prep"],
+    description: "Step-by-step installation guide for Speedpanel systems. Vertical and horizontal applications.",
+    edition: "Release 3", date: "Apr 2024", fileSize: "22.1 MB", fileType: "PDF", pageCount: 96,
+    swatch: EDU_SWATCHES[1],
+    sections: [
+      { name: "Pre-installation checklist", description: "Site conditions and tools required.", pages: "1-8" },
+      { name: "Vertical installation", description: "Panel-by-panel vertical fixing sequence.", pages: "9-40" },
+      { name: "Horizontal installation", description: "Row-by-row horizontal fixing sequence.", pages: "41-78" },
+      { name: "Finishing and inspection", description: "Sign-off checklist and common defects.", pages: "79-96" },
+    ],
+  },
+  {
+    id: "external-wall-guide", title: "External Wall Guide", category: "External Walls",
+    tags: ["External", "Wall Systems", "Details", "Weatherproofing"],
+    description: "External wall system applications and construction details.",
+    edition: "Edition 1 / Release 1", date: "Mar 2024", fileSize: "16.7 MB", fileType: "PDF", pageCount: 88,
+    swatch: EDU_SWATCHES[2],
+    sections: [
+      { name: "System overview", description: "External wall system range and applications.", pages: "1-10" },
+      { name: "Base and head details", description: "Base track and head track construction.", pages: "11-42" },
+      { name: "Weatherproofing", description: "Flashing and sealant details.", pages: "43-70" },
+      { name: "Corner conditions", description: "External corner construction detail.", pages: "71-88" },
+    ],
+  },
+  {
+    id: "penetrations-guide", title: "Penetrations Guide", category: "Technical Guides",
+    tags: ["Penetrations", "Services", "Fire Rated"],
+    description: "Details for general penetrations in Speedpanel systems.",
+    edition: "Edition 1 / Release 1", date: "Mar 2024", fileSize: "14.2 MB", fileType: "PDF", pageCount: 64,
+    swatch: EDU_SWATCHES[0],
+    sections: [
+      { name: "Penetration types", description: "Services, structural and general penetrations.", pages: "1-14" },
+      { name: "Fire-rated sealing", description: "Maintaining FRL around service penetrations.", pages: "15-40" },
+      { name: "Inspection and sign-off", description: "Documentation required for certification.", pages: "41-64" },
+    ],
+  },
+  {
+    id: "fire-performance", title: "Fire Performance", category: "Fire & Acoustic",
+    tags: ["Fire Rated", "FRL", "Compliance"],
+    description: "Fire resistance information and system performance data.",
+    edition: "Edition 2 / Release 1", date: "Feb 2024", fileSize: "12.8 MB", fileType: "PDF", pageCount: 52,
+    swatch: EDU_SWATCHES[1],
+    sections: [
+      { name: "Test methodology", description: "Standards and test conditions referenced.", pages: "1-12" },
+      { name: "FRL results by system", description: "Fire resistance levels per panel type.", pages: "13-38" },
+      { name: "Certification summary", description: "Certificate references and validity.", pages: "39-52" },
+    ],
+  },
+  {
+    id: "acoustic-performance", title: "Acoustic Performance", category: "Fire & Acoustic",
+    tags: ["Acoustic", "Rw", "STC"],
+    description: "Acoustic test results and system performance information.",
+    edition: "Release 1", date: "Jan 2024", fileSize: "9.6 MB", fileType: "PDF", pageCount: 40,
+    swatch: EDU_SWATCHES[2],
+    sections: [
+      { name: "Test methodology", description: "Standards and lab conditions referenced.", pages: "1-10" },
+      { name: "Rw / STC results by system", description: "Acoustic ratings per panel type.", pages: "11-32" },
+      { name: "Junction treatments", description: "Maintaining acoustic performance at junctions.", pages: "33-40" },
+    ],
+  },
+  {
+    id: "external-wall-system-guide", title: "External Wall System Guide", category: "External Walls",
+    tags: ["External", "Weep Holes", "Cladding"],
+    description: "Design and installation guidance for external wall systems.",
+    edition: "Edition 1 / Release 1", date: "Mar 2024", fileSize: "21.3 MB", fileType: "PDF", pageCount: 102,
+    swatch: EDU_SWATCHES[0],
+    sections: [
+      { name: "Design guidance", description: "Selecting the right external wall system.", pages: "1-20" },
+      { name: "Cladding attachment", description: "Fixing patterns for external cladding.", pages: "21-60" },
+      { name: "Weep holes and drainage", description: "Drainage path detailing.", pages: "61-84" },
+      { name: "Maintenance", description: "Ongoing maintenance recommendations.", pages: "85-102" },
+    ],
+  },
+  {
+    id: "estimating-guide", title: "Estimating Guide", category: "Estimating",
+    tags: ["Estimating", "Take-off", "Ordering"],
+    description: "How to estimate Speedpanel systems and order materials.",
+    edition: "Release 2", date: "Apr 2024", fileSize: "8.1 MB", fileType: "PDF", pageCount: 36,
+    swatch: EDU_SWATCHES[1],
+    sections: [
+      { name: "Take-off basics", description: "Measuring walls and generating quantities.", pages: "1-14" },
+      { name: "Ordering and packs", description: "Stock lengths, pack sizes and wastage.", pages: "15-28" },
+      { name: "Worked examples", description: "Sample estimates end to end.", pages: "29-36" },
+    ],
+  },
+  {
+    id: "compliance-certificates", title: "Compliance & Certificates", category: "Compliance",
+    tags: ["Compliance", "Certificates", "FRL"],
+    description: "Fire, acoustic and compliance certificates and reports.",
+    edition: "Release 1", date: "Mar 2024", fileSize: "15.7 MB", fileType: "PDF", pageCount: 58,
+    swatch: EDU_SWATCHES[2],
+    sections: [
+      { name: "Certificate index", description: "How to find the right certificate.", pages: "1-10" },
+      { name: "Fire certificates", description: "FRL test and assessment reports.", pages: "11-38" },
+      { name: "Acoustic certificates", description: "Acoustic test reports.", pages: "39-58" },
+    ],
+  },
+];
+
+// Shared "category" badge look -- reuses the app's existing hardcoded info-badge
+// convention (see cx.infoNote/cx.infoBox) rather than inventing a new token.
+const eduBadgeCx = cx.badge + " bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300";
+
+const FilterChips = ({ active, onChange }: { active: EduCategory; onChange: (c: EduCategory) => void }) => (
+  <div className="flex flex-wrap gap-2">
+    {EDU_CATEGORIES.map(c => {
+      const on = active === c;
+      return (
+        <button key={c} onClick={() => onChange(c)}
+          className={"rounded-full border px-3.5 py-1.5 text-xs font-bold transition-all active:scale-95 " + (on ? "" : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800")}
+          style={on ? { borderColor: BLUE, background: BLUE, color: WHITE } : { color: BLUE }}>
+          {c}
+        </button>
+      );
+    })}
+  </div>
+);
+
+const RecentlyViewedStrip = ({ ids, docs, onSelect }: { ids: string[]; docs: EduDocument[]; onSelect: (id: string) => void }) => {
+  if (ids.length === 0) return null;
+  const recentDocs = ids.map(id => docs.find(d => d.id === id)).filter((d): d is EduDocument => !!d);
+  return (
+    <div className="mt-5">
+      <SectionLabel icon={<Clock size={14} />}>Recently Viewed</SectionLabel>
+      <div className="flex gap-2 overflow-x-auto pb-1">
+        {recentDocs.map(d => (
+          <button key={d.id} onClick={() => onSelect(d.id)}
+            className="shrink-0 w-56 rounded-xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3.5 py-3 text-left active:scale-95 transition-all">
+            <div className="text-sm font-bold truncate" style={{ color: NAVY }}>{d.title}</div>
+            <div className="mt-1 flex items-center justify-between gap-2 text-xs font-medium" style={{ color: MUTED }}>
+              <span className="truncate">{d.category} · p.{d.pageCount}</span>
+              <ChevronRight size={13} className="shrink-0" style={{ color: BLUE }} />
+            </div>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+const DocumentCard = ({ doc, selected, onSelect }: { doc: EduDocument; selected: boolean; onSelect: (id: string) => void }) => (
+  <div className={cx.card + " flex flex-col gap-3"} style={selected ? { borderColor: BLUE, borderWidth: 2 } : undefined}>
+    <div className="h-24 rounded-lg grid place-items-center" style={{ background: doc.swatch }}>
+      <FileText size={28} color={WHITE} />
+    </div>
+    <div>
+      <span className={eduBadgeCx}>{doc.category}</span>
+      <div className="mt-2 text-sm font-bold" style={{ color: NAVY }}>{doc.title}</div>
+      <p className="mt-1 text-sm leading-relaxed line-clamp-2" style={{ color: MUTED }}>{doc.description}</p>
+    </div>
+    <div className="flex flex-wrap gap-1.5">
+      {doc.tags.map(t => (
+        <span key={t} className="rounded-full bg-slate-100 dark:bg-slate-700 px-2.5 py-0.5 text-xs font-semibold" style={{ color: MUTED }}>{t}</span>
+      ))}
+    </div>
+    <div className={cx.footnote + " pt-0 flex flex-wrap items-center gap-x-1.5 text-xs"}>
+      <span>{doc.edition}</span><span>·</span><span>{doc.date}</span><span>·</span><span>{doc.fileSize}</span>
+    </div>
+    <div className="mt-1 flex items-center gap-2">
+      <button onClick={() => onSelect(doc.id)}
+        className="flex-1 rounded-xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 py-2 text-xs font-bold active:scale-95 transition-all"
+        style={{ color: BLUE }}>Quick Scan</button>
+      <button onClick={() => onSelect(doc.id)}
+        className="flex-1 rounded-xl py-2 text-xs font-bold active:scale-95 transition-all"
+        style={{ background: BLUE, color: WHITE }}>Open PDF</button>
+      {/* No-op overflow button -- a real menu (rename/download/etc) is out of scope for v1. */}
+      <button className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-slate-200 dark:border-slate-700 text-slate-400 dark:text-slate-500">
+        <MoreVertical size={15} />
+      </button>
+    </div>
+  </div>
+);
+
+const SectionsList = ({ sections }: { sections: EduSection[] }) => (
+  <div className="space-y-2.5">
+    {sections.map((s, i) => (
+      <div key={i} className={cx.rowBorder}>
+        <div className="flex items-baseline justify-between gap-2">
+          <span className="text-sm font-bold" style={{ color: NAVY }}>{s.name}</span>
+          <span className="text-xs font-semibold shrink-0" style={{ color: MUTED }}>p.{s.pages}</span>
+        </div>
+        <p className="mt-1 text-sm leading-relaxed" style={{ color: MUTED }}>{s.description}</p>
+        <button className="mt-2 text-xs font-bold" style={{ color: BLUE }}>Open Section</button>
+      </div>
+    ))}
+  </div>
+);
+
+type DetailTab = "scan" | "details" | "related";
+const DETAIL_TABS: { key: DetailTab; label: string }[] = [
+  { key: "scan", label: "Quick Scan" }, { key: "details", label: "Details" }, { key: "related", label: "Related" },
+];
+
+const DocumentDetailPanel = ({ doc, allDocs, onSelectRelated, onBack }: {
+  doc: EduDocument; allDocs: EduDocument[]; onSelectRelated: (id: string) => void; onBack?: () => void;
+}) => {
+  const [tab, setTab] = useState<DetailTab>("scan");
+  const related = allDocs.filter(d => d.id !== doc.id && d.category === doc.category).slice(0, 4);
+  return (
+    <div className={cx.card}>
+      {onBack && (
+        <button onClick={onBack} className="mb-3 flex items-center gap-1.5 text-xs font-bold" style={{ color: BLUE }}>
+          <ArrowLeft size={13} /> Back to Documents
+        </button>
+      )}
+      <div className="h-32 rounded-lg grid place-items-center" style={{ background: doc.swatch }}>
+        <FileText size={32} color={WHITE} />
+      </div>
+      <div className="mt-3 text-base font-bold" style={{ color: NAVY }}>{doc.title}</div>
+      <span className={eduBadgeCx + " mt-1.5 inline-block"}>{doc.category}</span>
+      <div className="mt-3 space-y-1">
+        <Row k="Edition" v={doc.edition} dim />
+        <Row k="Date" v={doc.date} dim />
+        <Row k="File" v={`${doc.fileType} · ${doc.fileSize}`} dim />
+      </div>
+      <div className="mt-3 flex items-center gap-2">
+        <button className="flex-1 rounded-xl py-2.5 text-sm font-bold" style={{ background: BLUE, color: WHITE }}>Open PDF</button>
+        <button className="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 dark:border-slate-700 text-slate-400 dark:text-slate-500"><Share2 size={15} /></button>
+        <button className="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 dark:border-slate-700 text-slate-400 dark:text-slate-500"><MoreVertical size={15} /></button>
+      </div>
+      <div className="mt-4 grid grid-cols-3 gap-1 rounded-xl border border-slate-200 dark:border-slate-700 p-1">
+        {DETAIL_TABS.map(t => (
+          <button key={t.key} onClick={() => setTab(t.key)}
+            className={"rounded-lg py-2 text-xs font-bold transition-all " + (tab === t.key ? "" : "text-slate-400 dark:text-slate-500")}
+            style={tab === t.key ? { background: BLUE, color: WHITE } : undefined}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+      <div className="mt-4">
+        {tab === "scan" && (
+          <>
+            <div className={cx.cardHd}>About this guide</div>
+            <p className="text-sm leading-relaxed" style={{ color: MUTED }}>{doc.description}</p>
+            <div className={cx.cardHd + " mt-4"}>Sections in this guide</div>
+            <SectionsList sections={doc.sections} />
+          </>
+        )}
+        {tab === "details" && (
+          <div className="space-y-1">
+            <Row k="Pages" v={doc.pageCount} dim />
+            <Row k="Tags" v={doc.tags.join(", ")} dim />
+            <Row k="Category" v={doc.category} dim />
+          </div>
+        )}
+        {tab === "related" && (
+          related.length === 0
+            ? <p className={cx.footnote}>No related documents in this category.</p>
+            : <div className="space-y-2">
+                {related.map(d => (
+                  <button key={d.id} onClick={() => onSelectRelated(d.id)}
+                    className="w-full rounded-xl border border-slate-200 dark:border-slate-700 px-3.5 py-2.5 text-left text-sm font-semibold" style={{ color: NAVY }}>
+                    {d.title}
+                  </button>
+                ))}
+              </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const EducationHub = ({ layoutMode }: { layoutMode: EffectiveLayout }) => {
+  const [query, setQuery] = useState("");
+  const [category, setCategory] = useState<EduCategory>("All");
+  const [selectedId, setSelectedId] = useState<string>(EDU_DOCUMENTS[0].id);
+  const [recentIds, setRecentIds] = useState<string[]>([]);
+  const [phoneDetailOpen, setPhoneDetailOpen] = useState(false);
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return EDU_DOCUMENTS.filter(d => {
+      const matchesCategory = category === "All" || d.category === category;
+      const matchesQuery = !q || d.title.toLowerCase().includes(q) || d.tags.some(t => t.toLowerCase().includes(q)) || d.category.toLowerCase().includes(q);
+      return matchesCategory && matchesQuery;
+    });
+  }, [query, category]);
+
+  const selectDoc = (id: string) => {
+    setSelectedId(id);
+    setRecentIds(prev => [id, ...prev.filter(x => x !== id)].slice(0, 6));
+    setPhoneDetailOpen(true); // no-op on web, where the aside always shows the selection
+  };
+
+  const selectedDoc = EDU_DOCUMENTS.find(d => d.id === selectedId) ?? EDU_DOCUMENTS[0];
+
+  const gridBody = (
+    <>
+      <div className="mt-4 flex items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 shadow-sm">
+        <Search size={16} className="shrink-0" style={{ color: MUTED }} />
+        <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search guides, tags, categories..."
+          className="w-full bg-transparent text-sm outline-none" style={{ color: NAVY }} />
+      </div>
+      <div className="mt-3"><FilterChips active={category} onChange={setCategory} /></div>
+      <RecentlyViewedStrip ids={recentIds} docs={EDU_DOCUMENTS} onSelect={selectDoc} />
+      <div className="mt-5"><SectionLabel icon={<FileText size={14} />}>All Documents ({filtered.length})</SectionLabel></div>
+      {filtered.length === 0 ? (
+        <div className={cx.card + " mt-3 text-center"}>
+          <p className={cx.footnote}>No documents match your search.</p>
+        </div>
+      ) : (
+        <CardGrid layoutMode={layoutMode} minWidth={280}>
+          {filtered.map(d => (
+            <DocumentCard key={d.id} doc={d} selected={d.id === selectedId} onSelect={selectDoc} />
+          ))}
+        </CardGrid>
+      )}
+    </>
+  );
+
+  if (layoutMode === "phone") {
+    if (phoneDetailOpen) {
+      return (
+        <div className="mt-6">
+          <DocumentDetailPanel doc={selectedDoc} allDocs={EDU_DOCUMENTS} onSelectRelated={selectDoc} onBack={() => setPhoneDetailOpen(false)} />
+        </div>
+      );
+    }
+    return <div className="mt-2">{gridBody}</div>;
+  }
+
+  return (
+    <div className="mt-2 grid grid-cols-[1fr_380px] items-start gap-6">
+      <div className="min-w-0">{gridBody}</div>
+      <aside className="sticky top-5">
+        <DocumentDetailPanel doc={selectedDoc} allDocs={EDU_DOCUMENTS} onSelectRelated={selectDoc} />
+      </aside>
+    </div>
+  );
+};
+
 // --- CalculatorShell --------------------------------------------------------
 // Composes the same sidebar/main/footer content differently depending on
 // layout mode. Phone reproduces today's stacked order exactly (byte-for-byte
@@ -4132,7 +4508,7 @@ export default function SpeedpanelEstimator() {
         <div className="mt-4 h-[2px] w-full rounded-full" style={{ background: `linear-gradient(90deg, ${NAVY} 0%, ${BLUE} 55%, ${GOLD} 100%)` }} />
 
         {activeTab === "selector"  && <ComingSoonPanel title="System Selector" />}
-        {activeTab === "education" && <ComingSoonPanel title="Education Hub" />}
+        {activeTab === "education" && <EducationHub layoutMode={layoutMode} />}
         {activeTab === "projects"  && <ComingSoonPanel title="Projects" />}
 
         {/* System configuration + calculator body */}
