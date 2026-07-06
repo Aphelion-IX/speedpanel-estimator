@@ -1684,11 +1684,14 @@ const LengthExplorer = ({
 // plain card would), gap-3 provides uniform row/column spacing, and
 // [&>*]:!mt-0 neutralizes each child's own top margin so it can't ALSO
 // contribute -- one spacing source instead of two independent ones.
-const CardGrid = ({ layoutMode, minWidth = 320, children }: {
-  layoutMode: EffectiveLayout; minWidth?: number; children: React.ReactNode;
+const CardGrid = ({ layoutMode, minWidth = 320, stretch = false, children }: {
+  layoutMode: EffectiveLayout; minWidth?: number; stretch?: boolean; children: React.ReactNode;
 }) => (
   layoutMode === "web"
-    ? <div className="mt-3 grid gap-3 items-start [&>*]:!mt-0" style={{ gridTemplateColumns: `repeat(auto-fit, minmax(${minWidth}px, 1fr))` }}>{children}</div>
+    // stretch: rows size to their tallest card and every card fills that height (via
+    // items-stretch + each card's own h-full) -- opt-in since most existing callers
+    // want each card's natural content height (items-start), not equalized rows.
+    ? <div className={`mt-3 grid gap-3 [&>*]:!mt-0 ${stretch ? "items-stretch" : "items-start"}`} style={{ gridTemplateColumns: `repeat(auto-fit, minmax(${minWidth}px, 1fr))` }}>{children}</div>
     : <>{children}</>
 );
 
@@ -3658,7 +3661,7 @@ const WALL_SYSTEM_OPTIONS: WallSystemOption[] = [
 const WallSystemOptionCard = ({ option, selected }: { option: WallSystemOption; selected: boolean }) => {
   const Icon = option.icon;
   return (
-    <div className={cx.card + " flex flex-col gap-3"} style={selected ? { borderColor: BLUE, borderWidth: 2 } : undefined}>
+    <div className={cx.card + " h-full flex flex-col gap-3"} style={selected ? { borderColor: BLUE, borderWidth: 2 } : undefined}>
       <div className="relative">
         <div className="h-20 rounded-lg grid place-items-center border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/40">
           <Icon size={28} style={{ color: BLUE }} />
@@ -3676,13 +3679,16 @@ const WallSystemOptionCard = ({ option, selected }: { option: WallSystemOption; 
       <div className="border-t border-slate-100 dark:border-slate-800 pt-3">
         <p className={cx.footnote + " pt-0"}>{option.note}</p>
       </div>
+      {/* mt-auto pins the CTA to the bottom regardless of how tall the title/
+          description/note above it are -- keeps every card's button aligned
+          on the same row once the grid stretches all cards to equal height. */}
       {selected ? (
-        <div className="mt-1 flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-sm font-bold" style={{ background: BLUE, color: WHITE }}>
+        <div className="mt-auto flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-sm font-bold" style={{ background: BLUE, color: WHITE }}>
           <Check size={14} /> Selected
         </div>
       ) : (
         // Inert stub for this pass -- no onClick wired yet (see file-level note above).
-        <button className="mt-1 w-full rounded-xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 py-2.5 text-sm font-bold active:scale-95 transition-all" style={{ color: BLUE }}>
+        <button className="mt-auto w-full rounded-xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 py-2.5 text-sm font-bold active:scale-95 transition-all" style={{ color: BLUE }}>
           Select System
         </button>
       )}
@@ -3746,32 +3752,38 @@ const SystemSelector = ({ layoutMode, system, activeWallSystem }: {
         <h1 className="text-2xl font-bold" style={{ color: NAVY }}>What type of wall are you estimating?</h1>
         <p className="mt-1 text-sm" style={{ color: MUTED }}>Start by selecting how the panels will be installed.</p>
       </div>
-      <div className="mt-5 flex items-center justify-between">
-        <div className={cx.sectionLbl}>Horizontal Systems</div>
-        <span className={cx.pill} style={{ background: BLUE }}>Panels installed horizontally (stacked)</span>
+      {/* Two clearly separated groups: the 6 core orientation/wall-type systems
+          together in one card, and the broader application catalog in its own. */}
+      <div className={cx.card + " mt-5"}>
+        <div className={cx.cardHd}>Basic Systems</div>
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+          <div className={cx.sectionLbl + " mt-0"}>Horizontal Systems</div>
+          <span className={cx.pill} style={{ background: BLUE }}>Panels installed horizontally (stacked)</span>
+        </div>
+        <CardGrid layoutMode={layoutMode} minWidth={260} stretch>
+          {WALL_SYSTEM_OPTIONS.filter(o => o.group === "horizontal").map(o => (
+            <WallSystemOptionCard key={o.id} option={o} selected={isSelected(o)} />
+          ))}
+        </CardGrid>
+        <div className="mt-5 flex flex-wrap items-center justify-between gap-2">
+          <div className={cx.sectionLbl + " mt-0"}>Vertical Systems</div>
+          <span className={cx.pill + " bg-emerald-600"}>Panels installed vertically</span>
+        </div>
+        <CardGrid layoutMode={layoutMode} minWidth={260} stretch>
+          {WALL_SYSTEM_OPTIONS.filter(o => o.group === "vertical").map(o => (
+            <WallSystemOptionCard key={o.id} option={o} selected={isSelected(o)} />
+          ))}
+        </CardGrid>
       </div>
-      <CardGrid layoutMode={layoutMode} minWidth={260}>
-        {WALL_SYSTEM_OPTIONS.filter(o => o.group === "horizontal").map(o => (
-          <WallSystemOptionCard key={o.id} option={o} selected={isSelected(o)} />
-        ))}
-      </CardGrid>
-      <div className="mt-5 flex items-center justify-between">
-        <div className={cx.sectionLbl}>Vertical Systems</div>
-        <span className={cx.pill + " bg-emerald-600"}>Panels installed vertically</span>
+
+      <div className={cx.card + " mt-5"}>
+        <div className={cx.cardHd}>Application-Specific Systems</div>
+        <CardGrid layoutMode={layoutMode} minWidth={260} stretch>
+          {WALL_SYSTEM_OPTIONS.filter(o => o.group === "application").map(o => (
+            <WallSystemOptionCard key={o.id} option={o} selected={isSelected(o)} />
+          ))}
+        </CardGrid>
       </div>
-      <CardGrid layoutMode={layoutMode} minWidth={260}>
-        {WALL_SYSTEM_OPTIONS.filter(o => o.group === "vertical").map(o => (
-          <WallSystemOptionCard key={o.id} option={o} selected={isSelected(o)} />
-        ))}
-      </CardGrid>
-      <div className="mt-5">
-        <div className={cx.sectionLbl}>Application-Specific Systems</div>
-      </div>
-      <CardGrid layoutMode={layoutMode} minWidth={260}>
-        {WALL_SYSTEM_OPTIONS.filter(o => o.group === "application").map(o => (
-          <WallSystemOptionCard key={o.id} option={o} selected={isSelected(o)} />
-        ))}
-      </CardGrid>
       <div className="mt-5 rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-700 p-6 flex items-center justify-between gap-6">
         <div className="flex items-start gap-3">
           <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full" style={{ background: "rgba(37,99,235,0.12)" }}>
