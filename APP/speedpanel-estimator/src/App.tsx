@@ -4,6 +4,7 @@ import {
   Box, Frame, Hammer, Plus, Trash2, Copy, Settings,
   Smartphone, Monitor, Sun, Moon, Menu, X,
   Search, Clock, FileText, Share2, MoreVertical, ChevronRight, ChevronLeft, Maximize2, Minimize2,
+  RectangleHorizontal, CornerDownRight, Building2, Shield, ShieldCheck, RectangleVertical, Check, HelpCircle,
 } from "lucide-react";
 import { useLayoutMode, type EffectiveLayout } from "./useLayoutMode";
 import { useThemeMode, type EffectiveTheme } from "./useThemeMode";
@@ -3531,13 +3532,203 @@ const TopNav = ({ activeTab, onTabChange, right }: { activeTab: TopNavTab; onTab
 
 // --- ComingSoonPanel -----------------------------------------------------------
 // Placeholder body shown for top-nav tabs that don't have real content yet
-// (System Selector, Education Hub, Projects -- see SpeedpanelEstimator).
+// (Projects -- see SpeedpanelEstimator).
 const ComingSoonPanel = ({ title }: { title: string }) => (
   <div className={cx.card + " mt-6 text-center"}>
     <p className="text-sm font-bold uppercase tracking-widest" style={{ color: BLUE }}>{title}</p>
     <p className={cx.footnote}>Coming soon.</p>
   </div>
 );
+
+// --- System Selector -------------------------------------------------------------
+// Wall-type picker landing page for the "System Selector" top-nav tab. Each card's
+// "selected" highlight is derived read-only from the live estimator state (system /
+// active.wallSystem) passed down from SpeedpanelEstimator -- no local selection state,
+// so it can never drift from what the estimator is actually configured with.
+//
+// NOTE: "Select System" and "View Guide" are intentionally inert stubs for now (no
+// onClick wired) -- wiring them to actually switch system/orientation/wallSystem and
+// jump to the System Estimator tab is a deliberate follow-up, not done here. When that
+// lands: a naive switchSystem(option.system) alone is NOT enough, because active.orient
+// is a separate per-wall field from `system` -- WallsCard's Standard/Corner/Shaft
+// picker gates on active.orient === "horizontal", not sys.orient. The real wiring will
+// need switchOrient(target.orient) (which already resets wallSystem/unlinks partners
+// correctly) in addition to switchSystem, or selecting Corner/Shaft after a Vertical
+// system would silently leave the wall vertical with no picker visible.
+type WallSystemOptionId = "single" | "corner" | "shaft" | "ext-horiz" | "int-vert" | "ext-vert";
+
+interface WallSystemOption {
+  id: WallSystemOptionId;
+  group: "horizontal" | "vertical";
+  title: string;
+  description: string;
+  note: string;
+  icon: React.ComponentType<{ size?: number; style?: React.CSSProperties }>;
+  system: string;             // one of SYSTEMS[].id -- for future wiring + selected-state matching
+  wallSystem?: WallSystemId;  // only set for the 3 horizontal-Internal cards
+}
+
+const WALL_SYSTEM_OPTIONS: WallSystemOption[] = [
+  { id: "single", group: "horizontal", title: "Single Wall",
+    description: "Straight horizontal wall section",
+    note: "Use this when estimating one continuous wall run.",
+    icon: RectangleHorizontal, system: "int-horiz", wallSystem: "standard" },
+  { id: "corner", group: "horizontal", title: "Corner Wall",
+    description: "Two wall runs meeting at a corner",
+    note: "Use this when estimating internal or external corners.",
+    icon: CornerDownRight, system: "int-horiz", wallSystem: "corner" },
+  { id: "shaft", group: "horizontal", title: "Shaft Wall",
+    description: "Shaft, stair or lift enclosure walls.",
+    note: "Use this when wall runs are broken into sections.",
+    icon: Building2, system: "int-horiz", wallSystem: "shaft" },
+  { id: "ext-horiz", group: "horizontal", title: "External Wall",
+    description: "External horizontal wall system.",
+    note: "Use this for weather-facing applications.",
+    icon: Shield, system: "ext-horiz" },
+  { id: "int-vert", group: "vertical", title: "Vertical Wall System",
+    description: "Standard vertical panel installation from base to head track.",
+    note: "Use this for internal or general vertical wall applications.",
+    icon: RectangleVertical, system: "int-vert" },
+  { id: "ext-vert", group: "vertical", title: "Vertical External Wall",
+    description: "External vertical wall system with exposed finish.",
+    note: "Use this for weather-facing vertical applications.",
+    icon: ShieldCheck, system: "ext-vert" },
+];
+
+const WallSystemOptionCard = ({ option, selected }: { option: WallSystemOption; selected: boolean }) => {
+  const Icon = option.icon;
+  return (
+    <div className={cx.card + " flex flex-col gap-3"} style={selected ? { borderColor: BLUE, borderWidth: 2 } : undefined}>
+      <div className="relative">
+        <div className="h-20 rounded-lg grid place-items-center border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/40">
+          <Icon size={28} style={{ color: BLUE }} />
+        </div>
+        {selected && (
+          <div className="absolute -right-2 -top-2 grid h-6 w-6 place-items-center rounded-full shadow-sm" style={{ background: BLUE }}>
+            <Check size={14} color={WHITE} strokeWidth={3} />
+          </div>
+        )}
+      </div>
+      <div>
+        <div className="text-sm font-bold" style={{ color: NAVY }}>{option.title}</div>
+        <p className="mt-1 text-sm leading-relaxed" style={{ color: MUTED }}>{option.description}</p>
+      </div>
+      <div className="border-t border-slate-100 dark:border-slate-800 pt-3">
+        <p className={cx.footnote + " pt-0"}>{option.note}</p>
+      </div>
+      {selected ? (
+        <div className="mt-1 flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-sm font-bold" style={{ background: BLUE, color: WHITE }}>
+          <Check size={14} /> Selected
+        </div>
+      ) : (
+        // Inert stub for this pass -- no onClick wired yet (see file-level note above).
+        <button className="mt-1 w-full rounded-xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 py-2.5 text-sm font-bold active:scale-95 transition-all" style={{ color: BLUE }}>
+          Select System
+        </button>
+      )}
+    </div>
+  );
+};
+
+const SystemSelector = ({ layoutMode, system, activeWallSystem }: {
+  layoutMode: EffectiveLayout; system: string; activeWallSystem: WallSystemId;
+}) => {
+  const isSelected = (option: WallSystemOption) =>
+    system === option.system && (option.wallSystem === undefined || activeWallSystem === option.wallSystem);
+
+  const sidebarNode = (
+    <>
+      <div className={cx.card}>
+        <div className={cx.cardTitle}><Layers size={13} style={{ color: BLUE }} />Choose Your Wall System</div>
+        <p className="text-sm leading-relaxed" style={{ color: MUTED }}>
+          Select the wall type that matches how Speedpanel will be installed in your project.
+          You'll enter measurements after you make your selection.
+        </p>
+        <div className={cx.infoNote}><span>This selector does not calculate or recommend automatically. You're in control.</span></div>
+        <div className="mt-4 space-y-3">
+          {[
+            { n: 1, title: "Choose Orientation", sub: "Horizontal or Vertical", current: true },
+            { n: 2, title: "Select Wall Type", sub: "Pick the system that fits your project", current: false },
+            { n: 3, title: "Enter Measurements", sub: "Complete the form to calculate your estimate", current: false },
+          ].map(step => (
+            <div key={step.n} className="flex items-start gap-3">
+              <div className="grid h-6 w-6 shrink-0 place-items-center rounded-full text-xs font-bold"
+                style={step.current ? { background: BLUE, color: WHITE } : { color: MUTED, border: "1px solid #cbd5e1" }}>
+                {step.n}
+              </div>
+              <div>
+                <div className="text-sm font-bold" style={{ color: step.current ? BLUE : NAVY }}>{step.title}</div>
+                <div className="text-xs" style={{ color: MUTED }}>{step.sub}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className={cx.card + " mt-3"}>
+        <div className={cx.cardTitle}><HelpCircle size={13} style={{ color: BLUE }} />Need help choosing?</div>
+        <p className="text-sm leading-relaxed" style={{ color: MUTED }}>View our quick guide to understand each system type.</p>
+        {/* Inert stub -- no destination wired yet, see file-level note above. */}
+        <button className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 py-2.5 text-sm font-bold active:scale-95 transition-all" style={{ color: BLUE }}>
+          View Guide <ChevronRight size={14} />
+        </button>
+      </div>
+    </>
+  );
+
+  const mainNode = (
+    <>
+      <div>
+        <h1 className="text-2xl font-bold" style={{ color: NAVY }}>What type of wall are you estimating?</h1>
+        <p className="mt-1 text-sm" style={{ color: MUTED }}>Start by selecting how the panels will be installed.</p>
+      </div>
+      <div className="mt-5 flex items-center justify-between">
+        <div className={cx.sectionLbl}>Horizontal Systems</div>
+        <span className={cx.pill} style={{ background: BLUE }}>Panels installed horizontally (stacked)</span>
+      </div>
+      <CardGrid layoutMode={layoutMode} minWidth={260}>
+        {WALL_SYSTEM_OPTIONS.filter(o => o.group === "horizontal").map(o => (
+          <WallSystemOptionCard key={o.id} option={o} selected={isSelected(o)} />
+        ))}
+      </CardGrid>
+      <div className="mt-5 flex items-center justify-between">
+        <div className={cx.sectionLbl}>Vertical Systems</div>
+        <span className={cx.pill + " bg-emerald-600"}>Panels installed vertically</span>
+      </div>
+      <CardGrid layoutMode={layoutMode} minWidth={260}>
+        {WALL_SYSTEM_OPTIONS.filter(o => o.group === "vertical").map(o => (
+          <WallSystemOptionCard key={o.id} option={o} selected={isSelected(o)} />
+        ))}
+      </CardGrid>
+      <div className="mt-5 rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-700 p-6 flex items-center justify-between gap-6">
+        <div className="flex items-start gap-3">
+          <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full" style={{ background: "rgba(37,99,235,0.12)" }}>
+            <FileText size={18} style={{ color: BLUE }} />
+          </div>
+          <div>
+            <div className="text-sm font-bold" style={{ color: NAVY }}>Select a wall system to begin</div>
+            <p className={cx.footnote + " pt-1"}>Choose one of the systems above to load the matching estimate form.</p>
+          </div>
+        </div>
+        <svg className="hidden md:block shrink-0" width="140" height="80" viewBox="0 0 140 80" fill="none">
+          <path d="M10 70 L10 30 L70 10 L130 30 L130 70 Z" stroke={MUTED} strokeWidth="1" opacity="0.35" />
+          <path d="M10 30 L130 30" stroke={MUTED} strokeWidth="1" opacity="0.35" />
+          <rect x="55" y="45" width="14" height="25" stroke={MUTED} strokeWidth="1" opacity="0.35" />
+          <rect x="20" y="40" width="16" height="14" stroke={MUTED} strokeWidth="1" opacity="0.35" />
+          <rect x="100" y="40" width="16" height="14" stroke={MUTED} strokeWidth="1" opacity="0.35" />
+        </svg>
+      </div>
+    </>
+  );
+
+  return layoutMode === "web"
+    ? (
+      <div className="mt-6 grid grid-cols-[340px_1fr] items-start gap-6">
+        <aside className="sticky top-5">{sidebarNode}</aside>
+        <div className="min-w-0">{mainNode}</div>
+      </div>
+    )
+    : <div className="mt-6">{mainNode}{sidebarNode}</div>;
+};
 
 // --- Education Hub -------------------------------------------------------------
 // Mock document catalog for the Education Hub tab. This is UI placeholder
@@ -4583,7 +4774,7 @@ export default function SpeedpanelEstimator() {
         />
         <div className="mt-4 h-[2px] w-full rounded-full" style={{ background: `linear-gradient(90deg, ${NAVY} 0%, ${BLUE} 55%, ${GOLD} 100%)` }} />
 
-        {activeTab === "selector"  && <ComingSoonPanel title="System Selector" />}
+        {activeTab === "selector"  && <SystemSelector layoutMode={layoutMode} system={system} activeWallSystem={active.wallSystem} />}
         {activeTab === "education" && <EducationHub layoutMode={layoutMode} />}
         {activeTab === "projects"  && <ComingSoonPanel title="Projects" />}
 
