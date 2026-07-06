@@ -3645,7 +3645,7 @@ const DocumentCard = ({ doc, selected, onSelect }: { doc: EduDocument; selected:
   </div>
 );
 
-const SectionsList = ({ sections }: { sections: EduSection[] }) => (
+const SectionsList = ({ sections, onOpenSection }: { sections: EduSection[]; onOpenSection?: (pages: string) => void }) => (
   <div className="space-y-2.5">
     {sections.map((s, i) => (
       <div key={i} className={cx.rowBorder}>
@@ -3654,7 +3654,8 @@ const SectionsList = ({ sections }: { sections: EduSection[] }) => (
           <span className="text-xs font-semibold shrink-0" style={{ color: MUTED }}>p.{s.pages}</span>
         </div>
         <p className="mt-1 text-sm leading-relaxed" style={{ color: MUTED }}>{s.description}</p>
-        <button className="mt-2 text-xs font-bold" style={{ color: BLUE }}>Open Section</button>
+        <button onClick={onOpenSection ? () => onOpenSection(s.pages) : undefined}
+          className="mt-2 text-xs font-bold" style={{ color: BLUE }}>Open Section</button>
       </div>
     ))}
   </div>
@@ -3665,10 +3666,16 @@ const DETAIL_TABS: { key: DetailTab; label: string }[] = [
   { key: "scan", label: "Quick Scan" }, { key: "details", label: "Details" }, { key: "related", label: "Related" },
 ];
 
-const DocumentDetailPanel = ({ doc, allDocs, onSelectRelated, onBack }: {
-  doc: EduDocument; allDocs: EduDocument[]; onSelectRelated: (id: string) => void; onBack?: () => void;
+// Parses the leading page number out of a section's "pages" string ("8-15" -> 8, "37" -> 37) for
+// jumping the embedded PDF viewer there via its native #page=N URL fragment.
+const firstPage = (pages: string): number => parseInt(pages, 10) || 1;
+
+const DocumentDetailPanel = ({ doc, allDocs, tab, onTabChange, onSelectRelated, onBack }: {
+  doc: EduDocument; allDocs: EduDocument[]; tab: DetailTab; onTabChange: (t: DetailTab) => void;
+  onSelectRelated: (id: string) => void; onBack?: () => void;
 }) => {
-  const [tab, setTab] = useState<DetailTab>("scan");
+  const [pageAnchor, setPageAnchor] = useState<number | null>(null);
+  useEffect(() => setPageAnchor(null), [doc.id]);
   const related = allDocs.filter(d => d.id !== doc.id && d.category === doc.category).slice(0, 4);
   return (
     <div className={cx.card}>
@@ -3699,7 +3706,7 @@ const DocumentDetailPanel = ({ doc, allDocs, onSelectRelated, onBack }: {
       </div>
       <div className="mt-4 grid grid-cols-3 gap-1 rounded-xl border border-slate-200 dark:border-slate-700 p-1">
         {DETAIL_TABS.map(t => (
-          <button key={t.key} onClick={() => setTab(t.key)}
+          <button key={t.key} onClick={() => onTabChange(t.key)}
             className={"rounded-lg py-2 text-xs font-bold transition-all " + (tab === t.key ? "" : "text-slate-400 dark:text-slate-500")}
             style={tab === t.key ? { background: BLUE, color: WHITE } : undefined}>
             {t.label}
@@ -3708,12 +3715,24 @@ const DocumentDetailPanel = ({ doc, allDocs, onSelectRelated, onBack }: {
       </div>
       <div className="mt-4">
         {tab === "scan" && (
-          <>
-            <div className={cx.cardHd}>About this guide</div>
-            <p className="text-sm leading-relaxed" style={{ color: MUTED }}>{doc.description}</p>
-            <div className={cx.cardHd + " mt-4"}>Sections in this guide</div>
-            <SectionsList sections={doc.sections} />
-          </>
+          doc.fileUrl ? (
+            <>
+              {/* Real documents render live in the browser's native PDF viewer -- no extra
+                  dependency needed. "Open Section" below jumps here via the PDF's #page=N
+                  fragment, same file just re-anchored (no reload). */}
+              <iframe key={doc.id} src={`${doc.fileUrl}${pageAnchor ? `#page=${pageAnchor}` : ""}`}
+                title={doc.title} className="mt-1 h-[70vh] w-full rounded-lg border border-slate-200 dark:border-slate-700" />
+              <div className={cx.cardHd + " mt-4"}>Sections in this guide</div>
+              <SectionsList sections={doc.sections} onOpenSection={pages => setPageAnchor(firstPage(pages))} />
+            </>
+          ) : (
+            <>
+              <div className={cx.cardHd}>About this guide</div>
+              <p className="text-sm leading-relaxed" style={{ color: MUTED }}>{doc.description}</p>
+              <div className={cx.cardHd + " mt-4"}>Sections in this guide</div>
+              <SectionsList sections={doc.sections} />
+            </>
+          )
         )}
         {tab === "details" && (
           <div className="space-y-1">
@@ -3745,6 +3764,7 @@ const EducationHub = ({ layoutMode }: { layoutMode: EffectiveLayout }) => {
   const [selectedId, setSelectedId] = useState<string>(EDU_DOCUMENTS[0].id);
   const [recentIds, setRecentIds] = useState<string[]>([]);
   const [phoneDetailOpen, setPhoneDetailOpen] = useState(false);
+  const [detailTab, setDetailTab] = useState<DetailTab>("scan");
 
   const filtered = useMemo(() => {
     const q = query.trim();
@@ -3760,6 +3780,8 @@ const EducationHub = ({ layoutMode }: { layoutMode: EffectiveLayout }) => {
     setSelectedId(id);
     setRecentIds(prev => [id, ...prev.filter(x => x !== id)].slice(0, 6));
     setPhoneDetailOpen(true); // no-op on web, where the aside always shows the selection
+    setDetailTab("scan"); // every selection path (Quick Scan, Open PDF, a card, Recently Viewed,
+    // a Related-doc link) lands on the Quick Scan view, matching what the button promises.
   };
 
   const selectedDoc = EDU_DOCUMENTS.find(d => d.id === selectedId) ?? EDU_DOCUMENTS[0];
@@ -3792,7 +3814,7 @@ const EducationHub = ({ layoutMode }: { layoutMode: EffectiveLayout }) => {
     if (phoneDetailOpen) {
       return (
         <div className="mt-6">
-          <DocumentDetailPanel doc={selectedDoc} allDocs={EDU_DOCUMENTS} onSelectRelated={selectDoc} onBack={() => setPhoneDetailOpen(false)} />
+          <DocumentDetailPanel doc={selectedDoc} allDocs={EDU_DOCUMENTS} tab={detailTab} onTabChange={setDetailTab} onSelectRelated={selectDoc} onBack={() => setPhoneDetailOpen(false)} />
         </div>
       );
     }
@@ -3803,7 +3825,7 @@ const EducationHub = ({ layoutMode }: { layoutMode: EffectiveLayout }) => {
     <div className="mt-2 grid grid-cols-[1fr_380px] items-start gap-6">
       <div className="min-w-0">{gridBody}</div>
       <aside className="sticky top-5">
-        <DocumentDetailPanel doc={selectedDoc} allDocs={EDU_DOCUMENTS} onSelectRelated={selectDoc} />
+        <DocumentDetailPanel doc={selectedDoc} allDocs={EDU_DOCUMENTS} tab={detailTab} onTabChange={setDetailTab} onSelectRelated={selectDoc} />
       </aside>
     </div>
   );
