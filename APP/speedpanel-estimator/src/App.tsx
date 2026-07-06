@@ -4,7 +4,7 @@ import {
   Box, Frame, Hammer, Plus, Trash2, Copy, Settings,
   Smartphone, Monitor, Sun, Moon, Menu, X,
   Search, Clock, FileText, Share2, MoreVertical, ChevronRight, ChevronLeft, Maximize2, Minimize2,
-  RectangleHorizontal, CornerDownRight, Building2, Shield, ShieldCheck, RectangleVertical, Check, HelpCircle,
+  RectangleHorizontal, CornerDownRight, Building2, Shield, ShieldCheck, RectangleVertical, Check, HelpCircle, Phone,
 } from "lucide-react";
 import { useLayoutMode, type EffectiveLayout } from "./useLayoutMode";
 import { useThemeMode, type EffectiveTheme } from "./useThemeMode";
@@ -3671,6 +3671,10 @@ const SystemSelector = ({ layoutMode, system, activeWallSystem }: {
         <button className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 py-2.5 text-sm font-bold active:scale-95 transition-all" style={{ color: BLUE }}>
           View Guide <ChevronRight size={14} />
         </button>
+        <p className="mt-3 text-center text-xs" style={{ color: MUTED }}>Or contact Speedpanel</p>
+        <a href="tel:+61391156666" className="mt-1.5 flex w-full items-center justify-center gap-1.5 rounded-xl py-2.5 text-sm font-bold active:scale-95 transition-all" style={{ background: BLUE, color: WHITE }}>
+          <Phone size={14} /> +61 3 9115 6666
+        </a>
       </div>
     </>
   );
