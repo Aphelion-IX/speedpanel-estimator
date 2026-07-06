@@ -3770,8 +3770,14 @@ const DocumentDetailPanel = ({ doc, allDocs, tab, onTabChange, onSelectRelated, 
   // Maximised on desktop gets room for a side-by-side layout; maximised on phone (or
   // not maximised at all) keeps the PDF viewer and contents stacked in one column.
   const sideBySide = expanded && layoutMode === "web";
-  return (
-    <div className={cx.card}>
+  // While side-by-side, the doc info/actions/tabs move into the sticky contents column
+  // next to "Sections in this guide" instead of sitting above the two-column grid -- but
+  // only for the Quick Scan tab, which is the only one that renders that grid; Details/
+  // Related still render single-column with the header on top, same as non-maximised.
+  const headerInSidebar = sideBySide && tab === "scan" && !!doc.fileUrl;
+
+  const header = (
+    <>
       <div className="mb-3 flex items-center justify-between gap-2">
         <span className="truncate text-xs font-bold uppercase tracking-widest" style={{ color: MUTED }}>Document viewer</span>
         <button onClick={onToggleExpand} title={expanded ? "Exit full screen" : "Full screen"}
@@ -3799,23 +3805,39 @@ const DocumentDetailPanel = ({ doc, allDocs, tab, onTabChange, onSelectRelated, 
         <button className="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 dark:border-slate-700 text-slate-400 dark:text-slate-500"><Share2 size={15} /></button>
         <button className="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 dark:border-slate-700 text-slate-400 dark:text-slate-500"><MoreVertical size={15} /></button>
       </div>
-      <div className="mt-4 grid grid-cols-3 gap-1 rounded-xl border border-slate-200 dark:border-slate-700 p-1">
-        {DETAIL_TABS.map(t => (
-          <button key={t.key} onClick={() => onTabChange(t.key)}
-            className={"rounded-lg py-2 text-xs font-bold transition-all " + (tab === t.key ? "" : "text-slate-400 dark:text-slate-500")}
-            style={tab === t.key ? { background: BLUE, color: WHITE } : undefined}>
-            {t.label}
-          </button>
-        ))}
-      </div>
-      <div className="mt-4">
+    </>
+  );
+
+  const tabsNav = (
+    <div className="mt-4 grid grid-cols-3 gap-1 rounded-xl border border-slate-200 dark:border-slate-700 p-1">
+      {DETAIL_TABS.map(t => (
+        <button key={t.key} onClick={() => onTabChange(t.key)}
+          className={"rounded-lg py-2 text-xs font-bold transition-all " + (tab === t.key ? "" : "text-slate-400 dark:text-slate-500")}
+          style={tab === t.key ? { background: BLUE, color: WHITE } : undefined}>
+          {t.label}
+        </button>
+      ))}
+    </div>
+  );
+
+  return (
+    <div className={cx.card}>
+      {!headerInSidebar && (
+        <>
+          {header}
+          {tabsNav}
+        </>
+      )}
+      <div className={headerInSidebar ? "" : "mt-4"}>
         {tab === "scan" && (
           doc.fileUrl ? (
             sideBySide ? (
               <div className="grid grid-cols-[1fr_320px] gap-6 items-start">
                 <PdfViewer key={doc.id} url={doc.fileUrl} page={currentPage} onPageChange={setCurrentPage} tall={expanded} />
                 <div className="sticky top-4 max-h-[calc(100vh-200px)] overflow-y-auto">
-                  <div className={cx.cardHd}>Sections in this guide</div>
+                  {header}
+                  {tabsNav}
+                  <div className={cx.cardHd + " mt-4"}>Sections in this guide</div>
                   <SectionsList sections={doc.sections} onOpenSection={pages => setCurrentPage(firstPage(pages))} />
                 </div>
               </div>
