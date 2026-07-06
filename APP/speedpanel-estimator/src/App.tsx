@@ -27,9 +27,24 @@ import type { ConnectionMaterial } from "./estimate/estimate.types";
 import MiniSearch from "minisearch";
 import eduDocumentsRaw from "./eduDocuments.json";
 import eduSearchIndexJson from "./eduSearchIndex.json?raw";
-import * as pdfjsLib from "pdfjs-dist";
-import pdfjsWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
-pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorkerUrl;
+import type * as PdfjsLib from "pdfjs-dist";
+
+// pdfjs-dist (plus its ~1.3MB worker) is only needed once someone actually opens a real PDF in
+// the Education Hub, so it's dynamically imported instead of bundled into the main chunk -- this
+// promise is cached so the module + worker setup only happen once, on first use.
+let pdfjsLibPromise: Promise<typeof PdfjsLib> | null = null;
+const loadPdfjs = () => {
+  if (!pdfjsLibPromise) {
+    pdfjsLibPromise = Promise.all([
+      import("pdfjs-dist"),
+      import("pdfjs-dist/build/pdf.worker.min.mjs?url"),
+    ]).then(([lib, worker]) => {
+      lib.GlobalWorkerOptions.workerSrc = worker.default;
+      return lib;
+    });
+  }
+  return pdfjsLibPromise;
+};
 
 // --- Design tokens ------------------------------------------------------------
 // Each references a CSS custom property (defined in index.css for :root and
@@ -3683,14 +3698,14 @@ const firstPage = (pages: string): number => parseInt(pages, 10) || 1;
 // PDF.js viewer chrome is a desktop-Chrome-only feature, not a guaranteed <iframe> behavior.
 const PdfViewer = ({ url, page, onPageChange, tall }: { url: string; page: number; onPageChange: (p: number) => void; tall: boolean }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [pdfDoc, setPdfDoc] = useState<pdfjsLib.PDFDocumentProxy | null>(null);
+  const [pdfDoc, setPdfDoc] = useState<PdfjsLib.PDFDocumentProxy | null>(null);
   const [pageCount, setPageCount] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
     setPdfDoc(null);
     setPageCount(0);
-    pdfjsLib.getDocument({ url }).promise.then(pdf => {
+    loadPdfjs().then(pdfjsLib => pdfjsLib.getDocument({ url }).promise).then(pdf => {
       if (cancelled) return;
       setPdfDoc(pdf);
       setPageCount(pdf.numPages);
