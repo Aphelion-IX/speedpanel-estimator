@@ -14,17 +14,18 @@ body {
    reference these variables instead of literal hex codes. Every existing
    inline style={{color: NAVY}} usage becomes theme-aware automatically. */
 :root {
-  --navy: #0B1233;      /* primary body/heading text */
-  --blue: #0075CC;      /* primary brand colour -- selected states, links */
-  --gold: #F0A800;      /* accent -- highlights, warnings, special-order badge */
+  --navy: #0C2340;      /* primary body/heading text -- PANTONE 289 C */
+  --blue: #0067B9;      /* primary brand colour -- selected states, links -- PANTONE 2144 C */
+  --gold: #F0B323;      /* accent -- highlights, warnings, special-order badge -- PANTONE 7409 C */
   --on-fill: #FFFFFF;   /* text/icon colour on filled (BLUE/GOLD) backgrounds */
   --muted: #94A3B8;     /* inactive/unselected text & icon colour */
 }
 
 .dark {
-  --navy: #E8ECF6;
-  --blue: #4DA3FF;
-  --gold: #FBBF24;
+  --navy: #E8ECF6;      /* NOT a navy tint -- this is the primary text colour on a dark
+                            background, so it stays a light neutral for legibility. */
+  --blue: #3AA8FF;      /* brightened tint of the new brand blue, same lightening ratio as before */
+  --gold: #F0C152;      /* brightened tint of the new brand gold, same lightening ratio as before */
   --on-fill: #FFFFFF;
   --muted: #94A3B8;
 }
