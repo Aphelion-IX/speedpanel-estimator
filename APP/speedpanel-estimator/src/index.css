@@ -16,21 +16,15 @@ body {
 :root {
   --navy: #0B1233;      /* primary body/heading text */
   --blue: #0075CC;      /* primary brand colour -- selected states, links */
-  --logo-blue: #00B0FF; /* lighter blue from the Speedpanel logo mark */
   --gold: #F0A800;      /* accent -- highlights, warnings, special-order badge */
   --on-fill: #FFFFFF;   /* text/icon colour on filled (BLUE/GOLD) backgrounds */
   --muted: #94A3B8;     /* inactive/unselected text & icon colour */
-  --border: #E2E8F0;    /* standard unselected border colour */
-  --muted-bg: #F8FAFC;  /* standard unselected fill colour */
 }
 
 .dark {
   --navy: #E8ECF6;
   --blue: #4DA3FF;
-  --logo-blue: #33C2FF;
   --gold: #FBBF24;
   --on-fill: #FFFFFF;
   --muted: #94A3B8;
-  --border: #334155;
-  --muted-bg: #1E293B;
 }
