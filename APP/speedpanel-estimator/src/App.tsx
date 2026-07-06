@@ -31,12 +31,9 @@ import type { ConnectionMaterial } from "./estimate/estimate.types";
 // no need to touch each individual usage site.
 const NAVY      = "var(--navy)";      // primary body/heading text colour
 const BLUE      = "var(--blue)";      // primary brand colour -- selected states, links, key values
-const LOGO_BLUE = "var(--logo-blue)"; // lighter blue from the Speedpanel logo mark
 const GOLD      = "var(--gold)";      // accent colour -- highlights, warnings, custom/special-order badge
 const WHITE     = "var(--on-fill)";   // text/icon colour on filled (BLUE/GOLD) backgrounds
 const MUTED     = "var(--muted)";     // inactive/unselected text & icon colour
-const BORDER    = "var(--border)";    // standard unselected border colour
-const MUTED_BG  = "var(--muted-bg)";  // standard unselected fill colour
 
 // --- Single source of truth for all text sizes and spacing -------------------
 //
