@@ -196,32 +196,62 @@
     "sections": [
       {
         "name": "Introduction",
-        "description": "Report scope, sponsor details and referenced test data.",
+        "description": "Report scope, referenced assessment report 28928 R4.6, and sponsor details (Speedpanel Holdings Pty Ltd).",
         "pages": "8"
       },
       {
-        "name": "Framework for the assessment",
-        "description": "Assessment approach and NCC 2022 compliance basis.",
-        "pages": "8-9"
+        "name": "Assessment approach",
+        "description": "Assessment methodology per the Passive Fire Protection Forum's fire-performance guidance framework.",
+        "pages": "8"
       },
       {
-        "name": "Limitations of this assessment",
-        "description": "Conditions and limitations that apply to the assessment.",
+        "name": "Compliance with the National Construction Code",
+        "description": "Evidence-of-suitability basis under NCC 2022 (Specification 1 and 2, Schedule 5).",
         "pages": "9"
       },
       {
-        "name": "Description of the specimen and variations",
-        "description": "System description, referenced tests, variations and full schedule of construction details.",
-        "pages": "10-34"
+        "name": "Declaration",
+        "description": "Sponsor declaration confirming no prior contradictory fire test evidence.",
+        "pages": "9"
+      },
+      {
+        "name": "Limitations of this assessment",
+        "description": "Conditions on load capacity, steel structure protection (vermiculite spray, 550 degC), and scope of use.",
+        "pages": "9-10"
+      },
+      {
+        "name": "System description",
+        "description": "Referenced fire test reports for the 51, 64 and 78 mm wall systems (Table 4).",
+        "pages": "10"
+      },
+      {
+        "name": "Referenced test data",
+        "description": "Test sponsors, dates and testing authorities for every referenced report (Table 5).",
+        "pages": "11"
+      },
+      {
+        "name": "Variations to the tested systems",
+        "description": "Wall height, head/base/side-edge/corner/T-junction/angled and multi-angled construction variations, plus sealant options.",
+        "pages": "11-12"
+      },
+      {
+        "name": "Purpose of the test",
+        "description": "Basis of AS 1530.4:2014 fire-resistance testing and prototype-equivalence assessment.",
+        "pages": "12"
+      },
+      {
+        "name": "Schedule of components",
+        "description": "Full component schedule (panels, tracks, fixings, sealants, protection linings) and construction figures for every connection detail (Figures 1-93).",
+        "pages": "12-34"
       },
       {
         "name": "Conclusion",
-        "description": "Summary of FRL outcomes for the assessed wall systems.",
+        "description": "FRL outcomes by wall thickness and connection type for vertical and inclined/curved systems (Tables 7 and 8).",
         "pages": "35-36"
       },
       {
         "name": "Validity",
-        "description": "Validity period and conditions for this report.",
+        "description": "Report validity period, review conditions and intended use.",
         "pages": "37"
       }
     ]

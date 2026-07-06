@@ -3,7 +3,7 @@ import {
   Layers, AlertTriangle, Lock, ChevronDown, RotateCcw,
   Box, Frame, Hammer, Plus, Trash2, Copy, Settings,
   Smartphone, Monitor, Sun, Moon, Menu, X,
-  Search, Clock, FileText, Share2, MoreVertical, ChevronRight, ArrowLeft,
+  Search, Clock, FileText, Share2, MoreVertical, ChevronRight, Maximize2, Minimize2,
 } from "lucide-react";
 import { useLayoutMode, type EffectiveLayout } from "./useLayoutMode";
 import { useThemeMode, type EffectiveTheme } from "./useThemeMode";
@@ -3584,7 +3584,7 @@ const FilterChips = ({ active, onChange }: { active: EduCategory; onChange: (c: 
   </div>
 );
 
-const RecentlyViewedStrip = ({ ids, docs, onSelect }: { ids: string[]; docs: EduDocument[]; onSelect: (id: string) => void }) => {
+const RecentlyViewedStrip = ({ ids, docs, onOpenViewer }: { ids: string[]; docs: EduDocument[]; onOpenViewer: (id: string) => void }) => {
   if (ids.length === 0) return null;
   const recentDocs = ids.map(id => docs.find(d => d.id === id)).filter((d): d is EduDocument => !!d);
   return (
@@ -3592,7 +3592,7 @@ const RecentlyViewedStrip = ({ ids, docs, onSelect }: { ids: string[]; docs: Edu
       <SectionLabel icon={<Clock size={14} />}>Recently Viewed</SectionLabel>
       <div className="flex gap-2 overflow-x-auto pb-1">
         {recentDocs.map(d => (
-          <button key={d.id} onClick={() => onSelect(d.id)}
+          <button key={d.id} onClick={() => onOpenViewer(d.id)}
             className="shrink-0 w-56 rounded-xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3.5 py-3 text-left active:scale-95 transition-all">
             <div className="text-sm font-bold truncate" style={{ color: NAVY }}>{d.title}</div>
             <div className="mt-1 flex items-center justify-between gap-2 text-xs font-medium" style={{ color: MUTED }}>
@@ -3606,8 +3606,12 @@ const RecentlyViewedStrip = ({ ids, docs, onSelect }: { ids: string[]; docs: Edu
   );
 };
 
-const DocumentCard = ({ doc, selected, onSelect }: { doc: EduDocument; selected: boolean; onSelect: (id: string) => void }) => (
-  <div className={cx.card + " flex flex-col gap-3"} style={selected ? { borderColor: BLUE, borderWidth: 2 } : undefined}>
+// Touching anywhere on the card opens the live-viewer overlay on the selected document
+// (see EducationHub's openViewer) -- the action buttons below also route through the same
+// callback (with stopPropagation so a button press doesn't double-fire the card's own handler).
+const DocumentCard = ({ doc, selected, onOpenViewer }: { doc: EduDocument; selected: boolean; onOpenViewer: (id: string) => void }) => (
+  <div onClick={() => onOpenViewer(doc.id)}
+    className={cx.card + " flex cursor-pointer flex-col gap-3"} style={selected ? { borderColor: BLUE, borderWidth: 2 } : undefined}>
     <div className="h-24 rounded-lg grid place-items-center" style={{ background: doc.swatch }}>
       <FileText size={28} color={WHITE} />
     </div>
@@ -3625,20 +3629,20 @@ const DocumentCard = ({ doc, selected, onSelect }: { doc: EduDocument; selected:
       <span>{doc.edition}</span><span>·</span><span>{doc.date}</span><span>·</span><span>{doc.fileSize}</span>
     </div>
     <div className="mt-1 flex items-center gap-2">
-      <button onClick={() => onSelect(doc.id)}
+      <button onClick={e => { e.stopPropagation(); onOpenViewer(doc.id); }}
         className="flex-1 rounded-xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 py-2 text-xs font-bold active:scale-95 transition-all"
         style={{ color: BLUE }}>Quick Scan</button>
       {doc.fileUrl ? (
-        <a href={doc.fileUrl} target="_blank" rel="noopener noreferrer" onClick={() => onSelect(doc.id)}
+        <a href={doc.fileUrl} target="_blank" rel="noopener noreferrer" onClick={e => { e.stopPropagation(); onOpenViewer(doc.id); }}
           className="flex-1 rounded-xl py-2 text-center text-xs font-bold active:scale-95 transition-all"
           style={{ background: BLUE, color: WHITE }}>Open PDF</a>
       ) : (
-        <button onClick={() => onSelect(doc.id)}
+        <button onClick={e => { e.stopPropagation(); onOpenViewer(doc.id); }}
           className="flex-1 rounded-xl py-2 text-xs font-bold active:scale-95 transition-all"
           style={{ background: BLUE, color: WHITE }}>Open PDF</button>
       )}
       {/* No-op overflow button -- a real menu (rename/download/etc) is out of scope for v1. */}
-      <button className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-slate-200 dark:border-slate-700 text-slate-400 dark:text-slate-500">
+      <button onClick={e => e.stopPropagation()} className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-slate-200 dark:border-slate-700 text-slate-400 dark:text-slate-500">
         <MoreVertical size={15} />
       </button>
     </div>
@@ -3670,20 +3674,33 @@ const DETAIL_TABS: { key: DetailTab; label: string }[] = [
 // jumping the embedded PDF viewer there via its native #page=N URL fragment.
 const firstPage = (pages: string): number => parseInt(pages, 10) || 1;
 
-const DocumentDetailPanel = ({ doc, allDocs, tab, onTabChange, onSelectRelated, onBack }: {
+const DocumentDetailPanel = ({ doc, allDocs, tab, onTabChange, onSelectRelated, fullscreen, onMinimize, onToggleFullscreen, onClose }: {
   doc: EduDocument; allDocs: EduDocument[]; tab: DetailTab; onTabChange: (t: DetailTab) => void;
-  onSelectRelated: (id: string) => void; onBack?: () => void;
+  onSelectRelated: (id: string) => void;
+  fullscreen: boolean; onMinimize: () => void; onToggleFullscreen: () => void; onClose: () => void;
 }) => {
   const [pageAnchor, setPageAnchor] = useState<number | null>(null);
   useEffect(() => setPageAnchor(null), [doc.id]);
   const related = allDocs.filter(d => d.id !== doc.id && d.category === doc.category).slice(0, 4);
   return (
     <div className={cx.card}>
-      {onBack && (
-        <button onClick={onBack} className="mb-3 flex items-center gap-1.5 text-xs font-bold" style={{ color: BLUE }}>
-          <ArrowLeft size={13} /> Back to Documents
-        </button>
-      )}
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <span className="truncate text-xs font-bold uppercase tracking-widest" style={{ color: MUTED }}>Document viewer</span>
+        <div className="flex shrink-0 items-center gap-1.5">
+          <button onClick={onMinimize} title="Minimize"
+            className="grid h-8 w-8 place-items-center rounded-lg border border-slate-200 dark:border-slate-700 text-slate-400 dark:text-slate-500">
+            <Minimize2 size={14} />
+          </button>
+          <button onClick={onToggleFullscreen} title={fullscreen ? "Exit full screen" : "Full screen"}
+            className="grid h-8 w-8 place-items-center rounded-lg border border-slate-200 dark:border-slate-700 text-slate-400 dark:text-slate-500">
+            <Maximize2 size={14} />
+          </button>
+          <button onClick={onClose} title="Close"
+            className="grid h-8 w-8 place-items-center rounded-lg border border-slate-200 dark:border-slate-700 text-slate-400 dark:text-slate-500">
+            <X size={14} />
+          </button>
+        </div>
+      </div>
       <div className="h-32 rounded-lg grid place-items-center" style={{ background: doc.swatch }}>
         <FileText size={32} color={WHITE} />
       </div>
@@ -3721,7 +3738,7 @@ const DocumentDetailPanel = ({ doc, allDocs, tab, onTabChange, onSelectRelated, 
                   dependency needed. "Open Section" below jumps here via the PDF's #page=N
                   fragment, same file just re-anchored (no reload). */}
               <iframe key={doc.id} src={`${doc.fileUrl}${pageAnchor ? `#page=${pageAnchor}` : ""}`}
-                title={doc.title} className="mt-1 h-[70vh] w-full rounded-lg border border-slate-200 dark:border-slate-700" />
+                title={doc.title} className={`mt-1 w-full rounded-lg border border-slate-200 dark:border-slate-700 ${fullscreen ? "h-[calc(100vh-280px)]" : "h-[70vh]"}`} />
               <div className={cx.cardHd + " mt-4"}>Sections in this guide</div>
               <SectionsList sections={doc.sections} onOpenSection={pages => setPageAnchor(firstPage(pages))} />
             </>
@@ -3763,8 +3780,12 @@ const EducationHub = ({ layoutMode }: { layoutMode: EffectiveLayout }) => {
   const [category, setCategory] = useState<EduCategory>("All");
   const [selectedId, setSelectedId] = useState<string>(EDU_DOCUMENTS[0].id);
   const [recentIds, setRecentIds] = useState<string[]>([]);
-  const [phoneDetailOpen, setPhoneDetailOpen] = useState(false);
   const [detailTab, setDetailTab] = useState<DetailTab>("scan");
+  // "closed": grid only. "open": viewer replaces the grid, inline in the page.
+  // "minimized": grid is back, plus a small floating badge for the still-open viewer.
+  // "fullscreen": viewer covers the entire viewport. Same on phone and web -- there's no
+  // separate always-visible sidebar; opening a document always goes through this overlay.
+  const [viewerMode, setViewerMode] = useState<"closed" | "open" | "minimized" | "fullscreen">("closed");
 
   const filtered = useMemo(() => {
     const q = query.trim();
@@ -3776,12 +3797,19 @@ const EducationHub = ({ layoutMode }: { layoutMode: EffectiveLayout }) => {
     return EDU_DOCUMENTS.filter(d => byCategory(d) && matchIds.has(d.id));
   }, [query, category]);
 
+  // Marks a document as selected/recently-viewed without touching the viewer overlay.
   const selectDoc = (id: string) => {
     setSelectedId(id);
     setRecentIds(prev => [id, ...prev.filter(x => x !== id)].slice(0, 6));
-    setPhoneDetailOpen(true); // no-op on web, where the aside always shows the selection
-    setDetailTab("scan"); // every selection path (Quick Scan, Open PDF, a card, Recently Viewed,
-    // a Related-doc link) lands on the Quick Scan view, matching what the button promises.
+    setDetailTab("scan"); // every selection path lands on the Quick Scan view, matching what
+    // the button/card promises, whether or not it also opens the viewer.
+  };
+
+  // Selects a document AND opens the live-viewer overlay -- used by the card itself, its Quick
+  // Scan/Open PDF buttons, Recently Viewed, and Related-document links.
+  const openViewer = (id: string) => {
+    selectDoc(id);
+    setViewerMode("open");
   };
 
   const selectedDoc = EDU_DOCUMENTS.find(d => d.id === selectedId) ?? EDU_DOCUMENTS[0];
@@ -3794,7 +3822,7 @@ const EducationHub = ({ layoutMode }: { layoutMode: EffectiveLayout }) => {
           className="w-full bg-transparent text-sm outline-none" style={{ color: NAVY }} />
       </div>
       <div className="mt-3"><FilterChips active={category} onChange={setCategory} /></div>
-      <RecentlyViewedStrip ids={recentIds} docs={EDU_DOCUMENTS} onSelect={selectDoc} />
+      <RecentlyViewedStrip ids={recentIds} docs={EDU_DOCUMENTS} onOpenViewer={openViewer} />
       <div className="mt-5"><SectionLabel icon={<FileText size={14} />}>All Documents ({filtered.length})</SectionLabel></div>
       {filtered.length === 0 ? (
         <div className={cx.card + " mt-3 text-center"}>
@@ -3803,30 +3831,45 @@ const EducationHub = ({ layoutMode }: { layoutMode: EffectiveLayout }) => {
       ) : (
         <CardGrid layoutMode={layoutMode} minWidth={280}>
           {filtered.map(d => (
-            <DocumentCard key={d.id} doc={d} selected={d.id === selectedId} onSelect={selectDoc} />
+            <DocumentCard key={d.id} doc={d} selected={d.id === selectedId} onOpenViewer={openViewer} />
           ))}
         </CardGrid>
       )}
     </>
   );
 
-  if (layoutMode === "phone") {
-    if (phoneDetailOpen) {
-      return (
-        <div className="mt-6">
-          <DocumentDetailPanel doc={selectedDoc} allDocs={EDU_DOCUMENTS} tab={detailTab} onTabChange={setDetailTab} onSelectRelated={selectDoc} onBack={() => setPhoneDetailOpen(false)} />
-        </div>
-      );
-    }
-    return <div className="mt-2">{gridBody}</div>;
-  }
+  const viewerPanel = (
+    <DocumentDetailPanel
+      doc={selectedDoc} allDocs={EDU_DOCUMENTS} tab={detailTab} onTabChange={setDetailTab} onSelectRelated={openViewer}
+      fullscreen={viewerMode === "fullscreen"}
+      onMinimize={() => setViewerMode("minimized")}
+      onToggleFullscreen={() => setViewerMode(v => v === "fullscreen" ? "open" : "fullscreen")}
+      onClose={() => setViewerMode("closed")}
+    />
+  );
 
   return (
-    <div className="mt-2 grid grid-cols-[1fr_380px] items-start gap-6">
-      <div className="min-w-0">{gridBody}</div>
-      <aside className="sticky top-5">
-        <DocumentDetailPanel doc={selectedDoc} allDocs={EDU_DOCUMENTS} tab={detailTab} onTabChange={setDetailTab} onSelectRelated={selectDoc} />
-      </aside>
+    <div>
+      {viewerMode !== "open" && viewerMode !== "fullscreen" && <div className="mt-2">{gridBody}</div>}
+      {viewerMode === "open" && <div className="mt-2">{viewerPanel}</div>}
+      {viewerMode === "fullscreen" && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-50 p-4 dark:bg-slate-950 md:p-8">
+          {viewerPanel}
+        </div>
+      )}
+      {viewerMode === "minimized" && (
+        <div className="fixed bottom-5 right-5 z-40 flex max-w-[240px] items-center gap-1 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 pl-4 pr-2 py-3 shadow-lg">
+          <button onClick={() => setViewerMode("open")} title="Restore" className="flex min-w-0 flex-1 items-center gap-2 text-left active:scale-95 transition-all">
+            <FileText size={16} className="shrink-0" style={{ color: BLUE }} />
+            <span className="truncate text-sm font-bold" style={{ color: NAVY }}>{selectedDoc.title}</span>
+            <Maximize2 size={14} className="shrink-0" style={{ color: MUTED }} />
+          </button>
+          <button onClick={() => setViewerMode("closed")} title="Close"
+            className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700">
+            <X size={13} />
+          </button>
+        </div>
+      )}
     </div>
   );
 };
