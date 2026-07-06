@@ -3669,17 +3669,24 @@ const DocumentCard = ({ doc, selected, onSelect }: { doc: EduDocument; selected:
 
 const SectionsList = ({ sections, onOpenSection }: { sections: EduSection[]; onOpenSection?: (pages: string) => void }) => (
   <div className="space-y-2.5">
-    {sections.map((s, i) => (
-      <div key={i} className={cx.rowBorder}>
-        <div className="flex items-baseline justify-between gap-2">
-          <span className="text-sm font-bold" style={{ color: NAVY }}>{s.name}</span>
-          <span className="text-xs font-semibold shrink-0" style={{ color: MUTED }}>p.{s.pages}</span>
-        </div>
-        <p className="mt-1 text-sm leading-relaxed" style={{ color: MUTED }}>{s.description}</p>
-        <button onClick={onOpenSection ? () => onOpenSection(s.pages) : undefined}
-          className="mt-2 text-xs font-bold" style={{ color: BLUE }}>Open Section</button>
-      </div>
-    ))}
+    {sections.map((s, i) => {
+      const cardCx = "w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3.5 py-3 text-left"
+        + (onOpenSection ? " active:scale-95 transition-all" : "");
+      const body = (
+        <>
+          <div className="flex items-baseline justify-between gap-2">
+            <span className="text-sm font-bold" style={{ color: NAVY }}>{s.name}</span>
+            <span className="text-xs font-semibold shrink-0" style={{ color: MUTED }}>p.{s.pages}</span>
+          </div>
+          <p className="mt-1 text-sm leading-relaxed" style={{ color: MUTED }}>{s.description}</p>
+        </>
+      );
+      // No onOpenSection (no-file doc) -- nothing to jump to, so it's a plain
+      // card, not a dead button that looks pressable but does nothing.
+      return onOpenSection
+        ? <button key={i} onClick={() => onOpenSection(s.pages)} className={cardCx}>{body}</button>
+        : <div key={i} className={cardCx}>{body}</div>;
+    })}
   </div>
 );
 
@@ -3752,14 +3759,17 @@ const PdfViewer = ({ url, page, onPageChange, tall }: { url: string; page: numbe
   );
 };
 
-const DocumentDetailPanel = ({ doc, allDocs, tab, onTabChange, onSelectRelated, expanded, onToggleExpand }: {
+const DocumentDetailPanel = ({ doc, allDocs, tab, onTabChange, onSelectRelated, expanded, onToggleExpand, layoutMode }: {
   doc: EduDocument; allDocs: EduDocument[]; tab: DetailTab; onTabChange: (t: DetailTab) => void;
   onSelectRelated: (id: string) => void;
-  expanded: boolean; onToggleExpand: () => void;
+  expanded: boolean; onToggleExpand: () => void; layoutMode: EffectiveLayout;
 }) => {
   const [currentPage, setCurrentPage] = useState(1);
   useEffect(() => setCurrentPage(1), [doc.id]);
   const related = allDocs.filter(d => d.id !== doc.id && d.category === doc.category).slice(0, 4);
+  // Maximised on desktop gets room for a side-by-side layout; maximised on phone (or
+  // not maximised at all) keeps the PDF viewer and contents stacked in one column.
+  const sideBySide = expanded && layoutMode === "web";
   return (
     <div className={cx.card}>
       <div className="mb-3 flex items-center justify-between gap-2">
@@ -3801,11 +3811,21 @@ const DocumentDetailPanel = ({ doc, allDocs, tab, onTabChange, onSelectRelated, 
       <div className="mt-4">
         {tab === "scan" && (
           doc.fileUrl ? (
-            <>
-              <PdfViewer key={doc.id} url={doc.fileUrl} page={currentPage} onPageChange={setCurrentPage} tall={expanded} />
-              <div className={cx.cardHd + " mt-4"}>Sections in this guide</div>
-              <SectionsList sections={doc.sections} onOpenSection={pages => setCurrentPage(firstPage(pages))} />
-            </>
+            sideBySide ? (
+              <div className="grid grid-cols-[1fr_320px] gap-6 items-start">
+                <PdfViewer key={doc.id} url={doc.fileUrl} page={currentPage} onPageChange={setCurrentPage} tall={expanded} />
+                <div className="sticky top-4 max-h-[calc(100vh-360px)] overflow-y-auto">
+                  <div className={cx.cardHd}>Sections in this guide</div>
+                  <SectionsList sections={doc.sections} onOpenSection={pages => setCurrentPage(firstPage(pages))} />
+                </div>
+              </div>
+            ) : (
+              <>
+                <PdfViewer key={doc.id} url={doc.fileUrl} page={currentPage} onPageChange={setCurrentPage} tall={expanded} />
+                <div className={cx.cardHd + " mt-4"}>Sections in this guide</div>
+                <SectionsList sections={doc.sections} onOpenSection={pages => setCurrentPage(firstPage(pages))} />
+              </>
+            )
           ) : (
             <>
               <div className={cx.cardHd}>About this guide</div>
@@ -3895,7 +3915,7 @@ const EducationHub = ({ layoutMode }: { layoutMode: EffectiveLayout }) => {
   const detailPanel = (
     <DocumentDetailPanel
       doc={selectedDoc} allDocs={EDU_DOCUMENTS} tab={detailTab} onTabChange={setDetailTab} onSelectRelated={selectDoc}
-      expanded={expanded} onToggleExpand={() => setExpanded(v => !v)}
+      expanded={expanded} onToggleExpand={() => setExpanded(v => !v)} layoutMode={layoutMode}
     />
   );
 
