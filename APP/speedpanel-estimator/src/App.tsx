@@ -3527,6 +3527,10 @@ interface EduDocument {
   id: string; title: string; category: string; tags: string[]; description: string;
   edition: string; date: string; fileSize: string; fileType: string; pageCount: number;
   swatch: string; sections: EduSection[];
+  // Real documents only -- path under public/, resolved against Vite's BASE_URL so
+  // it works both in dev and once deployed under the GitHub Pages subpath. Mock
+  // entries with no real PDF yet simply omit this field.
+  fileUrl?: string;
 }
 const EDU_CATEGORIES = [
   "All", "Technical Guides", "Installation", "Connection Details",
@@ -3599,15 +3603,19 @@ const EDU_DOCUMENTS: EduDocument[] = [
     ],
   },
   {
-    id: "fire-performance", title: "Fire Performance", category: "Fire & Acoustic",
-    tags: ["Fire Rated", "FRL", "Compliance"],
-    description: "Fire resistance information and system performance data.",
-    edition: "Edition 2 / Release 1", date: "Feb 2024", fileSize: "12.8 MB", fileType: "PDF", pageCount: 52,
+    id: "fire-performance", title: "Fire Resistance - Vertical Walls", category: "Fire & Acoustic",
+    tags: ["Fire Rated", "FRL", "AS 1530.4", "Vertical"],
+    description: "Warringtonfire regulatory information report (28928, Rev RIR4.6) assessing the fire resistance level of 51 mm, 64 mm and 78 mm thick vertically orientated Speedpanel wall systems to AS 1530.4:2014, covering base, head, corner, T-junction, angled and multi-angled connection details.",
+    edition: "Report 28928 / Rev RIR4.6", date: "Jul 2024", fileSize: "3.5 MB", fileType: "PDF", pageCount: 37,
     swatch: EDU_SWATCHES[1],
+    fileUrl: `${import.meta.env.BASE_URL}docs/speedpanel-vertical-walls-frl-28928-rir4.6.pdf`,
     sections: [
-      { name: "Test methodology", description: "Standards and test conditions referenced.", pages: "1-12" },
-      { name: "FRL results by system", description: "Fire resistance levels per panel type.", pages: "13-38" },
-      { name: "Certification summary", description: "Certificate references and validity.", pages: "39-52" },
+      { name: "Introduction", description: "Report scope, sponsor details and referenced test data.", pages: "8" },
+      { name: "Framework for the assessment", description: "Assessment approach and NCC 2022 compliance basis.", pages: "8-9" },
+      { name: "Limitations of this assessment", description: "Conditions and limitations that apply to the assessment.", pages: "9" },
+      { name: "Description of the specimen and variations", description: "System description, referenced tests, variations and full schedule of construction details.", pages: "10-34" },
+      { name: "Conclusion", description: "Summary of FRL outcomes for the assessed wall systems.", pages: "35-36" },
+      { name: "Validity", description: "Validity period and conditions for this report.", pages: "37" },
     ],
   },
   {
@@ -3724,9 +3732,15 @@ const DocumentCard = ({ doc, selected, onSelect }: { doc: EduDocument; selected:
       <button onClick={() => onSelect(doc.id)}
         className="flex-1 rounded-xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 py-2 text-xs font-bold active:scale-95 transition-all"
         style={{ color: BLUE }}>Quick Scan</button>
-      <button onClick={() => onSelect(doc.id)}
-        className="flex-1 rounded-xl py-2 text-xs font-bold active:scale-95 transition-all"
-        style={{ background: BLUE, color: WHITE }}>Open PDF</button>
+      {doc.fileUrl ? (
+        <a href={doc.fileUrl} target="_blank" rel="noopener noreferrer" onClick={() => onSelect(doc.id)}
+          className="flex-1 rounded-xl py-2 text-center text-xs font-bold active:scale-95 transition-all"
+          style={{ background: BLUE, color: WHITE }}>Open PDF</a>
+      ) : (
+        <button onClick={() => onSelect(doc.id)}
+          className="flex-1 rounded-xl py-2 text-xs font-bold active:scale-95 transition-all"
+          style={{ background: BLUE, color: WHITE }}>Open PDF</button>
+      )}
       {/* No-op overflow button -- a real menu (rename/download/etc) is out of scope for v1. */}
       <button className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-slate-200 dark:border-slate-700 text-slate-400 dark:text-slate-500">
         <MoreVertical size={15} />
@@ -3778,7 +3792,12 @@ const DocumentDetailPanel = ({ doc, allDocs, onSelectRelated, onBack }: {
         <Row k="File" v={`${doc.fileType} · ${doc.fileSize}`} dim />
       </div>
       <div className="mt-3 flex items-center gap-2">
-        <button className="flex-1 rounded-xl py-2.5 text-sm font-bold" style={{ background: BLUE, color: WHITE }}>Open PDF</button>
+        {doc.fileUrl ? (
+          <a href={doc.fileUrl} target="_blank" rel="noopener noreferrer"
+            className="flex-1 rounded-xl py-2.5 text-center text-sm font-bold" style={{ background: BLUE, color: WHITE }}>Open PDF</a>
+        ) : (
+          <button className="flex-1 rounded-xl py-2.5 text-sm font-bold" style={{ background: BLUE, color: WHITE }}>Open PDF</button>
+        )}
         <button className="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 dark:border-slate-700 text-slate-400 dark:text-slate-500"><Share2 size={15} /></button>
         <button className="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 dark:border-slate-700 text-slate-400 dark:text-slate-500"><MoreVertical size={15} /></button>
       </div>
