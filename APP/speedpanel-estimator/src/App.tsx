@@ -3627,7 +3627,7 @@ const RecentlyViewedStrip = ({ ids, docs, onSelect }: { ids: string[]; docs: Edu
 // Touching anywhere on the card selects the document, updating the persistent detail
 // column/panel (see EducationHub) -- the action buttons below route through the same
 // callback (with stopPropagation so a button press doesn't double-fire the card's handler).
-const DocumentCard = ({ doc, selected, onSelect }: { doc: EduDocument; selected: boolean; onSelect: (id: string) => void }) => (
+const DocumentCard = ({ doc, selected, onSelect, onQuickScan }: { doc: EduDocument; selected: boolean; onSelect: (id: string) => void; onQuickScan: (id: string) => void }) => (
   <div onClick={() => onSelect(doc.id)}
     className={cx.card + " flex cursor-pointer flex-col gap-3"} style={selected ? { borderColor: BLUE, borderWidth: 2 } : undefined}>
     <div className="h-24 rounded-lg grid place-items-center" style={{ background: doc.swatch }}>
@@ -3647,7 +3647,7 @@ const DocumentCard = ({ doc, selected, onSelect }: { doc: EduDocument; selected:
       <span>{doc.edition}</span><span>·</span><span>{doc.date}</span><span>·</span><span>{doc.fileSize}</span>
     </div>
     <div className="mt-1 flex items-center gap-2">
-      <button onClick={e => { e.stopPropagation(); onSelect(doc.id); }}
+      <button onClick={e => { e.stopPropagation(); onQuickScan(doc.id); }}
         className="flex-1 rounded-xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 py-2 text-xs font-bold active:scale-95 transition-all"
         style={{ color: BLUE }}>Quick Scan</button>
       {doc.fileUrl ? (
@@ -3752,7 +3752,7 @@ const PdfViewer = ({ url, page, onPageChange, tall }: { url: string; page: numbe
           <ChevronRight size={16} />
         </button>
       </div>
-      <div className={`overflow-auto bg-slate-100 dark:bg-slate-950 ${tall ? "h-[calc(100vh-360px)]" : "h-[60vh]"}`}>
+      <div className={`overflow-auto bg-slate-100 dark:bg-slate-950 ${tall ? "h-[calc(100vh-200px)]" : "h-[60vh]"}`}>
         <canvas ref={canvasRef} className="mx-auto block" />
       </div>
     </div>
@@ -3814,7 +3814,7 @@ const DocumentDetailPanel = ({ doc, allDocs, tab, onTabChange, onSelectRelated, 
             sideBySide ? (
               <div className="grid grid-cols-[1fr_320px] gap-6 items-start">
                 <PdfViewer key={doc.id} url={doc.fileUrl} page={currentPage} onPageChange={setCurrentPage} tall={expanded} />
-                <div className="sticky top-4 max-h-[calc(100vh-360px)] overflow-y-auto">
+                <div className="sticky top-4 max-h-[calc(100vh-200px)] overflow-y-auto">
                   <div className={cx.cardHd}>Sections in this guide</div>
                   <SectionsList sections={doc.sections} onOpenSection={pages => setCurrentPage(firstPage(pages))} />
                 </div>
@@ -3886,6 +3886,11 @@ const EducationHub = ({ layoutMode }: { layoutMode: EffectiveLayout }) => {
     setDetailTab("scan"); // every selection path lands on the Quick Scan view.
   };
 
+  const openQuickScan = (id: string) => {
+    selectDoc(id);
+    setExpanded(true);
+  };
+
   const selectedDoc = EDU_DOCUMENTS.find(d => d.id === selectedId) ?? EDU_DOCUMENTS[0];
 
   const gridBody = (
@@ -3905,7 +3910,7 @@ const EducationHub = ({ layoutMode }: { layoutMode: EffectiveLayout }) => {
       ) : (
         <CardGrid layoutMode={layoutMode} minWidth={280}>
           {filtered.map(d => (
-            <DocumentCard key={d.id} doc={d} selected={d.id === selectedId} onSelect={selectDoc} />
+            <DocumentCard key={d.id} doc={d} selected={d.id === selectedId} onSelect={selectDoc} onQuickScan={openQuickScan} />
           ))}
         </CardGrid>
       )}
