@@ -14,10 +14,10 @@ import { CustomLengthSection } from "./wallConfig";
 // Shows every candidate stock length with a waste bar so the user can
 // instantly compare waste across all options.
 export const LengthExplorer = ({
-  pieces, stocks, packType, currentStock, onSelect, isExt
+  pieces, stocks, packType, currentStock, onSelect
 }: {
   pieces: number[]; stocks: number[]; packType: number;
-  currentStock: string; onSelect: (v: string) => void; isExt?: boolean;
+  currentStock: string; onSelect: (v: string) => void;
 }) => {
   const [open, setOpen] = useState(false);
 
@@ -127,7 +127,7 @@ export const LengthExplorer = ({
 // ExternalCalculator: project-lock toggle, this LengthExplorer dropdown,
 // the custom-length input, and the project-lock confirmation note. The two
 // calculators differ only in which stock lengths/pack type they explore
-// (stocks/packType/isExt) -- everything else is identical.
+// (stocks/packType) -- everything else is identical.
 export interface PanelLengthSectionProps {
   dimUnit: string;
   out: ComputeOut;
@@ -139,7 +139,6 @@ export interface PanelLengthSectionProps {
   customActive: boolean;
   stocks: number[];
   packType: number;
-  isExt?: boolean;
   update: (patch: Partial<Wall>) => void;
   setProjectLength: (stock: string, locked: boolean) => void;
   commitCustomLength: (raw: string) => void;
@@ -148,7 +147,7 @@ export interface PanelLengthSectionProps {
 }
 export const PanelLengthSection = ({
   dimUnit, out, active, walls, projectLock, projectStock, customLengthInput, customActive,
-  stocks, packType, isExt, update, setProjectLength, commitCustomLength, toggleCustom, clearCustomLength,
+  stocks, packType, update, setProjectLength, commitCustomLength, toggleCustom, clearCustomLength,
 }: PanelLengthSectionProps) => (
   <div className="border-t border-slate-100 dark:border-slate-800 pt-3">
     <div className="mb-1.5 flex items-center justify-between">
@@ -173,7 +172,6 @@ export const PanelLengthSection = ({
         if (projectLock) { setProjectLength(val, true); }
         else { update({ forcedStock: val }); }
       }}
-      isExt={isExt}
     />
 
     {/* Custom length -- same visual treatment as the panel length selector above */}

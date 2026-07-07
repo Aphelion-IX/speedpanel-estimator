@@ -8,7 +8,7 @@
 // ../ui -- split out purely to keep InternalCalculator.tsx to its own state
 // wiring + composition.
 // =============================================================================
-import { ChevronDown, Box, Frame, Layers, Hammer } from "lucide-react";
+import { ChevronDown, Box, Layers, Hammer } from "lucide-react";
 import { cx } from "../styleTokens";
 import { r1 } from "../estimate/mathUtils";
 import { plural } from "../estimate/computeUtils";

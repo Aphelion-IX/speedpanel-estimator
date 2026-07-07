@@ -8,8 +8,12 @@ const DARK_QUERY = "(prefers-color-scheme: dark)";
 
 function readStoredPreference(): ThemePreference {
   if (typeof window === "undefined") return "auto";
-  const raw = window.localStorage.getItem(STORAGE_KEY);
-  return raw === "light" || raw === "dark" || raw === "auto" ? raw : "auto";
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    return raw === "light" || raw === "dark" || raw === "auto" ? raw : "auto";
+  } catch {
+    return "auto";
+  }
 }
 
 /** Mirrors useLayoutMode's preference/effective pattern for the phone-web toggle. */
@@ -31,7 +35,7 @@ export function useThemeMode() {
   }, []);
 
   useEffect(() => {
-    window.localStorage.setItem(STORAGE_KEY, preference);
+    try { window.localStorage.setItem(STORAGE_KEY, preference); } catch { /* ignore quota/serialization errors */ }
   }, [preference]);
 
   const effective: EffectiveTheme =

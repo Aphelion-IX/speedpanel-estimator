@@ -7,7 +7,7 @@
 // Split out purely to keep ExternalCalculator.tsx to its own state wiring +
 // composition -- mirrors internalCalculator/mainSections.tsx.
 // =============================================================================
-import { ChevronDown, Box, Frame, Layers } from "lucide-react";
+import { ChevronDown, Box, Layers } from "lucide-react";
 import { cx, NAVY, GOLD } from "../styleTokens";
 import { buildExtProjAgg, type ExtAggGroup } from "../estimate/aggregate";
 import type { CombinedEstimate } from "../estimate/calculateCombinedEstimate";

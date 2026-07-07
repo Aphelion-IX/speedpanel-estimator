@@ -50,7 +50,7 @@ export function InternalCalculator({ store, orient, dimUnit, setDimUnit, systemS
   const {
     walls, activeId, setActiveId,
     projectStock, projectLock, customLengthInput, customActive,
-    active, update, toDisp, toM, updDim,
+    active, update, toDisp, updDim,
     setProjectLength, addBlankWall, duplicateWall, deleteWall,
     commitCustomLength, toggleCustom, clearCustomLength,
     linkJunctionPartner,
@@ -102,7 +102,7 @@ export function InternalCalculator({ store, orient, dimUnit, setDimUnit, systemS
               <UnitToggle unit={dimUnit} setUnit={switchDimUnit} />
             </div>
           </div>
-          <DimensionInputs active={active} toDisp={toDisp} toM={toM} updDim={updDim} onUpdate={update} out={out} orient={orient} />
+          <DimensionInputs active={active} toDisp={toDisp} updDim={updDim} out={out} orient={orient} />
           <SpanTable orient={orient} type={active.type} wallSystem={active.wallSystem} />
         </div>
         <PanelLengthSection
@@ -178,5 +178,5 @@ export function InternalCalculator({ store, orient, dimUnit, setDimUnit, systemS
   const footerNode = <LockedDataFooter title="Locked system data" table={<LockedDataInt />} />;
 
   if (layoutMode === "phone") return <>{sidebarNode}{mainNode}{footerNode}</>;
-  return <CalculatorShell layoutMode={layoutMode} sidebar={sidebarNode} main={mainNode} footer={footerNode} />;
+  return <CalculatorShell sidebar={sidebarNode} main={mainNode} footer={footerNode} />;
 }

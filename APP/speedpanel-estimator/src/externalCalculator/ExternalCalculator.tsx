@@ -45,7 +45,7 @@ export function ExternalCalculator({ store, orient, dimUnit, setDimUnit, systemS
   const {
     walls, activeId, setActiveId,
     projectStock, projectLock, customLengthInput, customActive,
-    active, update, toDisp, toM, updDim,
+    active, update, toDisp, updDim,
     setProjectLength, addBlankWall, duplicateWall, deleteWall,
     commitCustomLength, toggleCustom, clearCustomLength,
     linkJunctionPartner,
@@ -81,7 +81,7 @@ export function ExternalCalculator({ store, orient, dimUnit, setDimUnit, systemS
           dimUnit={dimUnit} out={out} active={active} walls={walls}
           projectLock={projectLock} projectStock={projectStock}
           customLengthInput={customLengthInput} customActive={customActive}
-          stocks={EXT_STOCK} packType={78} isExt
+          stocks={EXT_STOCK} packType={78}
           update={update} setProjectLength={setProjectLength}
           commitCustomLength={commitCustomLength} toggleCustom={toggleCustom} clearCustomLength={clearCustomLength}
         />
@@ -97,7 +97,7 @@ export function ExternalCalculator({ store, orient, dimUnit, setDimUnit, systemS
               <UnitToggle unit={dimUnit} setUnit={switchDimUnit} />
             </div>
           </div>
-          <DimensionInputs active={active} toDisp={toDisp} toM={toM} updDim={updDim} onUpdate={update} out={out} orient={orient} />
+          <DimensionInputs active={active} toDisp={toDisp} updDim={updDim} out={out} orient={orient} />
           <SpanTable orient={orient} type={78} />
         </div>
       </div>
@@ -155,5 +155,5 @@ export function ExternalCalculator({ store, orient, dimUnit, setDimUnit, systemS
   if (layoutMode === "phone") {
     return <div>{sidebarNode}{mainNode}{footerNode}</div>;
   }
-  return <CalculatorShell layoutMode={layoutMode} sidebar={sidebarNode} main={mainNode} footer={footerNode} />;
+  return <CalculatorShell sidebar={sidebarNode} main={mainNode} footer={footerNode} />;
 }

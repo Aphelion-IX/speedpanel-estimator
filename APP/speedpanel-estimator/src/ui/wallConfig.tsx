@@ -425,13 +425,11 @@ export const ProfileSection = ({ profile, onChange }: { profile: ProfileId; onCh
 
 // --- DimensionInputs ----------------------------------------------------------
 export interface DimensionInputsProps {
-  active: Wall; toDisp: (m: string) => string; toM: (d: string) => string;
+  active: Wall; toDisp: (m: string) => string;
   updDim: (field: DimField, d: string) => void;
-  /** Single callback for non-dimension patch updates. */
-  onUpdate: (patch: Partial<Wall>) => void;
   out: ComputeOut; orient: string;
 }
-export const DimensionInputs = ({ active, toDisp, toM, updDim, onUpdate, out, orient }: DimensionInputsProps) => {
+export const DimensionInputs = ({ active, toDisp, updDim, out, orient }: DimensionInputsProps) => {
   const isShaft = orient === "horizontal" && active.wallSystem === "shaft";
   return (
     <>

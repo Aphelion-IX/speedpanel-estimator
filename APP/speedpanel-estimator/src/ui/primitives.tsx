@@ -202,8 +202,8 @@ export const WarningsList = ({ warnings }: { warnings?: string[] | null }) => {
 // layout mode. Phone reproduces today's stacked order exactly (byte-for-byte
 // equivalent JSX, just relocated into variables); web arranges it as a sticky
 // sidebar + wider main column.
-export const CalculatorShell = ({ layoutMode, sidebar, main, footer }: {
-  layoutMode: EffectiveLayout; sidebar: React.ReactNode; main: React.ReactNode; footer: React.ReactNode;
+export const CalculatorShell = ({ sidebar, main, footer }: {
+  sidebar: React.ReactNode; main: React.ReactNode; footer: React.ReactNode;
 }) => (
   // No space-y-* here: every child component already carries its own correct
   // top margin (mt-3/mt-5/etc., matching phone layout exactly). space-y-*'s
