@@ -44,24 +44,27 @@ export const WallSystemSelector = ({ value, onChange }: { value: WallSystemId; o
   </div>
 );
 
-// --- CornerLinkSelector ---------------------------------------------------------
-// Corner wall (see estimate_free_corner_wall.md): each run is entered as its own
-// wall, then linked to its partner run to form a pair sharing one free corner.
-// linkable excludes the active wall itself and any wall already linked to a
-// third wall (a wall can only be in one pair at a time).
-export const CornerLinkSelector = ({ active, walls, onLink, onSideChange }: {
-  active: Wall; walls: Wall[];
+// --- WallLinkSelector -----------------------------------------------------------
+// Shared "pick a partner wall from a list" shell used by CornerLinkSelector,
+// ShaftLinkSelector, and JunctionLinkSelector below -- they differ only in
+// which partner field they read/write, their linkable-wall filter, and the
+// footnote/extra content shown once linked.
+interface WallLinkSelectorProps {
+  heading: string;
+  walls: Wall[];
+  active: Wall;
+  filter: (w: Wall) => boolean;
+  partnerId: number | null | undefined;
   onLink: (targetId: number | null) => void;
-  onSideChange: (side: "left" | "right") => void;
-}) => {
-  const linkable = walls.filter(w =>
-    w.id !== active.id && w.orient === "horizontal" && w.wallSystem === "corner" &&
-    (w.cornerPartnerId == null || w.cornerPartnerId === active.id)
-  );
-  const partner = walls.find(w => w.id === active.cornerPartnerId);
+  label?: (w: Wall, on: boolean) => React.ReactNode;
+  note: (partner: Wall | undefined) => React.ReactNode;
+}
+const WallLinkSelector = ({ heading, walls, active, filter, partnerId, onLink, label, note }: WallLinkSelectorProps) => {
+  const linkable = walls.filter(w => w.id !== active.id && filter(w));
+  const partner = walls.find(w => w.id === partnerId);
   return (
     <div className="border-t border-slate-100 dark:border-slate-800 pt-3">
-      <div className={cx.cardHd}>Corner partner run</div>
+      <div className={cx.cardHd}>{heading}</div>
       <div className="space-y-1.5">
         <button onClick={() => onLink(null)}
           className={"w-full rounded-xl border-2 py-3 px-4 text-sm font-semibold text-left active:scale-95 transition-all " + (!partner ? "" : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800")}
@@ -74,41 +77,60 @@ export const CornerLinkSelector = ({ active, walls, onLink, onSideChange }: {
             <button key={w.id} onClick={() => onLink(w.id)}
               className={"w-full rounded-xl border-2 py-3 px-4 text-sm font-semibold text-left active:scale-95 transition-all " + (on ? "" : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800")}
               style={on ? { borderColor: BLUE, background: BLUE, color: "#fff" } : { color: BLUE }}>
-              {w.name}
+              {label ? label(w, on) : w.name}
             </button>
           );
         })}
       </div>
-      {!partner && (
-        <p className="mt-1.5 text-xs leading-relaxed text-slate-400 dark:text-slate-500">
-          Link this run to another Corner wall run to calculate the shared corner post, screws, sealant, and protection strip.
-        </p>
-      )}
-      {partner && (
-        <>
-          <div className="mt-2.5">
-            <div className={cx.cardHd}>Free corner side (this run)</div>
-            <div className="grid grid-cols-2 items-end gap-1.5">
-              {(["left", "right"] as const).map(side => {
-                const on = (active.cornerSide ?? "right") === side;
-                return (
-                  <button key={side} onClick={() => onSideChange(side)}
-                    className={"w-full rounded-xl border-2 py-3 px-4 text-sm font-semibold text-center active:scale-95 transition-all " + (on ? "" : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800")}
-                    style={on ? { borderColor: BLUE, background: BLUE, color: "#fff" } : { color: BLUE }}>
-                    {side === "left" ? "Left" : "Right"}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-          <p className="mt-1.5 text-xs leading-relaxed text-slate-400 dark:text-slate-500">
-            Linked to <span className="font-semibold">{partner.name}</span>. This run's {active.cornerSide === "left" ? "left" : "right"} edge is the free corner -- no track/screws on that side; the corner kit covers it.
-          </p>
-        </>
-      )}
+      {note(partner)}
     </div>
   );
 };
+
+// --- CornerLinkSelector ---------------------------------------------------------
+// Corner wall (see estimate_free_corner_wall.md): each run is entered as its own
+// wall, then linked to its partner run to form a pair sharing one free corner.
+// linkable excludes the active wall itself and any wall already linked to a
+// third wall (a wall can only be in one pair at a time).
+export const CornerLinkSelector = ({ active, walls, onLink, onSideChange }: {
+  active: Wall; walls: Wall[];
+  onLink: (targetId: number | null) => void;
+  onSideChange: (side: "left" | "right") => void;
+}) => (
+  <WallLinkSelector
+    heading="Corner partner run"
+    walls={walls} active={active}
+    filter={w => w.orient === "horizontal" && w.wallSystem === "corner" && (w.cornerPartnerId == null || w.cornerPartnerId === active.id)}
+    partnerId={active.cornerPartnerId}
+    onLink={onLink}
+    note={partner => !partner ? (
+      <p className="mt-1.5 text-xs leading-relaxed text-slate-400 dark:text-slate-500">
+        Link this run to another Corner wall run to calculate the shared corner post, screws, sealant, and protection strip.
+      </p>
+    ) : (
+      <>
+        <div className="mt-2.5">
+          <div className={cx.cardHd}>Free corner side (this run)</div>
+          <div className="grid grid-cols-2 items-end gap-1.5">
+            {(["left", "right"] as const).map(side => {
+              const on = (active.cornerSide ?? "right") === side;
+              return (
+                <button key={side} onClick={() => onSideChange(side)}
+                  className={"w-full rounded-xl border-2 py-3 px-4 text-sm font-semibold text-center active:scale-95 transition-all " + (on ? "" : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800")}
+                  style={on ? { borderColor: BLUE, background: BLUE, color: "#fff" } : { color: BLUE }}>
+                  {side === "left" ? "Left" : "Right"}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        <p className="mt-1.5 text-xs leading-relaxed text-slate-400 dark:text-slate-500">
+          Linked to <span className="font-semibold">{partner.name}</span>. This run's {active.cornerSide === "left" ? "left" : "right"} edge is the free corner -- no track/screws on that side; the corner kit covers it.
+        </p>
+      </>
+    )}
+  />
+);
 
 // --- ShaftLinkSelector -----------------------------------------------------------
 // Shaft wall (see estimate_shaft_wall.md): a shaft can have a primary stack
@@ -120,40 +142,22 @@ export const CornerLinkSelector = ({ active, walls, onLink, onSideChange }: {
 export const ShaftLinkSelector = ({ active, walls, onLink }: {
   active: Wall; walls: Wall[];
   onLink: (targetId: number | null) => void;
-}) => {
-  const linkable = walls.filter(w =>
-    w.id !== active.id && w.orient === "horizontal" && w.wallSystem === "shaft" &&
-    (w.shaftPartnerId == null || w.shaftPartnerId === active.id)
-  );
-  const partner = walls.find(w => w.id === active.shaftPartnerId);
-  return (
-    <div className="border-t border-slate-100 dark:border-slate-800 pt-3">
-      <div className={cx.cardHd}>Secondary split wall</div>
-      <div className="space-y-1.5">
-        <button onClick={() => onLink(null)}
-          className={"w-full rounded-xl border-2 py-3 px-4 text-sm font-semibold text-left active:scale-95 transition-all " + (!partner ? "" : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800")}
-          style={!partner ? { borderColor: BLUE, background: BLUE, color: "#fff" } : { color: BLUE }}>
-          Not linked
-        </button>
-        {linkable.map(w => {
-          const on = partner?.id === w.id;
-          return (
-            <button key={w.id} onClick={() => onLink(w.id)}
-              className={"w-full rounded-xl border-2 py-3 px-4 text-sm font-semibold text-left active:scale-95 transition-all " + (on ? "" : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800")}
-              style={on ? { borderColor: BLUE, background: BLUE, color: "#fff" } : { color: BLUE }}>
-              {w.name}
-            </button>
-          );
-        })}
-      </div>
+}) => (
+  <WallLinkSelector
+    heading="Secondary split wall"
+    walls={walls} active={active}
+    filter={w => w.orient === "horizontal" && w.wallSystem === "shaft" && (w.shaftPartnerId == null || w.shaftPartnerId === active.id)}
+    partnerId={active.shaftPartnerId}
+    onLink={onLink}
+    note={partner => (
       <p className="mt-1.5 text-xs leading-relaxed text-slate-400 dark:text-slate-500">
         {partner
           ? <>Linked to <span className="font-semibold">{partner.name}</span>. Both stack walls are estimated independently, plus a shared back-to-back C-track junction where they split.</>
           : "Link this wall to a secondary split stack wall if the shaft has one, to calculate the shared back-to-back junction track."}
       </p>
-    </div>
-  );
-};
+    )}
+  />
+);
 
 // --- JunctionLinkSelector -----------------------------------------------------
 // Generic wall-to-wall adjoining link, available on ANY wall regardless of
@@ -166,32 +170,15 @@ export const ShaftLinkSelector = ({ active, walls, onLink }: {
 export const JunctionLinkSelector = ({ active, walls, onLink }: {
   active: Wall; walls: Wall[];
   onLink: (targetId: number | null) => void;
-}) => {
-  const linkable = walls.filter(w =>
-    w.id !== active.id &&
-    (w.junctionPartnerId == null || w.junctionPartnerId === active.id)
-  );
-  const partner = walls.find(w => w.id === active.junctionPartnerId);
-  return (
-    <div className="border-t border-slate-100 dark:border-slate-800 pt-3">
-      <div className={cx.cardHd}>Adjoining wall (junction)</div>
-      <div className="space-y-1.5">
-        <button onClick={() => onLink(null)}
-          className={"w-full rounded-xl border-2 py-3 px-4 text-sm font-semibold text-left active:scale-95 transition-all " + (!partner ? "" : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800")}
-          style={!partner ? { borderColor: BLUE, background: BLUE, color: "#fff" } : { color: BLUE }}>
-          Not linked
-        </button>
-        {linkable.map(w => {
-          const on = partner?.id === w.id;
-          return (
-            <button key={w.id} onClick={() => onLink(w.id)}
-              className={"w-full rounded-xl border-2 py-3 px-4 text-sm font-semibold text-left active:scale-95 transition-all " + (on ? "" : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800")}
-              style={on ? { borderColor: BLUE, background: BLUE, color: "#fff" } : { color: BLUE }}>
-              {w.name} <span className="font-normal" style={{ color: on ? "rgba(255,255,255,0.7)" : MUTED }}>({w.orient === "vertical" ? "Vert" : "Horiz"})</span>
-            </button>
-          );
-        })}
-      </div>
+}) => (
+  <WallLinkSelector
+    heading="Adjoining wall (junction)"
+    walls={walls} active={active}
+    filter={w => w.junctionPartnerId == null || w.junctionPartnerId === active.id}
+    partnerId={active.junctionPartnerId}
+    onLink={onLink}
+    label={(w, on) => <>{w.name} <span className="font-normal" style={{ color: on ? "rgba(255,255,255,0.7)" : MUTED }}>({w.orient === "vertical" ? "Vert" : "Horiz"})</span></>}
+    note={partner => (
       <p className="mt-1.5 text-xs leading-relaxed text-slate-400 dark:text-slate-500">
         {partner
           ? partner.orient !== active.orient
@@ -199,9 +186,9 @@ export const JunctionLinkSelector = ({ active, walls, onLink }: {
             : <>Linked to <span className="font-semibold">{partner.name}</span>. Same orientation -- no extra junction material is added.</>
           : "Mark another wall in this project as physically adjoining this one, so the combined estimate can allow for the extra C/J track needed where a vertical and horizontal wall meet."}
       </p>
-    </div>
-  );
-};
+    )}
+  />
+);
 // --- WallsCard ----------------------------------------------------------------
 export interface WallsCardProps {
   walls: Wall[]; results: WallResult[];
