@@ -6,6 +6,8 @@
 // the Internal/External wrappers over each system's INT_LOCKED/EXT_LOCKED
 // table (see ./data).
 // =============================================================================
+import { useState } from "react";
+import { ChevronDown, Lock } from "lucide-react";
 import { cx } from "../styleTokens";
 import { INT_LOCKED, EXT_LOCKED } from "../data";
 
@@ -23,3 +25,22 @@ export const LDRow = ({ row }: { row: string[] }) =>
     : <DataRow k={row[0]} v={row[1]} />;
 export const LockedDataInt = () => <div className={cx.ldWrap}>{INT_LOCKED.map((r, i) => <LDRow key={i} row={r} />)}</div>;
 export const LockedDataExt = () => <div className={cx.ldWrap}>{EXT_LOCKED.map((r, i) => <LDRow key={i} row={r} />)}</div>;
+
+// --- LockedDataFooter ----------------------------------------------------------
+// Calculator footer shared by Internal/External: a "Locked system data"
+// accordion (title + one of the tables above) followed by the Export PDF
+// button. Owns its own open/closed state -- neither calculator needs it
+// for anything else.
+export const LockedDataFooter = ({ title, table }: { title: string; table: React.ReactNode }) => {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button onClick={() => setOpen(v => !v)} className={cx.accordion}>
+        <span className="flex items-center gap-2"><Lock size={13} className="text-slate-400 dark:text-slate-500" /> {title}</span>
+        <ChevronDown size={16} className={`text-blue-300 dark:text-blue-700 transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && table}
+      <button className={cx.exportBtn}>Export PDF</button>
+    </>
+  );
+};

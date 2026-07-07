@@ -5,7 +5,10 @@ import { useState, useMemo } from "react";
 import { ChevronDown } from "lucide-react";
 import { r1 } from "../estimate/mathUtils";
 import { packPanels, buildOption } from "../estimate/packPanels";
-import { NAVY, BLUE } from "../styleTokens";
+import { cx, NAVY, BLUE } from "../styleTokens";
+import type { ComputeOut, Wall } from "../estimate/wall.types";
+import { ToggleSwitch, ProjectLockNote } from "./primitives";
+import { CustomLengthSection } from "./wallConfig";
 
 // --- LengthExplorer -----------------------------------------------------------
 // Shows every candidate stock length with a waste bar so the user can
@@ -118,3 +121,71 @@ export const LengthExplorer = ({
     </div>
   );
 };
+
+// --- PanelLengthSection ---------------------------------------------------
+// "Panel length" sidebar block shared by InternalCalculator and
+// ExternalCalculator: project-lock toggle, this LengthExplorer dropdown,
+// the custom-length input, and the project-lock confirmation note. The two
+// calculators differ only in which stock lengths/pack type they explore
+// (stocks/packType/isExt) -- everything else is identical.
+export interface PanelLengthSectionProps {
+  dimUnit: string;
+  out: ComputeOut;
+  active: Wall;
+  walls: Wall[];
+  projectLock: boolean;
+  projectStock: string;
+  customLengthInput: string;
+  customActive: boolean;
+  stocks: number[];
+  packType: number;
+  isExt?: boolean;
+  update: (patch: Partial<Wall>) => void;
+  setProjectLength: (stock: string, locked: boolean) => void;
+  commitCustomLength: (raw: string) => void;
+  toggleCustom: () => void;
+  clearCustomLength: () => void;
+}
+export const PanelLengthSection = ({
+  dimUnit, out, active, walls, projectLock, projectStock, customLengthInput, customActive,
+  stocks, packType, isExt, update, setProjectLength, commitCustomLength, toggleCustom, clearCustomLength,
+}: PanelLengthSectionProps) => (
+  <div className="border-t border-slate-100 dark:border-slate-800 pt-3">
+    <div className="mb-1.5 flex items-center justify-between">
+      <span className={cx.cardHd} style={{marginBottom:0,display:"inline"}}>Panel length</span>
+      <ToggleSwitch
+        active={projectLock}
+        label={projectLock ? "Project locked" : "Lock to project"}
+        onToggle={() => {
+          const currentStock = projectLock ? projectStock : (active.forcedStock || "");
+          setProjectLength(customActive ? "" : currentStock, !projectLock);
+          if (projectLock) { clearCustomLength(); }
+        }}
+      />
+    </div>
+    <LengthExplorer
+      pieces={"pieces" in out && out.pieces ? out.pieces : []}
+      stocks={stocks}
+      packType={packType}
+      currentStock={customActive ? "" : (projectLock ? projectStock : (active.forcedStock || ""))}
+      onSelect={val => {
+        clearCustomLength();
+        if (projectLock) { setProjectLength(val, true); }
+        else { update({ forcedStock: val }); }
+      }}
+      isExt={isExt}
+    />
+
+    {/* Custom length -- same visual treatment as the panel length selector above */}
+    <CustomLengthSection
+      dimUnit={dimUnit} customLengthInput={customLengthInput} customActive={customActive}
+      projectLock={projectLock} projectStock={projectStock} wallCount={walls.length}
+      commitCustomLength={commitCustomLength} toggleCustom={toggleCustom}
+    />
+
+    {/* Project lock confirmation for stocked lengths */}
+    {projectLock && !customActive && projectStock && (
+      <ProjectLockNote wallCount={walls.length} stock={projectStock} dimUnit={dimUnit} />
+    )}
+  </div>
+);

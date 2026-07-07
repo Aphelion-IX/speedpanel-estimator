@@ -167,19 +167,158 @@ export const ProfileSelector = ({ value, onChange }: { value: ProfileId; onChang
 export type FinishKey = "headFinish" | "bottomFinish" | "leftFinish" | "rightFinish";
 export type CornersField = "intCorners" | "extCorners";
 export type ActiveFinishes = Record<FinishKey, string>;
+export type EdgeOption = { key: string; label: string; sublabel?: string; value: boolean; onToggle: () => void };
+export type CornersValue = { intCorners: string; extCorners: string; onChange: (field: CornersField, val: string) => void };
 
 export interface EdgeRestraintProps {
   edges: EdgeState;
   onEdgeToggle: (k: keyof EdgeState) => void;
-  options?: { key: string; label: string; sublabel?: string; value: boolean; onToggle: () => void }[];
+  options?: EdgeOption[];
   orient: string;
   showTrackFinish?: boolean;
   setShowTrackFinish?: (fn: (v: boolean) => boolean) => void;
   activeFinishes?: ActiveFinishes;
   onFinishChange?: (field: FinishKey, val: string) => void;
-  corners?: { intCorners: string; extCorners: string; onChange: (field: CornersField, val: string) => void };
+  corners?: CornersValue;
   locked?: boolean; // Standard wall: all 4 edges restrained is fixed by the spec, not user-editable
 }
+
+// --- RestrainedEdgesBlock ------------------------------------------------------
+const EdgeBtn = ({ edgeKey, label, edges, locked, onEdgeToggle }: {
+  edgeKey: keyof EdgeState; label: string; edges: EdgeState; locked: boolean; onEdgeToggle: (k: keyof EdgeState) => void;
+}) => {
+  const on = locked || edges[edgeKey];
+  return (
+    <button onClick={locked ? undefined : () => onEdgeToggle(edgeKey)} disabled={locked}
+      className={"w-full rounded-xl border-2 py-3.5 px-4 text-sm font-semibold text-center transition-all " + (locked ? "cursor-default" : "active:scale-95") + (on ? "" : " border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800")}
+      style={on ? { borderColor: BLUE, background: BLUE, color: "#fff", opacity: locked ? 0.85 : 1 } : { color: "#94a3b8" }}>
+      {on ? "✓ " : ""}{label}
+    </button>
+  );
+};
+
+const RestrainedEdgesBlock = ({ edges, onEdgeToggle, locked }: {
+  edges: EdgeState; onEdgeToggle: (k: keyof EdgeState) => void; locked: boolean;
+}) => (
+  <div>
+    <div className={cx.cardHd}>Restrained edges</div>
+    <div className="grid grid-cols-2 items-end gap-2">
+      <EdgeBtn edgeKey="top" label="Head" edges={edges} locked={locked} onEdgeToggle={onEdgeToggle} />
+      <EdgeBtn edgeKey="bottom" label="Base" edges={edges} locked={locked} onEdgeToggle={onEdgeToggle} />
+      <EdgeBtn edgeKey="left" label="Left" edges={edges} locked={locked} onEdgeToggle={onEdgeToggle} />
+      <EdgeBtn edgeKey="right" label="Right" edges={edges} locked={locked} onEdgeToggle={onEdgeToggle} />
+    </div>
+    {locked && (
+      <p className="mt-2 text-xs leading-relaxed text-slate-400 dark:text-slate-500">
+        Standard wall assumes all four edges restrained (slab, soffit, and structure both sides).
+      </p>
+    )}
+  </div>
+);
+
+// --- TrackFinishBlock -----------------------------------------------------------
+const TrackSwitch = ({ field, label, activeFinishes, onFinishChange }: {
+  field: FinishKey; label: string; activeFinishes?: ActiveFinishes; onFinishChange?: (field: FinishKey, val: string) => void;
+}) => {
+  const isJ = activeFinishes ? activeFinishes[field] === "J" : false;
+  return (
+    <div className="flex items-center justify-between gap-3 py-3 border-b border-slate-100 dark:border-slate-800 last:border-0">
+      <span className="text-sm font-semibold text-slate-600 dark:text-slate-300">{label}</span>
+      <div className="flex items-center gap-3 shrink-0">
+        <span className="text-sm font-bold text-slate-500 dark:text-slate-400">{isJ ? "J-track" : "C-track"}</span>
+        <button onClick={() => onFinishChange && onFinishChange(field, isJ ? "C" : "J")}
+          style={{ background: isJ ? BLUE : "#cbd5e1", width: 44, height: 24, borderRadius: 12, position: "relative", border: "none", cursor: "pointer", transition: "background 0.2s", flexShrink: 0 }}>
+          <span style={{ position: "absolute", top: 2, left: isJ ? 22 : 2, width: 20, height: 20, borderRadius: "50%", background: "#fff", boxShadow: "0 1px 3px rgba(0,0,0,0.2)", transition: "left 0.2s", display: "block" }} />
+        </button>
+      </div>
+    </div>
+  );
+};
+
+const TrackFinishBlock = ({ edges, orient, activeFinishes, onFinishChange, showTrackFinish, setShowTrackFinish }: {
+  edges: EdgeState; orient: string; activeFinishes?: ActiveFinishes; onFinishChange?: (field: FinishKey, val: string) => void;
+  showTrackFinish: boolean; setShowTrackFinish: (fn: (v: boolean) => boolean) => void;
+}) => (
+  <div>
+    <button onClick={() => setShowTrackFinish(v => !v)}
+      className={`${cx.accordionInner} active:scale-95`}>
+      <span>Advanced track selection</span>
+      <ChevronDown size={13} className={`text-slate-400 dark:text-slate-500 transition-transform ${showTrackFinish ? "rotate-180" : ""}`} />
+    </button>
+    {showTrackFinish && (
+      <div className="mt-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3">
+        {(([
+          edges.top    ? { field: "headFinish"   as FinishKey, label: "Head" }   : null,
+          edges.bottom ? { field: "bottomFinish" as FinishKey, label: "Base" }   : null,
+          edges.left   && orient === "vertical" ? { field: "leftFinish"  as FinishKey, label: "Left" }  : null,
+          edges.right  && orient === "vertical" ? { field: "rightFinish" as FinishKey, label: "Right" } : null,
+        ]).filter((x): x is { field: FinishKey; label: string } => x !== null)).map(({ field, label }) => (
+          <TrackSwitch key={label} field={field} label={label} activeFinishes={activeFinishes} onFinishChange={onFinishChange} />
+        ))}
+        {!edges.top && !edges.bottom && !edges.left && !edges.right && (
+          <p className="py-3 text-center text-sm text-slate-400 dark:text-slate-500">No restrained edges selected</p>
+        )}
+        <p className="py-2.5 text-sm text-slate-400 dark:text-slate-500">J-track available on P78 panels only</p>
+      </div>
+    )}
+  </div>
+);
+
+// --- HeadFlashingToggle -----------------------------------------------------------
+const HeadFlashingToggle = ({ flashOption }: { flashOption: EdgeOption }) => (
+  <div className="flex w-full items-center justify-between rounded-xl border border-blue-100 dark:border-blue-900/60 bg-blue-50/60 dark:bg-blue-950/40 px-4 py-2">
+    <span className={cx.cardHd} style={{marginBottom:0,display:"inline"}}>Head track flashing</span>
+    <button onClick={flashOption.onToggle}
+      style={{
+        background: flashOption.value ? BLUE : "#cbd5e1",
+        width: 44, height: 24, borderRadius: 12, position: "relative",
+        border: "none", cursor: "pointer", transition: "background 0.2s", flexShrink: 0,
+      }}>
+      <span style={{
+        position: "absolute", top: 2, left: flashOption.value ? 22 : 2,
+        width: 20, height: 20, borderRadius: "50%", background: "#fff",
+        boxShadow: "0 1px 3px rgba(0,0,0,0.2)", transition: "left 0.2s", display: "block",
+      }} />
+    </button>
+  </div>
+);
+
+// --- OtherOptionsBlock -----------------------------------------------------------
+const OtherOptionsBlock = ({ options }: { options: EdgeOption[] }) => (
+  <div className="space-y-2">
+    {options.map(({ key, label, sublabel, value, onToggle }) => (
+      <button key={key} onClick={onToggle}
+        className={"w-full rounded-xl border-2 py-3.5 px-4 text-sm font-semibold text-left active:scale-95 transition-all " + (value ? "" : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400")}
+        style={value ? { borderColor: BLUE, background: BLUE, color: "#fff" } : undefined}>
+        {value ? "✓ " : ""}{label}
+        {sublabel && <span className={`text-sm font-normal ${value ? "text-white/70" : "text-slate-400 dark:text-slate-500"}`}> {sublabel}</span>}
+      </button>
+    ))}
+  </div>
+);
+
+// --- CornerAnglesBlock -----------------------------------------------------------
+const CornerAnglesBlock = ({ corners }: { corners: CornersValue }) => (
+  <div className="border-t border-slate-100 dark:border-slate-800 pt-3">
+    <div className={cx.cardHd}>Corner angles</div>
+    <div className="grid grid-cols-2 items-end gap-2">
+      <div>
+        <div>
+          <label className={cx.lbl}>Internal</label>
+          <input type="number" inputMode="decimal" value={corners.intCorners}
+            onChange={e => corners.onChange("intCorners", e.target.value)} className={cx.input} style={{ color: NAVY }} />
+        </div>
+      </div>
+      <div>
+        <div>
+          <label className={cx.lbl}>External</label>
+          <input type="number" inputMode="decimal" value={corners.extCorners}
+            onChange={e => corners.onChange("extCorners", e.target.value)} className={cx.input} style={{ color: NAVY }} />
+        </div>
+      </div>
+    </div>
+  </div>
+);
 
 export const EdgeRestraintSelector = ({
   edges, onEdgeToggle, options = [], orient,
@@ -188,132 +327,24 @@ export const EdgeRestraintSelector = ({
   locked = false,
 }: EdgeRestraintProps) => {
   const flashOption = options.find(o => o.key === "headFlash");
-
-  const EdgeBtn = ({ edgeKey, label }: { edgeKey: keyof EdgeState; label: string }) => {
-    const on = locked || edges[edgeKey];
-    return (
-      <button onClick={locked ? undefined : () => onEdgeToggle(edgeKey)} disabled={locked}
-        className={"w-full rounded-xl border-2 py-3.5 px-4 text-sm font-semibold text-center transition-all " + (locked ? "cursor-default" : "active:scale-95") + (on ? "" : " border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800")}
-        style={on ? { borderColor: BLUE, background: BLUE, color: "#fff", opacity: locked ? 0.85 : 1 } : { color: "#94a3b8" }}>
-        {on ? "✓ " : ""}{label}
-      </button>
-    );
-  };
-
-  const TrackSwitch = ({ field, label }: { field: FinishKey; label: string }) => {
-    const isJ = activeFinishes ? activeFinishes[field] === "J" : false;
-    return (
-      <div className="flex items-center justify-between gap-3 py-3 border-b border-slate-100 dark:border-slate-800 last:border-0">
-        <span className="text-sm font-semibold text-slate-600 dark:text-slate-300">{label}</span>
-        <div className="flex items-center gap-3 shrink-0">
-          <span className="text-sm font-bold text-slate-500 dark:text-slate-400">{isJ ? "J-track" : "C-track"}</span>
-          <button onClick={() => onFinishChange && onFinishChange(field, isJ ? "C" : "J")}
-            style={{ background: isJ ? BLUE : "#cbd5e1", width: 44, height: 24, borderRadius: 12, position: "relative", border: "none", cursor: "pointer", transition: "background 0.2s", flexShrink: 0 }}>
-            <span style={{ position: "absolute", top: 2, left: isJ ? 22 : 2, width: 20, height: 20, borderRadius: "50%", background: "#fff", boxShadow: "0 1px 3px rgba(0,0,0,0.2)", transition: "left 0.2s", display: "block" }} />
-          </button>
-        </div>
-      </div>
-    );
-  };
+  const otherOptions = options.filter(o => o.key !== "headFlash");
 
   return (
     <div className={cx.section}>
-      {/* Restrained edges */}
-      <div>
-        <div className={cx.cardHd}>Restrained edges</div>
-        <div className="grid grid-cols-2 items-end gap-2">
-          <EdgeBtn edgeKey="top" label="Head" />
-          <EdgeBtn edgeKey="bottom" label="Base" />
-          <EdgeBtn edgeKey="left" label="Left" />
-          <EdgeBtn edgeKey="right" label="Right" />
-        </div>
-        {locked && (
-          <p className="mt-2 text-xs leading-relaxed text-slate-400 dark:text-slate-500">
-            Standard wall assumes all four edges restrained (slab, soffit, and structure both sides).
-          </p>
-        )}
-      </div>
+      <RestrainedEdgesBlock edges={edges} onEdgeToggle={onEdgeToggle} locked={locked} />
 
-      {/* Advanced track selection */}
       {showTrackFinish !== undefined && setShowTrackFinish && (
-        <div>
-          <button onClick={() => setShowTrackFinish(v => !v)}
-            className={`${cx.accordionInner} active:scale-95`}>
-            <span>Advanced track selection</span>
-            <ChevronDown size={13} className={`text-slate-400 dark:text-slate-500 transition-transform ${showTrackFinish ? "rotate-180" : ""}`} />
-          </button>
-          {showTrackFinish && (
-            <div className="mt-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3">
-              {(([
-                edges.top    ? { field: "headFinish"   as FinishKey, label: "Head" }   : null,
-                edges.bottom ? { field: "bottomFinish" as FinishKey, label: "Base" }   : null,
-                edges.left   && orient === "vertical" ? { field: "leftFinish"  as FinishKey, label: "Left" }  : null,
-                edges.right  && orient === "vertical" ? { field: "rightFinish" as FinishKey, label: "Right" } : null,
-              ]).filter((x): x is { field: FinishKey; label: string } => x !== null)).map(({ field, label }) => (
-                <TrackSwitch key={label} field={field} label={label} />
-              ))}
-              {!edges.top && !edges.bottom && !edges.left && !edges.right && (
-                <p className="py-3 text-center text-sm text-slate-400 dark:text-slate-500">No restrained edges selected</p>
-              )}
-              <p className="py-2.5 text-sm text-slate-400 dark:text-slate-500">J-track available on P78 panels only</p>
-            </div>
-          )}
-        </div>
+        <TrackFinishBlock
+          edges={edges} orient={orient} activeFinishes={activeFinishes} onFinishChange={onFinishChange}
+          showTrackFinish={showTrackFinish} setShowTrackFinish={setShowTrackFinish}
+        />
       )}
 
-      {/* Head track flashing */}
-      {flashOption && (
-        <div className="flex w-full items-center justify-between rounded-xl border border-blue-100 dark:border-blue-900/60 bg-blue-50/60 dark:bg-blue-950/40 px-4 py-2">
-          <span className={cx.cardHd} style={{marginBottom:0,display:"inline"}}>Head track flashing</span>
-          <button onClick={flashOption.onToggle}
-            style={{
-              background: flashOption.value ? BLUE : "#cbd5e1",
-              width: 44, height: 24, borderRadius: 12, position: "relative",
-              border: "none", cursor: "pointer", transition: "background 0.2s", flexShrink: 0,
-            }}>
-            <span style={{
-              position: "absolute", top: 2, left: flashOption.value ? 22 : 2,
-              width: 20, height: 20, borderRadius: "50%", background: "#fff",
-              boxShadow: "0 1px 3px rgba(0,0,0,0.2)", transition: "left 0.2s", display: "block",
-            }} />
-          </button>
-        </div>
-      )}
+      {flashOption && <HeadFlashingToggle flashOption={flashOption} />}
 
-      {/* Other options */}
-      {options.filter(o => o.key !== "headFlash").length > 0 && (
-        <div className="space-y-2">
-          {options.filter(o => o.key !== "headFlash").map(({ key, label, sublabel, value, onToggle }) => (
-            <button key={key} onClick={onToggle}
-              className={"w-full rounded-xl border-2 py-3.5 px-4 text-sm font-semibold text-left active:scale-95 transition-all " + (value ? "" : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400")}
-              style={value ? { borderColor: BLUE, background: BLUE, color: "#fff" } : undefined}>
-              {value ? "✓ " : ""}{label}
-              {sublabel && <span className={`text-sm font-normal ${value ? "text-white/70" : "text-slate-400 dark:text-slate-500"}`}> {sublabel}</span>}
-            </button>
-          ))}
-        </div>
-      )}
+      {otherOptions.length > 0 && <OtherOptionsBlock options={otherOptions} />}
 
-      {/* Corner angles */}
-      <div className="border-t border-slate-100 dark:border-slate-800 pt-3">
-        <div className={cx.cardHd}>Corner angles</div>
-        <div className="grid grid-cols-2 items-end gap-2">
-          <div>
-            <div>
-              <label className={cx.lbl}>Internal</label>
-              <input type="number" inputMode="decimal" value={corners.intCorners}
-                onChange={e => corners.onChange("intCorners", e.target.value)} className={cx.input} style={{ color: NAVY }} />
-            </div>
-          </div>
-          <div>
-            <div>
-              <label className={cx.lbl}>External</label>
-              <input type="number" inputMode="decimal" value={corners.extCorners}
-                onChange={e => corners.onChange("extCorners", e.target.value)} className={cx.input} style={{ color: NAVY }} />
-            </div>
-          </div>
-        </div>
-      </div>
+      <CornerAnglesBlock corners={corners} />
     </div>
   );
 };
