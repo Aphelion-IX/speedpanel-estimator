@@ -149,6 +149,7 @@ export const Row = ({ k, v, dim, hl }: { k: string; v: string | number; dim?: bo
     <span className={cx.rowVal} style={{ color: hl ? BLUE : dim ? "#cbd5e1" : NAVY }}>{v}</span>
   </div>
 );
+// --- EstimateModeSelector -----------------------------------------------------
 export const EstimateModeSelector = ({ visible, mode, setMode }: { visible: boolean; mode: string; setMode: (m: string) => void }) => {
   if (!visible) return null;
   return (
