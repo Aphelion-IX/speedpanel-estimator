@@ -5,7 +5,7 @@
 // vertical track sizing, floors, slab-pass sealant/strip -- entirely
 // floor-height driven rather than edge-driven like ./wallFixings.ts.
 // =============================================================================
-import { ceil, r2 } from "./mathUtils";
+import { ceil, r2, numOr0 } from "./mathUtils";
 import { pickShaftVerticalTrack } from "./spanLookups";
 import { PANEL_WIDTH, SHAFT_MAX_F } from "../data";
 import type { SystemConfig } from "../data";
@@ -31,7 +31,7 @@ export interface ShaftResult {
  * entirely floors/floor-height driven.
  */
 export function computeShaftVerticals(inp: WallInput, geo: Geometry, cfg: SystemConfig, warnings: string[], notes: string[]): ShaftResult | null {
-  const F = parseFloat(inp.floorHeight || "") || 0;
+  const F = numOr0(inp.floorHeight || "");
   if (F <= 0) { warnings.push("Enter a floor height to size the vertical track."); return null; }
   if (F > SHAFT_MAX_F + 1e-9) warnings.push(`Floor height exceeds the ${SHAFT_MAX_F} m limit. Contact Speedpanel.`);
 

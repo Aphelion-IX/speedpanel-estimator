@@ -5,7 +5,7 @@
 // gable), collect geometry-only notes/warnings, and validate height/span
 // against the system config's limits (may short-circuit the whole estimate).
 // =============================================================================
-import { ceil, clamp } from "./mathUtils";
+import { ceil, clamp, numOr0 } from "./mathUtils";
 import { gableMaxHeightInBay } from "./gableGeometry";
 import { PANEL_WIDTH, STEEL_MAX_H_VERT, SHAFT_MAX_W, MAX_W_HORIZ_STD_51_64 } from "../data";
 import type { SystemConfig } from "../data";
@@ -26,7 +26,7 @@ import type { WallInput, Geometry, SpanValidation } from "./wall.types";
 /** Step 1: resolve wall geometry (edge heights, area, roofline run, strip heights) from profile. */
 export function resolveGeometry(inp: WallInput, W: number): Geometry {
   const { orient, profile } = inp;
-  const Hin = parseFloat(inp.height) || 0;
+  const Hin = numOr0(inp.height);
   const panelsAcross = ceil(W / PANEL_WIDTH);
   let leftH = 0, rightH = 0, topRun = 0, area = 0, maxH = 0;
   let apex = 0, apexX = 0;
@@ -34,16 +34,16 @@ export function resolveGeometry(inp: WallInput, W: number): Geometry {
   if (profile === "standard") {
     leftH = rightH = Hin; topRun = W; area = W * Hin; maxH = Hin;
   } else if (profile === "rake") {
-    leftH = parseFloat(inp.leftH) || 0; rightH = parseFloat(inp.rightH) || 0;
+    leftH = numOr0(inp.leftH); rightH = numOr0(inp.rightH);
     topRun = Math.hypot(W, rightH - leftH); area = (W * (leftH + rightH)) / 2; maxH = Math.max(leftH, rightH);
   } else {
     // Gable: left/right eaves heights can differ, and the ridge (apex) can sit
     // anywhere along the width. Existing walls that only set eavesH (legacy
     // centred-symmetric gable) fall back to that single value on both sides.
-    const legacyEaves = parseFloat(inp.eavesH) || 0;
+    const legacyEaves = numOr0(inp.eavesH);
     leftH = parseFloat(inp.leftH) || legacyEaves;
     rightH = parseFloat(inp.rightH) || legacyEaves;
-    apex = parseFloat(inp.apexH) || 0;
+    apex = numOr0(inp.apexH);
     const ridgeRaw = parseFloat(inp.ridgeX);
     apexX = Number.isFinite(ridgeRaw) && ridgeRaw > 0 ? clamp(ridgeRaw, 0, W) : W / 2;
     topRun = Math.hypot(apexX, apex - leftH) + Math.hypot(W - apexX, apex - rightH);

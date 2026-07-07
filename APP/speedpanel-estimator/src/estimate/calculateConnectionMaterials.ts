@@ -15,7 +15,7 @@
 // Corner wall, Shaft wall -- for their own junction kits).
 // =============================================================================
 
-import { r2, ceil } from "./mathUtils";
+import { r2, ceil, numOr0 } from "./mathUtils";
 import { JUNCTION_TRACK_QUANTITY, JUNCTION_TRACK_STOCK, JUNCTION_REASON } from "./estimate.rules";
 import type { WallLike, ConnectionMaterial } from "./estimate.types";
 
@@ -31,8 +31,8 @@ export function calculateConnectionMaterials<T extends WallLike>(walls: T[]): Co
     seen.add(wallB.id);
     if (wallA.orient === wallB.orient) continue;
 
-    const Ha = parseFloat(wallA.height) || 0;
-    const Hb = parseFloat(wallB.height) || 0;
+    const Ha = numOr0(wallA.height);
+    const Hb = numOr0(wallB.height);
     const lengthM = Math.max(Ha, Hb);
     if (lengthM <= 0) continue;
 

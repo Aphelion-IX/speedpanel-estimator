@@ -7,7 +7,7 @@
 // ComputeOut, since the post/junction table needs each run's own W/floor
 // height plus the pair's shared H directly.
 // =============================================================================
-import { ceil, r2 } from "./mathUtils";
+import { ceil, r2, numOr0 } from "./mathUtils";
 import { boxesOf } from "./computeUtils";
 import { pickCornerPost, pickShaftVerticalTrack, moreConservativeSection } from "./spanLookups";
 import { HORIZ_CTRACK_STOCK, PANEL_WIDTH } from "../data";
@@ -31,8 +31,8 @@ export interface CornerPairResult {
 }
 
 export function computeCornerPair(wallA: Wall, wallB: Wall, cfg: SystemConfig): CornerPairResult | null {
-  const Ha = parseFloat(wallA.height) || 0, Hb = parseFloat(wallB.height) || 0;
-  const Wa = parseFloat(wallA.width) || 0, Wb = parseFloat(wallB.width) || 0;
+  const Ha = numOr0(wallA.height), Hb = numOr0(wallB.height);
+  const Wa = numOr0(wallA.width), Wb = numOr0(wallB.width);
   if (Ha <= 0 || Wa <= 0 || Wb <= 0) return null;
 
   const warnings: string[] = [], notes: string[] = [];
@@ -93,8 +93,8 @@ export interface ShaftPairResult {
 }
 
 export function computeShaftPair(wallA: Wall, wallB: Wall, _cfg: SystemConfig): ShaftPairResult | null {
-  const Ha = parseFloat(wallA.height) || 0, Hb = parseFloat(wallB.height) || 0;
-  const Fa = parseFloat(wallA.floorHeight || "") || 0, Fb = parseFloat(wallB.floorHeight || "") || 0;
+  const Ha = numOr0(wallA.height), Hb = numOr0(wallB.height);
+  const Fa = numOr0(wallA.floorHeight || ""), Fb = numOr0(wallB.floorHeight || "");
   if (Ha <= 0 || Fa <= 0) return null;
 
   const warnings: string[] = [], notes: string[] = [];

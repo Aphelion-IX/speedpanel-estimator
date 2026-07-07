@@ -5,7 +5,7 @@
 // See ./aggregateInternal.ts for the Internal counterpart (aggregate),
 // which shares almost no code with this beyond a couple of math/data helpers.
 // =============================================================================
-import { ceil, r2 } from "./mathUtils";
+import { ceil, r2, numOr0 } from "./mathUtils";
 import { boxesOf } from "./computeUtils";
 import {
   EXT_PACK, EXT_SEALANT_PER_BOX, EXT_CTRACK_STOCK, EXT_JTRACK_STOCK, EXT_ZFLASH_STOCK,
@@ -21,7 +21,7 @@ export const buildExtProjAgg = (wallResults: WallResult[]) => {
   const panelMap: Record<number, ExtPanelMapEntry> = {};
   for (const { wall: w, out: o } of wallResults) {
     if (o.empty || !o.result) continue;
-    totalArea += parseFloat(String(o.area)) || 0;
+    totalArea += numOr0(String(o.area));
     fix30 += o.fix30 || 0; fix16 += o.fix16 || 0; sausages += o.sausages || 0;
     cLM += o.cLM || 0; jLM += o.jLM || 0; zLM += o.zLM || 0; flashLM += o.flashLM || 0;
     const forcedM = w.forcedStock ? parseFloat(w.forcedStock) : null;

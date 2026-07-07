@@ -7,7 +7,7 @@
 // External counterpart (buildExtProjAgg), which shares almost no code with
 // this beyond a couple of math/data helpers.
 // =============================================================================
-import { ceil, r1, r2 } from "./mathUtils";
+import { ceil, r1, r2, numOr0 } from "./mathUtils";
 import { boxesOf, orderWastePct } from "./computeUtils";
 import { packInfo } from "./packPanels";
 import { computeCornerPair, computeShaftPair } from "./cornerShaftKits";
@@ -34,7 +34,7 @@ export function aggregate(results: WallResult[], cfg: SystemConfig = INT_CONFIG)
   let vertLM = 0, slabAnchors = 0, slabSausages = 0, stripLM = 0;
   for (const { wall: w, out: o } of results) {
     if (o.empty || !o.chosen || o.chosen.invalid) continue;
-    ta += parseFloat(String(o.area)) || 0;
+    ta += numOr0(String(o.area));
     f30 += o.fix30 || 0; f16 += o.fix16 || 0; flLM += o.flashLM || 0; jLM += o.jLM || 0; sus += o.sausages || 0;
     vertLM += o.vertTrackLM || 0; slabAnchors += o.slabAnchors || 0; slabSausages += o.slabPassSausages || 0; stripLM += o.stripLM || 0;
     const ctKey = `${w.type}|${o.orient}`;

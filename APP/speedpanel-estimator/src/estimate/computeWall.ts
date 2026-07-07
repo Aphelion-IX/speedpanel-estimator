@@ -8,7 +8,7 @@
 // moment any step short-circuits with an `exit` value. `compute`/
 // `computeExternal` are thin config-bound wrappers (single call sites).
 // =============================================================================
-import { ceil, r1, r2 } from "./mathUtils";
+import { ceil, r1, r2, numOr0 } from "./mathUtils";
 import { boxesOf } from "./computeUtils";
 import { resolveGeometry, geometryNotes, validateSpan } from "./wallGeometry";
 import { buildPieces, computeTrackLM, computeHorizCtrack } from "./wallPieces";
@@ -61,7 +61,7 @@ export function computeWall(rawInp: WallInput, cfg: SystemConfig): ComputeOut {
   }
 
   const { orient, type, profile } = inp;
-  const W = parseFloat(inp.width) || 0;
+  const W = numOr0(inp.width);
   if (W <= 0) return { empty: true, warnings: [], notes: [] };
 
   const geo = resolveGeometry(inp, W);
