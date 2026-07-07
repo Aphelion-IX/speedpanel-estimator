@@ -183,3 +183,6 @@ export interface HorizCtrack { horizProfile: string | null; horizFix: number; }
 
 // Fixing screw quantities plus the panel-to-panel joint note shown to the user.
 export interface FixingsResult { fix30: number; fix16: number; p2pNote: string; p2pEnhanced: boolean; }
+
+// Names of Wall's dimension fields, used by updDim (useWallStore) and dimension inputs.
+export type DimField = "width" | "height" | "leftH" | "rightH" | "eavesH" | "apexH" | "ridgeX" | "floorHeight";
