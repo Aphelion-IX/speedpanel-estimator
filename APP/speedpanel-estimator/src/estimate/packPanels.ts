@@ -5,7 +5,7 @@
 // that raw result into the display-ready PackResult (buildOption), and builds
 // the custom length schedule shown for non-standard (rake/gable) profiles.
 // =============================================================================
-import { ceil, r1, r2 } from "./mathUtils";
+import { r1, r2, ceilDiv0 } from "./mathUtils";
 import { orderWastePct } from "./computeUtils";
 import { CUSTOM_MAX_LENGTH, PACK, STOCK_LENGTHS, STOCK_WASTE_THRESHOLD } from "../data";
 import type { CustomScheduleEntry, PanelGroup, PackResult } from "./wall.types";
@@ -48,7 +48,7 @@ export function computeGableSchedule(strips: number[], packSize: number): Custom
 
 export function packInfo(pieces: number, type: number) {
   const ps = PACK[type];
-  const packs = pieces > 0 ? ceil(pieces / ps) : 0;
+  const packs = ceilDiv0(pieces, ps);
   const ordered = packs * ps;
   return { packs, ordered, spare: ordered - pieces, underPack: pieces > 0 && pieces < ps, ps };
 }

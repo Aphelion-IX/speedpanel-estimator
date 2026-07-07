@@ -8,11 +8,12 @@
 // moment any step short-circuits with an `exit` value. `compute`/
 // `computeExternal` are thin config-bound wrappers (single call sites).
 // =============================================================================
-import { ceil, r1, r2 } from "./mathUtils";
+import { r1, r2, numOr0, ceilDiv0 } from "./mathUtils";
 import { boxesOf } from "./computeUtils";
 import { resolveGeometry, geometryNotes, validateSpan } from "./wallGeometry";
 import { buildPieces, computeTrackLM, computeHorizCtrack } from "./wallPieces";
-import { computeFixings, computeShaftVerticals } from "./wallFixings";
+import { computeFixings } from "./wallFixings";
+import { computeShaftVerticals } from "./shaftVerticals";
 import { buildCustomSchedule, buildExtResult } from "./wallSchedule";
 import { packPanels, buildOption } from "./packPanels";
 import { horizontalJointCoverLM } from "./gableGeometry";
@@ -60,7 +61,7 @@ export function computeWall(rawInp: WallInput, cfg: SystemConfig): ComputeOut {
   }
 
   const { orient, type, profile } = inp;
-  const W = parseFloat(inp.width) || 0;
+  const W = numOr0(inp.width);
   if (W <= 0) return { empty: true, warnings: [], notes: [] };
 
   const geo = resolveGeometry(inp, W);
@@ -92,14 +93,14 @@ export function computeWall(rawInp: WallInput, cfg: SystemConfig): ComputeOut {
 
   const { cLM, jLM, zLM } = computeTrackLM(inp, geo, cfg, warnings);
   const cStock = orient === "horizontal" ? HORIZ_CTRACK_STOCK : cfg.ctrackStockFn(type);
-  const cPieces = cLM > 0 ? ceil(cLM / cStock) : 0;
-  const jPieces = jLM > 0 ? ceil(jLM / cfg.jtrackStock[0]) : 0;
-  const zPieces = zLM > 0 ? ceil(zLM / EXT_ZFLASH_STOCK) : 0;
+  const cPieces = ceilDiv0(cLM, cStock);
+  const jPieces = ceilDiv0(jLM, cfg.jtrackStock[0]);
+  const zPieces = ceilDiv0(zLM, EXT_ZFLASH_STOCK);
 
   const horiz = computeHorizCtrack(inp, geo, cfg, isStackedShaft, notes, warnings);
 
   const sausages = geo.area > 0 ? Math.ceil(geo.area / cfg.sealantRate) : 0;
-  const sealantBoxes = sausages > 0 ? ceil(sausages / cfg.sealantPerBox) : 0;
+  const sealantBoxes = ceilDiv0(sausages, cfg.sealantPerBox);
 
   // Shaft wall's own protection strip (one length per slab pass + junction,
   // see estimate_shaft_wall.md) replaces the generic head-only strip the other
@@ -113,7 +114,7 @@ export function computeWall(rawInp: WallInput, cfg: SystemConfig): ComputeOut {
   const flashLM = cfg.hasZFlash && orient === "horizontal"
     ? externalHorizontalCoverLM
     : (inp.headFlash && !isShaft) ? geo.topRun : 0;
-  const flashPieces = flashLM > 0 ? ceil(flashLM / cfg.flashStock) : 0;
+  const flashPieces = ceilDiv0(flashLM, cfg.flashStock);
 
   const { fix30: fix30Base, fix16, p2pNote, p2pEnhanced } = computeFixings(inp, geo, cfg, rows, isStackedShaft, horiz);
 

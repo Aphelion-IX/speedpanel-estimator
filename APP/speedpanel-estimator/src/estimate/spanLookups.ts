@@ -56,3 +56,23 @@ export const pickShaftVerticalTrack = (F: number): ShaftTrackResult => {
   if (!row) { const last = SHAFT_TRACK_TABLE[SHAFT_TRACK_TABLE.length - 1]; return { ...last, outsideTable: true }; }
   return { ...row, outsideTable: false };
 };
+
+// --- Tie-break: which of two picked sections is more conservative ------------
+// Shared by computeCornerPair (picking between two linked runs' own corner-
+// post lookups) and computeShaftPair (same, for the shaft vertical-track
+// lookup) -- when two linked walls' own lookups disagree, always step up to
+// the stronger/thicker pick. Compared numerically as a tuple of (fixPerCourse,
+// BMT, leg, depth) -- fixPerCourse first since 2 screws/course is a stronger
+// signal than section size, then the section's three numbers parsed from
+// "depth x leg x BMT" (thickest/deepest wins on a tie). This is NOT a string
+// comparison -- "90 x 84 x 1.95" vs "90 x 83 x 1.50" must be compared by
+// actual parsed magnitude, not lexicographic order, since e.g. BMT "1.5" vs
+// "1.15" would sort wrong as strings ("1.15" > "1.5" lexically).
+export const moreConservativeSection = <T extends { section: string; fixPerCourse: 1 | 2 }>(x: T, y: T): T => {
+  if (x.fixPerCourse !== y.fixPerCourse) return x.fixPerCourse > y.fixPerCourse ? x : y;
+  const [xDepth, xLeg, xBmt] = x.section.split(" x ").map(Number);
+  const [yDepth, yLeg, yBmt] = y.section.split(" x ").map(Number);
+  if (xBmt !== yBmt) return xBmt > yBmt ? x : y;
+  if (xLeg !== yLeg) return xLeg > yLeg ? x : y;
+  return xDepth >= yDepth ? x : y;
+};
