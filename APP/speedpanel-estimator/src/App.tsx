@@ -13,9 +13,15 @@ import { SYSTEMS } from "./appShell/systems";
 import { loadSession, saveSession } from "./appShell/session";
 import { TopNav, type TopNavTab } from "./appShell/topNav";
 import { LayoutModeToggle, ThemeToggle } from "./appShell/headerToggles";
-import { ComingSoonPanel } from "./appShell/comingSoonPanel";
 import { SystemRows } from "./appShell/systemRows";
 import { useCornerShaftLinking } from "./appShell/useCornerShaftLinking";
+import { useHashRoute } from "./appShell/useHashRoute";
+import { ProjectsPage } from "./pages/ProjectsPage";
+import { AdminDashboard } from "./pages/admin/AdminDashboard";
+import { AdminProductsPage } from "./pages/admin/AdminProductsPage";
+import { AdminSystemsPage } from "./pages/admin/AdminSystemsPage";
+import { AdminDocumentsPage } from "./pages/admin/AdminDocumentsPage";
+import { AdminRequestsPage } from "./pages/admin/AdminRequestsPage";
 
 export type WallSystemId = "standard" | "corner" | "shaft";
 
@@ -26,7 +32,8 @@ export default function SpeedpanelEstimator() {
   const [mode, setMode]     = useState(() => savedSession ? savedSession.mode : "project");
   const [showWall, setShowWall]               = useState(true);
   const [dimUnit, setDimUnit] = useState(() => savedSession ? savedSession.dimUnit : "m");
-  const [activeTab, setActiveTab] = useState<TopNavTab>("estimator");
+  const { route, navigate } = useHashRoute();
+  const switchTab = (tab: TopNavTab) => tab === "admin" ? navigate({ tab: "admin", sub: "dashboard" }) : navigate({ tab });
   const { effective: layoutMode, toggleLayout } = useLayoutMode();
   const { effective: themeMode, toggleTheme } = useThemeMode();
 
@@ -66,8 +73,8 @@ export default function SpeedpanelEstimator() {
 
         {/* Top nav */}
         <TopNav
-          activeTab={activeTab}
-          onTabChange={setActiveTab}
+          activeTab={route.tab}
+          onTabChange={switchTab}
           right={<>
             <ThemeToggle effective={themeMode} onToggle={toggleTheme} />
             <LayoutModeToggle effective={layoutMode} onToggle={toggleLayout} />
@@ -78,12 +85,31 @@ export default function SpeedpanelEstimator() {
         />
         <div className="mt-4 h-[2px] w-full rounded-full" style={{ background: `linear-gradient(90deg, ${NAVY} 0%, ${BLUE} 55%, ${GOLD} 100%)` }} />
 
-        {activeTab === "selector"  && <SystemSelector layoutMode={layoutMode} system={system} activeWallSystem={active.wallSystem} />}
-        {activeTab === "education" && <EducationHub layoutMode={layoutMode} />}
-        {activeTab === "projects"  && <ComingSoonPanel title="Projects" />}
+        {route.tab === "selector"  && <SystemSelector layoutMode={layoutMode} system={system} activeWallSystem={active.wallSystem} />}
+        {route.tab === "education" && <EducationHub layoutMode={layoutMode} />}
+        {route.tab === "projects"  && <ProjectsPage />}
+
+        {route.tab === "admin" && route.sub === "dashboard" && (
+          <AdminDashboard onNavigate={sub => navigate({ tab: "admin", sub })} />
+        )}
+        {route.tab === "admin" && route.sub !== "dashboard" && (
+          <>
+            <button
+              onClick={() => navigate({ tab: "admin", sub: "dashboard" })}
+              className="mt-6 text-sm font-semibold hover:underline"
+              style={{ color: BLUE }}
+            >
+              &larr; Back to Admin
+            </button>
+            {route.sub === "products"  && <AdminProductsPage />}
+            {route.sub === "systems"   && <AdminSystemsPage />}
+            {route.sub === "documents" && <AdminDocumentsPage />}
+            {route.sub === "requests"  && <AdminRequestsPage />}
+          </>
+        )}
 
         {/* System configuration + calculator body */}
-        {activeTab === "estimator" && (
+        {route.tab === "estimator" && (
           isExt ? (
             <>
               <SectionLabel icon={<Settings size={13} />}>System configuration</SectionLabel>
@@ -105,7 +131,7 @@ export default function SpeedpanelEstimator() {
           )
         )}
 
-        {activeTab === "estimator" && (
+        {route.tab === "estimator" && (
           <div className="mt-8 flex gap-3 rounded-xl border border-amber-200 dark:border-amber-800/60 bg-amber-50/80 dark:bg-amber-950/30 px-4 py-3.5">
             <AlertTriangle size={14} className="mt-0.5 shrink-0 text-amber-500 dark:text-amber-400" />
             <p className="text-sm leading-relaxed text-amber-800 dark:text-amber-300">

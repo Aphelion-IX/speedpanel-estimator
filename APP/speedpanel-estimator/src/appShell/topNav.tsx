@@ -1,24 +1,26 @@
 // =============================================================================
 // Top navigation
 // =============================================================================
-// Logo + the app's top-level feature tabs (only "System Estimator" is wired
-// to real content today -- the others render a ComingSoonPanel, see
-// App.tsx). `right` renders the theme/layout/reset controls passed down
-// from the root component, plus a hamburger menu that only appears below
-// the sm breakpoint. No notification bell / profile dropdown -- this app
-// has no accounts to attach them to.
+// Logo + the app's top-level feature tabs. Projects and Admin are
+// placeholder routes for now (see src/pages), wired up to the hash router
+// so their URLs are deep-linkable on GitHub Pages -- see App.tsx. `right`
+// renders the theme/layout/reset controls passed down from the root
+// component, plus a hamburger menu that only appears below the sm
+// breakpoint. No notification bell / profile dropdown -- this app has no
+// accounts to attach them to.
 // =============================================================================
 import { useState } from "react";
 import { Menu, X } from "lucide-react";
 import { BLUE, WHITE } from "../styleTokens";
 
-export type TopNavTab = "estimator" | "selector" | "education" | "projects";
+export type TopNavTab = "estimator" | "selector" | "education" | "projects" | "admin";
 
 const TOP_NAV_ITEMS: { key: TopNavTab; label: string }[] = [
   { key: "estimator", label: "System Estimator" },
   { key: "selector",  label: "System Selector" },
   { key: "education", label: "Education Hub" },
   { key: "projects",  label: "Projects" },
+  { key: "admin",     label: "Admin" },
 ];
 
 const TopNavTabButton = ({ label, active, onClick, className = "" }: { label: string; active: boolean; onClick: () => void; className?: string }) => (
