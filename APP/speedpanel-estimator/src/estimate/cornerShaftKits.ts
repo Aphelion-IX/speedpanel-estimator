@@ -7,7 +7,7 @@
 // ComputeOut, since the post/junction table needs each run's own W/floor
 // height plus the pair's shared H directly.
 // =============================================================================
-import { ceil, r2, numOr0 } from "./mathUtils";
+import { ceil, r2, numOr0, ceilDiv0 } from "./mathUtils";
 import { boxesOf } from "./computeUtils";
 import { pickCornerPost, pickShaftVerticalTrack, moreConservativeSection } from "./spanLookups";
 import { HORIZ_CTRACK_STOCK, PANEL_WIDTH } from "../data";
@@ -62,7 +62,7 @@ export function computeCornerPair(wallA: Wall, wallB: Wall, cfg: SystemConfig): 
   // decision, treated as a 1 m-wide strip at the same rate as the rest of the
   // app: sausages = ceil((2 x H x 1) / cfg.sealantRate).
   const cornerSausages = Math.ceil((2 * H) / cfg.sealantRate);
-  const cornerSealantBoxes = cornerSausages > 0 ? ceil(cornerSausages / cfg.sealantPerBox) : 0;
+  const cornerSealantBoxes = ceilDiv0(cornerSausages, cfg.sealantPerBox);
 
   const stripLM = r2(H);
   const stripPieces = ceil(stripLM / cfg.flashStock);

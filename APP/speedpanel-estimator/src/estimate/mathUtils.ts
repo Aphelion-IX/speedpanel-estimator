@@ -10,7 +10,7 @@ export const clamp = (x: number, lo: number, hi: number): number => Math.min(hi,
 // throughout estimate/.
 export const numOr0 = (s: string): number => parseFloat(s) || 0;
 
-// Linear metres -> whole pieces at a given stock length, 0 when there's
-// nothing to buy -- the standard idiom for converting an LM total into an
-// order quantity throughout estimate/.
-export const piecesFromLM = (lm: number, stock: number): number => (lm > 0 ? ceil(lm / stock) : 0);
+// Whole units needed to cover a quantity at a given unit size, 0 when
+// there's nothing to buy -- the standard idiom throughout estimate/ for
+// LM-to-pieces, count-to-packs, and count-to-boxes conversions alike.
+export const ceilDiv0 = (qty: number, unitSize: number): number => (qty > 0 ? ceil(qty / unitSize) : 0);

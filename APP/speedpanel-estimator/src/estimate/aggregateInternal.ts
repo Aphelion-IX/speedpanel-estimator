@@ -7,7 +7,7 @@
 // External counterpart (buildExtProjAgg), which shares almost no code with
 // this beyond a couple of math/data helpers.
 // =============================================================================
-import { ceil, r1, r2, numOr0 } from "./mathUtils";
+import { r1, r2, numOr0, ceilDiv0 } from "./mathUtils";
 import { boxesOf, orderWastePct } from "./computeUtils";
 import { packInfo } from "./packPanels";
 import { computeCornerPair, computeShaftPair } from "./cornerShaftKits";
@@ -105,7 +105,7 @@ export function aggregate(results: WallResult[], cfg: SystemConfig = INT_CONFIG)
     return { type, mm, qty, packs, ordered, spare: ordered - qty, packSize };
   });
   const cTracks = Object.values(ct).map(({ type, orient, stock, lm, horizProfile, horizFix }) => ({
-    type, orient, lm: r2(lm), stock, pieces: lm > 0 ? ceil(lm / stock) : 0, horizProfile, horizFix
+    type, orient, lm: r2(lm), stock, pieces: ceilDiv0(lm, stock), horizProfile, horizFix
   })).filter(c => c.lm > 0).sort((a, b) => a.type - b.type || (a.orient > b.orient ? 1 : -1));
   let sp = 0, dl = 0;
   for (const p of panels) { sp += p.spare * p.stock; dl += p.ordered * p.stock; }
@@ -116,8 +116,8 @@ export function aggregate(results: WallResult[], cfg: SystemConfig = INT_CONFIG)
   return {
     panels, customPanels, cTracks, offcut: r2(offcut), spareLen: r2(sp), deliveredLen: r2(dl), usedLM,
     wastePct: orderWastePct(offcut, sp, dl),
-    jLM: jLMr, jPieces: jLMr > 0 ? ceil(jLMr / JTRACK_STOCK[0]) : 0,
-    flashLM: flLMr, flashPieces: flLMr > 0 ? ceil(flLMr / FLASH_STOCK) : 0,
+    jLM: jLMr, jPieces: ceilDiv0(jLMr, JTRACK_STOCK[0]),
+    flashLM: flLMr, flashPieces: ceilDiv0(flLMr, FLASH_STOCK),
     fix30: f30 + totalPostScrews + totalJunctionScrews, fix16: f16,
     boxes30: boxesOf(f30 + totalPostScrews + totalJunctionScrews), boxes16: boxesOf(f16),
     totalPanels: panels.reduce((a, p) => a + p.pieces, 0) + customPanels.reduce((a, s) => a + s.qty, 0),
@@ -127,13 +127,13 @@ export function aggregate(results: WallResult[], cfg: SystemConfig = INT_CONFIG)
     // vertical tracks; junction LM/screws from linked pairs are separate since
     // they use a possibly-different section and aren't part of any one wall's
     // own vertTrackLM).
-    vertTrackLM: vertLMr, vertTrackPieces: vertLMr > 0 ? ceil(vertLMr / HORIZ_CTRACK_STOCK) : 0,
-    slabAnchors, slabPassSausages: slabSausages, slabPassSealantBoxes: slabSausages > 0 ? ceil(slabSausages / SEALANT_PER_BOX) : 0,
-    stripLM: stripLMr, stripPieces: stripLMr > 0 ? ceil(stripLMr / FLASH_STOCK) : 0,
-    junctionLM: r2(junctionLM2), junctionPieces: junctionLM2 > 0 ? ceil(junctionLM2 / HORIZ_CTRACK_STOCK) : 0,
+    vertTrackLM: vertLMr, vertTrackPieces: ceilDiv0(vertLMr, HORIZ_CTRACK_STOCK),
+    slabAnchors, slabPassSausages: slabSausages, slabPassSealantBoxes: ceilDiv0(slabSausages, SEALANT_PER_BOX),
+    stripLM: stripLMr, stripPieces: ceilDiv0(stripLMr, FLASH_STOCK),
+    junctionLM: r2(junctionLM2), junctionPieces: ceilDiv0(junctionLM2, HORIZ_CTRACK_STOCK),
     junctionScrews: junctionScrews2, junctionScrewBoxes: junctionScrewBoxes2,
     // Corner post project totals
-    cornerPostLM: r2(postLM), cornerPostPieces: postLM > 0 ? ceil(postLM / HORIZ_CTRACK_STOCK) : 0,
+    cornerPostLM: r2(postLM), cornerPostPieces: ceilDiv0(postLM, HORIZ_CTRACK_STOCK),
     cornerScrews: postScrews, cornerScrewBoxes: postScrewBoxes,
   };
 }

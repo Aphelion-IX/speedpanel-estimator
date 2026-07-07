@@ -5,7 +5,7 @@
 // See ./aggregateInternal.ts for the Internal counterpart (aggregate),
 // which shares almost no code with this beyond a couple of math/data helpers.
 // =============================================================================
-import { ceil, r2, numOr0 } from "./mathUtils";
+import { ceil, r2, numOr0, ceilDiv0 } from "./mathUtils";
 import { boxesOf } from "./computeUtils";
 import {
   EXT_PACK, EXT_SEALANT_PER_BOX, EXT_CTRACK_STOCK, EXT_JTRACK_STOCK, EXT_ZFLASH_STOCK,
@@ -40,15 +40,15 @@ export const buildExtProjAgg = (wallResults: WallResult[]) => {
       const ord = pks * EXT_PACK;
       return { ...g, packs: pks, ordered: ord, spare: ord - g.pieces };
     });
-  const sealantBoxes = sausages > 0 ? ceil(sausages / EXT_SEALANT_PER_BOX) : 0;
+  const sealantBoxes = ceilDiv0(sausages, EXT_SEALANT_PER_BOX);
   const cLMr = r2(cLM), jLMr = r2(jLM), zLMr = r2(zLM), flashLMr = r2(flashLM);
   return {
     groups, panels: groups.reduce((a, g) => a + g.pieces, 0), packs: groups.reduce((a, g) => a + g.packs, 0),
     totalArea: r2(totalArea), fix30, fix16, boxes30: boxesOf(fix30), boxes16: boxesOf(fix16),
     sausages, sealantBoxes, cLM: cLMr, jLM: jLMr, zLM: zLMr, flashLM: flashLMr,
-    cPieces: cLMr > 0 ? ceil(cLMr / EXT_CTRACK_STOCK[0]) : 0,
-    jPieces: jLMr > 0 ? ceil(jLMr / EXT_JTRACK_STOCK[0]) : 0,
-    zPieces: zLMr > 0 ? ceil(zLMr / EXT_ZFLASH_STOCK) : 0,
-    flashPieces: flashLMr > 0 ? ceil(flashLMr / 3.0) : 0,
+    cPieces: ceilDiv0(cLMr, EXT_CTRACK_STOCK[0]),
+    jPieces: ceilDiv0(jLMr, EXT_JTRACK_STOCK[0]),
+    zPieces: ceilDiv0(zLMr, EXT_ZFLASH_STOCK),
+    flashPieces: ceilDiv0(flashLMr, 3.0),
   };
 };

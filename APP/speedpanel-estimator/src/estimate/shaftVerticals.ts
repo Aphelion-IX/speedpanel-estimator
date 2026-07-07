@@ -5,7 +5,7 @@
 // vertical track sizing, floors, slab-pass sealant/strip -- entirely
 // floor-height driven rather than edge-driven like ./wallFixings.ts.
 // =============================================================================
-import { ceil, r2, numOr0 } from "./mathUtils";
+import { ceil, r2, numOr0, ceilDiv0 } from "./mathUtils";
 import { pickShaftVerticalTrack } from "./spanLookups";
 import { PANEL_WIDTH, SHAFT_MAX_F } from "../data";
 import type { SystemConfig } from "../data";
@@ -70,7 +70,7 @@ export function computeShaftVerticals(inp: WallInput, geo: Geometry, cfg: System
   // across the wall width at each slab) x number of slab passes.
   const W = geo.W;
   const slabPassSausages = Math.ceil((W * floors) / cfg.sealantRate);
-  const slabPassSealantBoxes = slabPassSausages > 0 ? ceil(slabPassSausages / cfg.sealantPerBox) : 0;
+  const slabPassSealantBoxes = ceilDiv0(slabPassSausages, cfg.sealantPerBox);
 
   // Protection strip: "one length at each slab pass and junction" -- floors-
   // driven (one per floor lift), each cut to the wall width W, not the
