@@ -178,6 +178,11 @@ export const WarningsList = ({ warnings }: { warnings?: string[] | null }) => {
     </div>
   );
 };
+// --- CalculatorShell --------------------------------------------------------
+// Composes the same sidebar/main/footer content differently depending on
+// layout mode. Phone reproduces today's stacked order exactly (byte-for-byte
+// equivalent JSX, just relocated into variables); web arranges it as a sticky
+// sidebar + wider main column.
 export const CalculatorShell = ({ layoutMode, sidebar, main, footer }: {
   layoutMode: EffectiveLayout; sidebar: React.ReactNode; main: React.ReactNode; footer: React.ReactNode;
 }) => (

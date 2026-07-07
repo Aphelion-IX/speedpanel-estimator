@@ -14,21 +14,17 @@ import {
   STOCK_LENGTHS, FLASH_STOCK,
   HORIZ_CTRACK_STOCK, JTRACK_STOCK,
   HEAD_FLASH_LABEL, HEAD_FLASH_SUBLABEL,
-  EXT_STOCK, EXT_PACK, EXT_ZFLASH_STOCK,
-  EXT_JTRACK_STOCK, EXT_CTRACK_STOCK,
-  EXT_CTRACK_DIM, EXT_JTRACK_DIM, EXT_ZFLASH_DIM, EXT_STOCKED_COLOURS, COLOUR_HEX,
   INT_CONFIG,
 } from "./data";
 import { useCombinedEstimateCalc } from "./estimate/useCombinedEstimateCalc";
 import { NAVY, BLUE, GOLD, WHITE, MUTED, cx } from "./styleTokens";
 import type { Wall, ComputeOut, PanelGroup } from "./estimate/wall.types";
 import { useWallStore, useWallResults } from "./wallStore";
-import type { WallStore } from "./wallStore";
 import {
   CardGrid, SectionLabel, UnitToggle, ToggleSwitch, StatsRow,
   NotesList, ProjectLockNote, Card, Row, EstimateModeSelector, WarningsList, CalculatorShell,
 } from "./ui/primitives";
-import { LockedDataInt, LockedDataExt } from "./ui/lockedData";
+import { LockedDataInt } from "./ui/lockedData";
 import { LengthExplorer } from "./ui/lengthExplorer";
 import {
   LMLineItem, HeadFlashingCard, PackNote, ScheduleRow,
@@ -44,6 +40,7 @@ import {
 } from "./ui/wallsCard";
 import { EducationHub } from "./education/EducationHub";
 import { SystemSelector } from "./systemSelector/SystemSelector";
+import { ExternalCalculator } from "./externalCalculator/ExternalCalculator";
 
 // --- Compute engine -- see ./estimate/* -------------------------------------
 // The wall/panel-packing/project-aggregation compute engine now lives in
@@ -54,11 +51,11 @@ import { SystemSelector } from "./systemSelector/SystemSelector";
 import { r1, clamp } from "./estimate/mathUtils";
 import { plural, stockStatus, makeToDisp, makeToM } from "./estimate/computeUtils";
 import { packPanels, buildOption } from "./estimate/packPanels";
-import { compute, computeExternal } from "./estimate/computeWall";
+import { compute } from "./estimate/computeWall";
 import { computeCornerPair, computeShaftPair } from "./estimate/cornerShaftKits";
 import type { CornerPairResult, ShaftPairResult } from "./estimate/cornerShaftKits";
-import { aggregate, buildExtProjAgg } from "./estimate/aggregate";
-import type { CTrackAggEntry, AggPanelEntry, AggCustomEntry, ExtAggGroup } from "./estimate/aggregate";
+import { aggregate } from "./estimate/aggregate";
+import type { CTrackAggEntry, AggPanelEntry, AggCustomEntry } from "./estimate/aggregate";
 
 
 // SPAN_TABLE_VERT / SPAN_TABLE_HORIZ and the panel TYPES list now live in ./data
@@ -307,84 +304,7 @@ const TrackFlashingCardIntProj = ({ agg, connectionLM = 0, connectionPieces = 0 
   </Card>
 );
 
-// --- TrackFlashingCardExt -----------------------------------------------------
-const TrackFlashingCardExt = ({ out, orient, headFlashActive }: { out: ComputeOut; orient: string; headFlashActive: boolean }) => (
-  <>
-    <Card title="Track and flashing" icon={<Frame size={14} />}>
-      {orient === "horizontal" ? (
-        <>
-          {out.horizProfile && (
-            <div className={`mb-2 ${cx.infoBox}`}>
-              <div className={cx.infoBoxHd}>Selected C-track section</div>
-              <div className={cx.infoBoxVal} style={{ color: NAVY }}>{out.horizProfile}</div>
-              {out.horizFix && <div className={cx.infoBoxSub}>{out.horizFix} fixing{out.horizFix > 1 ? "s" : ""} each face</div>}
-            </div>
-          )}
-          {out.cLM && out.cLM > 0 ? (
-            <LMLineItem
-              label={`C-track perimeter - ${out.ctrackDim}`}
-              pieces={out.cPieces || 0} lm={out.cLM} stockLabel={`@ ${r1(EXT_CTRACK_STOCK[0])} m`} />
-          ) : <Row k="C-track" v="No edges selected" dim />}
-        </>
-      ) : (
-        out.cLM && out.cLM > 0 ? (
-          <LMLineItem
-            label="C-track - Head + 2 sides"
-            pieces={out.cPieces || 0} lm={out.cLM} stockLabel={`${EXT_CTRACK_DIM} - @ ${r1(EXT_CTRACK_STOCK[0])} m`} />
-        ) : <Row k="C-track" v="No head/side edges selected" dim />
-      )}
-      {out.jLM && out.jLM > 0 && (
-        <LMLineItem
-          label="J-track - Base"
-          pieces={out.jPieces || 0} lm={out.jLM} stockLabel={`${EXT_JTRACK_DIM} - @ ${r1(EXT_JTRACK_STOCK[0])} m`} />
-      )}
-      {out.zLM && out.zLM > 0 && (
-        <LMLineItem
-          label="Z-flashing (coloured)"
-          pieces={out.zPieces || 0} lm={out.zLM} stockLabel={`${EXT_ZFLASH_DIM} - @ ${r1(EXT_ZFLASH_STOCK)} m`} />
-      )}
-    </Card>
-    {headFlashActive && (
-      <HeadFlashingCard
-        dim="Head track flashing 0.7 mm BMT x 130 mm GAL"
-        pieces={out.flashPieces || 0} lm={out.flashLM || 0} stock={3.0} />
-    )}
-  </>
-);
 
-// --- TrackFlashingCardExtProj -------------------------------------------------
-const TrackFlashingCardExtProj = ({ agg, connectionLM = 0, connectionPieces = 0 }: {
-  agg: ReturnType<typeof buildExtProjAgg>; connectionLM?: number; connectionPieces?: number;
-}) => (
-  <Card title="Track and flashing" icon={<Frame size={14} />}>
-    {agg.cLM > 0 && (
-      <LMLineItem
-        label="C-track - Head + 2 sides"
-        pieces={agg.cPieces} lm={agg.cLM} stockLabel={`${EXT_CTRACK_DIM} - @ ${r1(EXT_CTRACK_STOCK[0])} m`} />
-    )}
-    {agg.jLM > 0 && (
-      <LMLineItem
-        label="J-track - Base"
-        pieces={agg.jPieces} lm={agg.jLM} stockLabel={`${EXT_JTRACK_DIM} - @ ${r1(EXT_JTRACK_STOCK[0])} m`} />
-    )}
-    {agg.zLM > 0 && (
-      <LMLineItem
-        label="Z-flashing (coloured)"
-        pieces={agg.zPieces} lm={agg.zLM} stockLabel={`@ ${r1(EXT_ZFLASH_STOCK)} m`} />
-    )}
-    {agg.flashLM > 0 && (
-      <LMLineItem
-        label="Head track flashing 0.7 mm BMT x 130 mm GAL"
-        pieces={agg.flashPieces} lm={agg.flashLM} stockLabel={`@ ${r1(FLASH_STOCK)} m`} />
-    )}
-    {connectionPieces > 0 && (
-      <LMLineItem
-        label="Extra C/J track (combined wall junctions)"
-        pieces={connectionPieces} lm={connectionLM} stockLabel={`stocked @ ${r1(HORIZ_CTRACK_STOCK)} m`} />
-    )}
-    {agg.cLM === 0 && agg.jLM === 0 && agg.zLM === 0 && connectionPieces === 0 && <Row k="No track yet" v="--" dim />}
-  </Card>
-);
 
 
 
@@ -493,287 +413,6 @@ const ComingSoonPanel = ({ title }: { title: string }) => (
 );
 
 
-// --- CalculatorShell --------------------------------------------------------
-// Composes the same sidebar/main/footer content differently depending on
-// layout mode. Phone reproduces today's stacked order exactly (byte-for-byte
-// equivalent JSX, just relocated into variables); web arranges it as a sticky
-// sidebar + wider main column.
-
-// --- ExternalCalculator -------------------------------------------------------
-// orient is derived from sys.orient in the parent and passed as a prop. The
-// wall list comes from the shared `store` (owned by SpeedpanelEstimator) so it
-// survives switching in/out of External mode. orient stays in useWallResults'
-// dependency array to prevent stale compute if this component is kept mounted
-// across orientation switches.
-function ExternalCalculator({ store, orient, dimUnit, setDimUnit, systemSelector, layoutMode }: { store: WallStore; orient: "vertical" | "horizontal"; dimUnit: string; setDimUnit: (u: string) => void; systemSelector?: React.ReactNode; layoutMode: EffectiveLayout }) {
-  const [extMode, setExtMode] = useState("project");
-  const [showTakeoff, setShowTakeoff] = useState(true);
-  const [showLocked, setShowLocked] = useState(false);
-
-  const {
-    walls, activeId, setActiveId,
-    projectStock, projectLock, customLengthInput, customActive,
-    active, update, toDisp, toM, updDim,
-    setProjectLength, addBlankWall, duplicateWall, deleteWall,
-    commitCustomLength, toggleCustom, clearCustomLength,
-    linkJunctionPartner,
-  } = store;
-  const { results, out, warnById } = useWallResults(walls, activeId, computeExternal);
-
-  const switchDimUnit = (u: string) => { setDimUnit(u); clearCustomLength(); };
-  const project  = extMode === "project";
-  const projAgg  = useMemo(() => buildExtProjAgg(results), [results]);
-  const combinedEstimate = useCombinedEstimateCalc(walls);
-
-  const edgeOptions = [
-    { key: "headFlash", label: HEAD_FLASH_LABEL, sublabel: HEAD_FLASH_SUBLABEL, value: active.headFlash, onToggle: () => update({ headFlash: !active.headFlash }) },
-  ];
-
-  const ScheduleComp = layoutMode === "web" ? PanelScheduleTable : PanelScheduleCard;
-
-  const sidebarNode = (
-    <>
-      <WallsCard
-        walls={walls} results={results} activeId={activeId} setActiveId={setActiveId}
-        active={active} update={update} addBlankWall={addBlankWall}
-        duplicateWall={duplicateWall} deleteWall={deleteWall} warnById={warnById} showTypes={false}
-        systemSelector={systemSelector} orient={orient}
-        onJunctionLink={linkJunctionPartner}
-      />
-
-      <SectionLabel icon={<Box size={13} />}>Panel configuration</SectionLabel>
-      <div className={cx.section}>
-        {/* P78 badge -- styled to match internal panel type buttons */}
-        <div className={cx.cardHd}>Panel type</div>
-        {(() => {
-          const isCustom = active.colourType === "special";
-          const stockedHex = !isCustom && active.colour ? COLOUR_HEX[active.colour] : null;
-          const isLight = active.colour === "OW";
-          const colourName = !isCustom && active.colour
-            ? EXT_STOCKED_COLOURS.find(c => c.code === active.colour)?.label ?? ""
-            : "";
-          const badgeBg = isCustom ? GOLD : stockedHex ?? BLUE;
-          const textColour = isCustom ? NAVY : isLight ? NAVY : "#fff";
-
-          return (
-            <div className="w-full rounded-xl border-2 py-3.5 px-3 transition-all" style={{ borderColor: badgeBg, background: badgeBg, transition: "background 0.3s, border-color 0.3s" }}>
-              <div className="text-xs font-bold uppercase tracking-widest text-center" style={{ color: textColour }}>
-                {isCustom ? "P78 - Custom" : `P78${colourName ? ` - ${colourName}` : ""}`}
-              </div>
-            </div>
-          );
-        })()}
-        {/* Colour selection */}
-        <div className="border-t border-slate-100 dark:border-slate-800 pt-3">
-          <div className={cx.cardHd}>Colour selection</div>
-          <div className="grid grid-cols-3 gap-2 items-stretch">
-            {[...EXT_STOCKED_COLOURS.map(c => {
-              const hex = COLOUR_HEX[c.code];
-              const selected = active.colour === c.code && active.colourType === "stocked";
-              const isLight = c.code === "OW";
-              const textColour = isLight ? NAVY : "#fff";
-              return (
-                <button key={c.code} onClick={() => update({ colour: c.code, colourType: "stocked" })}
-                  className="w-full rounded-xl border-2 py-3 px-1.5 text-center transition-all active:scale-95"
-                  style={{
-                    background: hex,
-                    borderColor: selected ? BLUE : "rgba(0,0,0,0.08)",
-                    boxShadow: selected ? `0 0 0 2px ${BLUE}` : undefined,
-                  }}>
-                  <div className="text-[10px] font-bold uppercase leading-tight truncate"
-                    style={{ color: textColour }}>{c.label}</div>
-                </button>
-              );
-            }), (() => {
-              const selected = active.colourType === "special";
-              return (
-                <button key="special" onClick={() => update({ colourType: "special", colour: "" })}
-                  className={"w-full rounded-xl border-2 py-3 px-1.5 text-center active:scale-95 transition-all " + (selected ? "" : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800")}
-                  style={selected ? { borderColor: BLUE, background: BLUE } : undefined}>
-                  <div className="text-[10px] font-bold uppercase leading-tight"
-                    style={{ color: selected ? "#fff" : BLUE }}>Custom</div>
-                </button>
-              );
-            })()]}
-          </div>
-        </div>
-
-        <div className="border-t border-slate-100 dark:border-slate-800 pt-3">
-          <div className="mb-1.5 flex items-center justify-between">
-            <span className={cx.cardHd} style={{marginBottom:0,display:"inline"}}>Panel length</span>
-            <ToggleSwitch
-              active={projectLock}
-              label={projectLock ? "Project locked" : "Lock to project"}
-              onToggle={() => {
-                const currentStock = projectLock ? projectStock : (active.forcedStock || "");
-                setProjectLength(customActive ? "" : currentStock, !projectLock);
-                if (projectLock) { clearCustomLength(); }
-              }}
-            />
-          </div>
-          <LengthExplorer
-            pieces={"pieces" in out && out.pieces ? out.pieces : []}
-            stocks={EXT_STOCK}
-            packType={78}
-            currentStock={customActive ? "" : (projectLock ? projectStock : (active.forcedStock || ""))}
-            onSelect={val => {
-              clearCustomLength();
-              if (projectLock) { setProjectLength(val, true); }
-              else { update({ forcedStock: val }); }
-            }}
-            isExt
-          />
-
-          {/* Custom length -- always visible below the dropdown */}
-          <CustomLengthSection
-            dimUnit={dimUnit} customLengthInput={customLengthInput} customActive={customActive}
-            projectLock={projectLock} projectStock={projectStock} wallCount={walls.length}
-            commitCustomLength={commitCustomLength} toggleCustom={toggleCustom}
-          />
-
-          {/* Project lock confirmation for stocked lengths */}
-          {projectLock && !customActive && projectStock && (
-            <ProjectLockNote wallCount={walls.length} stock={projectStock} dimUnit={dimUnit} />
-          )}
-        </div>
-      </div>
-
-      <SectionLabel icon={<Frame size={13} />}>Wall geometry</SectionLabel>
-      <div className={cx.section}>
-        <ProfileSection profile={active.profile} onChange={id => update({ profile: id })} />
-        <div className="border-t border-slate-100 dark:border-slate-800 pt-3">
-          <div className="mb-2 flex items-center justify-between">
-            <span className={cx.cardHd} style={{marginBottom:0}}>Dimensions</span>
-            <div className="flex items-center gap-2">
-              <UnitToggle unit={dimUnit} setUnit={switchDimUnit} />
-            </div>
-          </div>
-          <DimensionInputs active={active} toDisp={toDisp} toM={toM} updDim={updDim} onUpdate={update} out={out} orient={orient} />
-          <SpanTable orient={orient} type={78} />
-        </div>
-      </div>
-
-      <SectionLabel icon={<Lock size={13} />}>TRACKS AND FLASHING</SectionLabel>
-      <EdgeRestraintSelector
-        edges={active.edges}
-        onEdgeToggle={k => update({ edges: { ...active.edges, [k]: !active.edges[k] } })}
-        options={edgeOptions}
-        orient={orient}
-        corners={{ intCorners: active.intCorners, extCorners: active.extCorners, onChange: (f: CornersField, v: string) => update({ [f]: v } as Pick<Wall, CornersField>) }}
-      />
-
-      <WarningsList warnings={!out.empty ? out.warnings : null} />
-      <EstimateModeSelector visible={!out.empty} mode={extMode} setMode={setExtMode} />
-    </>
-  );
-
-  const mainNode = (
-    <>
-      {!out.empty && !project && out.result && (
-        <>
-          <button onClick={() => setShowTakeoff(!showTakeoff)} className={cx.accordion}>
-            <span>Material quantities</span>
-            <ChevronDown size={15} className={`transition-transform ${showTakeoff ? "rotate-180" : ""}`} />
-          </button>
-          {showTakeoff && (() => {
-            const colourEntry = active.colour ? EXT_STOCKED_COLOURS.find(c => c.code === active.colour) : null;
-            const colourDisplay = colourEntry ? `${colourEntry.label} (${colourEntry.code})` : active.colour;
-            return (
-            <div className="mt-3">
-              <StatsRow area={`${out.area} m2`} panels={out.result!.panels} panelType="P78" />
-              {active.colour && (
-                  <div className="mt-2 flex items-center gap-2 rounded-lg border bg-amber-50 dark:bg-amber-950/30 px-3 py-2.5" style={{ borderColor: GOLD }}>
-                    <span className="text-xs font-bold uppercase tracking-wide text-amber-700 dark:text-amber-400">Colour</span>
-                    <span className="text-sm font-semibold" style={{ color: NAVY }}>{colourDisplay}</span>
-                    {active.colourType === "special" && <span className="ml-auto text-xs font-bold uppercase tracking-wide text-amber-600 dark:text-amber-400">Special order</span>}
-                  </div>
-              )}
-              <CardGrid layoutMode={layoutMode} minWidth={380}>
-                <ScheduleComp title="Panel order schedule -- P78 coloured" icon={<Box size={14} />}
-                  customSchedule={out.customSchedule}
-                  groups={out.result.groups.map((g: PanelGroup) => ({ ...g, ps: EXT_PACK }))}
-                  packSize={EXT_PACK} stocks={EXT_STOCK} wastePct={out.result.wastePct} orient={orient} />
-                <TrackFlashingCardExt out={out} orient={orient} headFlashActive={active.headFlash} />
-                <FixingSealantCard title="Fixing and sealant quantities"
-                  boxes30={out.boxes30 || 0} fix30={out.fix30 || 0}
-                  boxes16={out.boxes16 || 0} fix16={out.fix16 || 0}
-                  sealantBoxes={out.sealantBoxes || 0} sausages={out.sausages || 0} area={out.area || 0}
-                  sealantLabel="Sikaflex 400 Fire PU" sealantRate={2} footnote="Est. fixings -- 1000/box." />
-              </CardGrid>
-              {out.notes && out.notes.length > 0 && <NotesList notes={out.notes} />}
-            </div>
-            );
-          })()}
-        </>
-      )}
-
-      {project && (
-        <>
-          <ProjectSeparator />
-
-          {layoutMode === "web" && (
-            <>
-              <SectionLabel icon={<Frame size={13} />}>Wall list</SectionLabel>
-              <WallsSummaryTable results={results} activeId={activeId} setActiveId={setActiveId} warnById={warnById} toDisp={toDisp} dimUnit={dimUnit} />
-            </>
-          )}
-
-          {/* System Breakdown: shows HOW the estimate was built, wall by wall */}
-          <SectionLabel icon={<Layers size={13} />}>System breakdown</SectionLabel>
-          <CardGrid layoutMode={layoutMode} minWidth={420}>
-            {results.map(({ wall: w, out: o }) => (
-              <SystemBreakdownWallCardExt key={w.id} wall={w} out={o} ScheduleComp={ScheduleComp} />
-            ))}
-          </CardGrid>
-
-          {/* Connection Breakdown: shows WHY extra materials were added */}
-          <SectionLabel icon={<Frame size={13} />}>Connection breakdown</SectionLabel>
-          <ConnectionBreakdownCard connections={combinedEstimate.connections} />
-
-          {/* Easy to Order: shows WHAT needs to be ordered -- one combined material list */}
-          <SectionLabel icon={<Box size={13} />}>Easy to order -- combined material summary</SectionLabel>
-          <StatsRow area={`${projAgg.totalArea} m2`} panels={projAgg.panels} panelType="P78" />
-          <CardGrid layoutMode={layoutMode} minWidth={300}>
-            <Card title="Project order estimate" icon={<Box size={14} />}>
-              {projAgg.groups.map((g: ExtAggGroup, i: number) => (
-                <StockGroupRow key={i}
-                  stock={g.stock} ordered={g.ordered} pieces={g.pieces}
-                  packs={g.packs} packSize={EXT_PACK} spare={g.spare}
-                  stocks={EXT_STOCK} isLast={i === projAgg.groups.length - 1}
-                />
-              ))}
-              {projAgg.groups.length === 0 && <Row k="No panels yet" v="--" dim />}
-            </Card>
-            <TrackFlashingCardExtProj agg={projAgg}
-              connectionLM={combinedEstimate.connectionLM} connectionPieces={combinedEstimate.connectionPieces} />
-            <FixingSealantCard title="Fixing and sealant -- whole project"
-              boxes30={projAgg.boxes30} fix30={projAgg.fix30}
-              boxes16={projAgg.boxes16} fix16={projAgg.fix16}
-              sealantBoxes={projAgg.sealantBoxes} sausages={projAgg.sausages} area={projAgg.totalArea}
-              sealantLabel="Sikaflex 400 Fire PU" sealantRate={2} footnote="Est. fixings pooled - 1000/box." />
-          </CardGrid>
-        </>
-      )}
-    </>
-  );
-
-  const footerNode = (
-    <>
-      <button onClick={() => setShowLocked(!showLocked)} className={cx.accordion}>
-        <span className="flex items-center gap-2"><Lock size={13} className="text-slate-400 dark:text-slate-500" /> Locked external system data</span>
-        <ChevronDown size={16} className={`text-blue-300 dark:text-blue-700 transition-transform ${showLocked ? "rotate-180" : ""}`} />
-      </button>
-      {showLocked && <LockedDataExt />}
-      <button className={cx.exportBtn}>Export PDF</button>
-    </>
-  );
-
-  if (layoutMode === "phone") {
-    return <div>{sidebarNode}{mainNode}{footerNode}</div>;
-  }
-  return <CalculatorShell layoutMode={layoutMode} sidebar={sidebarNode} main={mainNode} footer={footerNode} />;
-}
-
 // --- SystemBreakdownWallCard ---------------------------------------------------
 // One wall's own section of the combined estimate's "System Breakdown" --
 // shows HOW that wall's estimate was built (name, orientation, dimensions,
@@ -844,65 +483,6 @@ const SystemBreakdownWallCard = ({ wall, out, walls, ScheduleComp }: {
 };
 
 
-// --- SystemBreakdownWallCardExt -------------------------------------------------
-// External-system counterpart to SystemBreakdownWallCard: one wall's own
-// section of the combined estimate's System Breakdown, reusing the same
-// single-wall display components the External "Selected wall estimate" view
-// uses (colour badge, TrackFlashingCardExt, External fixing/sealant rates).
-const SystemBreakdownWallCardExt = ({ wall, out, ScheduleComp }: {
-  wall: Wall; out: ComputeOut; ScheduleComp: typeof PanelScheduleCard;
-}) => {
-  const [open, setOpen] = useState(false);
-  const colourEntry = wall.colour ? EXT_STOCKED_COLOURS.find(c => c.code === wall.colour) : null;
-  const colourDisplay = colourEntry ? `${colourEntry.label} (${colourEntry.code})` : wall.colour;
-
-  return (
-    // cx.accordionInner (no baked-in mt-5, unlike cx.accordion) -- the wrapper's own
-    // mt-3 provides the top gap instead, since this card is a CardGrid item and needs
-    // consistent mt-3 spacing between wrapped rows, not the mt-5 "new section" gap.
-    <div className="mt-3">
-      <button onClick={() => setOpen(v => !v)} className={cx.accordionInner}>
-        <span>
-          {wall.name} -- {wall.orient === "vertical" ? "Vertical" : "Horizontal"}, External, P78
-          {!out.empty ? ` -- ${out.area} m2` : ""}
-        </span>
-        <ChevronDown size={15} className={`transition-transform ${open ? "rotate-180" : ""}`} />
-      </button>
-      {open && (
-        <div className="mt-3">
-          {out.empty || !out.result ? (
-            <Card title={wall.name} icon={<Frame size={14} />}>
-              <Row k="Enter width and height to estimate this wall" v="--" dim />
-            </Card>
-          ) : (
-            <>
-              <StatsRow area={`${out.area} m2`} panels={out.result.panels} panelType="P78" />
-              {wall.colour && (
-                <div className="mt-2 flex items-center gap-2 rounded-lg border bg-amber-50 dark:bg-amber-950/30 px-3 py-2.5" style={{ borderColor: GOLD }}>
-                  <span className="text-xs font-bold uppercase tracking-wide text-amber-700 dark:text-amber-400">Colour</span>
-                  <span className="text-sm font-semibold" style={{ color: NAVY }}>{colourDisplay}</span>
-                  {wall.colourType === "special" && <span className="ml-auto text-xs font-bold uppercase tracking-wide text-amber-600 dark:text-amber-400">Special order</span>}
-                </div>
-              )}
-              <ScheduleComp title="Panel order schedule -- P78 coloured" icon={<Box size={14} />}
-                customSchedule={out.customSchedule}
-                groups={out.result.groups.map((g: PanelGroup) => ({ ...g, ps: EXT_PACK }))}
-                packSize={EXT_PACK} stocks={EXT_STOCK} wastePct={out.result.wastePct} orient={wall.orient} />
-              <TrackFlashingCardExt out={out} orient={wall.orient} headFlashActive={wall.headFlash} />
-              <FixingSealantCard title="Fixing and sealant quantities"
-                boxes30={out.boxes30 || 0} fix30={out.fix30 || 0}
-                boxes16={out.boxes16 || 0} fix16={out.fix16 || 0}
-                sealantBoxes={out.sealantBoxes || 0} sausages={out.sausages || 0} area={out.area || 0}
-                sealantLabel="Sikaflex 400 Fire PU" sealantRate={2} footnote="Est. fixings -- 1000/box." />
-              <WarningsList warnings={out.warnings} />
-              {out.notes && out.notes.length > 0 && <NotesList notes={out.notes} />}
-            </>
-          )}
-        </div>
-      )}
-    </div>
-  );
-};
 
 // --- Session persistence ------------------------------------------------------
 // The current view (which system/orientation, project-vs-single mode, and unit)
