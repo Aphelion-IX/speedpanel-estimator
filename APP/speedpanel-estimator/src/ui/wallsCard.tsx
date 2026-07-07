@@ -189,6 +189,85 @@ export const JunctionLinkSelector = ({ active, walls, onLink }: {
     )}
   />
 );
+// --- PanelTypeSelector -----------------------------------------------------------
+// "Panel configuration" block: the 3-way P51/P64/P78 button grid, or (for
+// Shaft wall, which is always 78 mm -- not a user choice) a static badge
+// instead of a disabled grid.
+const PanelTypeSelector = ({ active, update, topBorder }: {
+  active: Wall; update: (patch: Partial<Wall>) => void; topBorder: boolean;
+}) => (
+  <div className={topBorder ? "border-t border-slate-100 dark:border-slate-800 pt-3" : ""}>
+    <div className={cx.cardHd}>Panel configuration</div>
+    {active.wallSystem === "shaft" ? (
+      <div className="rounded-xl border-2 py-3 px-4 text-center" style={{ borderColor: BLUE, background: BLUE }}>
+        <div className="text-base font-black leading-none tracking-tight text-white">78 mm</div>
+        <div className="mt-1 text-xs font-semibold tracking-wide text-white/70">Shaft wall is always 78 mm - 120 min FRL</div>
+      </div>
+    ) : (
+      <div className="grid grid-cols-3 items-end gap-1.5">
+        {TYPES.map(t => {
+          const on = active.type === t.id;
+          return (
+            <button key={t.id} onClick={() => update({ type: t.id })}
+              className={"w-full rounded-xl border-2 py-3 px-1.5 text-center active:scale-95 transition-all " + (on ? "" : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800")}
+              style={on ? { borderColor: BLUE, background: BLUE } : undefined}>
+              <div className="text-base font-black leading-none tracking-tight" style={{ color: on ? "#fff" : BLUE }}>{t.label}</div>
+              <div className="mt-1 text-xs font-semibold tracking-wide" style={{ color: on ? "rgba(255,255,255,0.7)" : "#94a3b8" }}>{t.depth}</div>
+              <div className="mt-1 text-[10px] font-bold tracking-wide" style={{ color: on ? "rgba(255,255,255,0.7)" : "#94a3b8" }}>FRL {t.frl}</div>
+            </button>
+          );
+        })}
+      </div>
+    )}
+  </div>
+);
+
+// --- WallTabsAndActions -----------------------------------------------------------
+// Wall tab strip (+ Add) and the active wall's name/duplicate/delete toolbar.
+const WallTabsAndActions = ({ walls, results, activeId, setActiveId, active, update, addBlankWall, duplicateWall, deleteWall, warnById, topBorder }: {
+  walls: Wall[]; results: WallResult[]; activeId: number; setActiveId: (id: number) => void;
+  active: Wall; update: (patch: Partial<Wall>) => void;
+  addBlankWall: () => void; duplicateWall: () => void; deleteWall: () => void;
+  warnById: Record<number, boolean>; topBorder: boolean;
+}) => (
+  <div className={topBorder ? "border-t border-slate-100 dark:border-slate-800 pt-3" : ""}>
+    <div className={cx.cardHd}>Walls ({walls.length})</div>
+    <div className="flex flex-wrap gap-2 pb-1">
+      {results.map(({ wall: w, out: r }) => {
+        const on = w.id === activeId;
+        return (
+          <button key={w.id} onClick={() => setActiveId(w.id)}
+            className={"relative rounded-xl border-2 px-3.5 py-3 text-left active:scale-95 transition-all " + (on ? "" : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800")}
+            style={on ? { borderColor: BLUE, background: BLUE } : undefined}>
+            {warnById[w.id] && <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full" style={{ background: GOLD }} />}
+            <div className="max-w-[80px] overflow-hidden text-ellipsis whitespace-nowrap text-sm font-bold" style={{ color: on ? "#fff" : NAVY }}>{w.name}</div>
+            <div className="mt-1 text-xs font-medium" style={{ color: on ? "rgba(255,255,255,0.7)" : MUTED }}>
+              {w.orient === "vertical" ? "Vert" : "Horiz"} · P{w.type}{r.empty ? "" : ` · ${r.area} m2`}
+            </div>
+          </button>
+        );
+      })}
+      <button onClick={addBlankWall}
+        className="shrink-0 rounded-xl border-2 border-dashed px-3.5 py-3 text-left active:scale-95 transition-all bg-white dark:bg-slate-800"
+        style={{ borderColor: BLUE }}>
+        <div className="flex items-center gap-1">
+          <Plus size={14} style={{ color: BLUE }} />
+          <span className="text-sm font-bold" style={{ color: BLUE }}>Add</span>
+        </div>
+        <div className="mt-1 text-xs font-medium text-transparent">-</div>
+      </button>
+    </div>
+    <div className="flex items-center gap-2 mt-2">
+      <input value={active.name} onChange={e => update({ name: e.target.value })} maxLength={32} className={cx.wallName} style={{ color: NAVY }} />
+      <button onClick={duplicateWall} title="Duplicate" className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-400 dark:text-slate-500 shadow-sm active:scale-95"><Copy size={15} /></button>
+      <button onClick={deleteWall} disabled={walls.length === 1} title="Delete"
+        className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl border shadow-sm active:scale-95 ${walls.length === 1 ? "border-slate-100 dark:border-slate-800 text-slate-300 dark:text-slate-600" : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-red-400 dark:text-red-400"}`}>
+        <Trash2 size={15} />
+      </button>
+    </div>
+  </div>
+);
+
 // --- WallsCard ----------------------------------------------------------------
 export interface WallsCardProps {
   walls: Wall[]; results: WallResult[];
@@ -239,71 +318,16 @@ export const WallsCard = ({ walls, results, activeId, setActiveId, active, updat
     )}
     {/* 2 -- Panel configuration (internal only). Shaft wall is always 78 mm --
         hidden rather than shown-but-disabled, since it's not a user choice. */}
-    {showTypes && active.wallSystem !== "shaft" && (
-      <div className={systemSelector ? "border-t border-slate-100 dark:border-slate-800 pt-3" : ""}>
-        <div className={cx.cardHd}>Panel configuration</div>
-        <div className="grid grid-cols-3 items-end gap-1.5">
-          {TYPES.map(t => {
-            const on = active.type === t.id;
-            return (
-              <button key={t.id} onClick={() => update({ type: t.id })}
-                className={"w-full rounded-xl border-2 py-3 px-1.5 text-center active:scale-95 transition-all " + (on ? "" : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800")}
-                style={on ? { borderColor: BLUE, background: BLUE } : undefined}>
-                <div className="text-base font-black leading-none tracking-tight" style={{ color: on ? "#fff" : BLUE }}>{t.label}</div>
-                <div className="mt-1 text-xs font-semibold tracking-wide" style={{ color: on ? "rgba(255,255,255,0.7)" : "#94a3b8" }}>{t.depth}</div>
-                <div className="mt-1 text-[10px] font-bold tracking-wide" style={{ color: on ? "rgba(255,255,255,0.7)" : "#94a3b8" }}>FRL {t.frl}</div>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-    )}
-    {showTypes && active.wallSystem === "shaft" && (
-      <div className={systemSelector ? "border-t border-slate-100 dark:border-slate-800 pt-3" : ""}>
-        <div className={cx.cardHd}>Panel configuration</div>
-        <div className="rounded-xl border-2 py-3 px-4 text-center" style={{ borderColor: BLUE, background: BLUE }}>
-          <div className="text-base font-black leading-none tracking-tight text-white">78 mm</div>
-          <div className="mt-1 text-xs font-semibold tracking-wide text-white/70">Shaft wall is always 78 mm - 120 min FRL</div>
-        </div>
-      </div>
+    {showTypes && (
+      <PanelTypeSelector active={active} update={update} topBorder={!!systemSelector} />
     )}
     {/* 3 -- Wall tabs + name + actions */}
-    <div className={showTypes || systemSelector ? "border-t border-slate-100 dark:border-slate-800 pt-3" : ""}>
-      <div className={cx.cardHd}>Walls ({walls.length})</div>
-      <div className="flex flex-wrap gap-2 pb-1">
-        {results.map(({ wall: w, out: r }) => {
-          const on = w.id === activeId;
-          return (
-            <button key={w.id} onClick={() => setActiveId(w.id)}
-              className={"relative rounded-xl border-2 px-3.5 py-3 text-left active:scale-95 transition-all " + (on ? "" : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800")}
-              style={on ? { borderColor: BLUE, background: BLUE } : undefined}>
-              {warnById[w.id] && <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full" style={{ background: GOLD }} />}
-              <div className="max-w-[80px] overflow-hidden text-ellipsis whitespace-nowrap text-sm font-bold" style={{ color: on ? "#fff" : NAVY }}>{w.name}</div>
-              <div className="mt-1 text-xs font-medium" style={{ color: on ? "rgba(255,255,255,0.7)" : MUTED }}>
-                {w.orient === "vertical" ? "Vert" : "Horiz"} · P{w.type}{r.empty ? "" : ` · ${r.area} m2`}
-              </div>
-            </button>
-          );
-        })}
-        <button onClick={addBlankWall}
-          className="shrink-0 rounded-xl border-2 border-dashed px-3.5 py-3 text-left active:scale-95 transition-all bg-white dark:bg-slate-800"
-          style={{ borderColor: BLUE }}>
-          <div className="flex items-center gap-1">
-            <Plus size={14} style={{ color: BLUE }} />
-            <span className="text-sm font-bold" style={{ color: BLUE }}>Add</span>
-          </div>
-          <div className="mt-1 text-xs font-medium text-transparent">-</div>
-        </button>
-      </div>
-      <div className="flex items-center gap-2 mt-2">
-        <input value={active.name} onChange={e => update({ name: e.target.value })} maxLength={32} className={cx.wallName} style={{ color: NAVY }} />
-        <button onClick={duplicateWall} title="Duplicate" className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-400 dark:text-slate-500 shadow-sm active:scale-95"><Copy size={15} /></button>
-        <button onClick={deleteWall} disabled={walls.length === 1} title="Delete"
-          className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl border shadow-sm active:scale-95 ${walls.length === 1 ? "border-slate-100 dark:border-slate-800 text-slate-300 dark:text-slate-600" : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-red-400 dark:text-red-400"}`}>
-          <Trash2 size={15} />
-        </button>
-      </div>
-    </div>
+    <WallTabsAndActions
+      walls={walls} results={results} activeId={activeId} setActiveId={setActiveId}
+      active={active} update={update} addBlankWall={addBlankWall}
+      duplicateWall={duplicateWall} deleteWall={deleteWall} warnById={warnById}
+      topBorder={showTypes || !!systemSelector}
+    />
   </div>
 );
 
