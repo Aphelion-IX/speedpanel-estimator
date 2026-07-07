@@ -8,10 +8,11 @@
 // layout shell both calculators compose their content into. No dependency on
 // Wall or the compute engine; pure props in, JSX out.
 // =============================================================================
+import { useState } from "react";
 import { r1 } from "../estimate/mathUtils";
 import { cx, BLUE, GOLD, WHITE, NAVY } from "../styleTokens";
 import type { EffectiveLayout } from "../useLayoutMode";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, ChevronDown } from "lucide-react";
 
 // --- CardGrid -------------------------------------------------------------
 // On web layout, arranges its children (cards) side by side in a responsive
@@ -149,6 +150,23 @@ export const Row = ({ k, v, dim, hl }: { k: string; v: string | number; dim?: bo
     <span className={cx.rowVal} style={{ color: hl ? BLUE : dim ? "#cbd5e1" : NAVY }}>{v}</span>
   </div>
 );
+
+// --- AccordionCard --------------------------------------------------------
+// cx.accordionInner (no baked-in mt-5, unlike cx.accordion) -- the wrapper's own
+// mt-3 provides the top gap instead, since this card is a CardGrid item and needs
+// consistent mt-3 spacing between wrapped rows, not the mt-5 "new section" gap.
+export const AccordionCard = ({ summary, children }: { summary: React.ReactNode; children: React.ReactNode }) => {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="mt-3">
+      <button onClick={() => setOpen(v => !v)} className={cx.accordionInner}>
+        <span>{summary}</span>
+        <ChevronDown size={15} className={`transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && <div className="mt-3">{children}</div>}
+    </div>
+  );
+};
 // --- EstimateModeSelector -----------------------------------------------------
 export const EstimateModeSelector = ({ visible, mode, setMode }: { visible: boolean; mode: string; setMode: (m: string) => void }) => {
   if (!visible) return null;
