@@ -8,8 +8,12 @@ const BREAKPOINT_QUERY = "(min-width: 768px)"; // Tailwind `md`
 
 function readStoredPreference(): LayoutPreference {
   if (typeof window === "undefined") return "auto";
-  const raw = window.localStorage.getItem(STORAGE_KEY);
-  return raw === "phone" || raw === "web" || raw === "auto" ? raw : "auto";
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    return raw === "phone" || raw === "web" || raw === "auto" ? raw : "auto";
+  } catch {
+    return "auto";
+  }
 }
 
 export function useLayoutMode() {
@@ -30,7 +34,7 @@ export function useLayoutMode() {
   }, []);
 
   useEffect(() => {
-    window.localStorage.setItem(STORAGE_KEY, preference);
+    try { window.localStorage.setItem(STORAGE_KEY, preference); } catch { /* ignore quota/serialization errors */ }
   }, [preference]);
 
   const effective: EffectiveLayout =
