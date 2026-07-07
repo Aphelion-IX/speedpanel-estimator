@@ -107,7 +107,7 @@ export interface ShaftPairResult {
   warnings: string[]; notes: string[];
 }
 
-export function computeShaftPair(wallA: Wall, wallB: Wall, cfg: SystemConfig): ShaftPairResult | null {
+export function computeShaftPair(wallA: Wall, wallB: Wall, _cfg: SystemConfig): ShaftPairResult | null {
   const Ha = parseFloat(wallA.height) || 0, Hb = parseFloat(wallB.height) || 0;
   const Fa = parseFloat(wallA.floorHeight || "") || 0, Fb = parseFloat(wallB.floorHeight || "") || 0;
   if (Ha <= 0 || Fa <= 0) return null;
