@@ -3,14 +3,15 @@
 // =============================================================================
 // Small, cross-feature presentational atoms used by both the Internal and
 // External calculators (and by other pages) -- layout grid, section labels,
-// numeric/unit/toggle inputs, stat cards, notes/lock lines, and generic
-// title-card/row wrappers. No dependency on Wall or the compute engine; pure
-// props in, JSX out. More primitives (WarningsList, EstimateModeSelector,
-// CalculatorShell) join this file in a later phase.
+// numeric/unit/toggle inputs, stat cards, notes/lock lines, generic
+// title-card/row wrappers, the mode/warnings banners, and the sidebar/main
+// layout shell both calculators compose their content into. No dependency on
+// Wall or the compute engine; pure props in, JSX out.
 // =============================================================================
 import { r1 } from "../estimate/mathUtils";
 import { cx, BLUE, GOLD, WHITE, NAVY } from "../styleTokens";
 import type { EffectiveLayout } from "../useLayoutMode";
+import { AlertTriangle } from "lucide-react";
 
 // --- CardGrid -------------------------------------------------------------
 // On web layout, arranges its children (cards) side by side in a responsive
@@ -146,5 +147,48 @@ export const Row = ({ k, v, dim, hl }: { k: string; v: string | number; dim?: bo
   <div className="flex items-baseline justify-between gap-3 py-0.5">
     <span className={dim ? cx.rowKeyDim : cx.rowKey}>{k}</span>
     <span className={cx.rowVal} style={{ color: hl ? BLUE : dim ? "#cbd5e1" : NAVY }}>{v}</span>
+  </div>
+);
+export const EstimateModeSelector = ({ visible, mode, setMode }: { visible: boolean; mode: string; setMode: (m: string) => void }) => {
+  if (!visible) return null;
+  return (
+    <div className="mt-4 grid grid-cols-2 items-end gap-2">
+      {[["single","Selected wall estimate"],["project","Combined wall estimate"]].map(([k, lbl]) => {
+        const on = mode === k;
+        return (
+          <button key={k} onClick={() => setMode(k)}
+            className={"w-full rounded-xl border-2 py-3.5 px-4 text-sm font-semibold text-center active:scale-95 transition-all " + (on ? "" : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800")}
+            style={on ? { borderColor: BLUE, background: BLUE, color: "#fff" } : { color: BLUE }}>{lbl}</button>
+        );
+      })}
+    </div>
+  );
+};
+
+// --- WarningsList -------------------------------------------------------------
+export const WarningsList = ({ warnings }: { warnings?: string[] | null }) => {
+  if (!warnings || warnings.length === 0) return null;
+  return (
+    <div className="mt-5 space-y-3">
+      {warnings.map((w, i) => (
+        <div key={i} className={cx.warnbox}>
+          <AlertTriangle size={14} className="mt-0.5 shrink-0 text-amber-500 dark:text-amber-400" /><span>{w}</span>
+        </div>
+      ))}
+    </div>
+  );
+};
+export const CalculatorShell = ({ layoutMode, sidebar, main, footer }: {
+  layoutMode: EffectiveLayout; sidebar: React.ReactNode; main: React.ReactNode; footer: React.ReactNode;
+}) => (
+  // No space-y-* here: every child component already carries its own correct
+  // top margin (mt-3/mt-5/etc., matching phone layout exactly). space-y-*'s
+  // generated selector (> :not([hidden]) ~ :not([hidden])) has HIGHER CSS
+  // specificity than a plain utility class like mt-5, so it was silently
+  // overriding every child's real margin down to a flat 4px -- the actual
+  // cause of web layout's spacing looking compressed/inconsistent vs phone.
+  <div className="grid grid-cols-[360px_1fr] items-start gap-6">
+    <aside className="sticky top-5">{sidebar}</aside>
+    <div className="min-w-0">{main}{footer}</div>
   </div>
 );

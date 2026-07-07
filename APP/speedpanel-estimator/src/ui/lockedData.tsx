@@ -1,0 +1,25 @@
+// =============================================================================
+// Locked system data
+// =============================================================================
+// Read-only reference-table display for the "Locked system data" card shown
+// in both calculators -- generic key/value row, header/row dispatcher, and
+// the Internal/External wrappers over each system's INT_LOCKED/EXT_LOCKED
+// table (see ./data).
+// =============================================================================
+import { cx } from "../styleTokens";
+import { INT_LOCKED, EXT_LOCKED } from "../data";
+
+// --- Locked system data -------------------------------------------------------
+// INT_LOCKED / EXT_LOCKED (display-only reference tables) now live in ./data.
+export const DataRow = ({ k, v }: { k: string; v: string }) => (
+  <div className="flex justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-2.5 last:border-0">
+    <span className="shrink-0 text-sm font-medium text-slate-400 dark:text-slate-500">{k}</span>
+    <span className="text-right text-sm font-semibold text-slate-700 dark:text-slate-200">{v}</span>
+  </div>
+);
+export const LDRow = ({ row }: { row: string[] }) =>
+  row.length === 1
+    ? <div className={cx.ldHead}>{row[0].replace(/-/g, "")}</div>
+    : <DataRow k={row[0]} v={row[1]} />;
+export const LockedDataInt = () => <div className={cx.ldWrap}>{INT_LOCKED.map((r, i) => <LDRow key={i} row={r} />)}</div>;
+export const LockedDataExt = () => <div className={cx.ldWrap}>{EXT_LOCKED.map((r, i) => <LDRow key={i} row={r} />)}</div>;
