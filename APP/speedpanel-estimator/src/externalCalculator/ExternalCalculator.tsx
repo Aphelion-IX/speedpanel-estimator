@@ -21,13 +21,13 @@ import type { Wall, ComputeOut, PanelGroup } from "../estimate/wall.types";
 import type { EffectiveLayout } from "../useLayoutMode";
 import {
   SectionLabel, CardGrid, StatsRow, NotesList, WarningsList, EstimateModeSelector,
-  Card, Row, ToggleSwitch, UnitToggle, ProjectLockNote, CalculatorShell,
+  Card, Row, UnitToggle, CalculatorShell,
 } from "../ui/primitives";
-import { LockedDataExt } from "../ui/lockedData";
-import { LengthExplorer } from "../ui/lengthExplorer";
+import { LockedDataExt, LockedDataFooter } from "../ui/lockedData";
+import { PanelLengthSection } from "../ui/lengthExplorer";
 import { WallsCard, WallsSummaryTable } from "../ui/wallsCard";
 import {
-  CustomLengthSection, ProfileSection, DimensionInputs, SpanTable, EdgeRestraintSelector, ProjectSeparator,
+  ProfileSection, DimensionInputs, SpanTable, EdgeRestraintSelector, ProjectSeparator,
 } from "../ui/wallConfig";
 import type { CornersField } from "../ui/wallConfig";
 import {
@@ -45,7 +45,6 @@ import { SystemBreakdownWallCardExt } from "./systemBreakdownCard";
 export function ExternalCalculator({ store, orient, dimUnit, setDimUnit, systemSelector, layoutMode }: { store: WallStore; orient: "vertical" | "horizontal"; dimUnit: string; setDimUnit: (u: string) => void; systemSelector?: React.ReactNode; layoutMode: EffectiveLayout }) {
   const [extMode, setExtMode] = useState("project");
   const [showTakeoff, setShowTakeoff] = useState(true);
-  const [showLocked, setShowLocked] = useState(false);
 
   const {
     walls, activeId, setActiveId,
@@ -135,44 +134,14 @@ export function ExternalCalculator({ store, orient, dimUnit, setDimUnit, systemS
           </div>
         </div>
 
-        <div className="border-t border-slate-100 dark:border-slate-800 pt-3">
-          <div className="mb-1.5 flex items-center justify-between">
-            <span className={cx.cardHd} style={{marginBottom:0,display:"inline"}}>Panel length</span>
-            <ToggleSwitch
-              active={projectLock}
-              label={projectLock ? "Project locked" : "Lock to project"}
-              onToggle={() => {
-                const currentStock = projectLock ? projectStock : (active.forcedStock || "");
-                setProjectLength(customActive ? "" : currentStock, !projectLock);
-                if (projectLock) { clearCustomLength(); }
-              }}
-            />
-          </div>
-          <LengthExplorer
-            pieces={"pieces" in out && out.pieces ? out.pieces : []}
-            stocks={EXT_STOCK}
-            packType={78}
-            currentStock={customActive ? "" : (projectLock ? projectStock : (active.forcedStock || ""))}
-            onSelect={val => {
-              clearCustomLength();
-              if (projectLock) { setProjectLength(val, true); }
-              else { update({ forcedStock: val }); }
-            }}
-            isExt
-          />
-
-          {/* Custom length -- always visible below the dropdown */}
-          <CustomLengthSection
-            dimUnit={dimUnit} customLengthInput={customLengthInput} customActive={customActive}
-            projectLock={projectLock} projectStock={projectStock} wallCount={walls.length}
-            commitCustomLength={commitCustomLength} toggleCustom={toggleCustom}
-          />
-
-          {/* Project lock confirmation for stocked lengths */}
-          {projectLock && !customActive && projectStock && (
-            <ProjectLockNote wallCount={walls.length} stock={projectStock} dimUnit={dimUnit} />
-          )}
-        </div>
+        <PanelLengthSection
+          dimUnit={dimUnit} out={out} active={active} walls={walls}
+          projectLock={projectLock} projectStock={projectStock}
+          customLengthInput={customLengthInput} customActive={customActive}
+          stocks={EXT_STOCK} packType={78} isExt
+          update={update} setProjectLength={setProjectLength}
+          commitCustomLength={commitCustomLength} toggleCustom={toggleCustom} clearCustomLength={clearCustomLength}
+        />
       </div>
 
       <SectionLabel icon={<Frame size={13} />}>Wall geometry</SectionLabel>
@@ -294,16 +263,7 @@ export function ExternalCalculator({ store, orient, dimUnit, setDimUnit, systemS
     </>
   );
 
-  const footerNode = (
-    <>
-      <button onClick={() => setShowLocked(!showLocked)} className={cx.accordion}>
-        <span className="flex items-center gap-2"><Lock size={13} className="text-slate-400 dark:text-slate-500" /> Locked external system data</span>
-        <ChevronDown size={16} className={`text-blue-300 dark:text-blue-700 transition-transform ${showLocked ? "rotate-180" : ""}`} />
-      </button>
-      {showLocked && <LockedDataExt />}
-      <button className={cx.exportBtn}>Export PDF</button>
-    </>
-  );
+  const footerNode = <LockedDataFooter title="Locked external system data" table={<LockedDataExt />} />;
 
   if (layoutMode === "phone") {
     return <div>{sidebarNode}{mainNode}{footerNode}</div>;

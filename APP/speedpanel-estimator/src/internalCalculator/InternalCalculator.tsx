@@ -29,13 +29,13 @@ import type { Wall } from "../estimate/wall.types";
 import type { EffectiveLayout } from "../useLayoutMode";
 import {
   SectionLabel, CardGrid, StatsRow, NotesList, WarningsList, EstimateModeSelector,
-  Card, Row, ToggleSwitch, UnitToggle, ProjectLockNote, CalculatorShell,
+  Card, Row, UnitToggle, CalculatorShell,
 } from "../ui/primitives";
-import { LockedDataInt } from "../ui/lockedData";
-import { LengthExplorer } from "../ui/lengthExplorer";
+import { LockedDataInt, LockedDataFooter } from "../ui/lockedData";
+import { PanelLengthSection } from "../ui/lengthExplorer";
 import { WallsCard, WallsSummaryTable } from "../ui/wallsCard";
 import {
-  CustomLengthSection, ProfileSection, DimensionInputs, SpanTable, EdgeRestraintSelector, ProjectSeparator,
+  ProfileSection, DimensionInputs, SpanTable, EdgeRestraintSelector, ProjectSeparator,
 } from "../ui/wallConfig";
 import type { FinishKey, CornersField } from "../ui/wallConfig";
 import {
@@ -55,7 +55,6 @@ export function InternalCalculator({ store, orient, dimUnit, setDimUnit, systemS
   linkShaftPartner: (targetId: number | null) => void;
 }) {
   const [showTrackFinish, setShowTrackFinish] = useState(false);
-  const [showData, setShowData] = useState(false);
 
   const {
     walls, activeId, setActiveId,
@@ -115,43 +114,14 @@ export function InternalCalculator({ store, orient, dimUnit, setDimUnit, systemS
           <DimensionInputs active={active} toDisp={toDisp} toM={toM} updDim={updDim} onUpdate={update} out={out} orient={orient} />
           <SpanTable orient={orient} type={active.type} wallSystem={active.wallSystem} />
         </div>
-        <div className="border-t border-slate-100 dark:border-slate-800 pt-3">
-          <div className="mb-1.5 flex items-center justify-between">
-            <span className={cx.cardHd} style={{marginBottom:0,display:"inline"}}>Panel length</span>
-            <ToggleSwitch
-              active={projectLock}
-              label={projectLock ? "Project locked" : "Lock to project"}
-              onToggle={() => {
-                const currentStock = projectLock ? projectStock : (active.forcedStock || "");
-                setProjectLength(customActive ? "" : currentStock, !projectLock);
-                if (projectLock) { clearCustomLength(); }
-              }}
-            />
-          </div>
-          <LengthExplorer
-            pieces={"pieces" in out && out.pieces ? out.pieces : []}
-            stocks={STOCK_LENGTHS}
-            packType={active.type}
-            currentStock={customActive ? "" : (projectLock ? projectStock : (active.forcedStock || ""))}
-            onSelect={val => {
-              clearCustomLength();
-              if (projectLock) { setProjectLength(val, true); }
-              else { update({ forcedStock: val }); }
-            }}
-          />
-
-          {/* Custom length -- same visual treatment as the panel length selector above */}
-          <CustomLengthSection
-            dimUnit={dimUnit} customLengthInput={customLengthInput} customActive={customActive}
-            projectLock={projectLock} projectStock={projectStock} wallCount={walls.length}
-            commitCustomLength={commitCustomLength} toggleCustom={toggleCustom}
-          />
-
-          {/* Project lock confirmation for stocked lengths */}
-          {projectLock && !customActive && projectStock && (
-            <ProjectLockNote wallCount={walls.length} stock={projectStock} dimUnit={dimUnit} />
-          )}
-        </div>
+        <PanelLengthSection
+          dimUnit={dimUnit} out={out} active={active} walls={walls}
+          projectLock={projectLock} projectStock={projectStock}
+          customLengthInput={customLengthInput} customActive={customActive}
+          stocks={STOCK_LENGTHS} packType={active.type}
+          update={update} setProjectLength={setProjectLength}
+          commitCustomLength={commitCustomLength} toggleCustom={toggleCustom} clearCustomLength={clearCustomLength}
+        />
       </div>
 
       {/* Tracks and flashing */}
@@ -312,16 +282,7 @@ export function InternalCalculator({ store, orient, dimUnit, setDimUnit, systemS
     </>
   );
 
-  const footerNode = (
-    <>
-      <button onClick={() => setShowData(!showData)} className={cx.accordion}>
-        <span className="flex items-center gap-2"><Lock size={13} className="text-slate-400 dark:text-slate-500" /> Locked system data</span>
-        <ChevronDown size={16} className={`text-blue-300 dark:text-blue-700 transition-transform ${showData ? "rotate-180" : ""}`} />
-      </button>
-      {showData && <LockedDataInt />}
-      <button className={cx.exportBtn}>Export PDF</button>
-    </>
-  );
+  const footerNode = <LockedDataFooter title="Locked system data" table={<LockedDataInt />} />;
 
   if (layoutMode === "phone") return <>{sidebarNode}{mainNode}{footerNode}</>;
   return <CalculatorShell layoutMode={layoutMode} sidebar={sidebarNode} main={mainNode} footer={footerNode} />;
