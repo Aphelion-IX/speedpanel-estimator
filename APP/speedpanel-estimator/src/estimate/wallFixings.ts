@@ -9,6 +9,10 @@ import { fixingsAlong } from "./computeUtils";
 import type { SystemConfig } from "../data";
 import type { WallInput, Geometry, HorizCtrack, FixingsResult } from "./wall.types";
 
+// Head track flashing adds a second perimeter screw run along the top edge,
+// both faces -- same addend in all three edge-driven branches below.
+const headFlashScrews = (topRun: number, headFlash: boolean): number => (headFlash ? 2 * fixingsAlong(topRun, 0.5) : 0);
+
 /** Step 6: fixing screw counts (10g-30mm perimeter/flashing, 10g-16mm panel-to-panel joints). */
 export function computeFixings(inp: WallInput, geo: Geometry, cfg: SystemConfig, rows: number, isStackedShaft: boolean, horiz: HorizCtrack): FixingsResult {
   const { orient, type, profile, edges } = inp;
@@ -26,7 +30,7 @@ export function computeFixings(inp: WallInput, geo: Geometry, cfg: SystemConfig,
   // rectangular wall, matching the doc's "2W + 2H".
   if (!cfg.hasZFlash && orient === "horizontal" && inp.wallSystem === "standard") {
     const edgeFixings = fixingsAlong(topRun, 0.25) + fixingsAlong(W, 0.25) + fixingsAlong(leftH, 0.25) + fixingsAlong(rightH, 0.25);
-    const fix30 = edgeFixings * 2 + (inp.headFlash ? 2 * fixingsAlong(topRun, 0.5) : 0);
+    const fix30 = edgeFixings * 2 + headFlashScrews(topRun, inp.headFlash);
     const rowJoints = Math.max(0, rows - 1);
     const fix16 = rowJoints * fixingsAlong(W, 1.0);
     return { fix30, fix16, p2pNote: "Joints @1000mm, 1 face.", p2pEnhanced: false };
@@ -54,7 +58,7 @@ export function computeFixings(inp: WallInput, geo: Geometry, cfg: SystemConfig,
   if (!cfg.hasZFlash && orient === "horizontal" && inp.wallSystem === "corner") {
     const sideFixings = (edges.left ? fixingsAlong(leftH, 0.25) : 0) + (edges.right ? fixingsAlong(rightH, 0.25) : 0);
     const edgeFixings = fixingsAlong(topRun, 0.25) + fixingsAlong(W, 0.25) + sideFixings;
-    const fix30 = edgeFixings * 2 + (inp.headFlash ? 2 * fixingsAlong(topRun, 0.5) : 0);
+    const fix30 = edgeFixings * 2 + headFlashScrews(topRun, inp.headFlash);
     const rowJoints = Math.max(0, rows - 1);
     const fix16 = rowJoints * fixingsAlong(W, 1.0);
     return { fix30, fix16, p2pNote: "Joints @1000mm, 1 face.", p2pEnhanced: false };
@@ -73,7 +77,7 @@ export function computeFixings(inp: WallInput, geo: Geometry, cfg: SystemConfig,
     if (edges.left)   fix30 += 2 * fixingsAlong(leftH, 0.25);
     if (edges.right)  fix30 += 2 * fixingsAlong(rightH, 0.25);
   }
-  if (inp.headFlash) fix30 += 2 * fixingsAlong(topRun, 0.5);
+  fix30 += headFlashScrews(topRun, inp.headFlash);
 
   let fix16 = 0, p2pNote = "", p2pEnhanced = false;
   if (orient === "vertical") {

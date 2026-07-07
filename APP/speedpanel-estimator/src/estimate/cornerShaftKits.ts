@@ -9,8 +9,7 @@
 // =============================================================================
 import { ceil, r2 } from "./mathUtils";
 import { boxesOf } from "./computeUtils";
-import { pickCornerPost, pickShaftVerticalTrack } from "./spanLookups";
-import type { CornerPostResult, ShaftTrackResult } from "./spanLookups";
+import { pickCornerPost, pickShaftVerticalTrack, moreConservativeSection } from "./spanLookups";
 import { HORIZ_CTRACK_STOCK, PANEL_WIDTH } from "../data";
 import type { SystemConfig } from "../data";
 import type { Wall } from "./wall.types";
@@ -41,27 +40,13 @@ export function computeCornerPair(wallA: Wall, wallB: Wall, cfg: SystemConfig): 
   if (heightMismatch) warnings.push(`Linked runs have different heights (${r2(Ha)} m vs ${r2(Hb)} m) -- corner post sized to ${wallA.name}'s height. Confirm on site.`);
   const H = Ha; // per user decision: assume equal heights, use the first run's height
 
-  // Corner post is sized to whichever run needs the more conservative post (see
-  // user decision: always step up to the larger/thicker of the two runs' own
-  // lookups). "More conservative" is compared numerically as a tuple of
-  // (fixPerCourse, BMT, leg, depth) -- fixPerCourse first since 2 screws/course
-  // is a stronger signal than section size, then the section's three numbers
-  // parsed from "depth x leg x BMT" (thickest/deepest wins on a tie). This is
-  // NOT a string comparison -- "90 x 84 x 1.95" vs "90 x 83 x 1.50" must be
-  // compared by actual parsed magnitude, not lexicographic order, since e.g.
-  // BMT "1.5" vs "1.15" would sort wrong as strings ("1.15" > "1.5" lexically).
+  // Corner post is sized to whichever run needs the more conservative post
+  // (see user decision: always step up to the larger/thicker of the two
+  // runs' own lookups) -- see moreConservativeSection in ./spanLookups.
   const pa = pickCornerPost(wallA.type, Wa, H);
   const pb = pickCornerPost(wallB.type, Wb, H);
   if (!pa && !pb) return null;
-  const moreConservative = (x: CornerPostResult, y: CornerPostResult): CornerPostResult => {
-    if (x.fixPerCourse !== y.fixPerCourse) return x.fixPerCourse > y.fixPerCourse ? x : y;
-    const [xDepth, xLeg, xBmt] = x.section.split(" x ").map(Number);
-    const [yDepth, yLeg, yBmt] = y.section.split(" x ").map(Number);
-    if (xBmt !== yBmt) return xBmt > yBmt ? x : y;
-    if (xLeg !== yLeg) return xLeg > yLeg ? x : y;
-    return xDepth >= yDepth ? x : y;
-  };
-  let picked = pa && pb ? moreConservative(pa, pb) : (pa ?? pb)!;
+  let picked = pa && pb ? moreConservativeSection(pa, pb) : (pa ?? pb)!;
   if (picked.outsideTable) notes.push(`Corner post size outside the standard table -- conservatively selected as ${picked.section}. Confirm with Speedpanel.`);
 
   const postStock = HORIZ_CTRACK_STOCK;
@@ -120,18 +105,11 @@ export function computeShaftPair(wallA: Wall, wallB: Wall, _cfg: SystemConfig): 
   const floors = Math.max(1, ceil(H / Fa));
 
   // Junction track section: more conservative of the two walls' own floor-
-  // height lookups (same tie-break approach as computeCornerPair's post pick).
+  // height lookups -- see moreConservativeSection in ./spanLookups (same
+  // tie-break approach as computeCornerPair's post pick).
   const ta = pickShaftVerticalTrack(Fa);
   const tb = Fb > 0 ? pickShaftVerticalTrack(Fb) : null;
-  const moreConservative = (x: ShaftTrackResult, y: ShaftTrackResult): ShaftTrackResult => {
-    if (x.fixPerCourse !== y.fixPerCourse) return x.fixPerCourse > y.fixPerCourse ? x : y;
-    const [xDepth, xLeg, xBmt] = x.section.split(" x ").map(Number);
-    const [yDepth, yLeg, yBmt] = y.section.split(" x ").map(Number);
-    if (xBmt !== yBmt) return xBmt > yBmt ? x : y;
-    if (xLeg !== yLeg) return xLeg > yLeg ? x : y;
-    return xDepth >= yDepth ? x : y;
-  };
-  const picked = tb ? moreConservative(ta, tb) : ta;
+  const picked = tb ? moreConservativeSection(ta, tb) : ta;
   if (picked.outsideTable) notes.push(`Junction track floor height exceeds the standard table -- conservatively selected as ${picked.section}. Confirm with Speedpanel.`);
 
   const junctionStock = HORIZ_CTRACK_STOCK;
