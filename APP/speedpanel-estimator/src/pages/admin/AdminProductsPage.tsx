@@ -88,6 +88,9 @@ export const AdminProductsPage = ({ layoutMode }: { layoutMode: EffectiveLayout 
 
   const gridBody = (
     <>
+      <span className={`${cx.badge} mt-4 inline-block bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400`}>
+        Local test data
+      </span>
       <div className="mt-4 flex items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 shadow-sm">
         <Search size={16} className="shrink-0" style={{ color: MUTED }} />
         <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search this catalog..."

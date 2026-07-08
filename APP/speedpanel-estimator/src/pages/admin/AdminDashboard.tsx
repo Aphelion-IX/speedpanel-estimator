@@ -1,6 +1,7 @@
 import { Package, Layers, FileText, ClipboardList } from "lucide-react";
 import { cx, BLUE, NAVY } from "../../styleTokens";
 import { PlaceholderPage } from "../PlaceholderPage";
+import { BackendStatusCard } from "./BackendStatusCard";
 import type { AdminSubPage } from "../../appShell/useHashRoute";
 
 const ADMIN_SECTIONS: { key: AdminSubPage; label: string; description: string; icon: React.ReactNode }[] = [
@@ -29,5 +30,6 @@ export const AdminDashboard = ({ onNavigate }: { onNavigate: (sub: AdminSubPage)
         </button>
       ))}
     </div>
+    <BackendStatusCard />
   </PlaceholderPage>
 );
