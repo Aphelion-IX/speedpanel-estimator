@@ -260,7 +260,11 @@ set search_path = public
 as $$
   select exists (select 1 from profiles where id = auth.uid() and role = 'admin');
 $$;
-revoke execute on function public.is_admin() from public;
+-- "from public" alone is NOT sufficient on Supabase -- it grants EXECUTE to
+-- anon/authenticated by default on every newly created function as its own
+-- separate grant, unaffected by revoking from PUBLIC (confirmed via the
+-- security advisor after first deploying this without the explicit "anon").
+revoke execute on function public.is_admin() from public, anon;
 grant execute on function public.is_admin() to authenticated;
 
 create policy "Owners and admins can read projects" on projects
@@ -298,7 +302,13 @@ declare
 begin
   select owner_id, stage into v_owner, v_stage from projects where id = p_project_id for update;
   if v_owner is null then raise exception 'Project not found'; end if;
-  if v_owner <> auth.uid() then raise exception 'Not authorized'; end if;
+  -- "is distinct from" (not "<>") -- auth.uid() is null for an anonymous
+  -- caller, and "v_owner <> null" evaluates to null, which plpgsql's `if`
+  -- silently treats as false, bypassing this check entirely. Caught via
+  -- Supabase's security advisor after deploying: these functions are also
+  -- explicitly revoked from `anon` below as defense in depth, but this check
+  -- must be correct on its own regardless of grants.
+  if v_owner is distinct from auth.uid() then raise exception 'Not authorized'; end if;
   if v_stage <> 'draft' then raise exception 'Install review can only be requested from Draft'; end if;
 
   update projects set stage = 'install_review', install_review_status = 'pending', updated_at = now()
@@ -360,7 +370,9 @@ begin
   select owner_id, stage, install_review_status into v_owner, v_stage, v_install_status
     from projects where id = p_project_id for update;
   if v_owner is null then raise exception 'Project not found'; end if;
-  if v_owner <> auth.uid() then raise exception 'Not authorized'; end if;
+  -- Same "is distinct from" fix as request_install_review above -- <> against
+  -- a null auth.uid() (anonymous caller) silently bypasses the check.
+  if v_owner is distinct from auth.uid() then raise exception 'Not authorized'; end if;
   if v_stage <> 'draft' then raise exception 'Technical review can only be requested from Draft'; end if;
   -- install_review_status is nullable (never requested yet) -- "is distinct
   -- from" (not "<>") is required here so a null value is correctly treated
@@ -408,10 +420,12 @@ begin
 end;
 $$;
 
-revoke execute on function public.request_install_review(uuid) from public;
-revoke execute on function public.review_install(uuid, text, text) from public;
-revoke execute on function public.request_technical_review(uuid) from public;
-revoke execute on function public.review_technical(uuid, text, text) from public;
+-- Same "revoke from anon" reasoning as is_admin() above -- Supabase's
+-- default privileges made all four of these callable by anon too.
+revoke execute on function public.request_install_review(uuid) from public, anon;
+revoke execute on function public.review_install(uuid, text, text) from public, anon;
+revoke execute on function public.request_technical_review(uuid) from public, anon;
+revoke execute on function public.review_technical(uuid, text, text) from public, anon;
 grant execute on function public.request_install_review(uuid) to authenticated;
 grant execute on function public.review_install(uuid, text, text) to authenticated;
 grant execute on function public.request_technical_review(uuid) to authenticated;
