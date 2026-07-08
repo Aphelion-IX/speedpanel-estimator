@@ -2,15 +2,15 @@
 // Projects -- "Request a Quote" form
 // =============================================================================
 // Public, anonymous submission form (no sign-in) that writes to the requests
-// table via src/lib/requestsClient.ts's submitRequest. Fails closed when
-// Supabase isn't configured -- never renders a form that would silently
-// fail. The "attach my
+// table via src/lib/requestsClient.ts's submitRequest. submitRequest already
+// returns a user-facing error string when Supabase isn't configured, so the
+// form itself doesn't need to pre-check that -- it just surfaces whatever
+// error comes back on submit. The "attach my
 // project" checkbox reads wallStore.ts's PersistedProject once on mount via
 // loadProject() and, if checked, sends it as-is in project_snapshot.
 // =============================================================================
 import { useState } from "react";
-import { cx, NAVY, BLUE, WHITE, MUTED } from "../styleTokens";
-import { isSupabaseConfigured } from "../lib/supabaseClient";
+import { cx, NAVY, BLUE, WHITE } from "../styleTokens";
 import { submitRequest } from "../lib/requestsClient";
 import { loadProject, type PersistedProject } from "../wallStore";
 import { Field, TextAreaField } from "./shared/fields";
@@ -25,17 +25,6 @@ export const ProjectsPage = () => {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
-
-  if (!isSupabaseConfigured) {
-    return (
-      <div className={`${cx.card} mt-6`}>
-        <h1 className="text-lg font-bold" style={{ color: NAVY }}>Requests aren't available</h1>
-        <p className="mt-2 text-sm" style={{ color: MUTED }}>
-          Requests aren't configured for this environment. Set VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY to enable quote requests.
-        </p>
-      </div>
-    );
-  }
 
   if (success) {
     return (
