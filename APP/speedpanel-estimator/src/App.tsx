@@ -22,7 +22,6 @@ import { AdminProductsPage } from "./pages/admin/AdminProductsPage";
 import { AdminSystemsPage } from "./pages/admin/AdminSystemsPage";
 import { AdminDocumentsPage } from "./pages/admin/AdminDocumentsPage";
 import { AdminRequestsPage } from "./pages/admin/AdminRequestsPage";
-import { AdminGate } from "./pages/admin/AdminGate";
 
 export type WallSystemId = "standard" | "corner" | "shaft";
 
@@ -91,7 +90,7 @@ export default function SpeedpanelEstimator() {
         {route.tab === "projects"  && <ProjectsPage />}
 
         {route.tab === "admin" && (
-          <AdminGate>
+          <div className="mt-6">
             {route.sub === "dashboard" && (
               <AdminDashboard onNavigate={sub => navigate({ tab: "admin", sub })} />
             )}
@@ -110,7 +109,7 @@ export default function SpeedpanelEstimator() {
                 {route.sub === "requests"  && <AdminRequestsPage />}
               </>
             )}
-          </AdminGate>
+          </div>
         )}
 
         {/* System configuration + calculator body */}
