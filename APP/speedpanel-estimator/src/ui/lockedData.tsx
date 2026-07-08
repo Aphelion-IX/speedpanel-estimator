@@ -7,7 +7,7 @@
 // table (see ./data).
 // =============================================================================
 import { useState } from "react";
-import { ChevronDown, Lock } from "lucide-react";
+import { ChevronDown, Lock, FileSpreadsheet } from "lucide-react";
 import { cx } from "../styleTokens";
 import { INT_LOCKED, EXT_LOCKED } from "../data";
 
@@ -28,10 +28,13 @@ export const LockedDataExt = () => <div className={cx.ldWrap}>{EXT_LOCKED.map((r
 
 // --- LockedDataFooter ----------------------------------------------------------
 // Calculator footer shared by Internal/External: a "Locked system data"
-// accordion (title + one of the tables above) followed by the Export PDF
-// button. Owns its own open/closed state -- neither calculator needs it
-// for anything else.
-export const LockedDataFooter = ({ title, table }: { title: string; table: React.ReactNode }) => {
+// accordion (title + one of the tables above) followed by the Export to
+// Excel button. Owns its own open/closed state -- neither calculator needs
+// it for anything else. onExport is omitted (or the button disabled) when
+// there's nothing yet to export.
+export const LockedDataFooter = ({ title, table, onExport, disabled }: {
+  title: string; table: React.ReactNode; onExport?: () => void; disabled?: boolean;
+}) => {
   const [open, setOpen] = useState(false);
   return (
     <>
@@ -40,7 +43,13 @@ export const LockedDataFooter = ({ title, table }: { title: string; table: React
         <ChevronDown size={16} className={`text-blue-300 dark:text-blue-700 transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
       {open && table}
-      <button className={cx.exportBtn}>Export PDF</button>
+      {disabled || !onExport ? (
+        <button disabled className={cx.exportBtnDisabled}>Export to Excel</button>
+      ) : (
+        <button onClick={onExport} className={cx.exportBtn}>
+          <FileSpreadsheet size={16} /> Export to Excel
+        </button>
+      )}
     </>
   );
 };

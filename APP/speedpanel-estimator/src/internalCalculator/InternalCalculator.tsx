@@ -36,6 +36,8 @@ import {
 import type { FinishKey, CornersField } from "../ui/wallConfig";
 import { PanelScheduleCard, PanelScheduleTable, ConnectionBreakdownCard } from "../ui/scheduleCards";
 import { SingleWallEstimateSection, SystemBreakdownSection, EasyToOrderSection } from "./mainSections";
+import { buildInternalReportData } from "../export/buildInternalReportData";
+import { exportEstimateToExcel } from "../export/exportEstimateToExcel";
 
 export function InternalCalculator({ store, orient, dimUnit, setDimUnit, systemSelector, layoutMode, mode, setMode, showWall, setShowWall, linkCornerPartner, linkShaftPartner }: {
   store: WallStore; orient: "vertical" | "horizontal"; dimUnit: string;
@@ -175,7 +177,16 @@ export function InternalCalculator({ store, orient, dimUnit, setDimUnit, systemS
     </>
   );
 
-  const footerNode = <LockedDataFooter title="Locked system data" table={<LockedDataInt />} />;
+  const hasExportData = project
+    ? !!(projChosenAgg && projChosenAgg.totalPanels > 0)
+    : !(out.empty || !out.chosen || out.chosen.invalid);
+  const handleExport = () => exportEstimateToExcel(buildInternalReportData({
+    mode, orient, dimUnit, toDisp, walls, results, warnById, active, out,
+    projChosenAgg, combinedEstimate, cornerPair, shaftPair,
+  }));
+  const footerNode = (
+    <LockedDataFooter title="Locked system data" table={<LockedDataInt />} onExport={handleExport} disabled={!hasExportData} />
+  );
 
   if (layoutMode === "phone") return <>{sidebarNode}{mainNode}{footerNode}</>;
   return <CalculatorShell sidebar={sidebarNode} main={mainNode} footer={footerNode} />;
