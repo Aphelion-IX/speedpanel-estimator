@@ -24,6 +24,10 @@
 //      - the External hardcoded "P78" badge (App.tsx ExternalCalculator)
 // =============================================================================
 
+import { loadMathConstants } from "./mathConstants";
+
+const MATH = loadMathConstants();
+
 // --- Panel catalog ------------------------------------------------------------
 export type PanelType = 51 | 64 | 78;
 
@@ -152,29 +156,32 @@ export const typeFromPackSize = (packSize: number): number =>
   PANELS.find(p => p.pack === packSize)?.type ?? 78;
 
 // --- Internal system constants ------------------------------------------------
-export const PANEL_WIDTH = 0.25;
-export const STOCK_WASTE_THRESHOLD = 0.20;
-export const STOCK_LENGTHS = [2.8, 3.0, 3.3, 3.6, 4.0, 4.2, 4.5, 4.8, 5.2, 6.0];
-export const FLASH_STOCK = 3.0;
-export const FIX_PER_BOX = 1000;
-export const HORIZ_CTRACK_STOCK = 6.0;
-export const JTRACK_STOCK = [6.0, 3.6, 3.0];
-export const SEALANT_M2_PER_SAUSAGE = 4;
-export const SEALANT_PER_BOX = 20;
+// Values sourced from mathConstants.ts (defaults, or an admin-saved override
+// from localStorage -- see Admin > Maths / AdminMathsPage.tsx). Read once at
+// module load; every import site below is unaffected by that indirection.
+export const PANEL_WIDTH = MATH.PANEL_WIDTH;
+export const STOCK_WASTE_THRESHOLD = MATH.STOCK_WASTE_THRESHOLD;
+export const STOCK_LENGTHS = MATH.STOCK_LENGTHS;
+export const FLASH_STOCK = MATH.FLASH_STOCK;
+export const FIX_PER_BOX = MATH.FIX_PER_BOX;
+export const HORIZ_CTRACK_STOCK = MATH.HORIZ_CTRACK_STOCK;
+export const JTRACK_STOCK = MATH.JTRACK_STOCK;
+export const SEALANT_M2_PER_SAUSAGE = MATH.SEALANT_M2_PER_SAUSAGE;
+export const SEALANT_PER_BOX = MATH.SEALANT_PER_BOX;
 export const FLASH_DIM = "Head track flashing 0.7 mm BMT x 130 mm GAL";
 export const EXT_HORIZ_COVER_DIM = "Horizontal external joint cover flashing";
-export const MAX_W_HORIZ = 4.5;
-export const MAX_W_HORIZ_STD_51_64 = 4.0;
-export const MAX_W_HORIZ_STACK_78 = 5.0;
-export const STEEL_MAX_H_VERT = 14.0;
-export const CUSTOM_MAX_LENGTH = 9.0;
+export const MAX_W_HORIZ = MATH.MAX_W_HORIZ;
+export const MAX_W_HORIZ_STD_51_64 = MATH.MAX_W_HORIZ_STD_51_64;
+export const MAX_W_HORIZ_STACK_78 = MATH.MAX_W_HORIZ_STACK_78;
+export const STEEL_MAX_H_VERT = MATH.STEEL_MAX_H_VERT;
+export const CUSTOM_MAX_LENGTH = MATH.CUSTOM_MAX_LENGTH;
 // Shaft wall (see estimate_shaft_wall.md section 1): widest any single stack
 // wall can be is 5.0 m (the "wider option" primary). A linked secondary's own
 // sub-limit (2.5 m standard split / 2.0 m wider option) is shown as a note
 // rather than hard-enforced here, since primary vs secondary isn't tracked as
 // a distinct role -- shaftPartnerId only records that two walls are linked.
-export const SHAFT_MAX_W = 5.0;
-export const SHAFT_MAX_F = 6.0;
+export const SHAFT_MAX_W = MATH.SHAFT_MAX_W;
+export const SHAFT_MAX_F = MATH.SHAFT_MAX_F;
 
 // Shared profile info-note copy (used in both internal and external dimension cards)
 export const RAKE_NOTE = "Raked: H = leftH + (rightH - leftH) x (x / W). Estimated only.";
@@ -182,16 +189,16 @@ export const HEAD_FLASH_LABEL = "Head track flashing";
 export const HEAD_FLASH_SUBLABEL = "(0.7 mm BMT x 130 mm GAL)";
 
 // --- External system constants ------------------------------------------------
-export const EXT_STOCK = [3.0, 3.6, 4.2, 4.5, 5.0, 6.0];
-export const EXT_PACK = 14;
-export const EXT_SEALANT_M2 = 2;
-export const EXT_SEALANT_PER_BOX = 20;
-export const EXT_ZFLASH_STOCK = 3.0;
-export const EXT_JTRACK_STOCK = [3.0, 3.6, 6.0];
-export const EXT_CTRACK_STOCK = [3.0, 3.6, 6.0];
-export const EXT_MAX_H_VERT = 6.0;
-export const EXT_MAX_W_HORIZ = 4.5;
-export const EXT_MAX_W_HORIZ_STACK = 5.0;
+export const EXT_STOCK = MATH.EXT_STOCK;
+export const EXT_PACK = MATH.EXT_PACK;
+export const EXT_SEALANT_M2 = MATH.EXT_SEALANT_M2;
+export const EXT_SEALANT_PER_BOX = MATH.EXT_SEALANT_PER_BOX;
+export const EXT_ZFLASH_STOCK = MATH.EXT_ZFLASH_STOCK;
+export const EXT_JTRACK_STOCK = MATH.EXT_JTRACK_STOCK;
+export const EXT_CTRACK_STOCK = MATH.EXT_CTRACK_STOCK;
+export const EXT_MAX_H_VERT = MATH.EXT_MAX_H_VERT;
+export const EXT_MAX_W_HORIZ = MATH.EXT_MAX_W_HORIZ;
+export const EXT_MAX_W_HORIZ_STACK = MATH.EXT_MAX_W_HORIZ_STACK;
 export const EXT_CTRACK_DIM = "55 x 82 x 55 - 1.15 BMT";
 export const EXT_JTRACK_DIM = "J-track 1.15 BMT - weep holes @ 250 mm";
 export const EXT_ZFLASH_DIM = "Z-Flashing 78 mm - 0.7 mm BMT (Coloured)";
