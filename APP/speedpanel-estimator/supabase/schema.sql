@@ -195,3 +195,224 @@ create policy "Admins can update requests" on requests
   ) with check (
     exists (select 1 from profiles where id = auth.uid() and role = 'admin')
   );
+
+-- =============================================================================
+-- Saved projects: builder + stage tracker
+-- =============================================================================
+-- Authenticated users (see profiles above) save/reopen named estimator
+-- projects here. `data` is the wallStore.ts PersistedProject snapshot extended
+-- with the view-state fields from appShell/session.ts (system/mode/dimUnit),
+-- stored as-is/unvalidated with its own "v" field for forward compatibility --
+-- same convention as requests.project_snapshot above.
+--
+-- Stage is a simple linear state machine: draft -> install_review ->
+-- technical_review -> approved. Customers request a review from draft; admins
+-- approve (advances the stage) or request changes (bounces back to draft with
+-- a note). Unlike requests.status (a flat 3-value enum with no history), this
+-- needs an audit trail (who requested/actioned what, when, with what note --
+-- see project_stage_events) and transition ordering that a plain check
+-- constraint or RLS policy can't express, since RLS only ever sees the new
+-- row, not the old one. Every transition therefore goes through one of the
+-- four security definer functions below rather than a raw client-side update
+-- -- the "Owners and admins can update projects" policy intentionally covers
+-- name/data/deleted_at edits only; the functions bypass it (as security
+-- definer) after validating the transition themselves.
+-- =============================================================================
+
+create table if not exists projects (
+  id uuid primary key default gen_random_uuid(),
+  owner_id uuid not null references auth.users (id) on delete cascade,
+  name text not null,
+  data jsonb not null,
+  stage text not null default 'draft' check (stage in ('draft', 'install_review', 'technical_review', 'approved')),
+  install_review_status text check (install_review_status in ('pending', 'approved', 'changes_requested')),
+  install_review_note text,
+  technical_review_status text check (technical_review_status in ('pending', 'approved', 'changes_requested')),
+  technical_review_note text,
+  deleted_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+-- Insert-only audit trail -- never updated, one row per stage transition.
+create table if not exists project_stage_events (
+  id uuid primary key default gen_random_uuid(),
+  project_id uuid not null references projects (id) on delete cascade,
+  actor_id uuid references auth.users (id),
+  event_type text not null check (event_type in (
+    'install_review_requested', 'install_review_approved', 'install_review_changes_requested',
+    'technical_review_requested', 'technical_review_approved', 'technical_review_changes_requested'
+  )),
+  note text,
+  created_at timestamptz not null default now()
+);
+
+alter table projects enable row level security;
+alter table project_stage_events enable row level security;
+
+-- Shared admin check -- DRYs up the "exists (select 1 from profiles ...)"
+-- subquery the requests policies above repeat inline. Security definer so it
+-- reliably evaluates against the profiles table regardless of the calling
+-- context (e.g. nested inside another table's RLS policy).
+create or replace function public.is_admin() returns boolean
+language sql security definer stable
+set search_path = public
+as $$
+  select exists (select 1 from profiles where id = auth.uid() and role = 'admin');
+$$;
+revoke execute on function public.is_admin() from public;
+grant execute on function public.is_admin() to authenticated;
+
+create policy "Owners and admins can read projects" on projects
+  for select using (auth.uid() = owner_id or public.is_admin());
+
+create policy "Owners can create their own projects" on projects
+  for insert with check (auth.uid() = owner_id);
+
+create policy "Owners and admins can update projects" on projects
+  for update using (auth.uid() = owner_id or public.is_admin())
+  with check (auth.uid() = owner_id or public.is_admin());
+
+create policy "Owners and admins can read project stage events" on project_stage_events
+  for select using (
+    exists (select 1 from projects where projects.id = project_id and (projects.owner_id = auth.uid() or public.is_admin()))
+  );
+
+-- No insert/update/delete policy on project_stage_events -- rows are only
+-- ever created by the security definer functions below, which bypass RLS.
+
+-- --- Stage-transition functions -----------------------------------------------
+-- Each is security definer so it can (a) validate the CURRENT stage
+-- server-side before allowing a transition -- which a plain RLS policy can't
+-- express, since it only ever sees the new row -- and (b) force
+-- actor_id = auth.uid() rather than trust a client-supplied value.
+
+create or replace function public.request_install_review(p_project_id uuid)
+returns void
+language plpgsql security definer
+set search_path = public
+as $$
+declare
+  v_owner uuid;
+  v_stage text;
+begin
+  select owner_id, stage into v_owner, v_stage from projects where id = p_project_id for update;
+  if v_owner is null then raise exception 'Project not found'; end if;
+  if v_owner <> auth.uid() then raise exception 'Not authorized'; end if;
+  if v_stage <> 'draft' then raise exception 'Install review can only be requested from Draft'; end if;
+
+  update projects set stage = 'install_review', install_review_status = 'pending', updated_at = now()
+    where id = p_project_id;
+  insert into project_stage_events (project_id, actor_id, event_type)
+    values (p_project_id, auth.uid(), 'install_review_requested');
+end;
+$$;
+
+create or replace function public.review_install(p_project_id uuid, p_decision text, p_note text default null)
+returns void
+language plpgsql security definer
+set search_path = public
+as $$
+declare
+  v_stage text;
+begin
+  if not public.is_admin() then raise exception 'Not authorized'; end if;
+  -- p_decision is a plain function argument (no NOT NULL enforced at the SQL
+  -- level) -- coalesce guards a null argument the same way the "is distinct
+  -- from" fix above guards a nullable column, so this rejects rather than
+  -- silently falls through to the "changes_requested" branch below.
+  if coalesce(p_decision, '') not in ('approved', 'changes_requested') then raise exception 'Invalid decision'; end if;
+
+  select stage into v_stage from projects where id = p_project_id for update;
+  if v_stage is null then raise exception 'Project not found'; end if;
+  if v_stage <> 'install_review' then raise exception 'Project is not awaiting install review'; end if;
+
+  if p_decision = 'approved' then
+    -- Back to draft, NOT straight to technical_review -- approving install
+    -- review only clears the way for the customer to request a technical
+    -- review next (see request_technical_review's own stage='draft' check
+    -- below); it doesn't request it on their behalf. Two explicit customer
+    -- actions (request install review, request technical review), not one
+    -- auto-chained on approval.
+    update projects set stage = 'draft', install_review_status = 'approved', updated_at = now()
+      where id = p_project_id;
+    insert into project_stage_events (project_id, actor_id, event_type, note)
+      values (p_project_id, auth.uid(), 'install_review_approved', p_note);
+  else
+    update projects set stage = 'draft', install_review_status = 'changes_requested', install_review_note = p_note, updated_at = now()
+      where id = p_project_id;
+    insert into project_stage_events (project_id, actor_id, event_type, note)
+      values (p_project_id, auth.uid(), 'install_review_changes_requested', p_note);
+  end if;
+end;
+$$;
+
+create or replace function public.request_technical_review(p_project_id uuid)
+returns void
+language plpgsql security definer
+set search_path = public
+as $$
+declare
+  v_owner uuid;
+  v_stage text;
+  v_install_status text;
+begin
+  select owner_id, stage, install_review_status into v_owner, v_stage, v_install_status
+    from projects where id = p_project_id for update;
+  if v_owner is null then raise exception 'Project not found'; end if;
+  if v_owner <> auth.uid() then raise exception 'Not authorized'; end if;
+  if v_stage <> 'draft' then raise exception 'Technical review can only be requested from Draft'; end if;
+  -- install_review_status is nullable (never requested yet) -- "is distinct
+  -- from" (not "<>") is required here so a null value is correctly treated
+  -- as "not approved" rather than making the whole comparison null, which
+  -- plpgsql's `if` silently treats as false (i.e. <> would let this through).
+  if v_install_status is distinct from 'approved' then raise exception 'Install review must be approved first'; end if;
+
+  update projects set stage = 'technical_review', technical_review_status = 'pending', updated_at = now()
+    where id = p_project_id;
+  insert into project_stage_events (project_id, actor_id, event_type)
+    values (p_project_id, auth.uid(), 'technical_review_requested');
+end;
+$$;
+
+create or replace function public.review_technical(p_project_id uuid, p_decision text, p_note text default null)
+returns void
+language plpgsql security definer
+set search_path = public
+as $$
+declare
+  v_stage text;
+begin
+  if not public.is_admin() then raise exception 'Not authorized'; end if;
+  -- p_decision is a plain function argument (no NOT NULL enforced at the SQL
+  -- level) -- coalesce guards a null argument the same way the "is distinct
+  -- from" fix above guards a nullable column, so this rejects rather than
+  -- silently falls through to the "changes_requested" branch below.
+  if coalesce(p_decision, '') not in ('approved', 'changes_requested') then raise exception 'Invalid decision'; end if;
+
+  select stage into v_stage from projects where id = p_project_id for update;
+  if v_stage is null then raise exception 'Project not found'; end if;
+  if v_stage <> 'technical_review' then raise exception 'Project is not awaiting technical review'; end if;
+
+  if p_decision = 'approved' then
+    update projects set stage = 'approved', technical_review_status = 'approved', updated_at = now()
+      where id = p_project_id;
+    insert into project_stage_events (project_id, actor_id, event_type, note)
+      values (p_project_id, auth.uid(), 'technical_review_approved', p_note);
+  else
+    update projects set stage = 'draft', technical_review_status = 'changes_requested', technical_review_note = p_note, updated_at = now()
+      where id = p_project_id;
+    insert into project_stage_events (project_id, actor_id, event_type, note)
+      values (p_project_id, auth.uid(), 'technical_review_changes_requested', p_note);
+  end if;
+end;
+$$;
+
+revoke execute on function public.request_install_review(uuid) from public;
+revoke execute on function public.review_install(uuid, text, text) from public;
+revoke execute on function public.request_technical_review(uuid) from public;
+revoke execute on function public.review_technical(uuid, text, text) from public;
+grant execute on function public.request_install_review(uuid) to authenticated;
+grant execute on function public.review_install(uuid, text, text) to authenticated;
+grant execute on function public.request_technical_review(uuid) to authenticated;
+grant execute on function public.review_technical(uuid, text, text) to authenticated;

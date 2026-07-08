@@ -1,21 +1,27 @@
 // =============================================================================
-// Projects -- "Request a Quote" form
+// Request a Quote
 // =============================================================================
 // Public, anonymous submission form (no sign-in) that writes to the requests
 // table via src/lib/requestsClient.ts's submitRequest. submitRequest already
 // returns a user-facing error string when Supabase isn't configured, so the
 // form itself doesn't need to pre-check that -- it just surfaces whatever
-// error comes back on submit. The "attach my
-// project" checkbox reads wallStore.ts's PersistedProject once on mount via
-// loadProject() and, if checked, sends it as-is in project_snapshot.
+// error comes back on submit. The "attach my project" checkbox reads
+// wallStore.ts's device-local PersistedProject once on mount via
+// loadProject() and, if checked, sends it as-is in project_snapshot. This
+// used to live at the "Projects" tab/route -- that's now the saved-projects
+// feature (see ../projects/), so this moved to its own "Request a Quote" tab.
+// A project's detail page can still reach this: "Request a quote" there
+// stages that project's data into the same device-local PROJECT_KEY slot
+// before navigating here, so this form's loadProject() call picks it up
+// unmodified -- see ProjectDetailPage.tsx.
 // =============================================================================
 import { useState } from "react";
-import { cx, NAVY, BLUE, WHITE } from "../styleTokens";
-import { submitRequest } from "../lib/requestsClient";
-import { loadProject, type PersistedProject } from "../wallStore";
-import { Field, TextAreaField } from "./shared/fields";
+import { cx, NAVY, BLUE, WHITE } from "../../styleTokens";
+import { submitRequest } from "../../lib/requestsClient";
+import { loadProject, type PersistedProject } from "../../wallStore";
+import { Field, TextAreaField } from "../shared/fields";
 
-export const ProjectsPage = () => {
+export const QuoteRequestPage = () => {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");

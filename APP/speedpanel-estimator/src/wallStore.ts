@@ -49,6 +49,24 @@ export interface PersistedProject {
   customActive: boolean;
 }
 
+// Stage a project snapshot into the device-local slot without going through
+// the store hook -- used by ProjectDetailPage.tsx's "Request a quote" button
+// so QuoteRequestPage.tsx's existing, unmodified loadProject() call picks up
+// that specific project's data (the hash router has no query-string support
+// to pass an id directly).
+export function saveProjectLocally(data: PersistedProject) {
+  if (typeof window === "undefined") return;
+  try { window.localStorage.setItem(PROJECT_KEY, JSON.stringify(data)); } catch { /* ignore quota/serialization errors */ }
+}
+
+// Backfill orient for walls saved before orientation became per-wall --
+// shared by loadProject() (device-local) and useWallStore's loadFrom()
+// (Supabase-saved projects), since both read a PersistedProject-shaped
+// payload that may predate that field.
+export function backfillOrient(walls: Wall[]): Wall[] {
+  return walls.map(w => ({ ...w, orient: w.orient ?? "vertical" }));
+}
+
 export function loadProject(): PersistedProject | null {
   if (typeof window === "undefined") return null;
   try {
@@ -56,15 +74,21 @@ export function loadProject(): PersistedProject | null {
     if (!raw) return null;
     const p = JSON.parse(raw);
     if (!p || p.v !== 1 || !Array.isArray(p.walls) || p.walls.length === 0) return null;
-    // Backfill orient for projects saved before orientation became per-wall.
-    p.walls = p.walls.map((w: Wall) => ({ ...w, orient: w.orient ?? "vertical" }));
+    p.walls = backfillOrient(p.walls);
     return p as PersistedProject;
   } catch {
     return null;
   }
 }
 
-export function useWallStore({ dimUnit, onWallAdded }: { dimUnit: string; onWallAdded?: () => void }) {
+// persistLocally: false when a saved (Supabase) project is currently open --
+// see App.tsx's openProjectId. In that state, autosaving every keystroke to
+// the single device-local PROJECT_KEY slot would blur the line between "this
+// device's anonymous scratch project" and "this account's saved project";
+// saving the latter instead happens explicitly, via the Save affordance
+// calling exportSnapshot() + saveProjectSnapshot(). Defaults to true so
+// existing signed-out/no-project usage of the Estimator tab is unchanged.
+export function useWallStore({ dimUnit, onWallAdded, persistLocally = true }: { dimUnit: string; onWallAdded?: () => void; persistLocally?: boolean }) {
   const saved = loadProject();
   const [walls, setWalls]               = useState<Wall[]>(() => saved ? saved.walls : [defaultWall(1)]);
   const [activeId, setActiveId]         = useState(() => saved ? saved.activeId : 1);
@@ -74,14 +98,15 @@ export function useWallStore({ dimUnit, onWallAdded }: { dimUnit: string; onWall
   const [customLengthInput, setCustomLengthInput] = useState(() => saved ? saved.customLengthInput : "");
   const [customActive, setCustomActive] = useState(() => saved ? saved.customActive : false);
 
-  // Persist the whole project to the device on any change.
+  // Persist the whole project to the device on any change (unless a saved
+  // Supabase project is currently open -- see persistLocally above).
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    if (typeof window === "undefined" || !persistLocally) return;
     const payload: PersistedProject = {
       v: 1, walls, activeId, nextId, projectStock, projectLock, customLengthInput, customActive,
     };
     try { window.localStorage.setItem(PROJECT_KEY, JSON.stringify(payload)); } catch { /* ignore quota/serialization errors */ }
-  }, [walls, activeId, nextId, projectStock, projectLock, customLengthInput, customActive]);
+  }, [walls, activeId, nextId, projectStock, projectLock, customLengthInput, customActive, persistLocally]);
 
   const active = walls.find(w => w.id === activeId) || walls[0];
   const update = (patch: Partial<Wall>) =>
@@ -192,6 +217,28 @@ export function useWallStore({ dimUnit, onWallAdded }: { dimUnit: string; onWall
   // typed value (e.g. "7200" entered in mm mode) doesn't linger in m mode.
   const clearCustomLength = () => { setCustomLengthInput(""); setCustomActive(false); };
 
+  // --- Saved-project integration (src/pages/projects/) ------------------------
+  // loadFrom replaces the in-memory state wholesale from a saved project's
+  // snapshot -- same full-state-replacement shape as resetWalls, but from a
+  // given payload instead of a blank wall. exportSnapshot reads the current
+  // in-memory state back out in the same shape, for an explicit Save action
+  // (as opposed to persistLocally's automatic device-local save). Kept
+  // symmetric with loadProject()'s own orient-backfill so snapshots saved
+  // before orientation became per-wall still load correctly here too.
+  const loadFrom = (data: PersistedProject) => {
+    setWalls(backfillOrient(data.walls));
+    setActiveId(data.activeId);
+    setNextId(data.nextId);
+    setProjectStock(data.projectStock);
+    setProjectLock(data.projectLock);
+    setCustomLengthInput(data.customLengthInput);
+    setCustomActive(data.customActive);
+  };
+
+  const exportSnapshot = (): PersistedProject => ({
+    v: 1, walls, activeId, nextId, projectStock, projectLock, customLengthInput, customActive,
+  });
+
   // Symmetric junction linking (see Wall.junctionPartnerId): marks two walls as
   // physically adjoining for the combined estimate's connection/junction
   // material calculation (src/estimate/calculateConnectionMaterials.ts). Lives
@@ -218,7 +265,7 @@ export function useWallStore({ dimUnit, onWallAdded }: { dimUnit: string; onWall
     setProjectLength, projectForcedStock,
     addBlankWall, duplicateWall, deleteWall,
     commitCustomLength, toggleCustom, resetWalls, clearCustomLength,
-    linkJunctionPartner,
+    linkJunctionPartner, loadFrom, exportSnapshot,
   };
 }
 

@@ -1,25 +1,26 @@
 // =============================================================================
 // Top navigation
 // =============================================================================
-// Logo + the app's top-level feature tabs. Projects and Admin are
-// placeholder routes for now (see src/pages), wired up to the hash router
-// so their URLs are deep-linkable on GitHub Pages -- see App.tsx. `right`
+// Logo + the app's top-level feature tabs, wired up to the hash router so
+// their URLs are deep-linkable on GitHub Pages -- see App.tsx. `right`
 // renders the theme/layout/reset controls passed down from the root
 // component, plus a hamburger menu that only appears below the sm
-// breakpoint. No notification bell / profile dropdown -- this app has no
-// accounts to attach them to.
+// breakpoint. No notification bell / profile dropdown -- sign-in state is
+// surfaced inside the Projects tab itself (see pages/projects/SignInGate.tsx),
+// not up here.
 // =============================================================================
 import { useState } from "react";
 import { Menu, X } from "lucide-react";
 import { BLUE, WHITE } from "../styleTokens";
 
-export type TopNavTab = "estimator" | "selector" | "education" | "projects" | "admin";
+export type TopNavTab = "estimator" | "selector" | "education" | "projects" | "quote" | "admin";
 
 const TOP_NAV_ITEMS: { key: TopNavTab; label: string }[] = [
   { key: "estimator", label: "System Estimator" },
   { key: "selector",  label: "System Selector" },
   { key: "education", label: "Education Hub" },
   { key: "projects",  label: "Projects" },
+  { key: "quote",     label: "Request a Quote" },
   { key: "admin",     label: "Admin" },
 ];
 
