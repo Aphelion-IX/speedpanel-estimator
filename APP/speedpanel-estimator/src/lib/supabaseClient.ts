@@ -1,10 +1,15 @@
 // =============================================================================
-// Supabase client -- foundation only
+// Supabase client
 // =============================================================================
-// Not wired to anything yet: Admin > Products keeps reading/writing
-// localStorage exactly as before (see src/pages/admin/products/productStore.ts).
-// `supabase` is null whenever the env vars below aren't set, so importing this
-// file is always safe -- nothing here throws on a missing configuration.
+// `supabase` is null whenever the env vars below aren't set OR are malformed,
+// so importing this file is always safe -- nothing here throws. This module
+// is imported (transitively) by App.tsx for every route, not just Admin --
+// there's no code-splitting, so a throw here would blank the entire site, not
+// just the admin pages. createClient() itself throws synchronously on a
+// malformed URL (e.g. missing "https://", or accidentally pasted with
+// surrounding quotes -- an easy mistake when pasting into a GitHub secret
+// box), so its call is wrapped rather than trusted to always succeed just
+// because both env vars are present.
 // Publishable/anon key only -- never a service-role/secret key, which must
 // never be exposed to a browser bundle.
 // =============================================================================
@@ -13,7 +18,16 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 const url = import.meta.env.VITE_SUPABASE_URL;
 const publishableKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
-export const supabase: SupabaseClient | null =
-  url && publishableKey ? createClient(url, publishableKey) : null;
+function createSupabaseClient(): SupabaseClient | null {
+  if (!url || !publishableKey) return null;
+  try {
+    return createClient(url, publishableKey);
+  } catch (err) {
+    console.error("Supabase client failed to initialize -- check VITE_SUPABASE_URL/VITE_SUPABASE_PUBLISHABLE_KEY for stray quotes/whitespace or a missing protocol.", err);
+    return null;
+  }
+}
+
+export const supabase: SupabaseClient | null = createSupabaseClient();
 
 export const isSupabaseConfigured = supabase !== null;
