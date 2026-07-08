@@ -22,6 +22,7 @@ import { AdminProductsPage } from "./pages/admin/AdminProductsPage";
 import { AdminSystemsPage } from "./pages/admin/AdminSystemsPage";
 import { AdminDocumentsPage } from "./pages/admin/AdminDocumentsPage";
 import { AdminRequestsPage } from "./pages/admin/AdminRequestsPage";
+import { AdminGate } from "./pages/admin/AdminGate";
 
 export type WallSystemId = "standard" | "corner" | "shaft";
 
@@ -89,23 +90,27 @@ export default function SpeedpanelEstimator() {
         {route.tab === "education" && <EducationHub layoutMode={layoutMode} />}
         {route.tab === "projects"  && <ProjectsPage />}
 
-        {route.tab === "admin" && route.sub === "dashboard" && (
-          <AdminDashboard onNavigate={sub => navigate({ tab: "admin", sub })} />
-        )}
-        {route.tab === "admin" && route.sub !== "dashboard" && (
-          <>
-            <button
-              onClick={() => navigate({ tab: "admin", sub: "dashboard" })}
-              className="mt-6 text-sm font-semibold hover:underline"
-              style={{ color: BLUE }}
-            >
-              &larr; Back to Admin
-            </button>
-            {route.sub === "products"  && <AdminProductsPage layoutMode={layoutMode} />}
-            {route.sub === "systems"   && <AdminSystemsPage />}
-            {route.sub === "documents" && <AdminDocumentsPage />}
-            {route.sub === "requests"  && <AdminRequestsPage />}
-          </>
+        {route.tab === "admin" && (
+          <AdminGate>
+            {route.sub === "dashboard" && (
+              <AdminDashboard onNavigate={sub => navigate({ tab: "admin", sub })} />
+            )}
+            {route.sub !== "dashboard" && (
+              <>
+                <button
+                  onClick={() => navigate({ tab: "admin", sub: "dashboard" })}
+                  className="text-sm font-semibold hover:underline"
+                  style={{ color: BLUE }}
+                >
+                  &larr; Back to Admin
+                </button>
+                {route.sub === "products"  && <AdminProductsPage layoutMode={layoutMode} />}
+                {route.sub === "systems"   && <AdminSystemsPage />}
+                {route.sub === "documents" && <AdminDocumentsPage />}
+                {route.sub === "requests"  && <AdminRequestsPage />}
+              </>
+            )}
+          </AdminGate>
         )}
 
         {/* System configuration + calculator body */}

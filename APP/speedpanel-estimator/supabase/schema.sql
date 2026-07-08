@@ -99,3 +99,50 @@ create policy "Public read access" on colours  for select using (true);
 
 -- No insert/update/delete policies yet -- writes are blocked for the anon/
 -- publishable key until an authenticated admin role exists.
+
+-- =============================================================================
+-- Admin auth: profiles + role
+-- =============================================================================
+-- One row per auth.users row, holding the admin/user role that
+-- src/lib/useAuth.ts checks to gate the Admin section (see AdminGate.tsx).
+-- Unlike the catalog tables above, this is NOT publicly readable -- a user may
+-- only read their own row, which is all the client-side role check needs.
+-- There is no signup UI; every account (and its role) is created/promoted
+-- manually, e.g.:
+--   update profiles set role = 'admin' where id = '<user-uuid>';
+-- =============================================================================
+
+create table if not exists profiles (
+  id uuid primary key references auth.users (id) on delete cascade,
+  role text not null default 'user' check (role in ('user', 'admin')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table profiles enable row level security;
+
+create policy "Users can read own profile" on profiles
+  for select using (auth.uid() = id);
+
+-- No insert/update/delete policy -- rows are created only by the trigger
+-- below (as security definer) and promoted to admin only via the SQL editor/
+-- service-role, never by the signed-in user themselves.
+
+-- Auto-provision a profile (default role 'user') for every new auth user, so
+-- there's never a signed-in user with no matching profiles row.
+create or replace function public.handle_new_user()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  insert into public.profiles (id) values (new.id);
+  return new;
+end;
+$$;
+
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute function public.handle_new_user();
