@@ -188,3 +188,37 @@ create policy "Admins can update requests" on requests
   ) with check (
     exists (select 1 from profiles where id = auth.uid() and role = 'admin')
   );
+
+-- =============================================================================
+-- Admin Systems -- "Locked system data" rows
+-- =============================================================================
+-- Backs src/pages/admin/systems/systemsStore.ts. One row per SystemId
+-- ('internal'/'external'), the whole LockedRow[] array stored as jsonb and
+-- replaced wholesale on every edit -- mirrors the store's existing
+-- "two whole-array replacements" model, just moved from localStorage to a
+-- real table so edits sync across sessions/devices.
+--
+-- There is no admin auth in this app anymore (the Supabase sign-in gate was
+-- removed from AdminGate.tsx), so unlike requests' read/update policies,
+-- there is no auth.uid() to check writes against. Read AND write are both
+-- open to the anon/publishable key -- anyone who can reach /#/admin can
+-- edit this table, same trust boundary the rest of the (now gate-less)
+-- Admin section already has.
+-- =============================================================================
+
+create table if not exists systems_data (
+  system_id text primary key check (system_id in ('internal', 'external')),
+  rows jsonb not null,
+  updated_at timestamptz not null default now()
+);
+
+alter table systems_data enable row level security;
+
+create policy "Public read access" on systems_data
+  for select using (true);
+
+create policy "Public write access" on systems_data
+  for insert with check (true);
+
+create policy "Public update access" on systems_data
+  for update using (true) with check (true);

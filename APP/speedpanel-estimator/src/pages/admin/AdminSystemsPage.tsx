@@ -2,8 +2,9 @@
 // Admin > Systems -- "Locked system data" staging editor
 // =============================================================================
 // Stages edits to the Internal/External "Locked system data" reference tables
-// (src/data.ts's INT_LOCKED/EXT_LOCKED), persisted to localStorage via
-// useSystemsStore -- fully decoupled from data.ts and the live calculators
+// (src/data.ts's INT_LOCKED/EXT_LOCKED), persisted via useSystemsStore to the
+// systems_data Supabase table (falling back to localStorage when Supabase
+// isn't configured) -- fully decoupled from data.ts and the live calculators
 // (see systemsStore.ts/seedFromLockedData.ts). Unlike Products/Documents,
 // this isn't a searchable collection of cards -- it's two flat ordered lists,
 // so the layout is a direct table editor (RepeatableRowEditor) plus a
@@ -16,6 +17,7 @@ import type { EffectiveLayout } from "../../useLayoutMode";
 import { LDRow } from "../../ui/lockedData";
 import { RepeatableRowEditor } from "./shared/repeatableRowEditor";
 import { useSystemsStore } from "./systems/systemsStore";
+import { isSupabaseConfigured } from "../../lib/supabaseClient";
 import type { LockedRow, SystemId } from "./systems/systemsTypes";
 
 const SYSTEM_LABEL: Record<SystemId, string> = { internal: "Internal", external: "External" };
@@ -34,16 +36,21 @@ const SystemToggle = ({ active, onChange }: { active: SystemId; onChange: (s: Sy
 );
 
 export const AdminSystemsPage = ({ layoutMode }: { layoutMode: EffectiveLayout }) => {
-  const { internal, external, setRows } = useSystemsStore();
+  const { internal, external, loading, error, setRows } = useSystemsStore();
   const [system, setSystem] = useState<SystemId>("internal");
 
   const rows = system === "internal" ? internal : external;
 
+  if (loading) {
+    return <div className={`${cx.card} mt-2 text-sm`} style={{ color: NAVY }}>Loading...</div>;
+  }
+
   const editor = (
     <>
-      <span className={`${cx.badge} mt-4 inline-block bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400`}>
-        Local test data
+      <span className={`${cx.badge} mt-4 inline-block ${isSupabaseConfigured ? "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400" : "bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400"}`}>
+        {isSupabaseConfigured ? "Live -- synced via Supabase" : "Local test data"}
       </span>
+      {error && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{error}</p>}
       <div className="mt-4"><SystemToggle active={system} onChange={setSystem} /></div>
       <div className={cx.card + " mt-4"}>
         <div className={cx.cardHd}>{SYSTEM_LABEL[system]} locked data rows</div>
