@@ -1,10 +1,10 @@
 // =============================================================================
-// Admin Products -- generic form field primitives
+// Admin -- generic form field primitives
 // =============================================================================
-// Shared by every per-category form in productCategoryForms.tsx. Module-scope
-// (not defined inside a component) so their identity is stable across
-// renders -- a component redefined on every render would remount on every
-// keystroke and drop input focus.
+// Shared across admin sections (Products' productCategoryForms.tsx, Documents'
+// documentDetailPanel.tsx, ...). Module-scope (not defined inside a component)
+// so their identity is stable across renders -- a component redefined on
+// every render would remount on every keystroke and drop input focus.
 // =============================================================================
 import { useEffect, useState } from "react";
 import { cx, NAVY } from "../../../styleTokens";
@@ -40,6 +40,18 @@ export const NumberListField = ({ label, value, onChange }: { label: string; val
   return (
     <div>
       <label className={cx.lbl}>{label} (comma-separated, m)</label>
+      <input value={text} onChange={e => setText(e.target.value)} onBlur={commit} className={cx.input} style={{ color: NAVY }} />
+    </div>
+  );
+};
+
+export const StringListField = ({ label, value, onChange }: { label: string; value: string[]; onChange: (v: string[]) => void }) => {
+  const [text, setText] = useState(value.join(", "));
+  useEffect(() => setText(value.join(", ")), [value]);
+  const commit = () => onChange(text.split(",").map(s => s.trim()).filter(Boolean));
+  return (
+    <div>
+      <label className={cx.lbl}>{label} (comma-separated)</label>
       <input value={text} onChange={e => setText(e.target.value)} onBlur={commit} className={cx.input} style={{ color: NAVY }} />
     </div>
   );

@@ -1,9 +1,10 @@
 // =============================================================================
-// Admin Products -- generic repeatable-row table editor
+// Admin -- generic repeatable-row table editor
 // =============================================================================
-// A small table-like editor for array-of-object fields (spanHoriz, horizCtrack,
-// and -- via cornerPostEditor.tsx's nesting -- cornerPost's rows). Deliberately
-// non-recursive/simple: one flat table of rows, each cell typed per-column.
+// A small table-like editor for array-of-object fields, shared across admin
+// sections (Products' spanHoriz/horizCtrack, cornerPostEditor.tsx's nesting,
+// Documents' sections). Deliberately non-recursive/simple: one flat table of
+// rows, each cell typed per-column.
 // =============================================================================
 import { Plus, Trash2 } from "lucide-react";
 import { BLUE, MUTED, NAVY } from "../../../styleTokens";

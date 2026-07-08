@@ -13,7 +13,7 @@ import { cx, BLUE, WHITE, NAVY, MUTED } from "../../../styleTokens";
 import { CATEGORY_LABEL } from "./productTypes";
 import type { ProductCategory, AdminPanel, AdminTrack, AdminFixing, AdminSealant, AdminColour } from "./productTypes";
 import type { ProductItem } from "./productCard";
-import { TextAreaField } from "./productFields";
+import { TextAreaField } from "../shared/fields";
 import { type Draft, blankDraft, panelFields, trackFields, fixingFields, sealantFields, colourFields } from "./productCategoryForms";
 import { panelView, trackView, fixingView, sealantView, colourView, itemTitle } from "./productCategoryViews";
 

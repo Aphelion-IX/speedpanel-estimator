@@ -7,8 +7,8 @@
 // =============================================================================
 import { cx, NAVY } from "../../../styleTokens";
 import type { ProductCategory, AdminPanel, AdminTrack, AdminFixing, AdminSealant, AdminColour } from "./productTypes";
-import { Field, NumField, SelectField, NumberListField } from "./productFields";
-import { RepeatableRowEditor } from "./repeatableRowEditor";
+import { Field, NumField, SelectField, NumberListField } from "../shared/fields";
+import { RepeatableRowEditor } from "../shared/repeatableRowEditor";
 import { CornerPostEditor } from "./cornerPostEditor";
 
 export type Draft = Record<string, unknown>;
