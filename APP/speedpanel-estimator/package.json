@@ -20,7 +20,8 @@
     "minisearch": "^7.2.0",
     "pdfjs-dist": "^4.10.38",
     "react": "^19.2.7",
-    "react-dom": "^19.2.7"
+    "react-dom": "^19.2.7",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@types/react": "^19.2.17",

@@ -31,6 +31,8 @@ import type { CornersField } from "../ui/wallConfig";
 import { PanelScheduleCard, PanelScheduleTable, ConnectionBreakdownCard } from "../ui/scheduleCards";
 import { PanelColourSection } from "./panelColourSection";
 import { SingleWallMaterialsSection, SystemBreakdownSection, EasyToOrderSectionExt } from "./mainSections";
+import { buildExternalReportData } from "../export/buildExternalReportData";
+import { exportEstimateToExcel } from "../export/exportEstimateToExcel";
 
 // --- ExternalCalculator -------------------------------------------------------
 // orient is derived from sys.orient in the parent and passed as a prop. The
@@ -150,7 +152,16 @@ export function ExternalCalculator({ store, orient, dimUnit, setDimUnit, systemS
     </>
   );
 
-  const footerNode = <LockedDataFooter title="Locked external system data" table={<LockedDataExt />} />;
+  const hasExportData = project
+    ? projAgg.panels > 0
+    : !(out.empty || !out.result);
+  const handleExport = () => exportEstimateToExcel(buildExternalReportData({
+    extMode, orient, dimUnit, toDisp, walls, results, warnById, active, out,
+    projAgg, combinedEstimate,
+  }));
+  const footerNode = (
+    <LockedDataFooter title="Locked external system data" table={<LockedDataExt />} onExport={handleExport} disabled={!hasExportData} />
+  );
 
   if (layoutMode === "phone") {
     return <div>{sidebarNode}{mainNode}{footerNode}</div>;

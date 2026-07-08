@@ -41,9 +41,10 @@ export const cx = {
   accordion:      "mt-5 flex w-full items-center justify-between rounded-xl border border-blue-100 dark:border-blue-900/60 bg-blue-50/60 dark:bg-blue-950/40 px-4 py-3.5 text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 transition-colors hover:bg-blue-100/70 dark:hover:bg-blue-900/40",
   accordionInner: "flex w-full items-center justify-between rounded-xl border border-blue-100 dark:border-blue-900/60 bg-blue-50/60 dark:bg-blue-950/40 px-4 py-3.5 text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 transition-colors hover:bg-blue-100/70 dark:hover:bg-blue-900/40",
   // Export/CTA button
-  // Fixed dark fill regardless of theme (a disabled/not-yet-implemented CTA,
-  // not meant to visually flip with light/dark like body text does).
-  exportBtn: "mt-8 w-full rounded-xl py-4 text-sm font-bold tracking-widest text-white bg-slate-800 cursor-not-allowed opacity-50",
+  // Fixed dark fill regardless of theme -- not meant to visually flip with
+  // light/dark like body text does.
+  exportBtn: "mt-8 w-full rounded-xl py-4 text-sm font-bold tracking-widest text-white bg-slate-800 flex items-center justify-center gap-2 transition-colors hover:bg-slate-700 active:scale-[0.99]",
+  exportBtnDisabled: "mt-8 w-full rounded-xl py-4 text-sm font-bold tracking-widest text-white bg-slate-800 cursor-not-allowed opacity-50",
 
   // -- Informational boxes ----------------------------------------------------
   // Amber warning boxes
