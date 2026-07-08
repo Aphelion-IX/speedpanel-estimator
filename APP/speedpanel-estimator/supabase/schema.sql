@@ -146,3 +146,45 @@ drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_user();
+
+-- =============================================================================
+-- Customer quote requests
+-- =============================================================================
+-- Public (anonymous, no auth) customers submit via the "Request a Quote" form
+-- at src/pages/ProjectsPage.tsx. Only an authenticated admin (profiles.role =
+-- 'admin') may read or update rows. project_snapshot, when present, is the
+-- raw wallStore.ts PersistedProject payload the customer opted to attach --
+-- stored as-is, never recomputed/validated server-side.
+--
+-- These are the first insert/update policies in this file (every table above
+-- only has "for select"). Public write access is intentional -- this is the
+-- one table anonymous visitors must be able to write to.
+-- =============================================================================
+
+create table if not exists requests (
+  id uuid primary key default gen_random_uuid(),
+  created_at timestamptz not null default now(),
+  name text not null,
+  email text not null,
+  phone text,
+  message text,
+  project_snapshot jsonb,
+  status text not null default 'new' check (status in ('new', 'contacted', 'closed'))
+);
+
+alter table requests enable row level security;
+
+create policy "Public insert access" on requests
+  for insert with check (true);
+
+create policy "Admins can read requests" on requests
+  for select using (
+    exists (select 1 from profiles where id = auth.uid() and role = 'admin')
+  );
+
+create policy "Admins can update requests" on requests
+  for update using (
+    exists (select 1 from profiles where id = auth.uid() and role = 'admin')
+  ) with check (
+    exists (select 1 from profiles where id = auth.uid() and role = 'admin')
+  );

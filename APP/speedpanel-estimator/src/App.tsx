@@ -105,8 +105,8 @@ export default function SpeedpanelEstimator() {
                   &larr; Back to Admin
                 </button>
                 {route.sub === "products"  && <AdminProductsPage layoutMode={layoutMode} />}
-                {route.sub === "systems"   && <AdminSystemsPage />}
-                {route.sub === "documents" && <AdminDocumentsPage />}
+                {route.sub === "systems"   && <AdminSystemsPage layoutMode={layoutMode} />}
+                {route.sub === "documents" && <AdminDocumentsPage layoutMode={layoutMode} />}
                 {route.sub === "requests"  && <AdminRequestsPage />}
               </>
             )}

@@ -8,7 +8,7 @@
 // =============================================================================
 import { Plus, Trash2 } from "lucide-react";
 import { BLUE, MUTED, NAVY } from "../../../styleTokens";
-import { RepeatableRowEditor } from "./repeatableRowEditor";
+import { RepeatableRowEditor } from "../shared/repeatableRowEditor";
 import type { AdminPanel } from "./productTypes";
 
 type CornerPost = AdminPanel["cornerPost"];
