@@ -1,18 +1,25 @@
 // =============================================================================
-// Admin -- generic form field primitives
+// Generic form field primitives
 // =============================================================================
 // Shared across admin sections (Products' productCategoryForms.tsx, Documents'
-// documentDetailPanel.tsx, ...). Module-scope (not defined inside a component)
-// so their identity is stable across renders -- a component redefined on
-// every render would remount on every keystroke and drop input focus.
+// documentDetailPanel.tsx, ...) and public pages (ProjectsPage.tsx's quote
+// form) -- promoted out of admin/ once a non-admin page needed them too, same
+// as productFields.tsx was promoted into admin/shared/ before that. Module-
+// scope (not defined inside a component) so their identity is stable across
+// renders -- a component redefined on every render would remount on every
+// keystroke and drop input focus.
 // =============================================================================
 import { useEffect, useState } from "react";
-import { cx, NAVY } from "../../../styleTokens";
+import { cx, NAVY } from "../../styleTokens";
 
-export const Field = ({ label, value, onChange, type = "text" }: { label: string; value: string; onChange: (v: string) => void; type?: string }) => (
+export const Field = ({ label, value, onChange, type = "text", required = false, autoComplete }: {
+  label: string; value: string; onChange: (v: string) => void;
+  type?: string; required?: boolean; autoComplete?: string;
+}) => (
   <div>
     <label className={cx.lbl}>{label}</label>
-    <input type={type} value={value} onChange={e => onChange(e.target.value)} className={cx.input} style={{ color: NAVY }} />
+    <input type={type} value={value} onChange={e => onChange(e.target.value)}
+      required={required} autoComplete={autoComplete} className={cx.input} style={{ color: NAVY }} />
   </div>
 );
 

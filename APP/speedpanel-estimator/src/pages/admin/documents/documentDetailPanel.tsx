@@ -11,7 +11,7 @@ import { Pencil, Save, Trash2, X } from "lucide-react";
 import { cx, BLUE, WHITE, NAVY, MUTED } from "../../../styleTokens";
 import { Row } from "../../../ui/primitives";
 import { EDU_CATEGORIES } from "../../../education/catalog";
-import { Field, NumField, SelectField, StringListField, TextAreaField } from "../shared/fields";
+import { Field, NumField, SelectField, StringListField, TextAreaField } from "../../shared/fields";
 import { RepeatableRowEditor } from "../shared/repeatableRowEditor";
 import type { AdminDocument, AdminDocSection } from "./documentTypes";
 
