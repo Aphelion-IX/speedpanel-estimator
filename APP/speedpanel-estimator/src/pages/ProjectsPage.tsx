@@ -3,8 +3,8 @@
 // =============================================================================
 // Public, anonymous submission form (no sign-in) that writes to the requests
 // table via src/lib/requestsClient.ts's submitRequest. Fails closed when
-// Supabase isn't configured, same shape as AdminGate.tsx's "unavailable"
-// message -- never renders a form that would silently fail. The "attach my
+// Supabase isn't configured -- never renders a form that would silently
+// fail. The "attach my
 // project" checkbox reads wallStore.ts's PersistedProject once on mount via
 // loadProject() and, if checked, sends it as-is in project_snapshot.
 // =============================================================================

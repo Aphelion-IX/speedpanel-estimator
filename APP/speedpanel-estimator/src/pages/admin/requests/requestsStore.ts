@@ -6,8 +6,9 @@
 // come from other, anonymous browser sessions, so there's nothing to seed
 // locally. Gated by the requests table's "Admins can read/update requests"
 // RLS policies (see supabase/schema.sql) -- an unauthenticated or non-admin
-// session simply gets an empty/errored result from Supabase, on top of
-// AdminGate.tsx already keeping this page unreachable for them.
+// session simply gets an empty/errored result from Supabase. The Admin
+// section itself has no sign-in gate, so this is the only thing standing
+// between an anonymous visitor and this table's contents.
 // =============================================================================
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "../../../lib/supabaseClient";
