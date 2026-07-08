@@ -9,7 +9,7 @@
 // =============================================================================
 import { useCallback, useEffect, useState } from "react";
 
-export type AdminSubPage = "dashboard" | "products" | "systems" | "documents" | "requests";
+export type AdminSubPage = "dashboard" | "products" | "systems" | "maths" | "documents" | "requests";
 
 export type Route =
   | { tab: "estimator" }
@@ -18,7 +18,7 @@ export type Route =
   | { tab: "projects" }
   | { tab: "admin"; sub: AdminSubPage };
 
-const ADMIN_SUBPAGES: AdminSubPage[] = ["products", "systems", "documents", "requests"];
+const ADMIN_SUBPAGES: AdminSubPage[] = ["products", "systems", "maths", "documents", "requests"];
 
 function parseHash(hash: string): Route {
   const segments = hash.replace(/^#\/?/, "").split("/").filter(Boolean);

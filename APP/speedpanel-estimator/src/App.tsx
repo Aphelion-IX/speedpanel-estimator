@@ -20,6 +20,7 @@ import { ProjectsPage } from "./pages/ProjectsPage";
 import { AdminDashboard } from "./pages/admin/AdminDashboard";
 import { AdminProductsPage } from "./pages/admin/AdminProductsPage";
 import { AdminSystemsPage } from "./pages/admin/AdminSystemsPage";
+import { AdminMathsPage } from "./pages/admin/AdminMathsPage";
 import { AdminDocumentsPage } from "./pages/admin/AdminDocumentsPage";
 import { AdminRequestsPage } from "./pages/admin/AdminRequestsPage";
 
@@ -105,6 +106,7 @@ export default function SpeedpanelEstimator() {
                 </button>
                 {route.sub === "products"  && <AdminProductsPage layoutMode={layoutMode} />}
                 {route.sub === "systems"   && <AdminSystemsPage layoutMode={layoutMode} />}
+                {route.sub === "maths"     && <AdminMathsPage />}
                 {route.sub === "documents" && <AdminDocumentsPage layoutMode={layoutMode} />}
                 {route.sub === "requests"  && <AdminRequestsPage />}
               </>
