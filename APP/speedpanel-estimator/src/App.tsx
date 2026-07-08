@@ -14,6 +14,7 @@ import { SYSTEMS } from "./appShell/systems";
 import { loadSession, saveSession } from "./appShell/session";
 import { TopNav, type TopNavTab } from "./appShell/topNav";
 import { LayoutModeToggle, ThemeToggle } from "./appShell/headerToggles";
+import { AuthStatus } from "./appShell/AuthStatus";
 import { SystemRows } from "./appShell/systemRows";
 import { useCornerShaftLinking } from "./appShell/useCornerShaftLinking";
 import { useHashRoute } from "./appShell/useHashRoute";
@@ -119,6 +120,7 @@ export default function SpeedpanelEstimator() {
           activeTab={route.tab}
           onTabChange={switchTab}
           right={<>
+            <AuthStatus auth={auth} onSignInClick={() => navigate({ tab: "projects" })} />
             <ThemeToggle effective={themeMode} onToggle={toggleTheme} />
             <LayoutModeToggle effective={layoutMode} onToggle={toggleLayout} />
             <button onClick={resetAll} className="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-400 dark:text-slate-500 shadow-sm active:scale-95 transition-all">
