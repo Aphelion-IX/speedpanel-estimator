@@ -15,6 +15,7 @@
   "license": "ISC",
   "description": "Tailwind-ready React/Vite Speedpanel estimator",
   "dependencies": {
+    "@supabase/supabase-js": "^2.110.1",
     "lucide-react": "^1.23.0",
     "minisearch": "^7.2.0",
     "pdfjs-dist": "^4.10.38",
