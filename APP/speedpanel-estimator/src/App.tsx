@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { RotateCcw, AlertTriangle, Settings } from "lucide-react";
 import { useLayoutMode } from "./useLayoutMode";
 import { useThemeMode } from "./useThemeMode";
+import { useAuth } from "./lib/useAuth";
 import { useWallStore } from "./wallStore";
 import { NAVY, BLUE, GOLD } from "./styleTokens";
 import { SectionLabel } from "./ui/primitives";
@@ -16,13 +17,18 @@ import { LayoutModeToggle, ThemeToggle } from "./appShell/headerToggles";
 import { SystemRows } from "./appShell/systemRows";
 import { useCornerShaftLinking } from "./appShell/useCornerShaftLinking";
 import { useHashRoute } from "./appShell/useHashRoute";
-import { ProjectsPage } from "./pages/ProjectsPage";
+import { AdminGate } from "./appShell/AdminGate";
+import { ProjectsRouter } from "./pages/projects/ProjectsRouter";
+import { QuoteRequestPage } from "./pages/projects/QuoteRequestPage";
+import { saveProjectSnapshot } from "./pages/projects/saveProjectSnapshot";
+import type { ProjectRow, SavedProjectData } from "./pages/projects/projectTypes";
 import { AdminDashboard } from "./pages/admin/AdminDashboard";
 import { AdminProductsPage } from "./pages/admin/AdminProductsPage";
 import { AdminSystemsPage } from "./pages/admin/AdminSystemsPage";
 import { AdminMathsPage } from "./pages/admin/AdminMathsPage";
 import { AdminDocumentsPage } from "./pages/admin/AdminDocumentsPage";
 import { AdminRequestsPage } from "./pages/admin/AdminRequestsPage";
+import { AdminProjectsPage } from "./pages/admin/projects/AdminProjectsPage";
 
 export type WallSystemId = "standard" | "corner" | "shaft";
 
@@ -37,11 +43,21 @@ export default function SpeedpanelEstimator() {
   const switchTab = (tab: TopNavTab) => tab === "admin" ? navigate({ tab: "admin", sub: "dashboard" }) : navigate({ tab });
   const { effective: layoutMode, toggleLayout } = useLayoutMode();
   const { effective: themeMode, toggleTheme } = useThemeMode();
+  const auth = useAuth();
 
-  // Persist the current view on change.
+  // Which saved (Supabase) project, if any, is currently open in the
+  // Estimator tab -- see wallStore.ts's persistLocally/loadFrom/exportSnapshot.
+  // While a project is open, the device-local session/wall autosave is
+  // bypassed in favour of the explicit Save button below.
+  const [openProject, setOpenProject] = useState<{ id: string; name: string } | null>(null);
+  const [savingProject, setSavingProject] = useState(false);
+  const [saveProjectError, setSaveProjectError] = useState<string | null>(null);
+
+  // Persist the current view on change (skipped while a saved project is open).
   useEffect(() => {
+    if (openProject) return;
     saveSession({ v: 1, system, mode, dimUnit });
-  }, [system, mode, dimUnit]);
+  }, [system, mode, dimUnit, openProject]);
 
   const sys    = SYSTEMS.find(s => s.id === system) || SYSTEMS[0];
   const isExt  = sys.ext;
@@ -49,8 +65,8 @@ export default function SpeedpanelEstimator() {
   // Single SHARED wall store (persisted); the Internal and External calculators
   // each independently destructure/compute what they need from it, so walls
   // survive switching in/out of External mode and between orientations.
-  const store = useWallStore({ dimUnit, onWallAdded: () => setShowWall(true) });
-  const { active, resetWalls, clearCustomLength } = store;
+  const store = useWallStore({ dimUnit, onWallAdded: () => setShowWall(true), persistLocally: !openProject });
+  const { active, resetWalls, clearCustomLength, loadFrom, exportSnapshot } = store;
   // Orientation is per-wall (see Wall.orient) -- this is the ACTIVE wall's own
   // orientation, used only to drive which fields/selectors are shown for it.
   // It must never be applied to every wall (that was the combined-estimate bug).
@@ -59,14 +75,40 @@ export default function SpeedpanelEstimator() {
   const { linkCornerPartner, linkShaftPartner, switchOrient } = useCornerShaftLinking(store, setShowWall);
 
   const switchDimUnit = (u: string) => { setDimUnit(u); clearCustomLength(); };
-  // Deliberate "start over": reset the shared store + view. The persistence
-  // effects immediately re-save the clean default, so a later reload stays clear.
-  const resetAll     = () => { resetWalls(); setMode("project"); setSystem("int-vert"); setDimUnit("m"); };
+  // Deliberate "start over": reset the shared store + view, and close any
+  // open saved project (a fresh device-local scratch project, not that
+  // project, is what "start over" should mean). The persistence effects
+  // immediately re-save the clean default, so a later reload stays clear.
+  const resetAll     = () => { resetWalls(); setMode("project"); setSystem("int-vert"); setDimUnit("m"); setOpenProject(null); };
   // Switching system no longer clears walls -- the shared store is preserved
   // across every orientation/wall-type change.
   const switchSystem = (id: string) => { setSystem(id); setShowWall(true); };
   const findSys = (orientVal: "vertical" | "horizontal", ext: boolean) =>
     SYSTEMS.find(s => s.orient === orientVal && s.ext === ext)!;
+
+  // Opening a saved project from Projects loads its snapshot into the shared
+  // wall store/view state and switches to the Estimator tab -- the builder UI
+  // itself is the existing InternalCalculator/ExternalCalculator, not a
+  // separate copy (see wallStore.ts's loadFrom).
+  const openProjectInEstimator = (project: ProjectRow) => {
+    loadFrom(project.data);
+    setSystem(project.data.system);
+    setMode(project.data.mode);
+    setDimUnit(project.data.dimUnit);
+    setOpenProject({ id: project.id, name: project.name });
+    setSaveProjectError(null);
+    navigate({ tab: "estimator" });
+  };
+
+  const saveOpenProject = async () => {
+    if (!openProject) return;
+    setSavingProject(true);
+    setSaveProjectError(null);
+    const snapshot: SavedProjectData = { ...exportSnapshot(), system, mode, dimUnit };
+    const err = await saveProjectSnapshot(openProject.id, snapshot);
+    setSavingProject(false);
+    if (err) setSaveProjectError(err);
+  };
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans dark:bg-slate-950" style={{ color: NAVY }}>
@@ -88,29 +130,53 @@ export default function SpeedpanelEstimator() {
 
         {route.tab === "selector"  && <SystemSelector layoutMode={layoutMode} system={system} activeWallSystem={active.wallSystem} />}
         {route.tab === "education" && <EducationHub layoutMode={layoutMode} />}
-        {route.tab === "projects"  && <ProjectsPage />}
+        {route.tab === "projects"  && (
+          <ProjectsRouter
+            route={route} navigate={navigate} auth={auth}
+            onOpenEstimator={openProjectInEstimator}
+            onRequestQuote={() => navigate({ tab: "quote" })}
+          />
+        )}
+        {route.tab === "quote"    && <QuoteRequestPage />}
 
         {route.tab === "admin" && (
           <div className="mt-6">
-            {route.sub === "dashboard" && (
-              <AdminDashboard onNavigate={sub => navigate({ tab: "admin", sub })} />
-            )}
-            {route.sub !== "dashboard" && (
-              <>
-                <button
-                  onClick={() => navigate({ tab: "admin", sub: "dashboard" })}
-                  className="text-sm font-semibold hover:underline"
-                  style={{ color: BLUE }}
-                >
-                  &larr; Back to Admin
-                </button>
-                {route.sub === "products"  && <AdminProductsPage layoutMode={layoutMode} />}
-                {route.sub === "systems"   && <AdminSystemsPage layoutMode={layoutMode} />}
-                {route.sub === "maths"     && <AdminMathsPage />}
-                {route.sub === "documents" && <AdminDocumentsPage layoutMode={layoutMode} />}
-                {route.sub === "requests"  && <AdminRequestsPage />}
-              </>
-            )}
+            <AdminGate user={auth.user}>
+              {route.sub === "dashboard" && (
+                <AdminDashboard onNavigate={sub => navigate({ tab: "admin", sub })} />
+              )}
+              {route.sub !== "dashboard" && (
+                <>
+                  <button
+                    onClick={() => navigate({ tab: "admin", sub: "dashboard" })}
+                    className="text-sm font-semibold hover:underline"
+                    style={{ color: BLUE }}
+                  >
+                    &larr; Back to Admin
+                  </button>
+                  {route.sub === "products"  && <AdminProductsPage layoutMode={layoutMode} />}
+                  {route.sub === "systems"   && <AdminSystemsPage layoutMode={layoutMode} />}
+                  {route.sub === "maths"     && <AdminMathsPage />}
+                  {route.sub === "documents" && <AdminDocumentsPage layoutMode={layoutMode} />}
+                  {route.sub === "requests"  && <AdminRequestsPage />}
+                  {route.sub === "projectReviews" && <AdminProjectsPage />}
+                </>
+              )}
+            </AdminGate>
+          </div>
+        )}
+
+        {/* Open-project banner + Save -- only shown while editing a saved project */}
+        {route.tab === "estimator" && openProject && (
+          <div className={`mt-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-blue-100 dark:border-blue-900/60 bg-blue-50/70 dark:bg-blue-950/40 px-4 py-3`}>
+            <span className="text-sm font-semibold" style={{ color: NAVY }}>Editing project: {openProject.name}</span>
+            <div className="flex items-center gap-3">
+              {saveProjectError && <span className="text-sm text-red-600 dark:text-red-400">{saveProjectError}</span>}
+              <button onClick={saveOpenProject} disabled={savingProject}
+                className="rounded-xl px-4 py-2 text-sm font-bold disabled:opacity-50" style={{ background: BLUE, color: "#fff" }}>
+                {savingProject ? "Saving..." : "Save"}
+              </button>
+            </div>
           </div>
         )}
 

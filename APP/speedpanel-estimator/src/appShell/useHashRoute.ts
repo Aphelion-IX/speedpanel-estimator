@@ -9,16 +9,17 @@
 // =============================================================================
 import { useCallback, useEffect, useState } from "react";
 
-export type AdminSubPage = "dashboard" | "products" | "systems" | "maths" | "documents" | "requests";
+export type AdminSubPage = "dashboard" | "products" | "systems" | "maths" | "documents" | "requests" | "projectReviews";
 
 export type Route =
   | { tab: "estimator" }
   | { tab: "selector" }
   | { tab: "education" }
-  | { tab: "projects" }
+  | { tab: "projects"; id?: string }
+  | { tab: "quote" }
   | { tab: "admin"; sub: AdminSubPage };
 
-const ADMIN_SUBPAGES: AdminSubPage[] = ["products", "systems", "maths", "documents", "requests"];
+const ADMIN_SUBPAGES: AdminSubPage[] = ["products", "systems", "maths", "documents", "requests", "projectReviews"];
 
 function parseHash(hash: string): Route {
   const segments = hash.replace(/^#\/?/, "").split("/").filter(Boolean);
@@ -27,7 +28,8 @@ function parseHash(hash: string): Route {
     const sub = ADMIN_SUBPAGES.find(s => s === second) ?? "dashboard";
     return { tab: "admin", sub };
   }
-  if (first === "projects")  return { tab: "projects" };
+  if (first === "projects")  return { tab: "projects", id: second };
+  if (first === "quote")     return { tab: "quote" };
   if (first === "selector")  return { tab: "selector" };
   if (first === "education") return { tab: "education" };
   return { tab: "estimator" };
@@ -36,6 +38,7 @@ function parseHash(hash: string): Route {
 function routeToHash(route: Route): string {
   if (route.tab === "admin") return route.sub === "dashboard" ? "#/admin" : `#/admin/${route.sub}`;
   if (route.tab === "estimator") return "#/";
+  if (route.tab === "projects") return route.id ? `#/projects/${route.id}` : "#/projects";
   return `#/${route.tab}`;
 }
 

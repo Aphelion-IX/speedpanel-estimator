@@ -1,4 +1,4 @@
-import { Package, Layers, Calculator, FileText, ClipboardList } from "lucide-react";
+import { Package, Layers, Calculator, FileText, ClipboardList, FolderCheck } from "lucide-react";
 import { cx, BLUE, NAVY } from "../../styleTokens";
 import { PlaceholderPage } from "../PlaceholderPage";
 import { BackendStatusCard } from "./BackendStatusCard";
@@ -10,6 +10,7 @@ const ADMIN_SECTIONS: { key: AdminSubPage; label: string; description: string; i
   { key: "maths",     label: "Maths",     description: "Estimate calculation constants (waste, stock lengths, spans).", icon: <Calculator size={16} /> },
   { key: "documents", label: "Documents", description: "Education Hub document library.",          icon: <FileText size={16} /> },
   { key: "requests",  label: "Requests",  description: "Incoming quote and project requests.",     icon: <ClipboardList size={16} /> },
+  { key: "projectReviews", label: "Project Reviews", description: "Saved projects awaiting an install or technical review.", icon: <FolderCheck size={16} /> },
 ];
 
 export const AdminDashboard = ({ onNavigate }: { onNavigate: (sub: AdminSubPage) => void }) => (
