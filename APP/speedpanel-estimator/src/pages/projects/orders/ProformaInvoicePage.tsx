@@ -1,21 +1,20 @@
 // =============================================================================
-// Pro forma invoice -- printable document
+// Pro forma invoice -- on-screen preview + Excel export
 // =============================================================================
-// Plain HTML/CSS + window.print() ("Save as PDF" via the browser's own print
-// dialog) rather than a PDF-generation dependency -- matches this codebase's
-// minimal-dependency philosophy (only xlsx + pdfjs-dist-for-viewing exist
-// today) and is a better fit than forcing the Excel export path
-// (buildWorkbook.ts) to look like a formal invoice.
+// The on-screen content below is a preview only -- "Save as Excel"
+// (buildOrderWorkbook.ts/exportOrderToExcel.ts, same xlsx-package convention
+// as the main estimate's exportEstimateToExcel.ts) is the actual "get a file
+// out of this" mechanism, replacing an earlier window.print()/PDF approach.
 //
 // Requires the normal owner-or-admin `orders`/`order_deliveries` RLS --
 // deliberately NOT a public/shareable link (confirmed decision): a recipient
 // must be signed in as the order's owner or an admin, same as every other
-// page in this app. To send it elsewhere, the customer prints/saves it as a
-// PDF themselves and forwards that file.
+// page in this app.
 // =============================================================================
 import { useOrder } from "./orderDetailStore";
 import { useOrderDeliveries } from "./orderDeliveriesStore";
 import { useProject } from "../projectDetailStore";
+import { exportOrderToExcel } from "../../../export/exportOrderToExcel";
 import { NAVY, BLUE, MUTED } from "../../../styleTokens";
 
 export const ProformaInvoicePage = ({ orderId, onBack }: { orderId: string; onBack: () => void }) => {
@@ -46,15 +45,16 @@ export const ProformaInvoicePage = ({ orderId, onBack }: { orderId: string; onBa
   }
 
   return (
-    <div className="mx-auto max-w-3xl p-6 sm:p-10 print:p-0" style={{ color: NAVY }}>
-      <div className="mb-6 flex items-center justify-between print:hidden">
+    <div className="mx-auto max-w-3xl p-6 sm:p-10" style={{ color: NAVY }}>
+      <div className="mb-6 flex items-center justify-between">
         <button onClick={onBack} className="text-sm font-semibold hover:underline" style={{ color: BLUE }}>&larr; Back</button>
-        <button onClick={() => window.print()} className="rounded-xl px-4 py-2 text-sm font-bold text-white" style={{ background: BLUE }}>
-          Print / Save as PDF
+        <button onClick={() => exportOrderToExcel(order, deliveries, project?.name ?? "Project")}
+          className="rounded-xl px-4 py-2 text-sm font-bold text-white" style={{ background: BLUE }}>
+          Save as Excel
         </button>
       </div>
 
-      <div className="border border-slate-200 p-8 print:border-0 print:p-0">
+      <div className="border border-slate-200 p-8">
         <div className="flex items-start justify-between border-b border-slate-200 pb-4">
           <div>
             <div className="text-xl font-extrabold tracking-tight" style={{ color: BLUE }}>SPEEDPANEL</div>
