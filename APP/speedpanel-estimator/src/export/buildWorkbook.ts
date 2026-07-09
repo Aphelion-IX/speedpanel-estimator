@@ -5,8 +5,13 @@
 // framework-agnostic and independently testable, same convention as
 // calculateCombinedEstimate.ts. The actual "download the file" side effect
 // lives in ./exportEstimateToExcel.ts.
+//
+// xlsx is dynamically imported (not a top-level `import * as XLSX`) so it
+// isn't bundled into the initial page load -- it's only needed once someone
+// actually clicks Export, same "fetch the heavy dependency on first use"
+// approach as src/education/pdfjsLoader.ts's pdfjs-dist loading.
 // =============================================================================
-import * as XLSX from "xlsx";
+import type * as XLSXType from "xlsx";
 import type { EstimateReportData } from "./reportTypes";
 
 function autoWidth(rows: (string | number)[][]): { wch: number }[] {
@@ -20,7 +25,7 @@ function autoWidth(rows: (string | number)[][]): { wch: number }[] {
   return widths.map(wch => ({ wch }));
 }
 
-function sheetFromRows(header: string[], rows: (string | number)[][]): XLSX.WorkSheet {
+function sheetFromRows(XLSX: typeof XLSXType, header: string[], rows: (string | number)[][]): XLSXType.WorkSheet {
   const aoa = [header, ...rows];
   const ws = XLSX.utils.aoa_to_sheet(aoa);
   ws["!cols"] = autoWidth(aoa);
@@ -31,7 +36,8 @@ function sheetFromRows(header: string[], rows: (string | number)[][]): XLSX.Work
   return ws;
 }
 
-export function buildWorkbook(data: EstimateReportData): XLSX.WorkBook {
+export async function buildWorkbook(data: EstimateReportData): Promise<XLSXType.WorkBook> {
+  const XLSX = await import("xlsx");
   const wb = XLSX.utils.book_new();
 
   // --- Summary ---------------------------------------------------------------
@@ -71,7 +77,7 @@ export function buildWorkbook(data: EstimateReportData): XLSX.WorkBook {
     ...(hasSystemCol ? [w.system || "--"] : []),
     w.panelType, w.width, w.height, w.area, w.panels, w.warning ? "Yes" : "",
   ]);
-  XLSX.utils.book_append_sheet(wb, sheetFromRows(wallHeader, wallRows), "Walls");
+  XLSX.utils.book_append_sheet(wb, sheetFromRows(XLSX, wallHeader, wallRows), "Walls");
 
   // --- Panel schedule ------------------------------------------------------------
   const panelHeader = ["Length", "Status", "Required", "Pack size", "Packs", "Ordered", "Spare"];
@@ -79,13 +85,13 @@ export function buildWorkbook(data: EstimateReportData): XLSX.WorkBook {
     g.label, g.status, g.required, g.packSize, g.packs, g.ordered, g.spare,
   ]);
   if (panelRows.length === 0) panelRows.push(["No panels", "", 0, 0, 0, 0, 0]);
-  XLSX.utils.book_append_sheet(wb, sheetFromRows(panelHeader, panelRows), "Panel Schedule");
+  XLSX.utils.book_append_sheet(wb, sheetFromRows(XLSX, panelHeader, panelRows), "Panel Schedule");
 
   // --- Track & flashing ----------------------------------------------------------
   const trackHeader = ["Item", "Pieces", "Length (m)", "Stock"];
   const trackRows = data.trackLines.map(t => [t.label, t.pieces, t.lengthM, t.stockLabel]);
   if (trackRows.length === 0) trackRows.push(["No track/flashing", 0, 0, ""]);
-  XLSX.utils.book_append_sheet(wb, sheetFromRows(trackHeader, trackRows), "Track & Flashing");
+  XLSX.utils.book_append_sheet(wb, sheetFromRows(XLSX, trackHeader, trackRows), "Track & Flashing");
 
   // --- Fixings & sealant -----------------------------------------------------------
   const f = data.fixings;
@@ -101,7 +107,7 @@ export function buildWorkbook(data: EstimateReportData): XLSX.WorkBook {
     ["Structure fixings (base track)", "By others / engineer"],
   ];
   for (const extra of f.extraLines || []) fixRows.push([extra.label, extra.value]);
-  XLSX.utils.book_append_sheet(wb, sheetFromRows(fixHeader, fixRows), "Fixings & Sealant");
+  XLSX.utils.book_append_sheet(wb, sheetFromRows(XLSX, fixHeader, fixRows), "Fixings & Sealant");
 
   // --- Connections (project mode only, when present) ------------------------------
   if (data.connections.length > 0) {
@@ -109,7 +115,7 @@ export function buildWorkbook(data: EstimateReportData): XLSX.WorkBook {
     const connRows = data.connections.map(c => [
       c.wallA, c.wallB, c.lengthM, c.quantity, c.stock, c.pieces, c.reason, c.warnings.join(" | "),
     ]);
-    XLSX.utils.book_append_sheet(wb, sheetFromRows(connHeader, connRows), "Connections");
+    XLSX.utils.book_append_sheet(wb, sheetFromRows(XLSX, connHeader, connRows), "Connections");
   }
 
   return wb;

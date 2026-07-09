@@ -31,13 +31,13 @@ function baseReport(overrides: Partial<EstimateReportData> = {}): EstimateReport
 }
 
 describe("buildWorkbook", () => {
-  it("builds the core sheets without a Connections sheet when there are none", () => {
-    const wb = buildWorkbook(baseReport());
+  it("builds the core sheets without a Connections sheet when there are none", async () => {
+    const wb = await buildWorkbook(baseReport());
     expect(wb.SheetNames).toEqual(["Summary", "Walls", "Panel Schedule", "Track & Flashing", "Fixings & Sealant"]);
   });
 
-  it("adds a Connections sheet when connections are present", () => {
-    const wb = buildWorkbook(baseReport({
+  it("adds a Connections sheet when connections are present", async () => {
+    const wb = await buildWorkbook(baseReport({
       connections: [{ wallA: "Wall 1 (vertical)", wallB: "Wall 2 (horizontal)", lengthM: 3, quantity: 2, stock: 6, pieces: 1, reason: "test", warnings: [] }],
     }));
     expect(wb.SheetNames).toContain("Connections");
@@ -47,8 +47,8 @@ describe("buildWorkbook", () => {
     expect(rows[0]["Pieces"]).toBe(1);
   });
 
-  it("includes wall list, panel schedule and fixings data in their respective sheets", () => {
-    const wb = buildWorkbook(baseReport());
+  it("includes wall list, panel schedule and fixings data in their respective sheets", async () => {
+    const wb = await buildWorkbook(baseReport());
 
     const wallRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(wb.Sheets["Walls"]);
     expect(wallRows).toHaveLength(1);
@@ -64,15 +64,15 @@ describe("buildWorkbook", () => {
     expect(sealantRow?.["Quantity"]).toBe(3);
   });
 
-  it("placeholders an empty panel schedule instead of writing a blank sheet", () => {
-    const wb = buildWorkbook(baseReport({ panelGroups: [], customPanels: [] }));
+  it("placeholders an empty panel schedule instead of writing a blank sheet", async () => {
+    const wb = await buildWorkbook(baseReport({ panelGroups: [], customPanels: [] }));
     const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(wb.Sheets["Panel Schedule"]);
     expect(rows).toHaveLength(1);
     expect(rows[0]["Length"]).toBe("No panels");
   });
 
-  it("carries summary totals and warnings through to the Summary sheet", () => {
-    const wb = buildWorkbook(baseReport({ warnings: ["Some warning"] }));
+  it("carries summary totals and warnings through to the Summary sheet", async () => {
+    const wb = await buildWorkbook(baseReport({ warnings: ["Some warning"] }));
     const rows = XLSX.utils.sheet_to_json<(string | number)[]>(wb.Sheets["Summary"], { header: 1 });
     const flat = rows.map(r => r.join("|")).join("\n");
     expect(flat).toContain("Total area (m2)|12.34");
