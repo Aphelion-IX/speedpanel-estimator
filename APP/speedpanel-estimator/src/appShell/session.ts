@@ -5,11 +5,27 @@
 // unit) is saved alongside the wall project so reopening the app restores
 // the exact screen. Kept separate from the wall data (PROJECT_KEY) since
 // it's parent-level.
+//
+// PersistedSession is a Zod schema (not a plain interface) so loadSession()
+// can validate what it actually finds in localStorage before trusting it --
+// same reasoning as wallStore.ts's PersistedProjectSchema, though much lower
+// stakes here: mode/dimUnit only ever pick which UI branch renders or which
+// unit a value displays in (computeUtils.ts's makeToM/makeToDisp already
+// fall back safely on any dimUnit that isn't exactly "mm"), not the compute
+// engine's own inputs.
 // =============================================================================
+import { z } from "zod";
 import { SYSTEMS } from "./systems";
 
 const SESSION_KEY = "speedpanel:session";
-export interface PersistedSession { v: number; system: string; mode: string; dimUnit: string; }
+
+export const PersistedSessionSchema = z.object({
+  v: z.number(),
+  system: z.string().refine(id => SYSTEMS.some(sys => sys.id === id), "Unknown system id"),
+  mode: z.string(),
+  dimUnit: z.string(),
+});
+export type PersistedSession = z.infer<typeof PersistedSessionSchema>;
 
 export function loadSession(): PersistedSession | null {
   if (typeof window === "undefined") return null;
@@ -17,8 +33,9 @@ export function loadSession(): PersistedSession | null {
     const raw = window.localStorage.getItem(SESSION_KEY);
     if (!raw) return null;
     const s = JSON.parse(raw);
-    if (!s || s.v !== 1 || !SYSTEMS.some(sys => sys.id === s.system)) return null;
-    return s as PersistedSession;
+    if (!s || s.v !== 1) return null;
+    const parsed = PersistedSessionSchema.safeParse(s);
+    return parsed.success ? parsed.data : null;
   } catch {
     return null;
   }
