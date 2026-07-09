@@ -7,6 +7,7 @@
 // their existing on-screen state (results, aggregate, combinedEstimate) into
 // this common shape, so buildWorkbook itself has no Internal/External branching.
 // =============================================================================
+import type { TrackKind } from "../pages/admin/products/productTypes";
 
 export interface WallSummaryRow {
   name: string;
@@ -27,6 +28,10 @@ export interface PanelGroupRow {
   packs: number;
   ordered: number;
   spare: number;
+  // Business key for src/export/priceEstimateReportData.ts's catalog lookup
+  // (panels are priced per panel type -- see productTypes.ts's AdminPanel).
+  // Always a real panel type (51/64/78), never a display placeholder.
+  panelType: number;
 }
 
 export interface TrackLineRow {
@@ -34,6 +39,17 @@ export interface TrackLineRow {
   pieces: number;
   lengthM: number;
   stockLabel: string;
+  // Business key for src/export/priceEstimateReportData.ts's catalog lookup
+  // against tracks' (kind, system, panelType) -- see productTypes.ts's
+  // AdminTrack. Optional: several track lines (corner posts, shaft vertical
+  // track, protection strips, combined-wall-junction "extra" track) have no
+  // corresponding TrackKind in the catalog at all -- those omit kind/system
+  // and priceEstimateReportData.ts treats them as unmatched/unpriced rather
+  // than guessing, same "flag the gap, don't fake a price" call the Orders
+  // feature design made deliberately.
+  kind?: TrackKind;
+  system?: "internal" | "external";
+  panelType?: number;
 }
 
 export interface FixingsSummary {

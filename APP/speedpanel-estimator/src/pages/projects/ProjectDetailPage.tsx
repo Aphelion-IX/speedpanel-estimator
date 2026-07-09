@@ -14,11 +14,15 @@ import { saveProjectLocally } from "../../wallStore";
 import { useProject } from "./projectDetailStore";
 import { StageStepper } from "./StageStepper";
 import { ReviewActionPanel } from "./ReviewActionPanel";
+import { useProjectOrders } from "./orders/ordersStore";
+import { ORDER_STAGE_LABELS } from "./orders/orderTypes";
 import type { ProjectRow } from "./projectTypes";
 
-export const ProjectDetailPage = ({ id, onBack, onOpenEstimator, onRequestQuote }: {
+export const ProjectDetailPage = ({ id, onBack, onOpenEstimator, onRequestQuote, onCreateOrder, onOpenOrder }: {
   id: string; onBack: () => void; onOpenEstimator: (project: ProjectRow) => void; onRequestQuote: (id: string) => void;
+  onCreateOrder: (id: string) => void; onOpenOrder: (id: string, orderId: string) => void;
 }) => {
+  const { orders } = useProjectOrders(id);
   const { project, loading, error, reload, rename, deleteProject, requestInstallReview, requestTechnicalReview } = useProject(id);
   const [name, setName] = useState("");
   const [editingName, setEditingName] = useState(false);
@@ -98,12 +102,32 @@ export const ProjectDetailPage = ({ id, onBack, onOpenEstimator, onRequestQuote 
             className="rounded-xl border border-slate-200 dark:border-slate-700 px-4 py-2.5 text-sm font-bold" style={{ color: NAVY }}>
             Request a quote
           </button>
+          {/* No stage gate -- an order can be created from a project at any stage. */}
+          <button onClick={() => onCreateOrder(project.id)}
+            className="rounded-xl border border-slate-200 dark:border-slate-700 px-4 py-2.5 text-sm font-bold" style={{ color: NAVY }}>
+            Create order
+          </button>
           <button onClick={handleDelete} disabled={deleting}
             className="rounded-xl px-4 py-2.5 text-sm font-bold text-red-500 disabled:opacity-50">
             {deleting ? "Deleting..." : "Delete project"}
           </button>
         </div>
       </div>
+
+      {orders.length > 0 && (
+        <div className={`${cx.card} mt-3`}>
+          <div className={cx.cardHd}>Orders</div>
+          <div className="space-y-2">
+            {orders.map(o => (
+              <button key={o.id} onClick={() => onOpenOrder(project.id, o.id)}
+                className="flex w-full items-center justify-between gap-2 rounded-xl border border-slate-200 dark:border-slate-700 px-4 py-2.5 text-left text-sm">
+                <span style={{ color: NAVY }}>{new Date(o.created_at).toLocaleDateString()} -- ${o.total_inc_gst.toFixed(2)}</span>
+                <span className={cx.footnote}>{ORDER_STAGE_LABELS[o.stage]}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       <ReviewActionPanel project={project} onChanged={reload}
         onRequestInstallReview={requestInstallReview} onRequestTechnicalReview={requestTechnicalReview} />

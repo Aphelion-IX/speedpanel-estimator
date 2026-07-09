@@ -27,20 +27,28 @@ export interface AdminPanel extends CatalogEntity {
   // any real span lookup -- src/estimate/spanLookups.ts reads data.ts's
   // in-memory PANELS directly, not this table.
   horizCtrack: { wMax: number; hMax: number | null; section: string; fix: 1 | 2; outsideTable?: boolean }[];
+  // Per panel -- undefined means "not priced yet", not $0. Used by
+  // src/export/priceEstimateReportData.ts to price Orders line items.
+  pricePerPanel?: number;
 }
 
 export type TrackKind = "c-track" | "j-track" | "head-flash" | "z-flash" | "horiz-cover";
 export interface AdminTrack extends CatalogEntity {
   kind: TrackKind; system: "internal" | "external" | "both"; label: string; dim: string;
   bmt?: string; panelType?: number; stockLengths: number[];
+  // Per linear metre -- undefined means "not priced yet", not $0. Used by
+  // src/export/priceEstimateReportData.ts to price Orders line items.
+  pricePerMetre?: number;
 }
 
 export interface AdminFixing extends CatalogEntity {
   code: string; gauge: string; lengthMm: number; use: string; perBox: number;
+  pricePerBox?: number;
 }
 
 export interface AdminSealant extends CatalogEntity {
   system: "internal" | "external"; product: string; m2PerSausage: number; perBox: number;
+  pricePerBox?: number;
 }
 
 export interface AdminColour extends CatalogEntity {

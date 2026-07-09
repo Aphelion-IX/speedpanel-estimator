@@ -13,7 +13,7 @@ function baseReport(overrides: Partial<EstimateReportData> = {}): EstimateReport
       { name: "Wall 1", orientation: "vertical", panelType: "P51", width: "3 m", height: "3 m", area: "9 m2", panels: "3", warning: false },
     ],
     panelGroups: [
-      { label: "P51 - 3.0 m", status: "Stocked", required: 3, packSize: 21, packs: 1, ordered: 21, spare: 18 },
+      { label: "P51 - 3.0 m", status: "Stocked", required: 3, packSize: 21, packs: 1, ordered: 21, spare: 18, panelType: 51 },
     ],
     customPanels: [],
     trackLines: [
