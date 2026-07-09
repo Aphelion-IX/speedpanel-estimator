@@ -25,7 +25,7 @@ const matchesQuery = (item: ProductItem, q: string): boolean =>
   JSON.stringify(item).toLowerCase().includes(q);
 
 export const AdminProductsPage = ({ layoutMode }: { layoutMode: EffectiveLayout }) => {
-  const { catalog, add, update, remove } = useProductStore();
+  const { catalog, loading, error, reload, add, update, remove } = useProductStore();
   const [category, setCategory] = useState<ProductCategory>("panel");
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -69,28 +69,41 @@ export const AdminProductsPage = ({ layoutMode }: { layoutMode: EffectiveLayout 
   // differently-shaped entities); category ties it back to the matching
   // CatalogEntityMap member for add/update, which is the one place a cast is
   // needed at this generic-form/typed-store boundary.
-  const handleSave = (values: Record<string, unknown>) => {
+  const handleSave = async (values: Record<string, unknown>) => {
     if (isAdding) {
-      const id = add(category, values as never);
+      const { id, error } = await add(category, values as never);
+      if (error) { window.alert(error); return; }
       setSelectedId(id);
       setIsAdding(false);
     } else if (editingId) {
-      update(category, editingId, values as never);
+      const error = await update(category, editingId, values as never);
+      if (error) { window.alert(error); return; }
       setEditingId(null);
     }
   };
 
-  const handleDelete = (id: string) => {
-    remove(category, id);
+  const handleDelete = async (id: string) => {
+    const error = await remove(category, id);
+    if (error) { window.alert(error); return; }
     if (selectedId === id) setSelectedId(null);
     if (editingId === id) setEditingId(null);
   };
 
+  if (loading) {
+    return <div className={`${cx.card} mt-6 text-sm`} style={{ color: MUTED }}>Loading...</div>;
+  }
+
+  if (error) {
+    return (
+      <div className={`${cx.card} mt-6`}>
+        <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+        <button onClick={() => reload()} className="mt-2 text-sm font-bold" style={{ color: NAVY }}>Retry</button>
+      </div>
+    );
+  }
+
   const gridBody = (
     <>
-      <span className={`${cx.badge} mt-4 inline-block bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400`}>
-        Local test data
-      </span>
       <div className="mt-4 flex items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 shadow-sm">
         <Search size={16} className="shrink-0" style={{ color: MUTED }} />
         <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search this catalog..."

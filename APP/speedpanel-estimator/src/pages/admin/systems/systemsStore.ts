@@ -1,54 +1,70 @@
 // =============================================================================
-// Admin Systems -- local persistence
+// Admin Systems -- live Supabase fetch, local-draft edits
 // =============================================================================
-// Mirrors src/pages/admin/products/productStore.ts's/documents/documentStore.ts's
-// pattern: a versioned localStorage payload, load/save guarded with
-// typeof window checks + try/catch. Simpler still than Documents -- there's no
-// per-row id/CRUD, just two whole-array replacements (one per system), which
-// maps directly onto RepeatableRowEditor's existing onChange(rows) contract.
+// Fetches both system_locked_rows on mount into a local DRAFT the page edits.
+// setRows(system, rows) stays a synchronous, local-only mutation -- unchanged
+// call signature from AdminSystemsPage.tsx's perspective -- because
+// RepeatableRowEditor fires onChange on every keystroke; wiring that straight
+// to a network write would fire a request per character. save(system) is the
+// only thing that persists (a single atomic `update ... set rows = $1`, see
+// supabase/schema.sql's system_locked_rows design note), called from an
+// explicit Save button; discard(system) reverts the draft to the last
+// fetched/saved rows. Gated by system_locked_rows' "Admins can update" RLS
+// policy.
 // =============================================================================
-import { useState, useEffect } from "react";
-import { buildSeedRows } from "./seedFromLockedData";
+import { useCallback, useEffect, useState } from "react";
+import { supabase } from "../../../lib/supabaseClient";
 import type { LockedRow, SystemId } from "./systemsTypes";
 
-const STORAGE_KEY = "speedpanel:adminSystems";
+const NOT_CONFIGURED = "Systems aren't configured for this environment.";
 
-interface PersistedRows { v: number; internal: LockedRow[]; external: LockedRow[]; }
-
-function loadAll(): { internal: LockedRow[]; external: LockedRow[] } {
-  if (typeof window !== "undefined") {
-    try {
-      const raw = window.localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const p = JSON.parse(raw) as PersistedRows;
-        if (p && p.v === 1 && Array.isArray(p.internal) && Array.isArray(p.external)) {
-          return { internal: p.internal, external: p.external };
-        }
-      }
-    } catch { /* ignore parse/access errors, fall through to seed */ }
-  }
-  return { internal: buildSeedRows("internal"), external: buildSeedRows("external") };
+interface SystemsState {
+  internal: LockedRow[]; external: LockedRow[];
+  saved: { internal: LockedRow[]; external: LockedRow[] };
+  loading: boolean; error: string | null;
 }
 
-function saveAll(internal: LockedRow[], external: LockedRow[]): void {
-  if (typeof window === "undefined") return;
-  try {
-    const payload: PersistedRows = { v: 1, internal, external };
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
-  } catch { /* ignore quota/serialization errors */ }
-}
+const emptyRows: SystemsState["saved"] = { internal: [], external: [] };
 
 export function useSystemsStore() {
-  const [{ internal, external }, setState] = useState(loadAll);
+  const [state, setState] = useState<SystemsState>(() =>
+    supabase
+      ? { internal: [], external: [], saved: emptyRows, loading: true, error: null }
+      : { internal: [], external: [], saved: emptyRows, loading: false, error: NOT_CONFIGURED },
+  );
 
-  useEffect(() => { saveAll(internal, external); }, [internal, external]);
+  const load = useCallback(async () => {
+    if (!supabase) return;
+    setState(s => ({ ...s, loading: true, error: null }));
+    const { data, error } = await supabase.from("system_locked_rows").select("system, rows");
+    if (error) { setState({ internal: [], external: [], saved: emptyRows, loading: false, error: error.message }); return; }
+    const rows = data as { system: SystemId; rows: LockedRow[] }[];
+    const internal = rows.find(r => r.system === "internal")?.rows ?? [];
+    const external = rows.find(r => r.system === "external")?.rows ?? [];
+    setState({ internal, external, saved: { internal, external }, loading: false, error: null });
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
 
   const setRows = (system: SystemId, rows: LockedRow[]): void => {
-    setState(s => system === "internal" ? { ...s, internal: rows } : { ...s, external: rows });
+    setState(s => ({ ...s, [system]: rows }));
   };
 
-  // QA escape hatch -- discards all local edits and restores the data.ts-derived seed.
-  const resetToSeed = (): void => setState({ internal: buildSeedRows("internal"), external: buildSeedRows("external") });
+  const dirty = { internal: state.internal !== state.saved.internal, external: state.external !== state.saved.external };
 
-  return { internal, external, setRows, resetToSeed };
+  const save = async (system: SystemId): Promise<string | null> => {
+    if (!supabase) return NOT_CONFIGURED;
+    const rows = state[system];
+    const { error } = await supabase.from("system_locked_rows")
+      .update({ rows, updated_at: new Date().toISOString() }).eq("system", system);
+    if (error) return error.message;
+    setState(s => ({ ...s, saved: { ...s.saved, [system]: rows } }));
+    return null;
+  };
+
+  const discard = (system: SystemId): void => {
+    setState(s => ({ ...s, [system]: s.saved[system] }));
+  };
+
+  return { internal: state.internal, external: state.external, loading: state.loading, error: state.error, dirty, reload: load, setRows, save, discard };
 }
