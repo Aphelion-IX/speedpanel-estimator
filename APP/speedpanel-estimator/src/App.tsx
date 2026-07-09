@@ -143,7 +143,7 @@ export default function SpeedpanelEstimator() {
 
         {route.tab === "admin" && (
           <div className="mt-6">
-            <AdminGate user={auth.user}>
+            <AdminGate>
               {route.sub === "dashboard" && (
                 <AdminDashboard onNavigate={sub => navigate({ tab: "admin", sub })} />
               )}

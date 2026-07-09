@@ -434,28 +434,30 @@ grant execute on function public.review_technical(uuid, text, text) to authentic
 -- =============================================================================
 -- Admin catalog writes: panels/tracks/fixings/sealants/colours
 -- =============================================================================
--- Public read was already granted above. Adds insert/update/delete gated by
--- public.is_admin(), same shape as "Owners and admins can update projects".
+-- Public read was already granted above. Writes are ALSO public (no admin
+-- role or login required) -- AdminGate.tsx has no auth check, matching this.
+-- requests/projects are NOT part of this -- those hold customer PII (name/
+-- email/phone/project data) and stay gated to auth.uid()/is_admin() below.
 -- =============================================================================
-create policy "Admins can insert panels"   on panels   for insert with check (public.is_admin());
-create policy "Admins can update panels"   on panels   for update using (public.is_admin()) with check (public.is_admin());
-create policy "Admins can delete panels"   on panels   for delete using (public.is_admin());
+create policy "Public write access"  on panels   for insert with check (true);
+create policy "Public update access" on panels   for update using (true) with check (true);
+create policy "Public delete access" on panels   for delete using (true);
 
-create policy "Admins can insert tracks"   on tracks   for insert with check (public.is_admin());
-create policy "Admins can update tracks"   on tracks   for update using (public.is_admin()) with check (public.is_admin());
-create policy "Admins can delete tracks"   on tracks   for delete using (public.is_admin());
+create policy "Public write access"  on tracks   for insert with check (true);
+create policy "Public update access" on tracks   for update using (true) with check (true);
+create policy "Public delete access" on tracks   for delete using (true);
 
-create policy "Admins can insert fixings"  on fixings  for insert with check (public.is_admin());
-create policy "Admins can update fixings"  on fixings  for update using (public.is_admin()) with check (public.is_admin());
-create policy "Admins can delete fixings"  on fixings  for delete using (public.is_admin());
+create policy "Public write access"  on fixings  for insert with check (true);
+create policy "Public update access" on fixings  for update using (true) with check (true);
+create policy "Public delete access" on fixings  for delete using (true);
 
-create policy "Admins can insert sealants" on sealants for insert with check (public.is_admin());
-create policy "Admins can update sealants" on sealants for update using (public.is_admin()) with check (public.is_admin());
-create policy "Admins can delete sealants" on sealants for delete using (public.is_admin());
+create policy "Public write access"  on sealants for insert with check (true);
+create policy "Public update access" on sealants for update using (true) with check (true);
+create policy "Public delete access" on sealants for delete using (true);
 
-create policy "Admins can insert colours"  on colours  for insert with check (public.is_admin());
-create policy "Admins can update colours"  on colours  for update using (public.is_admin()) with check (public.is_admin());
-create policy "Admins can delete colours"  on colours  for delete using (public.is_admin());
+create policy "Public write access"  on colours  for insert with check (true);
+create policy "Public update access" on colours  for update using (true) with check (true);
+create policy "Public delete access" on colours  for delete using (true);
 
 -- =============================================================================
 -- Admin Documents catalog (Education Hub metadata staging area)
@@ -487,9 +489,9 @@ create table if not exists admin_documents (
 alter table admin_documents enable row level security;
 
 create policy "Public read access" on admin_documents for select using (true);
-create policy "Admins can insert admin_documents" on admin_documents for insert with check (public.is_admin());
-create policy "Admins can update admin_documents" on admin_documents for update using (public.is_admin()) with check (public.is_admin());
-create policy "Admins can delete admin_documents" on admin_documents for delete using (public.is_admin());
+create policy "Public write access"  on admin_documents for insert with check (true);
+create policy "Public update access" on admin_documents for update using (true) with check (true);
+create policy "Public delete access" on admin_documents for delete using (true);
 
 -- =============================================================================
 -- Admin Systems -- "Locked system data" rows
@@ -511,8 +513,8 @@ create table if not exists system_locked_rows (
 alter table system_locked_rows enable row level security;
 
 create policy "Public read access" on system_locked_rows for select using (true);
-create policy "Admins can update system_locked_rows" on system_locked_rows
-  for update using (public.is_admin()) with check (public.is_admin());
+create policy "Public update access" on system_locked_rows
+  for update using (true) with check (true);
 -- No insert/delete policy -- exactly 2 rows exist forever, seeded once below;
 -- clients only ever update the `rows` column of an existing row.
 
@@ -541,8 +543,8 @@ create table if not exists math_constants (
 alter table math_constants enable row level security;
 
 create policy "Public read access" on math_constants for select using (true);
-create policy "Admins can update math_constants" on math_constants
-  for update using (public.is_admin()) with check (public.is_admin());
+create policy "Public update access" on math_constants
+  for update using (true) with check (true);
 -- No insert/delete policy -- the single row is seeded once (below/by the
 -- one-time backfill) and the fixed default id + check constraint make a
 -- second row structurally impossible even if insert were ever granted.
