@@ -19,7 +19,10 @@ const url = import.meta.env.VITE_SUPABASE_URL;
 const publishableKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
 function createSupabaseClient(): SupabaseClient | null {
-  if (!url || !publishableKey) return null;
+  if (!url || !publishableKey) {
+    console.warn("Supabase client not initialized -- VITE_SUPABASE_URL/VITE_SUPABASE_PUBLISHABLE_KEY are missing from this build. If they were just added in Vercel, a redeploy that reuses the previous build cache won't pick them up -- trigger a fresh build (new commit, or Redeploy with \"Use existing Build Cache\" unchecked).");
+    return null;
+  }
   try {
     return createClient(url, publishableKey);
   } catch (err) {
