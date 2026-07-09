@@ -59,13 +59,16 @@ export function buildExternalReportData(p: ExternalReportParams): EstimateReport
       label: `${r1(g.stock)} m`,
       status: stockStatusLabel(g.stock * 1000, EXT_STOCK),
       required: g.pieces, packSize: EXT_PACK, packs: g.packs, ordered: g.ordered, spare: g.spare,
+      panelType: 78, // External only ever supports P78 -- see EXT_* constants, no per-type branching exists.
     }));
 
     const trackLines: TrackLineRow[] = [];
-    if (agg.cLM > 0) trackLines.push({ label: "C-track - Head + 2 sides", pieces: agg.cPieces, lengthM: agg.cLM, stockLabel: `${EXT_CTRACK_DIM} - @ ${r1(EXT_CTRACK_STOCK[0])} m` });
-    if (agg.jLM > 0) trackLines.push({ label: "J-track - Base", pieces: agg.jPieces, lengthM: agg.jLM, stockLabel: `${EXT_JTRACK_DIM} - @ ${r1(EXT_JTRACK_STOCK[0])} m` });
-    if (agg.zLM > 0) trackLines.push({ label: "Z-flashing (coloured)", pieces: agg.zPieces, lengthM: agg.zLM, stockLabel: `@ ${r1(EXT_ZFLASH_STOCK)} m` });
-    if (agg.flashLM > 0) trackLines.push({ label: "Head track flashing 0.7 mm BMT x 130 mm GAL", pieces: agg.flashPieces, lengthM: agg.flashLM, stockLabel: `@ ${r1(FLASH_STOCK)} m` });
+    if (agg.cLM > 0) trackLines.push({ label: "C-track - Head + 2 sides", pieces: agg.cPieces, lengthM: agg.cLM, stockLabel: `${EXT_CTRACK_DIM} - @ ${r1(EXT_CTRACK_STOCK[0])} m`, kind: "c-track", system: "external", panelType: 78 });
+    if (agg.jLM > 0) trackLines.push({ label: "J-track - Base", pieces: agg.jPieces, lengthM: agg.jLM, stockLabel: `${EXT_JTRACK_DIM} - @ ${r1(EXT_JTRACK_STOCK[0])} m`, kind: "j-track", system: "external", panelType: 78 });
+    if (agg.zLM > 0) trackLines.push({ label: "Z-flashing (coloured)", pieces: agg.zPieces, lengthM: agg.zLM, stockLabel: `@ ${r1(EXT_ZFLASH_STOCK)} m`, kind: "z-flash", system: "external", panelType: 78 });
+    if (agg.flashLM > 0) trackLines.push({ label: "Head track flashing 0.7 mm BMT x 130 mm GAL", pieces: agg.flashPieces, lengthM: agg.flashLM, stockLabel: `@ ${r1(FLASH_STOCK)} m`, kind: "head-flash", system: "external" });
+    // No TrackKind mapping exists for a combined C/J junction line -- left
+    // unmatched/unpriced (see reportTypes.ts's TrackLineRow comment).
     if (p.combinedEstimate.connectionPieces > 0) trackLines.push({ label: "Extra C/J track (combined wall junctions)", pieces: p.combinedEstimate.connectionPieces, lengthM: p.combinedEstimate.connectionLM, stockLabel: `stocked @ ${r1(HORIZ_CTRACK_STOCK)} m` });
 
     const notes = Array.from(new Set(p.results.flatMap(r => r.out.notes || [])));
@@ -95,23 +98,25 @@ export function buildExternalReportData(p: ExternalReportParams): EstimateReport
   const panelGroups: PanelGroupRow[] = (result?.groups || []).map(g => ({
     label: `${r1(g.stock)} m`, status: stockStatusLabel(g.stock * 1000, EXT_STOCK),
     required: g.pieces, packSize: EXT_PACK, packs: g.packs, ordered: g.ordered, spare: g.spare,
+    panelType: 78,
   }));
   const customPanels: PanelGroupRow[] = (out.customSchedule || []).map(s => ({
     label: `${s.mm.toLocaleString()} mm`, status: stockStatusLabel(s.mm, EXT_STOCK),
     required: s.qty, packSize: EXT_PACK, packs: s.packs, ordered: s.ordered, spare: s.ordered - s.qty,
+    panelType: 78,
   }));
 
   const trackLines: TrackLineRow[] = [];
   const notes = [...(out.notes || [])];
   if (out.horizProfile) notes.push(`Selected C-track section: ${out.horizProfile}`);
   if (p.orient === "horizontal") {
-    if (out.cLM && out.cLM > 0) trackLines.push({ label: `C-track perimeter - ${out.ctrackDim}`, pieces: out.cPieces || 0, lengthM: out.cLM, stockLabel: `@ ${r1(EXT_CTRACK_STOCK[0])} m` });
+    if (out.cLM && out.cLM > 0) trackLines.push({ label: `C-track perimeter - ${out.ctrackDim}`, pieces: out.cPieces || 0, lengthM: out.cLM, stockLabel: `@ ${r1(EXT_CTRACK_STOCK[0])} m`, kind: "c-track", system: "external", panelType: 78 });
   } else if (out.cLM && out.cLM > 0) {
-    trackLines.push({ label: "C-track - Head + 2 sides", pieces: out.cPieces || 0, lengthM: out.cLM, stockLabel: `${EXT_CTRACK_DIM} - @ ${r1(EXT_CTRACK_STOCK[0])} m` });
+    trackLines.push({ label: "C-track - Head + 2 sides", pieces: out.cPieces || 0, lengthM: out.cLM, stockLabel: `${EXT_CTRACK_DIM} - @ ${r1(EXT_CTRACK_STOCK[0])} m`, kind: "c-track", system: "external", panelType: 78 });
   }
-  if (out.jLM && out.jLM > 0) trackLines.push({ label: "J-track - Base", pieces: out.jPieces || 0, lengthM: out.jLM, stockLabel: `${EXT_JTRACK_DIM} - @ ${r1(EXT_JTRACK_STOCK[0])} m` });
-  if (out.zLM && out.zLM > 0) trackLines.push({ label: "Z-flashing (coloured)", pieces: out.zPieces || 0, lengthM: out.zLM, stockLabel: `${EXT_ZFLASH_DIM} - @ ${r1(EXT_ZFLASH_STOCK)} m` });
-  if (active.headFlash && out.flashLM && out.flashLM > 0) trackLines.push({ label: "Head track flashing 0.7 mm BMT x 130 mm GAL", pieces: out.flashPieces || 0, lengthM: out.flashLM, stockLabel: "@ 3.0 m" });
+  if (out.jLM && out.jLM > 0) trackLines.push({ label: "J-track - Base", pieces: out.jPieces || 0, lengthM: out.jLM, stockLabel: `${EXT_JTRACK_DIM} - @ ${r1(EXT_JTRACK_STOCK[0])} m`, kind: "j-track", system: "external", panelType: 78 });
+  if (out.zLM && out.zLM > 0) trackLines.push({ label: "Z-flashing (coloured)", pieces: out.zPieces || 0, lengthM: out.zLM, stockLabel: `${EXT_ZFLASH_DIM} - @ ${r1(EXT_ZFLASH_STOCK)} m`, kind: "z-flash", system: "external", panelType: 78 });
+  if (active.headFlash && out.flashLM && out.flashLM > 0) trackLines.push({ label: "Head track flashing 0.7 mm BMT x 130 mm GAL", pieces: out.flashPieces || 0, lengthM: out.flashLM, stockLabel: "@ 3.0 m", kind: "head-flash", system: "external" });
 
   const extraLines: { label: string; value: string }[] = [];
   if (active.colour) {

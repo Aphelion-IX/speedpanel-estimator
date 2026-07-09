@@ -20,13 +20,14 @@ export function blankDraft(category: ProductCategory): Draft {
       return {
         type: 51, label: "", depth: "", frl: "", pack: 0, ctrackStock: 0, ctrackDim: "", jtrackDim: "",
         maxHVert: 0, maxHHoriz: 0, spanVert: { maxW: "", maxH: "" }, spanHoriz: [], cornerPost: [], horizCtrack: [],
+        pricePerPanel: undefined,
       };
     case "track":
-      return { kind: "c-track", system: "internal", label: "", dim: "", bmt: "", panelType: undefined, stockLengths: [] };
+      return { kind: "c-track", system: "internal", label: "", dim: "", bmt: "", panelType: undefined, stockLengths: [], pricePerMetre: undefined };
     case "fixing":
-      return { code: "", gauge: "", lengthMm: 0, use: "", perBox: 0 };
+      return { code: "", gauge: "", lengthMm: 0, use: "", perBox: 0, pricePerBox: undefined };
     case "sealant":
-      return { system: "internal", product: "", m2PerSausage: 0, perBox: 0 };
+      return { system: "internal", product: "", m2PerSausage: 0, perBox: 0, pricePerBox: undefined };
     case "colour":
       return { label: "", code: "", hex: "#cccccc" };
   }
@@ -51,6 +52,7 @@ export function panelFields(d: Draft, setDraft: (fn: (d: Draft) => Draft) => voi
         <Field label="J-track section" value={p.jtrackDim} onChange={v => set(setDraft, "jtrackDim", v)} />
         <NumField label="Max H vertical (m)" value={p.maxHVert} onChange={v => set(setDraft, "maxHVert", v)} />
         <NumField label="Max H horizontal (m)" value={p.maxHHoriz} onChange={v => set(setDraft, "maxHHoriz", v)} />
+        <NumField label="Price per panel ($)" value={p.pricePerPanel ?? 0} onChange={v => set(setDraft, "pricePerPanel", v || undefined)} />
       </div>
       <div className="grid grid-cols-2 gap-3">
         <Field label="Span vert -- max width" value={spanVert.maxW} onChange={v => set(setDraft, "spanVert", { ...spanVert, maxW: v })} />
@@ -104,6 +106,7 @@ export function trackFields(d: Draft, setDraft: (fn: (d: Draft) => Draft) => voi
       <Field label="Dimension / section" value={t.dim} onChange={v => set(setDraft, "dim", v)} />
       <Field label="BMT (optional)" value={t.bmt ?? ""} onChange={v => set(setDraft, "bmt", v)} />
       <NumField label="Panel type (optional)" value={t.panelType ?? 0} onChange={v => set(setDraft, "panelType", v || undefined)} />
+      <NumField label="Price per metre ($)" value={t.pricePerMetre ?? 0} onChange={v => set(setDraft, "pricePerMetre", v || undefined)} />
       <div className="col-span-2">
         <NumberListField label="Stock lengths" value={t.stockLengths ?? []} onChange={v => set(setDraft, "stockLengths", v)} />
       </div>
@@ -119,6 +122,7 @@ export function fixingFields(d: Draft, setDraft: (fn: (d: Draft) => Draft) => vo
       <Field label="Gauge" value={f.gauge} onChange={v => set(setDraft, "gauge", v)} />
       <NumField label="Length (mm)" value={f.lengthMm} onChange={v => set(setDraft, "lengthMm", v)} />
       <NumField label="Per box" value={f.perBox} onChange={v => set(setDraft, "perBox", v)} />
+      <NumField label="Price per box ($)" value={f.pricePerBox ?? 0} onChange={v => set(setDraft, "pricePerBox", v || undefined)} />
       <div className="col-span-2"><Field label="Use" value={f.use} onChange={v => set(setDraft, "use", v)} /></div>
     </div>
   );
@@ -133,6 +137,7 @@ export function sealantFields(d: Draft, setDraft: (fn: (d: Draft) => Draft) => v
       <Field label="Product" value={s.product} onChange={v => set(setDraft, "product", v)} />
       <NumField label="m2 per sausage" value={s.m2PerSausage} onChange={v => set(setDraft, "m2PerSausage", v)} />
       <NumField label="Per box" value={s.perBox} onChange={v => set(setDraft, "perBox", v)} />
+      <NumField label="Price per box ($)" value={s.pricePerBox ?? 0} onChange={v => set(setDraft, "pricePerBox", v || undefined)} />
     </div>
   );
 }

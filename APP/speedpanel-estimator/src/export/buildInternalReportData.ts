@@ -64,11 +64,13 @@ export function buildInternalReportData(p: InternalReportParams): EstimateReport
       label: `P${g.type} - ${g.label}`,
       status: stockStatusLabel(g.stock * 1000, STOCK_LENGTHS),
       required: g.pieces, packSize: g.ps ?? PACK[g.type], packs: g.packs, ordered: g.ordered, spare: g.spare,
+      panelType: g.type,
     }));
     const customPanels: PanelGroupRow[] = (agg?.customPanels || []).map((s: AggCustomEntry) => ({
       label: `P${s.type} - ${s.mm.toLocaleString()} mm`,
       status: stockStatusLabel(s.mm, STOCK_LENGTHS),
       required: s.qty, packSize: s.packSize, packs: s.packs, ordered: s.ordered, spare: s.spare,
+      panelType: s.type,
     }));
 
     const trackLines: TrackLineRow[] = [];
@@ -76,10 +78,14 @@ export function buildInternalReportData(p: InternalReportParams): EstimateReport
       trackLines.push({
         label: c.orient === "horizontal" ? `C-track perimeter - P${c.type}` : `C-track vert P${c.type} - ${CTRACK_DIM[c.type]}`,
         pieces: c.pieces, lengthM: c.lm, stockLabel: `stocked @ ${r1(c.stock)} m`,
+        kind: "c-track", system: "internal", panelType: c.type,
       });
     }
-    if (agg && agg.jLM > 0) trackLines.push({ label: `J-track - ${JTRACK_DIM[78]} - 1.15 mm BMT`, pieces: agg.jPieces, lengthM: agg.jLM, stockLabel: `stocked @ ${r1(JTRACK_STOCK[0])} m` });
-    if (agg && agg.flashLM > 0) trackLines.push({ label: "Head track flashing 0.7 mm BMT x 130 mm GAL", pieces: agg.flashPieces, lengthM: agg.flashLM, stockLabel: `stocked @ ${r1(FLASH_STOCK)} m` });
+    if (agg && agg.jLM > 0) trackLines.push({ label: `J-track - ${JTRACK_DIM[78]} - 1.15 mm BMT`, pieces: agg.jPieces, lengthM: agg.jLM, stockLabel: `stocked @ ${r1(JTRACK_STOCK[0])} m`, kind: "j-track", system: "internal", panelType: 78 });
+    if (agg && agg.flashLM > 0) trackLines.push({ label: "Head track flashing 0.7 mm BMT x 130 mm GAL", pieces: agg.flashPieces, lengthM: agg.flashLM, stockLabel: `stocked @ ${r1(FLASH_STOCK)} m`, kind: "head-flash", system: "internal" });
+    // No TrackKind mapping exists in the catalog for these four -- left
+    // unmatched/unpriced in v1 (see reportTypes.ts's TrackLineRow comment)
+    // rather than guessing which catalog row they should borrow pricing from.
     if (agg && agg.vertTrackLM > 0) trackLines.push({ label: "Shaft vertical track (both edges, all shaft walls)", pieces: agg.vertTrackPieces, lengthM: agg.vertTrackLM, stockLabel: `stocked @ ${r1(HORIZ_CTRACK_STOCK)} m` });
     if (agg && agg.cornerPostLM > 0) trackLines.push({ label: "Corner posts (linked pairs)", pieces: agg.cornerPostPieces, lengthM: agg.cornerPostLM, stockLabel: `stocked @ ${r1(HORIZ_CTRACK_STOCK)} m` });
     if (agg && agg.junctionLM > 0) trackLines.push({ label: "Back-to-back junctions (linked pairs)", pieces: agg.junctionPieces, lengthM: agg.junctionLM, stockLabel: `stocked @ ${r1(HORIZ_CTRACK_STOCK)} m` });
@@ -120,11 +126,13 @@ export function buildInternalReportData(p: InternalReportParams): EstimateReport
     label: `P${active.type} - ${g.label}`,
     status: stockStatusLabel(g.stock * 1000, STOCK_LENGTHS),
     required: g.pieces, packSize: g.ps ?? PACK[active.type], packs: g.packs, ordered: g.ordered, spare: g.spare,
+    panelType: active.type,
   }));
   const customPanels: PanelGroupRow[] = (out.customSchedule || []).map(s => ({
     label: `P${active.type} - ${s.mm.toLocaleString()} mm`,
     status: stockStatusLabel(s.mm, STOCK_LENGTHS),
     required: s.qty, packSize: PACK[active.type], packs: s.packs, ordered: s.ordered, spare: s.ordered - s.qty,
+    panelType: active.type,
   }));
 
   const isShaft = active.wallSystem === "shaft";
@@ -133,14 +141,17 @@ export function buildInternalReportData(p: InternalReportParams): EstimateReport
     trackLines.push({
       label: isShaft ? `Head + base track - ${out.ctrackDim}` : `C-track perimeter - ${out.ctrackDim}`,
       pieces: out.cPieces || 0, lengthM: out.cLM, stockLabel: `stocked @ ${r1(out.cStock || 0)} m`,
+      kind: "c-track", system: "internal", panelType: active.type,
     });
   }
   if (out.jLM && out.jLM > 0) {
-    trackLines.push({ label: `J-track - ${out.jtrackDim}`, pieces: out.jPieces || 0, lengthM: out.jLM, stockLabel: `stocked @ ${r1(JTRACK_STOCK[0])} m` });
+    trackLines.push({ label: `J-track - ${out.jtrackDim}`, pieces: out.jPieces || 0, lengthM: out.jLM, stockLabel: `stocked @ ${r1(JTRACK_STOCK[0])} m`, kind: "j-track", system: "internal", panelType: active.type });
   }
   if (active.headFlash && out.flashLM && out.flashLM > 0) {
-    trackLines.push({ label: "Head track flashing", pieces: out.flashPieces || 0, lengthM: out.flashLM, stockLabel: `stocked @ ${r1(FLASH_STOCK)} m` });
+    trackLines.push({ label: "Head track flashing", pieces: out.flashPieces || 0, lengthM: out.flashLM, stockLabel: `stocked @ ${r1(FLASH_STOCK)} m`, kind: "head-flash", system: "internal" });
   }
+  // No TrackKind mapping exists in the catalog for these four -- see the
+  // project-mode branch above for the same "left unmatched, not guessed" call.
   if (isShaft && out.vertTrackLM && out.vertTrackLM > 0) {
     trackLines.push({ label: "Shaft vertical track (both edges)", pieces: out.vertTrackPieces || 0, lengthM: out.vertTrackLM, stockLabel: `stocked @ ${r1(HORIZ_CTRACK_STOCK)} m` });
   }

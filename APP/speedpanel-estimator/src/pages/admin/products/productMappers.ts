@@ -36,6 +36,7 @@ export const PanelRowSchema = z.object({
   max_h_vert: z.number(), max_h_horiz: z.number(),
   span_vert: spanVertSchema, span_horiz: z.array(spanHorizRowSchema),
   corner_post: z.array(cornerPostBandSchema), horiz_ctrack: z.array(horizCtrackRowSchema),
+  price_per_panel: z.number().nullable(),
 });
 export type PanelRow = z.infer<typeof PanelRowSchema>;
 
@@ -44,18 +45,21 @@ export const TrackRowSchema = z.object({
   kind: z.enum(["c-track", "j-track", "head-flash", "z-flash", "horiz-cover"]),
   system: z.enum(["internal", "external", "both"]), label: z.string(), dim: z.string(),
   bmt: z.string().nullable(), panel_type: z.number().nullable(), stock_lengths: z.array(z.number()),
+  price_per_metre: z.number().nullable(),
 });
 export type TrackRow = z.infer<typeof TrackRowSchema>;
 
 export const FixingRowSchema = z.object({
   ...rowBaseShape,
   code: z.string(), gauge: z.string(), length_mm: z.number(), use: z.string(), per_box: z.number(),
+  price_per_box: z.number().nullable(),
 });
 export type FixingRow = z.infer<typeof FixingRowSchema>;
 
 export const SealantRowSchema = z.object({
   ...rowBaseShape,
   system: z.enum(["internal", "external"]), product: z.string(), m2_per_sausage: z.number(), per_box: z.number(),
+  price_per_box: z.number().nullable(),
 });
 export type SealantRow = z.infer<typeof SealantRowSchema>;
 
@@ -71,6 +75,7 @@ export function fromPanelRow(row: PanelRow): AdminPanel {
     ctrackStock: row.ctrack_stock, ctrackDim: row.ctrack_dim, jtrackDim: row.jtrack_dim,
     maxHVert: row.max_h_vert, maxHHoriz: row.max_h_horiz,
     spanVert: row.span_vert, spanHoriz: row.span_horiz, cornerPost: row.corner_post, horizCtrack: row.horiz_ctrack,
+    pricePerPanel: row.price_per_panel ?? undefined,
   };
 }
 
@@ -80,6 +85,7 @@ export function toPanelRow(p: Omit<AdminPanel, "id" | "createdAt" | "updatedAt">
     ctrack_stock: p.ctrackStock, ctrack_dim: p.ctrackDim, jtrack_dim: p.jtrackDim,
     max_h_vert: p.maxHVert, max_h_horiz: p.maxHHoriz,
     span_vert: p.spanVert, span_horiz: p.spanHoriz, corner_post: p.cornerPost, horiz_ctrack: p.horizCtrack,
+    price_per_panel: p.pricePerPanel ?? null,
   };
 }
 
@@ -87,6 +93,7 @@ export function fromTrackRow(row: TrackRow): AdminTrack {
   return {
     ...base(row), kind: row.kind, system: row.system, label: row.label, dim: row.dim,
     bmt: row.bmt ?? undefined, panelType: row.panel_type ?? undefined, stockLengths: row.stock_lengths,
+    pricePerMetre: row.price_per_metre ?? undefined,
   };
 }
 
@@ -94,23 +101,36 @@ export function toTrackRow(t: Omit<AdminTrack, "id" | "createdAt" | "updatedAt">
   return {
     notes: t.notes ?? null, kind: t.kind, system: t.system, label: t.label, dim: t.dim,
     bmt: t.bmt ?? null, panel_type: t.panelType ?? null, stock_lengths: t.stockLengths,
+    price_per_metre: t.pricePerMetre ?? null,
   };
 }
 
 export function fromFixingRow(row: FixingRow): AdminFixing {
-  return { ...base(row), code: row.code, gauge: row.gauge, lengthMm: row.length_mm, use: row.use, perBox: row.per_box };
+  return {
+    ...base(row), code: row.code, gauge: row.gauge, lengthMm: row.length_mm, use: row.use, perBox: row.per_box,
+    pricePerBox: row.price_per_box ?? undefined,
+  };
 }
 
 export function toFixingRow(f: Omit<AdminFixing, "id" | "createdAt" | "updatedAt">) {
-  return { notes: f.notes ?? null, code: f.code, gauge: f.gauge, length_mm: f.lengthMm, use: f.use, per_box: f.perBox };
+  return {
+    notes: f.notes ?? null, code: f.code, gauge: f.gauge, length_mm: f.lengthMm, use: f.use, per_box: f.perBox,
+    price_per_box: f.pricePerBox ?? null,
+  };
 }
 
 export function fromSealantRow(row: SealantRow): AdminSealant {
-  return { ...base(row), system: row.system, product: row.product, m2PerSausage: row.m2_per_sausage, perBox: row.per_box };
+  return {
+    ...base(row), system: row.system, product: row.product, m2PerSausage: row.m2_per_sausage, perBox: row.per_box,
+    pricePerBox: row.price_per_box ?? undefined,
+  };
 }
 
 export function toSealantRow(s: Omit<AdminSealant, "id" | "createdAt" | "updatedAt">) {
-  return { notes: s.notes ?? null, system: s.system, product: s.product, m2_per_sausage: s.m2PerSausage, per_box: s.perBox };
+  return {
+    notes: s.notes ?? null, system: s.system, product: s.product, m2_per_sausage: s.m2PerSausage, per_box: s.perBox,
+    price_per_box: s.pricePerBox ?? null,
+  };
 }
 
 export function fromColourRow(row: ColourRow): AdminColour {

@@ -619,3 +619,242 @@ as $$
 $$;
 revoke execute on function public.admin_list_stage_events() from public, anon;
 grant execute on function public.admin_list_stage_events() to authenticated;
+
+-- =============================================================================
+-- Admin catalog: per-unit pricing fields (nullable -- foundation for Orders)
+-- =============================================================================
+-- Nullable, not "not null default 0": null means "not priced yet" (surfaced
+-- to admins/customers as an explicit gap), distinct from a deliberate $0.
+-- Priced per how each item is actually counted/ordered: panels per panel,
+-- tracks per linear metre, fixings/sealant per box. colours intentionally
+-- untouched -- no per-unit ordering concept (a colour is a finish attribute
+-- of a panel, never its own orderable line item).
+-- =============================================================================
+alter table panels   add column price_per_panel numeric;
+alter table tracks   add column price_per_metre numeric;
+alter table fixings  add column price_per_box numeric;
+alter table sealants add column price_per_box numeric;
+
+-- =============================================================================
+-- Customer Orders, delivery splitting, and pro forma invoice requests
+-- =============================================================================
+-- A customer, from any saved project (no stage gating), can create an Order:
+-- a frozen priced snapshot of that project's estimate line items (see
+-- src/estimate/computeProjectReportData.ts + src/export/priceEstimateReportData.ts),
+-- split across one or more delivery batches (each with its own address and a
+-- manual per-line-item quantity allocation), then submitted and, as a
+-- SEPARATE later step, have a pro forma invoice requested against it. Same
+-- ownership/RLS/RPC conventions as projects/project_stage_events above.
+--
+-- Lifecycle: draft -> submitted -> proforma_requested -> proforma_issued,
+-- plus cancelled (from draft/submitted/proforma_requested).
+-- =============================================================================
+
+create table if not exists orders (
+  id uuid primary key default gen_random_uuid(),
+  project_id uuid not null references projects (id) on delete cascade,
+  -- Duplicated directly (not joined through project_id) -- unlike
+  -- project_stage_events (a pure audit trail), an order is itself a
+  -- first-class, independently browsable resource the same way projects is,
+  -- so it gets the same direct owner_id + simple RLS as projects.
+  owner_id uuid not null references auth.users (id) on delete cascade,
+  stage text not null default 'draft' check (stage in ('draft', 'submitted', 'proforma_requested', 'proforma_issued', 'cancelled')),
+  -- Frozen priced snapshot, written/replaced wholesale while still 'draft' --
+  -- same "whole array as one jsonb column" convention as system_locked_rows.rows,
+  -- not a real per-row table like project_stage_events, since nothing here
+  -- needs independent per-row query/identity.
+  -- Each element: { id, category, label, qty, unit, unitPriceExGst, lineTotalExGst, matched }
+  line_items jsonb not null default '[]'::jsonb,
+  subtotal_ex_gst numeric not null default 0,
+  gst_rate numeric not null default 0.10,
+  gst_amount numeric not null default 0,
+  total_inc_gst numeric not null default 0,
+  -- Count of line items that couldn't be auto-priced (see
+  -- priceEstimateReportData.ts) -- surfaced to both customer and admin
+  -- rather than silently treated as $0.
+  unpriced_item_count int not null default 0,
+  customer_note text,
+  submitted_at timestamptz,
+  proforma_requested_at timestamptz,
+  proforma_issued_at timestamptz,
+  cancelled_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table orders enable row level security;
+
+create policy "Owners and admins can read orders" on orders
+  for select using (auth.uid() = owner_id or public.is_admin());
+
+-- Plain insert policy, not an RPC -- order creation has no current-state
+-- transition to validate (no stage gating, per the customer-facing decision
+-- above), so the only two things needed (force owner_id, verify project
+-- ownership) are both expressible directly in with check, same as
+-- projects' own "Owners can create their own projects" policy.
+create policy "Owners can create their own orders" on orders
+  for insert with check (
+    auth.uid() = owner_id and exists (select 1 from projects where id = project_id and owner_id = auth.uid())
+  );
+
+-- Same tradeoff as projects.stage: RLS allows the owner to update any column
+-- (including stage/*_at), but the client only ever calls the RPCs below for
+-- those -- frontend discipline, not column-level DB enforcement, consistent
+-- with the existing limitation on projects itself.
+create policy "Owners and admins can update orders" on orders
+  for update using (auth.uid() = owner_id or public.is_admin())
+  with check (auth.uid() = owner_id or public.is_admin());
+
+create table if not exists order_deliveries (
+  id uuid primary key default gen_random_uuid(),
+  order_id uuid not null references orders (id) on delete cascade,
+  sequence_no int not null,
+  address_line1 text not null,
+  address_line2 text,
+  suburb text not null,
+  state text not null,
+  postcode text not null,
+  requested_date date,
+  contact_name text,
+  contact_phone text,
+  notes text,
+  -- [{ lineItemId, qty }] -- bulk-edited alongside its parent delivery batch,
+  -- never independently queried across deliveries, same jsonb-column
+  -- reasoning as orders.line_items above.
+  item_allocations jsonb not null default '[]'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table order_deliveries enable row level security;
+
+create policy "Owners and admins can read order deliveries" on order_deliveries
+  for select using (
+    exists (select 1 from orders where orders.id = order_id and (orders.owner_id = auth.uid() or public.is_admin()))
+  );
+
+-- Customer can only add/edit/remove delivery batches while the order is
+-- still draft (pre-submission); admin can adjust anytime.
+create policy "Owners can manage deliveries while draft, admins anytime" on order_deliveries
+  for all using (
+    (exists (select 1 from orders o where o.id = order_id and o.owner_id = auth.uid() and o.stage = 'draft'))
+    or public.is_admin()
+  )
+  with check (
+    (exists (select 1 from orders o where o.id = order_id and o.owner_id = auth.uid() and o.stage = 'draft'))
+    or public.is_admin()
+  );
+
+-- Insert-only audit trail, mirrors project_stage_events exactly.
+create table if not exists order_stage_events (
+  id uuid primary key default gen_random_uuid(),
+  order_id uuid not null references orders (id) on delete cascade,
+  actor_id uuid references auth.users (id),
+  event_type text not null check (event_type in ('submitted', 'proforma_requested', 'proforma_issued', 'cancelled')),
+  note text,
+  created_at timestamptz not null default now()
+);
+
+alter table order_stage_events enable row level security;
+
+create policy "Owners and admins can read order stage events" on order_stage_events
+  for select using (
+    exists (select 1 from orders where orders.id = order_id and (orders.owner_id = auth.uid() or public.is_admin()))
+  );
+-- No insert/update/delete policy -- rows are only ever created by the
+-- security definer functions below, which bypass RLS.
+
+-- --- Stage-transition functions -----------------------------------------------
+-- Same conventions as request_install_review/review_install/etc.: for update
+-- row lock, "is distinct from" (not "<>") for nullable/possibly-null-auth.uid()
+-- comparisons, coalesce for text args, actor_id forced to auth.uid().
+
+create or replace function public.submit_order(p_order_id uuid)
+returns void
+language plpgsql security definer
+set search_path = public
+as $$
+declare
+  v_owner uuid;
+  v_stage text;
+begin
+  select owner_id, stage into v_owner, v_stage from orders where id = p_order_id for update;
+  if v_owner is null then raise exception 'Order not found'; end if;
+  if v_owner is distinct from auth.uid() then raise exception 'Not authorized'; end if;
+  if v_stage <> 'draft' then raise exception 'Order can only be submitted from Draft'; end if;
+  if not exists (select 1 from order_deliveries where order_id = p_order_id) then
+    raise exception 'Add at least one delivery before submitting';
+  end if;
+
+  update orders set stage = 'submitted', submitted_at = now(), updated_at = now() where id = p_order_id;
+  insert into order_stage_events (order_id, actor_id, event_type) values (p_order_id, auth.uid(), 'submitted');
+end;
+$$;
+
+create or replace function public.request_proforma_invoice(p_order_id uuid)
+returns void
+language plpgsql security definer
+set search_path = public
+as $$
+declare
+  v_owner uuid;
+  v_stage text;
+begin
+  select owner_id, stage into v_owner, v_stage from orders where id = p_order_id for update;
+  if v_owner is null then raise exception 'Order not found'; end if;
+  if v_owner is distinct from auth.uid() then raise exception 'Not authorized'; end if;
+  if v_stage <> 'submitted' then raise exception 'A pro forma invoice can only be requested once the order is submitted'; end if;
+
+  update orders set stage = 'proforma_requested', proforma_requested_at = now(), updated_at = now() where id = p_order_id;
+  insert into order_stage_events (order_id, actor_id, event_type) values (p_order_id, auth.uid(), 'proforma_requested');
+end;
+$$;
+
+create or replace function public.issue_proforma_invoice(p_order_id uuid, p_note text default null)
+returns void
+language plpgsql security definer
+set search_path = public
+as $$
+declare
+  v_stage text;
+begin
+  if not public.is_admin() then raise exception 'Not authorized'; end if;
+
+  select stage into v_stage from orders where id = p_order_id for update;
+  if v_stage is null then raise exception 'Order not found'; end if;
+  if v_stage <> 'proforma_requested' then raise exception 'Order is not awaiting a pro forma invoice'; end if;
+
+  update orders set stage = 'proforma_issued', proforma_issued_at = now(), updated_at = now() where id = p_order_id;
+  insert into order_stage_events (order_id, actor_id, event_type, note) values (p_order_id, auth.uid(), 'proforma_issued', p_note);
+end;
+$$;
+
+create or replace function public.cancel_order(p_order_id uuid)
+returns void
+language plpgsql security definer
+set search_path = public
+as $$
+declare
+  v_owner uuid;
+  v_stage text;
+begin
+  select owner_id, stage into v_owner, v_stage from orders where id = p_order_id for update;
+  if v_owner is null then raise exception 'Order not found'; end if;
+  if v_owner is distinct from auth.uid() and not public.is_admin() then raise exception 'Not authorized'; end if;
+  if v_stage not in ('draft', 'submitted', 'proforma_requested') then raise exception 'Order can no longer be cancelled'; end if;
+
+  update orders set stage = 'cancelled', cancelled_at = now(), updated_at = now() where id = p_order_id;
+  insert into order_stage_events (order_id, actor_id, event_type) values (p_order_id, auth.uid(), 'cancelled');
+end;
+$$;
+
+-- Same "revoke from anon" reasoning as request_install_review etc. above --
+-- Supabase's default privileges made all four of these callable by anon too.
+revoke execute on function public.submit_order(uuid) from public, anon;
+revoke execute on function public.request_proforma_invoice(uuid) from public, anon;
+revoke execute on function public.issue_proforma_invoice(uuid, text) from public, anon;
+revoke execute on function public.cancel_order(uuid) from public, anon;
+grant execute on function public.submit_order(uuid) to authenticated;
+grant execute on function public.request_proforma_invoice(uuid) to authenticated;
+grant execute on function public.issue_proforma_invoice(uuid, text) to authenticated;
+grant execute on function public.cancel_order(uuid) to authenticated;

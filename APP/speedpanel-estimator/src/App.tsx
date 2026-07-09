@@ -33,6 +33,8 @@ import { AdminProjectsPage } from "./pages/admin/projects/AdminProjectsPage";
 import { AdminUsersPage } from "./pages/admin/AdminUsersPage";
 import { AdminAnalyticsPage } from "./pages/admin/AdminAnalyticsPage";
 import { AdminAuditLogPage } from "./pages/admin/AdminAuditLogPage";
+import { AdminOrdersPage } from "./pages/admin/AdminOrdersPage";
+import { ProformaInvoicePage } from "./pages/projects/orders/ProformaInvoicePage";
 
 export type WallSystemId = "standard" | "corner" | "shaft";
 
@@ -114,6 +116,14 @@ export default function SpeedpanelEstimator() {
     if (err) setSaveProjectError(err);
   };
 
+  // Standalone printable document -- no TopNav/app chrome at all, simpler
+  // than fighting print CSS to hide it. Rendered as an alternate branch of
+  // this same return (not an early return above) so every hook this
+  // component calls still runs in the same order on every render.
+  if (route.tab === "proforma") {
+    return <ProformaInvoicePage orderId={route.orderId} onBack={() => navigate({ tab: "estimator" })} />;
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 font-sans dark:bg-slate-950" style={{ color: NAVY }}>
       <div className={layoutMode === "web" ? "mx-auto w-full max-w-[1400px] px-6 pb-16 pt-6" : "mx-auto w-full max-w-md px-3 sm:px-4 pb-24 pt-5"}>
@@ -168,6 +178,7 @@ export default function SpeedpanelEstimator() {
                   {route.sub === "users"     && <AdminUsersPage auth={auth} />}
                   {route.sub === "analytics" && <AdminAnalyticsPage />}
                   {route.sub === "auditLog"  && <AdminAuditLogPage />}
+                  {route.sub === "orders"    && <AdminOrdersPage />}
                 </>
               )}
             </AdminGate>

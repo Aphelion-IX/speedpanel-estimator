@@ -19,6 +19,7 @@ export function panelView(p: AdminPanel) {
       <Row k="Horizontal span rows" v={p.spanHoriz.length} dim />
       <Row k="Corner post width bands" v={p.cornerPost.length} dim />
       <Row k="Horizontal C-track rows" v={p.horizCtrack.length} dim />
+      <Row k="Price per panel" v={p.pricePerPanel != null ? `$${p.pricePerPanel}` : "Not set"} dim />
     </div>
   );
 }
@@ -30,6 +31,7 @@ export function trackView(t: AdminTrack) {
       {t.bmt && <Row k="BMT" v={t.bmt} dim />}
       {t.panelType != null && <Row k="Panel type" v={t.panelType} dim />}
       <Row k="Stock lengths" v={t.stockLengths.length ? `${t.stockLengths.join(", ")} m` : "—"} dim />
+      <Row k="Price per metre" v={t.pricePerMetre != null ? `$${t.pricePerMetre}` : "Not set"} dim />
     </div>
   );
 }
@@ -39,6 +41,7 @@ export function fixingView(f: AdminFixing) {
     <div className="space-y-1">
       <Row k="Code" v={f.code} dim /><Row k="Gauge" v={f.gauge} dim /><Row k="Length" v={`${f.lengthMm} mm`} dim />
       <Row k="Use" v={f.use} dim /><Row k="Per box" v={f.perBox} dim />
+      <Row k="Price per box" v={f.pricePerBox != null ? `$${f.pricePerBox}` : "Not set"} dim />
     </div>
   );
 }
@@ -48,6 +51,7 @@ export function sealantView(s: AdminSealant) {
     <div className="space-y-1">
       <Row k="Product" v={s.product} dim /><Row k="System" v={s.system} dim />
       <Row k="Coverage" v={`${s.m2PerSausage} m2/sausage`} dim /><Row k="Per box" v={s.perBox} dim />
+      <Row k="Price per box" v={s.pricePerBox != null ? `$${s.pricePerBox}` : "Not set"} dim />
     </div>
   );
 }
