@@ -13,36 +13,44 @@
 // decoupled preview-only staging areas, these overrides are meant to actually
 // change calculator output -- see AdminMathsPage.tsx for why that requires a
 // reload rather than live React state.
+//
+// MathConstants is a Zod schema (not a plain interface) so both
+// loadMathConstants()'s localStorage read and maths/mathConstantsStore.ts's
+// Supabase read can validate what they actually find before trusting it --
+// this is the one blob data.ts's module-load read depends on synchronously,
+// so a malformed value here would otherwise corrupt every estimate silently.
 // =============================================================================
+import { z } from "zod";
 
-export interface MathConstants {
-  PANEL_WIDTH: number;
-  STOCK_WASTE_THRESHOLD: number;
-  STOCK_LENGTHS: number[];
-  FLASH_STOCK: number;
-  FIX_PER_BOX: number;
-  HORIZ_CTRACK_STOCK: number;
-  JTRACK_STOCK: number[];
-  SEALANT_M2_PER_SAUSAGE: number;
-  SEALANT_PER_BOX: number;
-  MAX_W_HORIZ: number;
-  MAX_W_HORIZ_STD_51_64: number;
-  MAX_W_HORIZ_STACK_78: number;
-  STEEL_MAX_H_VERT: number;
-  CUSTOM_MAX_LENGTH: number;
-  SHAFT_MAX_W: number;
-  SHAFT_MAX_F: number;
-  EXT_STOCK: number[];
-  EXT_PACK: number;
-  EXT_SEALANT_M2: number;
-  EXT_SEALANT_PER_BOX: number;
-  EXT_ZFLASH_STOCK: number;
-  EXT_JTRACK_STOCK: number[];
-  EXT_CTRACK_STOCK: number[];
-  EXT_MAX_H_VERT: number;
-  EXT_MAX_W_HORIZ: number;
-  EXT_MAX_W_HORIZ_STACK: number;
-}
+export const MathConstantsSchema = z.object({
+  PANEL_WIDTH: z.number(),
+  STOCK_WASTE_THRESHOLD: z.number(),
+  STOCK_LENGTHS: z.array(z.number()),
+  FLASH_STOCK: z.number(),
+  FIX_PER_BOX: z.number(),
+  HORIZ_CTRACK_STOCK: z.number(),
+  JTRACK_STOCK: z.array(z.number()),
+  SEALANT_M2_PER_SAUSAGE: z.number(),
+  SEALANT_PER_BOX: z.number(),
+  MAX_W_HORIZ: z.number(),
+  MAX_W_HORIZ_STD_51_64: z.number(),
+  MAX_W_HORIZ_STACK_78: z.number(),
+  STEEL_MAX_H_VERT: z.number(),
+  CUSTOM_MAX_LENGTH: z.number(),
+  SHAFT_MAX_W: z.number(),
+  SHAFT_MAX_F: z.number(),
+  EXT_STOCK: z.array(z.number()),
+  EXT_PACK: z.number(),
+  EXT_SEALANT_M2: z.number(),
+  EXT_SEALANT_PER_BOX: z.number(),
+  EXT_ZFLASH_STOCK: z.number(),
+  EXT_JTRACK_STOCK: z.array(z.number()),
+  EXT_CTRACK_STOCK: z.array(z.number()),
+  EXT_MAX_H_VERT: z.number(),
+  EXT_MAX_W_HORIZ: z.number(),
+  EXT_MAX_W_HORIZ_STACK: z.number(),
+});
+export type MathConstants = z.infer<typeof MathConstantsSchema>;
 
 export const MATH_CONSTANT_DEFAULTS: MathConstants = {
   PANEL_WIDTH: 0.25,
@@ -116,15 +124,16 @@ const STORAGE_KEY = "speedpanel:mathConstants";
 
 interface PersistedMathConstants { v: number; values: Partial<MathConstants>; }
 
+const PartialMathConstantsSchema = MathConstantsSchema.partial();
+
 export function loadMathConstants(): MathConstants {
   if (typeof window !== "undefined") {
     try {
       const raw = window.localStorage.getItem(STORAGE_KEY);
       if (raw) {
         const p = JSON.parse(raw) as PersistedMathConstants;
-        if (p && p.v === 1 && p.values && typeof p.values === "object") {
-          return { ...MATH_CONSTANT_DEFAULTS, ...p.values };
-        }
+        const parsed = p && p.v === 1 ? PartialMathConstantsSchema.safeParse(p.values) : null;
+        if (parsed?.success) return { ...MATH_CONSTANT_DEFAULTS, ...parsed.data };
       }
     } catch { /* ignore parse/access errors, fall through to defaults */ }
   }

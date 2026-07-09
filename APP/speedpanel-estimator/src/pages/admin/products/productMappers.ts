@@ -5,37 +5,65 @@
 // snake_case; productTypes.ts's AdminPanel/AdminTrack/etc. are camelCase --
 // this is the one place that 1:1 rename happens, both directions, so
 // productStore.ts never has to think about column naming.
+//
+// Row shapes are Zod schemas (not plain interfaces) so productStore.ts can
+// validate what actually comes back from Supabase before treating it as a
+// trusted AdminPanel/etc. -- catches column-type drift (a migration, a
+// manual DB edit) as a reportable error instead of a downstream crash. Each
+// XRow type is still `z.infer<typeof XRowSchema>`, so nothing importing the
+// *type* needs to change.
 // =============================================================================
-import type { AdminPanel, AdminTrack, AdminFixing, AdminSealant, AdminColour, TrackKind } from "./productTypes";
+import { z } from "zod";
+import type { AdminPanel, AdminTrack, AdminFixing, AdminSealant, AdminColour } from "./productTypes";
 
-interface RowBase { id: string; created_at: string; updated_at: string; notes: string | null; }
+const rowBaseShape = { id: z.string(), created_at: z.string(), updated_at: z.string(), notes: z.string().nullable() };
 
-export interface PanelRow extends RowBase {
-  type: number; label: string; depth: string; frl: string; pack: number;
-  ctrack_stock: number; ctrack_dim: string; jtrack_dim: string;
-  max_h_vert: number; max_h_horiz: number;
-  span_vert: AdminPanel["spanVert"]; span_horiz: AdminPanel["spanHoriz"];
-  corner_post: AdminPanel["cornerPost"]; horiz_ctrack: AdminPanel["horizCtrack"];
-}
+const spanVertSchema = z.object({ maxW: z.string(), maxH: z.string() });
+const spanHorizRowSchema = z.object({ maxW: z.string(), maxH: z.string(), cTrack: z.string(), fix: z.string(), note: z.string().optional() });
+const cornerPostBandSchema = z.object({
+  maxW: z.number(),
+  rows: z.array(z.object({ maxH: z.number(), section: z.string(), fixPerCourse: z.union([z.literal(1), z.literal(2)]).optional() })),
+});
+const horizCtrackRowSchema = z.object({
+  wMax: z.number(), hMax: z.number().nullable(), section: z.string(),
+  fix: z.union([z.literal(1), z.literal(2)]), outsideTable: z.boolean().optional(),
+});
 
-export interface TrackRow extends RowBase {
-  kind: TrackKind; system: AdminTrack["system"]; label: string; dim: string;
-  bmt: string | null; panel_type: number | null; stock_lengths: number[];
-}
+export const PanelRowSchema = z.object({
+  ...rowBaseShape,
+  type: z.number(), label: z.string(), depth: z.string(), frl: z.string(), pack: z.number(),
+  ctrack_stock: z.number(), ctrack_dim: z.string(), jtrack_dim: z.string(),
+  max_h_vert: z.number(), max_h_horiz: z.number(),
+  span_vert: spanVertSchema, span_horiz: z.array(spanHorizRowSchema),
+  corner_post: z.array(cornerPostBandSchema), horiz_ctrack: z.array(horizCtrackRowSchema),
+});
+export type PanelRow = z.infer<typeof PanelRowSchema>;
 
-export interface FixingRow extends RowBase {
-  code: string; gauge: string; length_mm: number; use: string; per_box: number;
-}
+export const TrackRowSchema = z.object({
+  ...rowBaseShape,
+  kind: z.enum(["c-track", "j-track", "head-flash", "z-flash", "horiz-cover"]),
+  system: z.enum(["internal", "external", "both"]), label: z.string(), dim: z.string(),
+  bmt: z.string().nullable(), panel_type: z.number().nullable(), stock_lengths: z.array(z.number()),
+});
+export type TrackRow = z.infer<typeof TrackRowSchema>;
 
-export interface SealantRow extends RowBase {
-  system: AdminSealant["system"]; product: string; m2_per_sausage: number; per_box: number;
-}
+export const FixingRowSchema = z.object({
+  ...rowBaseShape,
+  code: z.string(), gauge: z.string(), length_mm: z.number(), use: z.string(), per_box: z.number(),
+});
+export type FixingRow = z.infer<typeof FixingRowSchema>;
 
-export interface ColourRow extends RowBase {
-  label: string; code: string; hex: string;
-}
+export const SealantRowSchema = z.object({
+  ...rowBaseShape,
+  system: z.enum(["internal", "external"]), product: z.string(), m2_per_sausage: z.number(), per_box: z.number(),
+});
+export type SealantRow = z.infer<typeof SealantRowSchema>;
 
-const base = (row: RowBase) => ({ id: row.id, createdAt: row.created_at, updatedAt: row.updated_at, notes: row.notes ?? undefined });
+export const ColourRowSchema = z.object({ ...rowBaseShape, label: z.string(), code: z.string(), hex: z.string() });
+export type ColourRow = z.infer<typeof ColourRowSchema>;
+
+const base = (row: { id: string; created_at: string; updated_at: string; notes: string | null }) =>
+  ({ id: row.id, createdAt: row.created_at, updatedAt: row.updated_at, notes: row.notes ?? undefined });
 
 export function fromPanelRow(row: PanelRow): AdminPanel {
   return {

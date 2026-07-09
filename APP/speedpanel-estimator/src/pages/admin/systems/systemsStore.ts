@@ -14,9 +14,10 @@
 // =============================================================================
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "../../../lib/supabaseClient";
-import type { LockedRow, SystemId } from "./systemsTypes";
+import { SystemLockedRowsRowSchema, type LockedRow, type SystemId } from "./systemsTypes";
 
 const NOT_CONFIGURED = "Systems aren't configured for this environment.";
+const BAD_SHAPE = "Unexpected data shape from the server.";
 
 interface SystemsState {
   internal: LockedRow[]; external: LockedRow[];
@@ -38,9 +39,10 @@ export function useSystemsStore() {
     setState(s => ({ ...s, loading: true, error: null }));
     const { data, error } = await supabase.from("system_locked_rows").select("system, rows");
     if (error) { setState({ internal: [], external: [], saved: emptyRows, loading: false, error: error.message }); return; }
-    const rows = data as { system: SystemId; rows: LockedRow[] }[];
-    const internal = rows.find(r => r.system === "internal")?.rows ?? [];
-    const external = rows.find(r => r.system === "external")?.rows ?? [];
+    const parsed = SystemLockedRowsRowSchema.array().safeParse(data);
+    if (!parsed.success) { setState({ internal: [], external: [], saved: emptyRows, loading: false, error: BAD_SHAPE }); return; }
+    const internal = parsed.data.find(r => r.system === "internal")?.rows ?? [];
+    const external = parsed.data.find(r => r.system === "external")?.rows ?? [];
     setState({ internal, external, saved: { internal, external }, loading: false, error: null });
   }, []);
 

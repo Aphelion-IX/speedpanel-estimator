@@ -10,19 +10,20 @@
 // =============================================================================
 import type { ProductCatalog, ProductCategory, CatalogEntityMap } from "./productTypes";
 import {
-  fromPanelRow, toPanelRow, fromTrackRow, toTrackRow, fromFixingRow, toFixingRow,
-  fromSealantRow, toSealantRow, fromColourRow, toColourRow,
+  PanelRowSchema, fromPanelRow, toPanelRow, TrackRowSchema, fromTrackRow, toTrackRow,
+  FixingRowSchema, fromFixingRow, toFixingRow, SealantRowSchema, fromSealantRow, toSealantRow,
+  ColourRowSchema, fromColourRow, toColourRow,
 } from "./productMappers";
 import { useSupabaseCatalog } from "../shared/supabaseCatalogStore";
 
 const NOT_CONFIGURED = "Products aren't configured for this environment.";
 
 export function useProductStore() {
-  const panels = useSupabaseCatalog("panels", fromPanelRow, toPanelRow, NOT_CONFIGURED);
-  const tracks = useSupabaseCatalog("tracks", fromTrackRow, toTrackRow, NOT_CONFIGURED);
-  const fixings = useSupabaseCatalog("fixings", fromFixingRow, toFixingRow, NOT_CONFIGURED);
-  const sealants = useSupabaseCatalog("sealants", fromSealantRow, toSealantRow, NOT_CONFIGURED);
-  const colours = useSupabaseCatalog("colours", fromColourRow, toColourRow, NOT_CONFIGURED);
+  const panels = useSupabaseCatalog("panels", PanelRowSchema, fromPanelRow, toPanelRow, NOT_CONFIGURED);
+  const tracks = useSupabaseCatalog("tracks", TrackRowSchema, fromTrackRow, toTrackRow, NOT_CONFIGURED);
+  const fixings = useSupabaseCatalog("fixings", FixingRowSchema, fromFixingRow, toFixingRow, NOT_CONFIGURED);
+  const sealants = useSupabaseCatalog("sealants", SealantRowSchema, fromSealantRow, toSealantRow, NOT_CONFIGURED);
+  const colours = useSupabaseCatalog("colours", ColourRowSchema, fromColourRow, toColourRow, NOT_CONFIGURED);
 
   // Untyped at this dispatch boundary on purpose: add<C>/update<C> correlate
   // `category: C` with CatalogEntityMap[C] for their own callers just fine,

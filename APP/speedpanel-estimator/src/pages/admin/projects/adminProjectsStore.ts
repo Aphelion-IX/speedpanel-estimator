@@ -14,9 +14,10 @@
 // =============================================================================
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "../../../lib/supabaseClient";
-import type { ProjectRow } from "../../projects/projectTypes";
+import { ProjectRowSchema, type ProjectRow } from "../../projects/projectTypes";
 
 const NOT_CONFIGURED = "Projects aren't configured for this environment.";
+const BAD_SHAPE = "Unexpected data shape from the server.";
 
 interface AdminProjectsState {
   projects: ProjectRow[];
@@ -37,11 +38,10 @@ export function useAdminProjects() {
     const { data, error } = await supabase.from("projects").select("*")
       .in("stage", ["install_review", "technical_review"])
       .order("updated_at", { ascending: true });
-    setState(
-      error
-        ? { projects: [], loading: false, error: error.message }
-        : { projects: (data ?? []) as ProjectRow[], loading: false, error: null },
-    );
+    if (error) { setState({ projects: [], loading: false, error: error.message }); return; }
+    const parsed = ProjectRowSchema.array().safeParse(data ?? []);
+    if (!parsed.success) { setState({ projects: [], loading: false, error: BAD_SHAPE }); return; }
+    setState({ projects: parsed.data, loading: false, error: null });
   }, []);
 
   useEffect(() => { load(); }, [load]);

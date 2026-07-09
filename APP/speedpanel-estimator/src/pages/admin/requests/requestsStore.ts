@@ -12,7 +12,9 @@
 // =============================================================================
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "../../../lib/supabaseClient";
-import type { AdminRequestRow, RequestStatus } from "./requestTypes";
+import { AdminRequestRowSchema, type AdminRequestRow, type RequestStatus } from "./requestTypes";
+
+const BAD_SHAPE = "Unexpected data shape from the server.";
 
 interface RequestsState {
   requests: AdminRequestRow[];
@@ -31,11 +33,10 @@ export function useAdminRequests() {
     if (!supabase) return;
     setState(s => ({ ...s, loading: true, error: null }));
     const { data, error } = await supabase.from("requests").select("*").order("created_at", { ascending: false });
-    setState(
-      error
-        ? { requests: [], loading: false, error: error.message }
-        : { requests: (data ?? []) as AdminRequestRow[], loading: false, error: null },
-    );
+    if (error) { setState({ requests: [], loading: false, error: error.message }); return; }
+    const parsed = AdminRequestRowSchema.array().safeParse(data ?? []);
+    if (!parsed.success) { setState({ requests: [], loading: false, error: BAD_SHAPE }); return; }
+    setState({ requests: parsed.data, loading: false, error: null });
   }, []);
 
   useEffect(() => { load(); }, [load]);

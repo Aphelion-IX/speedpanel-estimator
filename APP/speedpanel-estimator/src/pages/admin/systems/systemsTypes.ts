@@ -7,6 +7,8 @@
 // string[][] shape -- same "parallel admin dataset" pattern as productTypes.ts/
 // documentTypes.ts. Editing these rows can never affect the live calculators.
 // =============================================================================
+import { z } from "zod";
+
 export type SystemId = "internal" | "external";
 
 // A type alias (not interface) so it structurally satisfies
@@ -15,3 +17,13 @@ export type SystemId = "internal" | "external";
 // value === "" represents a section-header row, mirroring LDRow's
 // row.length === 1 convention in src/ui/lockedData.tsx.
 export type LockedRow = { key: string; value: string };
+
+// The system_locked_rows table's row shape (see supabase/schema.sql) -- a
+// Zod schema (not a plain interface) so systemsStore.ts can validate what
+// actually comes back from Supabase, same reasoning as
+// admin/products/productMappers.ts's header comment.
+export const SystemLockedRowsRowSchema = z.object({
+  system: z.enum(["internal", "external"]),
+  rows: z.array(z.object({ key: z.string(), value: z.string() })),
+});
+export type SystemLockedRowsRow = z.infer<typeof SystemLockedRowsRowSchema>;
