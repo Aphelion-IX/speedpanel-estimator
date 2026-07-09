@@ -30,6 +30,9 @@ import { AdminMathsPage } from "./pages/admin/AdminMathsPage";
 import { AdminDocumentsPage } from "./pages/admin/AdminDocumentsPage";
 import { AdminRequestsPage } from "./pages/admin/AdminRequestsPage";
 import { AdminProjectsPage } from "./pages/admin/projects/AdminProjectsPage";
+import { AdminUsersPage } from "./pages/admin/AdminUsersPage";
+import { AdminAnalyticsPage } from "./pages/admin/AdminAnalyticsPage";
+import { AdminAuditLogPage } from "./pages/admin/AdminAuditLogPage";
 
 export type WallSystemId = "standard" | "corner" | "shaft";
 
@@ -162,6 +165,9 @@ export default function SpeedpanelEstimator() {
                   {route.sub === "documents" && <AdminDocumentsPage layoutMode={layoutMode} />}
                   {route.sub === "requests"  && <AdminRequestsPage />}
                   {route.sub === "projectReviews" && <AdminProjectsPage />}
+                  {route.sub === "users"     && <AdminUsersPage auth={auth} />}
+                  {route.sub === "analytics" && <AdminAnalyticsPage />}
+                  {route.sub === "auditLog"  && <AdminAuditLogPage />}
                 </>
               )}
             </AdminGate>
