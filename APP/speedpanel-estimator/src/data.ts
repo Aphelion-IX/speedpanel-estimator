@@ -56,7 +56,7 @@ export const PANELS: PanelSpec[] = [
   {
     type: 51, label: "P51", depth: "51 mm", frl: "-/60/60",
     pack: 21, ctrackStock: 3.0, ctrackDim: "55 x 56 x 55", jtrackDim: "55 x 56 x 90",
-    maxHVert: 5.0, maxHHoriz: 5.0,
+    maxHVert: MATH.P51_MAX_H_VERT, maxHHoriz: 5.0,
     spanVert: { maxW: "Unlimited", maxH: "5.0 m" },
     spanHoriz: [
       { maxW: "3.0 m", maxH: "3.0 m", cTrack: "55 x 56 x 1.15", fix: "1/face" },
@@ -81,7 +81,7 @@ export const PANELS: PanelSpec[] = [
   {
     type: 64, label: "P64", depth: "64 mm", frl: "-/90/90",
     pack: 17, ctrackStock: 3.0, ctrackDim: "55 x 68 x 55", jtrackDim: "55 x 68 x 90",
-    maxHVert: 5.0, maxHHoriz: 5.0,
+    maxHVert: MATH.P64_MAX_H_VERT, maxHHoriz: 5.0,
     spanVert: { maxW: "Unlimited", maxH: "5.0 m" },
     spanHoriz: [
       { maxW: "3.0 m", maxH: "3.0 m", cTrack: "55 x 68 x 1.15", fix: "1/face" },
@@ -106,7 +106,7 @@ export const PANELS: PanelSpec[] = [
   {
     type: 78, label: "P78", depth: "78 mm", frl: "-/120/120",
     pack: 14, ctrackStock: 6.0, ctrackDim: "55 x 82 x 55", jtrackDim: "55 x 82 x 90",
-    maxHVert: 6.0, maxHHoriz: 6.0,
+    maxHVert: MATH.P78_MAX_H_VERT, maxHHoriz: 6.0,
     spanVert: { maxW: "Unlimited", maxH: "6.0 m" },
     spanHoriz: [
       { maxW: "3.0 m", maxH: "3.0 m", cTrack: "90 x 82 x 1.15", fix: "1/face" },
