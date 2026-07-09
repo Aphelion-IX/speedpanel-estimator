@@ -11,14 +11,33 @@
 // This is the publishable/anon key, not a service-role/secret key -- it's
 // designed to be public (protected by RLS, not secrecy), so hardcoding it
 // here as a default is safe.
+//
+// sanitizeEnvValue trims whitespace/newlines and strips a pair of wrapping
+// quotes -- Vercel's env var UI has no validation, and pasting a value with a
+// trailing newline or accidentally wrapped in quotes produces a string
+// that's still truthy (so the `||` fallback below never kicks in) but fails
+// createClient(), silently taking the whole Supabase backend offline. Seen
+// in production: "Environment configured: No" despite the var being set.
 // =============================================================================
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 const DEFAULT_URL = "https://lxfsjntyxpaiqqkpxzlq.supabase.co";
 const DEFAULT_PUBLISHABLE_KEY = "sb_publishable_E7emICigq4iuyRgE_K7p4A_e6p8Yv-x";
 
-const url = import.meta.env.VITE_SUPABASE_URL || DEFAULT_URL;
-const publishableKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || DEFAULT_PUBLISHABLE_KEY;
+function sanitizeEnvValue(raw: string | undefined): string {
+  if (!raw) return "";
+  let value = raw.trim();
+  const isWrapped = value.length >= 2 && (
+    (value.startsWith('"') && value.endsWith('"')) ||
+    (value.startsWith("'") && value.endsWith("'"))
+  );
+  if (isWrapped) value = value.slice(1, -1).trim();
+  return value;
+}
+
+const rawUrl = sanitizeEnvValue(import.meta.env.VITE_SUPABASE_URL);
+const url = rawUrl ? (/^https?:\/\//i.test(rawUrl) ? rawUrl : `https://${rawUrl}`) : DEFAULT_URL;
+const publishableKey = sanitizeEnvValue(import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY) || DEFAULT_PUBLISHABLE_KEY;
 
 function createSupabaseClient(): SupabaseClient | null {
   try {
