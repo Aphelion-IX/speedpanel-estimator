@@ -548,3 +548,74 @@ create policy "Public update access" on math_constants
 -- No insert/delete policy -- the single row is seeded once (below/by the
 -- one-time backfill) and the fixed default id + check constraint make a
 -- second row structurally impossible even if insert were ever granted.
+
+-- =============================================================================
+-- Admin: user roster, role management, and stage-event audit log
+-- =============================================================================
+-- profiles has no email column and auth.users is never directly queryable
+-- via PostgREST, so both listing users and changing roles go through these
+-- security definer RPCs, same "is_admin() gated, empty/error for anyone else"
+-- pattern as is_admin()/review_install/review_technical already establish.
+-- Backs the Admin > Users and Admin > Audit Log pages.
+-- =============================================================================
+
+create or replace function public.admin_list_users()
+returns table (id uuid, email text, role text, created_at timestamptz)
+language sql security definer stable
+set search_path = public
+as $$
+  select p.id, u.email, p.role, p.created_at
+  from public.profiles p
+  join auth.users u on u.id = p.id
+  where public.is_admin()
+  order by p.created_at desc;
+$$;
+revoke execute on function public.admin_list_users() from public, anon;
+grant execute on function public.admin_list_users() to authenticated;
+
+create or replace function public.admin_set_role(p_user_id uuid, p_role text)
+returns void
+language plpgsql security definer
+set search_path = public
+as $$
+declare
+  v_admin_count int;
+begin
+  if not public.is_admin() then raise exception 'Not authorized'; end if;
+  if coalesce(p_role, '') not in ('user', 'admin') then raise exception 'Invalid role'; end if;
+
+  -- Refuse to demote the only remaining admin -- would otherwise lock every
+  -- admin (including the caller) out of role management/Requests/Projects
+  -- with no SQL-free way back in.
+  if p_role = 'user' then
+    select count(*) into v_admin_count from public.profiles where role = 'admin';
+    if v_admin_count <= 1 and exists (select 1 from public.profiles where id = p_user_id and role = 'admin') then
+      raise exception 'Cannot demote the only remaining admin';
+    end if;
+  end if;
+
+  update public.profiles set role = p_role, updated_at = now() where id = p_user_id;
+  if not found then raise exception 'User not found'; end if;
+end;
+$$;
+revoke execute on function public.admin_set_role(uuid, text) from public, anon;
+grant execute on function public.admin_set_role(uuid, text) to authenticated;
+
+create or replace function public.admin_list_stage_events()
+returns table (
+  id uuid, project_id uuid, project_name text,
+  actor_id uuid, actor_email text,
+  event_type text, note text, created_at timestamptz
+)
+language sql security definer stable
+set search_path = public
+as $$
+  select e.id, e.project_id, pr.name, e.actor_id, u.email, e.event_type, e.note, e.created_at
+  from public.project_stage_events e
+  join public.projects pr on pr.id = e.project_id
+  left join auth.users u on u.id = e.actor_id
+  where public.is_admin()
+  order by e.created_at desc;
+$$;
+revoke execute on function public.admin_list_stage_events() from public, anon;
+grant execute on function public.admin_list_stage_events() to authenticated;
