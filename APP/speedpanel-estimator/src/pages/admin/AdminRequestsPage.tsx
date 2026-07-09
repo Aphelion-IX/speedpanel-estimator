@@ -7,6 +7,8 @@
 // project snapshot (if any) is shown as raw JSON in a collapsible section --
 // admin reference data, not a polished view.
 // =============================================================================
+import { useMemo, useState } from "react";
+import { Search } from "lucide-react";
 import { cx, NAVY, MUTED } from "../../styleTokens";
 import { AccordionCard } from "../../ui/primitives";
 import { SelectField } from "../shared/fields";
@@ -18,6 +20,11 @@ const STATUS_OPTIONS: { value: string; label: string }[] = [
   { value: "contacted", label: "Contacted" },
   { value: "closed", label: "Closed" },
 ];
+
+const STATUS_FILTER_OPTIONS = [{ value: "all", label: "All statuses" }, ...STATUS_OPTIONS];
+
+const matchesQuery = (item: AdminRequestRow, q: string): boolean =>
+  [item.name, item.email, item.phone ?? "", item.message ?? ""].some(f => f.toLowerCase().includes(q));
 
 const RequestRow = ({ item, onStatusChange }: { item: AdminRequestRow; onStatusChange: (id: string, status: RequestStatus) => void }) => (
   <div className={`${cx.card} mt-3`}>
@@ -49,6 +56,13 @@ const RequestRow = ({ item, onStatusChange }: { item: AdminRequestRow; onStatusC
 
 export const AdminRequestsPage = () => {
   const { requests, loading, error, reload, updateStatus } = useAdminRequests();
+  const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return requests.filter(r => (statusFilter === "all" || r.status === statusFilter) && (!q || matchesQuery(r, q)));
+  }, [requests, query, statusFilter]);
 
   const handleStatusChange = async (id: string, status: RequestStatus) => {
     const err = await updateStatus(id, status);
@@ -78,7 +92,24 @@ export const AdminRequestsPage = () => {
 
   return (
     <div className="mt-2">
-      {requests.map(item => <RequestRow key={item.id} item={item} onStatusChange={handleStatusChange} />)}
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <div className="flex flex-1 items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 shadow-sm">
+          <Search size={16} className="shrink-0" style={{ color: MUTED }} />
+          <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search name, email, phone, message..."
+            className="w-full bg-transparent text-sm outline-none" style={{ color: NAVY }} />
+        </div>
+        <div className="sm:w-48">
+          <SelectField label="Filter by status" value={statusFilter} options={STATUS_FILTER_OPTIONS} onChange={setStatusFilter} />
+        </div>
+      </div>
+
+      {filtered.length === 0 ? (
+        <div className={`${cx.card} mt-3 text-center`}>
+          <p className={cx.footnote}>No requests match your search.</p>
+        </div>
+      ) : (
+        filtered.map(item => <RequestRow key={item.id} item={item} onStatusChange={handleStatusChange} />)
+      )}
     </div>
   );
 };
