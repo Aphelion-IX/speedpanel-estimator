@@ -5,8 +5,11 @@
 // no DOM" convention as buildWorkbook.ts. This is what the pro forma invoice
 // page exports instead of a printable/PDF view -- the on-screen page stays
 // as a preview, this is the "how do I get a file out of this" mechanism.
+//
+// xlsx is dynamically imported, not a top-level `import * as XLSX` -- see
+// buildWorkbook.ts's header comment for why.
 // =============================================================================
-import * as XLSX from "xlsx";
+import type * as XLSXType from "xlsx";
 import type { OrderRow, OrderDeliveryRow } from "../pages/projects/orders/orderTypes";
 
 function autoWidth(rows: (string | number)[][]): { wch: number }[] {
@@ -20,7 +23,7 @@ function autoWidth(rows: (string | number)[][]): { wch: number }[] {
   return widths.map(wch => ({ wch }));
 }
 
-function sheetFromRows(header: string[], rows: (string | number)[][]): XLSX.WorkSheet {
+function sheetFromRows(XLSX: typeof XLSXType, header: string[], rows: (string | number)[][]): XLSXType.WorkSheet {
   const aoa = [header, ...rows];
   const ws = XLSX.utils.aoa_to_sheet(aoa);
   ws["!cols"] = autoWidth(aoa);
@@ -31,7 +34,8 @@ function sheetFromRows(header: string[], rows: (string | number)[][]): XLSX.Work
 const formatAddress = (d: OrderDeliveryRow): string =>
   [d.address_line1, d.address_line2, `${d.suburb} ${d.state} ${d.postcode}`].filter(Boolean).join(", ");
 
-export function buildOrderWorkbook(order: OrderRow, deliveries: OrderDeliveryRow[], projectName: string): XLSX.WorkBook {
+export async function buildOrderWorkbook(order: OrderRow, deliveries: OrderDeliveryRow[], projectName: string): Promise<XLSXType.WorkBook> {
+  const XLSX = await import("xlsx");
   const wb = XLSX.utils.book_new();
   const orderRef = order.id.slice(0, 8).toUpperCase();
 
@@ -63,7 +67,7 @@ export function buildOrderWorkbook(order: OrderRow, deliveries: OrderDeliveryRow
     i.label, i.qty, i.unit, i.unitPriceExGst ?? "To be confirmed", i.lineTotalExGst, i.matched ? "Yes" : "No",
   ]);
   if (itemRows.length === 0) itemRows.push(["No line items", 0, "", "", 0, ""]);
-  XLSX.utils.book_append_sheet(wb, sheetFromRows(itemHeader, itemRows), "Line Items");
+  XLSX.utils.book_append_sheet(wb, sheetFromRows(XLSX, itemHeader, itemRows), "Line Items");
 
   // --- Delivery Schedule -----------------------------------------------------------
   // Flat, one row per (delivery, allocated item) pair -- same "flatten a
@@ -84,7 +88,7 @@ export function buildOrderWorkbook(order: OrderRow, deliveries: OrderDeliveryRow
     }
   }
   if (deliveryRows.length === 0) deliveryRows.push(["--", "No deliveries", "", "", "", 0]);
-  XLSX.utils.book_append_sheet(wb, sheetFromRows(deliveryHeader, deliveryRows), "Delivery Schedule");
+  XLSX.utils.book_append_sheet(wb, sheetFromRows(XLSX, deliveryHeader, deliveryRows), "Delivery Schedule");
 
   return wb;
 }

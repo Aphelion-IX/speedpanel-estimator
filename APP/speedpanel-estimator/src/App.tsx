@@ -1,10 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
 import { RotateCcw, AlertTriangle, Settings } from "lucide-react";
 import { useLayoutMode } from "./useLayoutMode";
 import { useThemeMode } from "./useThemeMode";
 import { useAuth } from "./lib/useAuth";
 import { useWallStore } from "./wallStore";
-import { NAVY, BLUE, GOLD } from "./styleTokens";
+import { NAVY, BLUE, GOLD, MUTED } from "./styleTokens";
 import { SectionLabel } from "./ui/primitives";
 import { EducationHub } from "./education/EducationHub";
 import { SystemSelector } from "./systemSelector/SystemSelector";
@@ -18,23 +18,16 @@ import { AuthStatus } from "./appShell/AuthStatus";
 import { SystemRows } from "./appShell/systemRows";
 import { useCornerShaftLinking } from "./appShell/useCornerShaftLinking";
 import { useHashRoute } from "./appShell/useHashRoute";
-import { AdminGate } from "./appShell/AdminGate";
 import { ProjectsRouter } from "./pages/projects/ProjectsRouter";
 import { QuoteRequestPage } from "./pages/projects/QuoteRequestPage";
 import { saveProjectSnapshot } from "./pages/projects/saveProjectSnapshot";
 import type { ProjectRow, SavedProjectData } from "./pages/projects/projectTypes";
-import { AdminDashboard } from "./pages/admin/AdminDashboard";
-import { AdminProductsPage } from "./pages/admin/AdminProductsPage";
-import { AdminSystemsPage } from "./pages/admin/AdminSystemsPage";
-import { AdminMathsPage } from "./pages/admin/AdminMathsPage";
-import { AdminDocumentsPage } from "./pages/admin/AdminDocumentsPage";
-import { AdminRequestsPage } from "./pages/admin/AdminRequestsPage";
-import { AdminProjectsPage } from "./pages/admin/projects/AdminProjectsPage";
-import { AdminUsersPage } from "./pages/admin/AdminUsersPage";
-import { AdminAnalyticsPage } from "./pages/admin/AdminAnalyticsPage";
-import { AdminAuditLogPage } from "./pages/admin/AdminAuditLogPage";
-import { AdminOrdersPage } from "./pages/admin/AdminOrdersPage";
 import { ProformaInvoicePage } from "./pages/projects/orders/ProformaInvoicePage";
+
+// Not part of the initial bundle -- a typical customer never visits /admin,
+// so the entire Admin section (ten sub-pages' worth of code) is only
+// fetched once someone actually navigates there. See AdminRoot.tsx.
+const AdminRoot = lazy(() => import("./pages/admin/AdminRoot").then(m => ({ default: m.AdminRoot })));
 
 export type WallSystemId = "standard" | "corner" | "shaft";
 
@@ -155,34 +148,9 @@ export default function SpeedpanelEstimator() {
         {route.tab === "quote"    && <QuoteRequestPage />}
 
         {route.tab === "admin" && (
-          <div className="mt-6">
-            <AdminGate>
-              {route.sub === "dashboard" && (
-                <AdminDashboard onNavigate={sub => navigate({ tab: "admin", sub })} />
-              )}
-              {route.sub !== "dashboard" && (
-                <>
-                  <button
-                    onClick={() => navigate({ tab: "admin", sub: "dashboard" })}
-                    className="text-sm font-semibold hover:underline"
-                    style={{ color: BLUE }}
-                  >
-                    &larr; Back to Admin
-                  </button>
-                  {route.sub === "products"  && <AdminProductsPage layoutMode={layoutMode} />}
-                  {route.sub === "systems"   && <AdminSystemsPage layoutMode={layoutMode} />}
-                  {route.sub === "maths"     && <AdminMathsPage />}
-                  {route.sub === "documents" && <AdminDocumentsPage layoutMode={layoutMode} />}
-                  {route.sub === "requests"  && <AdminRequestsPage />}
-                  {route.sub === "projectReviews" && <AdminProjectsPage />}
-                  {route.sub === "users"     && <AdminUsersPage auth={auth} />}
-                  {route.sub === "analytics" && <AdminAnalyticsPage />}
-                  {route.sub === "auditLog"  && <AdminAuditLogPage />}
-                  {route.sub === "orders"    && <AdminOrdersPage />}
-                </>
-              )}
-            </AdminGate>
-          </div>
+          <Suspense fallback={<div className="mt-6 text-sm" style={{ color: MUTED }}>Loading...</div>}>
+            <AdminRoot route={route} navigate={navigate} layoutMode={layoutMode} auth={auth} />
+          </Suspense>
         )}
 
         {/* Open-project banner + Save -- only shown while editing a saved project */}

@@ -32,21 +32,21 @@ function baseDelivery(overrides: Partial<OrderDeliveryRow> = {}): OrderDeliveryR
 }
 
 describe("buildOrderWorkbook", () => {
-  it("builds all three sheets with the expected names", () => {
-    const wb = buildOrderWorkbook(baseOrder(), [baseDelivery()], "Test Project");
+  it("builds all three sheets with the expected names", async () => {
+    const wb = await buildOrderWorkbook(baseOrder(), [baseDelivery()], "Test Project");
     expect(wb.SheetNames).toEqual(["Pro Forma Invoice", "Line Items", "Delivery Schedule"]);
   });
 
-  it("includes order totals and project name in the Pro Forma Invoice sheet", () => {
-    const wb = buildOrderWorkbook(baseOrder(), [baseDelivery()], "Test Project");
+  it("includes order totals and project name in the Pro Forma Invoice sheet", async () => {
+    const wb = await buildOrderWorkbook(baseOrder(), [baseDelivery()], "Test Project");
     const rows = XLSX.utils.sheet_to_json<(string | number)[]>(wb.Sheets["Pro Forma Invoice"], { header: 1 });
     const flat = rows.map(r => r.join("|")).join("\n");
     expect(flat).toContain("Test Project");
     expect(flat).toContain("924");
   });
 
-  it("marks an unmatched line item as unmatched with no unit price", () => {
-    const wb = buildOrderWorkbook(baseOrder(), [baseDelivery()], "Test Project");
+  it("marks an unmatched line item as unmatched with no unit price", async () => {
+    const wb = await buildOrderWorkbook(baseOrder(), [baseDelivery()], "Test Project");
     const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(wb.Sheets["Line Items"]);
     const unmatched = rows.find(r => r["Item"] === "Corner posts");
     expect(unmatched?.["Matched"]).toBe("No");
@@ -56,20 +56,20 @@ describe("buildOrderWorkbook", () => {
     expect(matched?.["Total (ex GST)"]).toBe(840);
   });
 
-  it("flattens delivery item allocations into one row per (delivery, item) pair", () => {
+  it("flattens delivery item allocations into one row per (delivery, item) pair", async () => {
     const deliveries = [
       baseDelivery({ id: "d1", sequence_no: 1, item_allocations: [{ lineItemId: "li1", qty: 15 }] }),
       baseDelivery({ id: "d2", sequence_no: 2, item_allocations: [{ lineItemId: "li1", qty: 6 }, { lineItemId: "li2", qty: 6 }] }),
     ];
-    const wb = buildOrderWorkbook(baseOrder(), deliveries, "Test Project");
+    const wb = await buildOrderWorkbook(baseOrder(), deliveries, "Test Project");
     const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(wb.Sheets["Delivery Schedule"]);
     expect(rows).toHaveLength(3);
     expect(rows.filter(r => r["Delivery #"] === 2)).toHaveLength(2);
     expect(rows.find(r => r["Item"] === "Corner posts")?.["Qty"]).toBe(6);
   });
 
-  it("placeholders an empty delivery schedule instead of writing a blank sheet", () => {
-    const wb = buildOrderWorkbook(baseOrder(), [], "Test Project");
+  it("placeholders an empty delivery schedule instead of writing a blank sheet", async () => {
+    const wb = await buildOrderWorkbook(baseOrder(), [], "Test Project");
     const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(wb.Sheets["Delivery Schedule"]);
     expect(rows).toHaveLength(1);
     expect(rows[0]["Address"]).toBe("No deliveries");
