@@ -16,9 +16,11 @@
 // =============================================================================
 import { useEffect, useState } from "react";
 import { supabase } from "../../../lib/supabaseClient";
-import { loadMathConstants, saveMathConstants, MATH_CONSTANT_DEFAULTS, type MathConstants } from "../../../mathConstants";
+import { loadMathConstants, saveMathConstants, MATH_CONSTANT_DEFAULTS, MathConstantsSchema, type MathConstants } from "../../../mathConstants";
 
 const SINGLETON_ID = "00000000-0000-0000-0000-000000000001";
+const BAD_SHAPE = "Unexpected data shape from the server.";
+const PartialMathConstantsSchema = MathConstantsSchema.partial();
 
 export function useMathConstantsStore() {
   const [draft, setDraft] = useState<MathConstants>(loadMathConstants);
@@ -32,7 +34,9 @@ export function useMathConstantsStore() {
       const { data, error } = await supabase.from("math_constants").select("values").eq("id", SINGLETON_ID).single();
       if (cancelled) return;
       if (error) { setError(error.message); setLoading(false); return; }
-      const merged = { ...MATH_CONSTANT_DEFAULTS, ...(data?.values as Partial<MathConstants> | undefined) };
+      const parsed = PartialMathConstantsSchema.safeParse(data?.values);
+      if (!parsed.success) { setError(BAD_SHAPE); setLoading(false); return; }
+      const merged = { ...MATH_CONSTANT_DEFAULTS, ...parsed.data };
       saveMathConstants(merged);
       setDraft(merged);
       setLoading(false);

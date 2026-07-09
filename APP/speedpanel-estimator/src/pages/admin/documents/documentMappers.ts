@@ -3,15 +3,30 @@
 // =============================================================================
 // supabase/schema.sql's admin_documents columns are snake_case; AdminDocument
 // is camelCase -- same 1:1 rename pattern as products/productMappers.ts.
+//
+// AdminDocumentRow is a Zod schema (not a plain interface) so documentStore.ts
+// can validate what actually comes back from Supabase -- see
+// products/productMappers.ts's header comment for why.
 // =============================================================================
-import type { AdminDocument, AdminDocCategory } from "./documentTypes";
+import { z } from "zod";
+import type { AdminDocument } from "./documentTypes";
 
-export interface AdminDocumentRow {
-  id: string; created_at: string; updated_at: string; notes: string | null;
-  title: string; category: AdminDocCategory; tags: string[]; description: string;
-  edition: string; date: string; file_size: string; file_type: string;
-  page_count: number; swatch: string; sections: AdminDocument["sections"]; file_url: string | null;
-}
+// "All" is a filter-only pseudo-category (see documentTypes.ts's AdminDocCategory),
+// never a real document's own category.
+const adminDocCategorySchema = z.enum([
+  "Technical Guides", "Installation", "Connection Details",
+  "Fire & Acoustic", "External Walls", "Estimating", "Compliance",
+]);
+
+const adminDocSectionSchema = z.object({ name: z.string(), description: z.string(), pages: z.string() });
+
+export const AdminDocumentRowSchema = z.object({
+  id: z.string(), created_at: z.string(), updated_at: z.string(), notes: z.string().nullable(),
+  title: z.string(), category: adminDocCategorySchema, tags: z.array(z.string()), description: z.string(),
+  edition: z.string(), date: z.string(), file_size: z.string(), file_type: z.string(),
+  page_count: z.number(), swatch: z.string(), sections: z.array(adminDocSectionSchema), file_url: z.string().nullable(),
+});
+export type AdminDocumentRow = z.infer<typeof AdminDocumentRowSchema>;
 
 export function fromDocumentRow(row: AdminDocumentRow): AdminDocument {
   return {

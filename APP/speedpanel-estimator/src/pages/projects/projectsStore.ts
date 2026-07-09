@@ -11,10 +11,11 @@ import { useCallback, useEffect, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import { supabase } from "../../lib/supabaseClient";
 import { saveProjectSnapshot } from "./saveProjectSnapshot";
-import type { ProjectRow, SavedProjectData } from "./projectTypes";
+import { ProjectRowSchema, type ProjectRow, type SavedProjectData } from "./projectTypes";
 
 const NOT_CONFIGURED = "Projects aren't configured for this environment.";
 const NOT_SIGNED_IN = "Sign in to see your projects.";
+const BAD_SHAPE = "Unexpected data shape from the server.";
 
 interface ProjectsState {
   projects: ProjectRow[];
@@ -43,11 +44,10 @@ export function useProjects(user: User | null) {
     const { data, error } = await supabase.from("projects").select("*")
       .eq("owner_id", user.id).is("deleted_at", null)
       .order("updated_at", { ascending: false });
-    setState(
-      error
-        ? { projects: [], loading: false, error: error.message }
-        : { projects: (data ?? []) as ProjectRow[], loading: false, error: null },
-    );
+    if (error) { setState({ projects: [], loading: false, error: error.message }); return; }
+    const parsed = ProjectRowSchema.array().safeParse(data ?? []);
+    if (!parsed.success) { setState({ projects: [], loading: false, error: BAD_SHAPE }); return; }
+    setState({ projects: parsed.data, loading: false, error: null });
   }, [user]);
 
   useEffect(() => { load(); }, [load]);
@@ -59,8 +59,10 @@ export function useProjects(user: User | null) {
       .insert({ owner_id: user.id, name, data: blankSnapshot() })
       .select("*").single();
     if (error) return { id: null, error: error.message };
-    setState(s => ({ ...s, projects: [data as ProjectRow, ...s.projects] }));
-    return { id: (data as ProjectRow).id, error: null };
+    const parsed = ProjectRowSchema.safeParse(data);
+    if (!parsed.success) return { id: null, error: BAD_SHAPE };
+    setState(s => ({ ...s, projects: [parsed.data, ...s.projects] }));
+    return { id: parsed.data.id, error: null };
   };
 
   const renameProject = async (id: string, name: string): Promise<string | null> => {

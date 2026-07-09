@@ -9,8 +9,40 @@
 // importing from the other.
 // =============================================================================
 import { useState, useEffect, useMemo } from "react";
+import { z } from "zod";
 import { makeToDisp, makeToM } from "./estimate/computeUtils";
 import type { Wall, WallInput, ComputeOut, WallResult, DimField } from "./estimate/wall.types";
+
+// Mirrors src/estimate/wallDomain.ts's Wall interface field-for-field. This is
+// the schema behind PersistedProjectSchema below -- the actual highest-value
+// validation boundary in the app: a customer's saved project (this shape,
+// straight from Supabase's `projects.data` jsonb column) is applied directly
+// into the live compute engine's state via loadFrom(), with nothing else
+// standing between a malformed/outdated snapshot and src/estimate/*.
+const edgeStateSchema = z.object({ top: z.boolean(), bottom: z.boolean(), left: z.boolean(), right: z.boolean() });
+
+export const WallSchema = z.object({
+  id: z.number(), name: z.string(),
+  orient: z.enum(["vertical", "horizontal"]),
+  type: z.union([z.literal(51), z.literal(64), z.literal(78)]),
+  profile: z.enum(["standard", "rake", "gable"]),
+  wallSystem: z.enum(["standard", "corner", "shaft"]),
+  cornerPartnerId: z.number().nullable().optional(),
+  cornerSide: z.enum(["left", "right"]).optional(),
+  floorHeight: z.string().optional(),
+  shaftPartnerId: z.number().nullable().optional(),
+  junctionPartnerId: z.number().nullable().optional(),
+  width: z.string(), height: z.string(),
+  leftH: z.string(), rightH: z.string(),
+  eavesH: z.string(), apexH: z.string(), ridgeX: z.string(),
+  headFinish: z.enum(["C", "J"]), bottomFinish: z.enum(["C", "J"]),
+  leftFinish: z.enum(["C", "J"]), rightFinish: z.enum(["C", "J"]),
+  intCorners: z.string(), extCorners: z.string(),
+  edges: edgeStateSchema,
+  headFlash: z.boolean(), forcedStock: z.string(),
+  fullyEngaged: z.boolean(), steelStructure: z.boolean(),
+  colour: z.string().optional(), colourType: z.enum(["stocked", "special"]).optional(),
+});
 
 // Single default-wall factory shared by both Internal and External. The colour
 // fields are only read by External (Internal ignores them), but every wall
@@ -38,16 +70,17 @@ export const defaultWall = (id: number, orient: "vertical" | "horizontal" = "ver
 // separately via useWallResults.
 export const PROJECT_KEY = "speedpanel:project";
 
-export interface PersistedProject {
-  v: number;
-  walls: Wall[];
-  activeId: number;
-  nextId: number;
-  projectStock: string;
-  projectLock: boolean;
-  customLengthInput: string;
-  customActive: boolean;
-}
+export const PersistedProjectSchema = z.object({
+  v: z.number(),
+  walls: z.array(WallSchema),
+  activeId: z.number(),
+  nextId: z.number(),
+  projectStock: z.string(),
+  projectLock: z.boolean(),
+  customLengthInput: z.string(),
+  customActive: z.boolean(),
+});
+export type PersistedProject = z.infer<typeof PersistedProjectSchema>;
 
 // Stage a project snapshot into the device-local slot without going through
 // the store hook -- used by ProjectDetailPage.tsx's "Request a quote" button
@@ -74,8 +107,12 @@ export function loadProject(): PersistedProject | null {
     if (!raw) return null;
     const p = JSON.parse(raw);
     if (!p || p.v !== 1 || !Array.isArray(p.walls) || p.walls.length === 0) return null;
+    // backfillOrient runs BEFORE validation -- older saves predate the
+    // per-wall orient field entirely, and PersistedProjectSchema requires
+    // it, so the raw JSON needs that default patched in first.
     p.walls = backfillOrient(p.walls);
-    return p as PersistedProject;
+    const parsed = PersistedProjectSchema.safeParse(p);
+    return parsed.success ? parsed.data : null;
   } catch {
     return null;
   }

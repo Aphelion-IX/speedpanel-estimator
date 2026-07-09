@@ -9,31 +9,42 @@
 // screen, not just the wall list. Deliberately not merged into
 // PersistedProject itself -- that type is the device-local single-project
 // shape and stays independent of the multi-project Supabase shape built here.
+//
+// SavedProjectData/ProjectRow are Zod schemas (not plain interfaces) so
+// projectsStore.ts/projectDetailStore.ts/adminProjectsStore.ts can validate
+// what actually comes back from Supabase -- ProjectRowSchema's `data` field
+// is SavedProjectDataSchema, so a row read is validated all the way down to
+// individual Wall fields, the same schema loadFrom()'s caller uses to guard
+// the compute engine itself (see wallStore.ts's WallSchema/PersistedProjectSchema).
 // =============================================================================
-import type { PersistedProject } from "../../wallStore";
+import { z } from "zod";
+import { PersistedProjectSchema } from "../../wallStore";
 
-export type Stage = "draft" | "install_review" | "technical_review" | "approved";
-export type ReviewStatus = "pending" | "approved" | "changes_requested";
+export const STAGES = ["draft", "install_review", "technical_review", "approved"] as const;
+export type Stage = typeof STAGES[number];
 
-export interface SavedProjectData extends PersistedProject {
-  system: string;
-  mode: string;
-  dimUnit: string;
-}
+const REVIEW_STATUSES = ["pending", "approved", "changes_requested"] as const;
+export type ReviewStatus = typeof REVIEW_STATUSES[number];
 
-export interface ProjectRow {
-  id: string;
-  owner_id: string;
-  name: string;
-  data: SavedProjectData;
-  stage: Stage;
-  install_review_status: ReviewStatus | null;
-  install_review_note: string | null;
-  technical_review_status: ReviewStatus | null;
-  technical_review_note: string | null;
-  created_at: string;
-  updated_at: string;
-}
+export const SavedProjectDataSchema = PersistedProjectSchema.extend({
+  system: z.string(), mode: z.string(), dimUnit: z.string(),
+});
+export type SavedProjectData = z.infer<typeof SavedProjectDataSchema>;
+
+export const ProjectRowSchema = z.object({
+  id: z.string(),
+  owner_id: z.string(),
+  name: z.string(),
+  data: SavedProjectDataSchema,
+  stage: z.enum(STAGES),
+  install_review_status: z.enum(REVIEW_STATUSES).nullable(),
+  install_review_note: z.string().nullable(),
+  technical_review_status: z.enum(REVIEW_STATUSES).nullable(),
+  technical_review_note: z.string().nullable(),
+  created_at: z.string(),
+  updated_at: z.string(),
+});
+export type ProjectRow = z.infer<typeof ProjectRowSchema>;
 
 export const STAGE_LABELS: Record<Stage, string> = {
   draft: "Draft",
@@ -41,5 +52,3 @@ export const STAGE_LABELS: Record<Stage, string> = {
   technical_review: "Technical review",
   approved: "Approved",
 };
-
-export const STAGES: Stage[] = ["draft", "install_review", "technical_review", "approved"];

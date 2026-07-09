@@ -18,7 +18,15 @@ export interface AdminPanel extends CatalogEntity {
   spanVert: { maxW: string; maxH: string };
   spanHoriz: { maxW: string; maxH: string; cTrack: string; fix: string; note?: string }[];
   cornerPost: { maxW: number; rows: { maxH: number; section: string; fixPerCourse?: 1 | 2 }[] }[];
-  horizCtrack: { wMax: number; hMax: number; section: string; fix: 1 | 2; outsideTable?: boolean }[];
+  // hMax is nullable, not just number: it mirrors src/data.ts's PanelSpec
+  // (whose own outsideTable/no-ceiling row uses hMax: Infinity), but jsonb/
+  // JSON has no representation for Infinity -- JSON.stringify silently turns
+  // it into null, and that's what's actually stored/read back from Supabase.
+  // This catalog is display-only staging data (see this file's own header
+  // comment) and never feeds the live calculator, so the null never reaches
+  // any real span lookup -- src/estimate/spanLookups.ts reads data.ts's
+  // in-memory PANELS directly, not this table.
+  horizCtrack: { wMax: number; hMax: number | null; section: string; fix: 1 | 2; outsideTable?: boolean }[];
 }
 
 export type TrackKind = "c-track" | "j-track" | "head-flash" | "z-flash" | "horiz-cover";

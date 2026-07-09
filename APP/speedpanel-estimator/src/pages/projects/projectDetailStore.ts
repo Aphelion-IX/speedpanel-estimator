@@ -9,9 +9,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "../../lib/supabaseClient";
 import { saveProjectSnapshot } from "./saveProjectSnapshot";
-import type { ProjectRow, SavedProjectData } from "./projectTypes";
+import { ProjectRowSchema, type ProjectRow, type SavedProjectData } from "./projectTypes";
 
 const NOT_CONFIGURED = "Projects aren't configured for this environment.";
+const BAD_SHAPE = "This project's data looks corrupted and can't be opened.";
 
 interface ProjectState {
   project: ProjectRow | null;
@@ -28,11 +29,10 @@ export function useProject(id: string) {
     if (!supabase) return;
     setState(s => ({ ...s, loading: true, error: null }));
     const { data, error } = await supabase.from("projects").select("*").eq("id", id).single();
-    setState(
-      error
-        ? { project: null, loading: false, error: error.message }
-        : { project: data as ProjectRow, loading: false, error: null },
-    );
+    if (error) { setState({ project: null, loading: false, error: error.message }); return; }
+    const parsed = ProjectRowSchema.safeParse(data);
+    if (!parsed.success) { setState({ project: null, loading: false, error: BAD_SHAPE }); return; }
+    setState({ project: parsed.data, loading: false, error: null });
   }, [id]);
 
   useEffect(() => { load(); }, [load]);

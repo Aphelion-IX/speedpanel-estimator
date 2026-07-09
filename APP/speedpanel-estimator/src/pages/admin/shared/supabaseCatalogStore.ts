@@ -15,15 +15,19 @@
 // entirely, not this one.
 // =============================================================================
 import { useCallback, useEffect, useState } from "react";
+import type { z } from "zod";
 import { supabase } from "../../../lib/supabaseClient";
 
 interface CatalogItem { id: string; createdAt: string; updatedAt: string; }
 
 interface CatalogState<Entity> { items: Entity[]; loading: boolean; error: string | null; }
 
-export function useSupabaseCatalog<Row, Entity extends CatalogItem>(
+const BAD_SHAPE = "Unexpected data shape from the server.";
+
+export function useSupabaseCatalog<RowSchema extends z.ZodType, Entity extends CatalogItem>(
   table: string,
-  fromRow: (row: Row) => Entity,
+  rowSchema: RowSchema,
+  fromRow: (row: z.infer<RowSchema>) => Entity,
   toRow: (entity: Omit<Entity, "id" | "createdAt" | "updatedAt">) => Record<string, unknown>,
   notConfiguredMessage: string,
   orderBy?: { column: string; ascending: boolean },
@@ -39,12 +43,11 @@ export function useSupabaseCatalog<Row, Entity extends CatalogItem>(
     setState(s => ({ ...s, loading: true, error: null }));
     const query = supabase.from(table).select("*");
     const { data, error } = orderBy ? await query.order(orderBy.column, { ascending: orderBy.ascending }) : await query;
-    setState(
-      error
-        ? { items: [], loading: false, error: error.message }
-        : { items: (data as Row[]).map(fromRow), loading: false, error: null },
-    );
-  }, [table]);
+    if (error) { setState({ items: [], loading: false, error: error.message }); return; }
+    const parsed = rowSchema.array().safeParse(data);
+    if (!parsed.success) { setState({ items: [], loading: false, error: BAD_SHAPE }); return; }
+    setState({ items: parsed.data.map(fromRow), loading: false, error: null });
+  }, [table, rowSchema]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -52,7 +55,9 @@ export function useSupabaseCatalog<Row, Entity extends CatalogItem>(
     if (!supabase) return { id: null, error: notConfiguredMessage };
     const { data, error } = await supabase.from(table).insert(toRow(item)).select("*").single();
     if (error) return { id: null, error: error.message };
-    const entity = fromRow(data as Row);
+    const parsed = rowSchema.safeParse(data);
+    if (!parsed.success) return { id: null, error: BAD_SHAPE };
+    const entity = fromRow(parsed.data);
     setState(s => ({ ...s, items: [...s.items, entity] }));
     return { id: entity.id, error: null };
   };
