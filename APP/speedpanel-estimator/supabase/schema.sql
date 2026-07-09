@@ -430,3 +430,119 @@ grant execute on function public.request_install_review(uuid) to authenticated;
 grant execute on function public.review_install(uuid, text, text) to authenticated;
 grant execute on function public.request_technical_review(uuid) to authenticated;
 grant execute on function public.review_technical(uuid, text, text) to authenticated;
+
+-- =============================================================================
+-- Admin catalog writes: panels/tracks/fixings/sealants/colours
+-- =============================================================================
+-- Public read was already granted above. Adds insert/update/delete gated by
+-- public.is_admin(), same shape as "Owners and admins can update projects".
+-- =============================================================================
+create policy "Admins can insert panels"   on panels   for insert with check (public.is_admin());
+create policy "Admins can update panels"   on panels   for update using (public.is_admin()) with check (public.is_admin());
+create policy "Admins can delete panels"   on panels   for delete using (public.is_admin());
+
+create policy "Admins can insert tracks"   on tracks   for insert with check (public.is_admin());
+create policy "Admins can update tracks"   on tracks   for update using (public.is_admin()) with check (public.is_admin());
+create policy "Admins can delete tracks"   on tracks   for delete using (public.is_admin());
+
+create policy "Admins can insert fixings"  on fixings  for insert with check (public.is_admin());
+create policy "Admins can update fixings"  on fixings  for update using (public.is_admin()) with check (public.is_admin());
+create policy "Admins can delete fixings"  on fixings  for delete using (public.is_admin());
+
+create policy "Admins can insert sealants" on sealants for insert with check (public.is_admin());
+create policy "Admins can update sealants" on sealants for update using (public.is_admin()) with check (public.is_admin());
+create policy "Admins can delete sealants" on sealants for delete using (public.is_admin());
+
+create policy "Admins can insert colours"  on colours  for insert with check (public.is_admin());
+create policy "Admins can update colours"  on colours  for update using (public.is_admin()) with check (public.is_admin());
+create policy "Admins can delete colours"  on colours  for delete using (public.is_admin());
+
+-- =============================================================================
+-- Admin Documents catalog (Education Hub metadata staging area)
+-- =============================================================================
+-- Mirrors src/pages/admin/documents/documentTypes.ts's AdminDocument 1:1.
+-- Named admin_documents, not documents -- this is the Admin staging catalog,
+-- deliberately decoupled from the live Education Hub (see documentTypes.ts),
+-- leaving `documents` free for a future customer-facing table.
+-- =============================================================================
+create table if not exists admin_documents (
+  id uuid primary key default gen_random_uuid(),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  notes text,
+  title text not null,
+  category text not null,
+  tags jsonb not null default '[]'::jsonb,
+  description text not null default '',
+  edition text not null default '',
+  date text not null default '',
+  file_size text not null default '',
+  file_type text not null default '',
+  page_count int not null default 0,
+  swatch text not null default '',
+  sections jsonb not null default '[]'::jsonb,
+  file_url text
+);
+
+alter table admin_documents enable row level security;
+
+create policy "Public read access" on admin_documents for select using (true);
+create policy "Admins can insert admin_documents" on admin_documents for insert with check (public.is_admin());
+create policy "Admins can update admin_documents" on admin_documents for update using (public.is_admin()) with check (public.is_admin());
+create policy "Admins can delete admin_documents" on admin_documents for delete using (public.is_admin());
+
+-- =============================================================================
+-- Admin Systems -- "Locked system data" rows
+-- =============================================================================
+-- One row per system (exactly 2: 'internal'/'external'), rows stored as a
+-- single jsonb array matching LockedRow[] verbatim. LockedRow has no id and
+-- the admin UI always replaces the whole array for one system at a time, so
+-- a normalized per-row table would need position bookkeeping and a delete-
+-- then-insert sequence (needing its own atomic RPC to be safe); storing the
+-- whole array as one jsonb column instead makes "replace this system's rows"
+-- a single atomic UPDATE, with no RPC needed.
+-- =============================================================================
+create table if not exists system_locked_rows (
+  system text primary key check (system in ('internal', 'external')),
+  rows jsonb not null default '[]'::jsonb,
+  updated_at timestamptz not null default now()
+);
+
+alter table system_locked_rows enable row level security;
+
+create policy "Public read access" on system_locked_rows for select using (true);
+create policy "Admins can update system_locked_rows" on system_locked_rows
+  for update using (public.is_admin()) with check (public.is_admin());
+-- No insert/delete policy -- exactly 2 rows exist forever, seeded once below;
+-- clients only ever update the `rows` column of an existing row.
+
+insert into system_locked_rows (system, rows) values
+  ('internal', '[]'::jsonb),
+  ('external', '[]'::jsonb)
+on conflict (system) do nothing;
+
+-- =============================================================================
+-- Admin Maths -- durable cross-device copy of MathConstants
+-- =============================================================================
+-- Exactly one row (fixed id below, enforced by the check constraint). This
+-- table is a durable, cross-device backing store that the Admin > Maths page
+-- refreshes localStorage FROM in the background -- src/data.ts's own
+-- module-load read stays 100% synchronous/localStorage-based and unchanged
+-- (see src/mathConstants.ts), since data.ts reads it once before React even
+-- mounts and there's no safe way to make that read async.
+-- =============================================================================
+create table if not exists math_constants (
+  id uuid primary key default '00000000-0000-0000-0000-000000000001'::uuid,
+  values jsonb not null,
+  updated_at timestamptz not null default now(),
+  check (id = '00000000-0000-0000-0000-000000000001'::uuid)
+);
+
+alter table math_constants enable row level security;
+
+create policy "Public read access" on math_constants for select using (true);
+create policy "Admins can update math_constants" on math_constants
+  for update using (public.is_admin()) with check (public.is_admin());
+-- No insert/delete policy -- the single row is seeded once (below/by the
+-- one-time backfill) and the fixed default id + check constraint make a
+-- second row structurally impossible even if insert were ever granted.

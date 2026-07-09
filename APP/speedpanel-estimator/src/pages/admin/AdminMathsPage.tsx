@@ -8,31 +8,51 @@
 // page -- there's no React state/context threaded through the pure
 // calculation functions in src/estimate/* for this to update live otherwise.
 // =============================================================================
-import { useState } from "react";
-import { cx, NAVY, BLUE, WHITE } from "../../styleTokens";
+import { useEffect, useRef, useState } from "react";
+import { cx, NAVY, BLUE, WHITE, MUTED } from "../../styleTokens";
 import { NumField, NumberListField } from "../shared/fields";
-import {
-  loadMathConstants, saveMathConstants, MATH_CONSTANT_DEFAULTS, MATH_CONSTANT_FIELDS,
-  type MathConstants,
-} from "../../mathConstants";
+import { MATH_CONSTANT_DEFAULTS, MATH_CONSTANT_FIELDS, type MathConstants } from "../../mathConstants";
+import { useMathConstantsStore } from "./maths/mathConstantsStore";
 
 const GROUP_LABEL: Record<"internal" | "external", string> = { internal: "Internal system constants", external: "External system constants" };
 
 export const AdminMathsPage = () => {
-  const [draft, setDraft] = useState<MathConstants>(loadMathConstants);
+  const mathStore = useMathConstantsStore();
+  const [draft, setDraft] = useState<MathConstants>(mathStore.draft);
+  const touched = useRef(false);
 
-  const set = <K extends keyof MathConstants>(key: K, value: MathConstants[K]) =>
+  // mathStore.draft starts from the synchronous localStorage read (identical
+  // to today), then may update once the background Supabase fetch resolves
+  // to a different cross-device value -- mirror that into the editable
+  // draft, but only until the admin starts typing (`touched`), so an
+  // in-progress edit is never silently overwritten by a slower network
+  // response landing after the admin has already started changing values.
+  useEffect(() => { if (!touched.current) setDraft(mathStore.draft); }, [mathStore.draft]);
+
+  const set = <K extends keyof MathConstants>(key: K, value: MathConstants[K]) => {
+    touched.current = true;
     setDraft(d => ({ ...d, [key]: value }));
+  };
 
-  const save = () => { saveMathConstants(draft); window.location.reload(); };
-  const cancel = () => setDraft(loadMathConstants());
-  const resetToDefaults = () => { saveMathConstants(MATH_CONSTANT_DEFAULTS); window.location.reload(); };
+  const save = async () => {
+    const err = await mathStore.save(draft);
+    if (err) { window.alert(err); return; }
+    window.location.reload();
+  };
+  const cancel = () => { touched.current = false; setDraft(mathStore.draft); };
+  const resetToDefaults = async () => {
+    const err = await mathStore.save(MATH_CONSTANT_DEFAULTS);
+    if (err) { window.alert(err); return; }
+    window.location.reload();
+  };
 
   return (
     <div className="mt-2">
       <span className={`${cx.badge} inline-block bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400`}>
         Saving applies these values to every estimate and reloads the app
       </span>
+      {mathStore.error && <p className="mt-2 text-xs text-red-600 dark:text-red-400">{mathStore.error} (showing this device's last-saved values)</p>}
+      {mathStore.loading && <p className="mt-2 text-xs" style={{ color: MUTED }}>Loading latest saved values...</p>}
 
       {(["internal", "external"] as const).map(group => (
         <div key={group} className={`${cx.card} mt-4`}>

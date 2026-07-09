@@ -34,16 +34,37 @@ const SystemToggle = ({ active, onChange }: { active: SystemId; onChange: (s: Sy
 );
 
 export const AdminSystemsPage = ({ layoutMode }: { layoutMode: EffectiveLayout }) => {
-  const { internal, external, setRows } = useSystemsStore();
+  const { internal, external, loading, error, dirty, reload, setRows, save, discard } = useSystemsStore();
   const [system, setSystem] = useState<SystemId>("internal");
 
   const rows = system === "internal" ? internal : external;
+  const isDirty = dirty[system];
+
+  const handleSave = async () => {
+    const err = await save(system);
+    if (err) window.alert(err);
+  };
+
+  if (loading) {
+    return <div className={`${cx.card} mt-6 text-sm`} style={{ color: NAVY }}>Loading...</div>;
+  }
+
+  if (error) {
+    return (
+      <div className={`${cx.card} mt-6`}>
+        <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+        <button onClick={() => reload()} className="mt-2 text-sm font-bold" style={{ color: NAVY }}>Retry</button>
+      </div>
+    );
+  }
 
   const editor = (
     <>
-      <span className={`${cx.badge} mt-4 inline-block bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400`}>
-        Local test data
-      </span>
+      {isDirty && (
+        <span className={`${cx.badge} mt-4 inline-block bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400`}>
+          Unsaved changes
+        </span>
+      )}
       <div className="mt-4"><SystemToggle active={system} onChange={setSystem} /></div>
       <div className={cx.card + " mt-4"}>
         <div className={cx.cardHd}>{SYSTEM_LABEL[system]} locked data rows</div>
@@ -59,6 +80,18 @@ export const AdminSystemsPage = ({ layoutMode }: { layoutMode: EffectiveLayout }
             onRemove={i => setRows(system, rows.filter((_, idx) => idx !== i))}
             addLabel="Add row"
           />
+        </div>
+        <div className="mt-4 flex gap-2">
+          <button onClick={handleSave} disabled={!isDirty}
+            className="rounded-xl px-4 py-2.5 text-sm font-semibold shadow-sm active:scale-95 transition-all disabled:opacity-40"
+            style={{ background: BLUE, color: WHITE }}>
+            Save changes
+          </button>
+          <button onClick={() => discard(system)} disabled={!isDirty}
+            className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-2.5 text-sm font-semibold active:scale-95 transition-all disabled:opacity-40"
+            style={{ color: NAVY }}>
+            Discard
+          </button>
         </div>
       </div>
     </>

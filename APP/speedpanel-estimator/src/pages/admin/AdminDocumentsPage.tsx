@@ -26,7 +26,7 @@ const matchesQuery = (item: AdminDocument, q: string): boolean =>
   JSON.stringify(item).toLowerCase().includes(q);
 
 export const AdminDocumentsPage = ({ layoutMode }: { layoutMode: EffectiveLayout }) => {
-  const { documents, add, update, remove } = useDocumentStore();
+  const { documents, loading, error, reload, add, update, remove } = useDocumentStore();
   const [category, setCategory] = useState<EduCategory>("All");
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -65,28 +65,41 @@ export const AdminDocumentsPage = ({ layoutMode }: { layoutMode: EffectiveLayout
   };
 
   // The detail panel's draft is an untyped Record -- see DocumentAdminDetailPanel.
-  const handleSave = (values: Record<string, unknown>) => {
+  const handleSave = async (values: Record<string, unknown>) => {
     if (isAdding) {
-      const id = add(values as never);
+      const { id, error } = await add(values as never);
+      if (error) { window.alert(error); return; }
       setSelectedId(id);
       setIsAdding(false);
     } else if (editingId) {
-      update(editingId, values as never);
+      const error = await update(editingId, values as never);
+      if (error) { window.alert(error); return; }
       setEditingId(null);
     }
   };
 
-  const handleDelete = (id: string) => {
-    remove(id);
+  const handleDelete = async (id: string) => {
+    const error = await remove(id);
+    if (error) { window.alert(error); return; }
     if (selectedId === id) setSelectedId(null);
     if (editingId === id) setEditingId(null);
   };
 
+  if (loading) {
+    return <div className={`${cx.card} mt-6 text-sm`} style={{ color: MUTED }}>Loading...</div>;
+  }
+
+  if (error) {
+    return (
+      <div className={`${cx.card} mt-6`}>
+        <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+        <button onClick={() => reload()} className="mt-2 text-sm font-bold" style={{ color: NAVY }}>Retry</button>
+      </div>
+    );
+  }
+
   const gridBody = (
     <>
-      <span className={`${cx.badge} mt-4 inline-block bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400`}>
-        Local test data
-      </span>
       <div className="mt-4 flex items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 shadow-sm">
         <Search size={16} className="shrink-0" style={{ color: MUTED }} />
         <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search documents..."
