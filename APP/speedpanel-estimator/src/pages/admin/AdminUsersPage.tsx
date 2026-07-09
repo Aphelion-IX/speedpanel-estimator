@@ -9,10 +9,19 @@
 // convention as ProjectsRouter) rather than calling useAuth() again here,
 // which would open a second independent auth subscription.
 // =============================================================================
+import { useMemo, useState } from "react";
+import { Search } from "lucide-react";
 import { cx, NAVY, MUTED, BLUE } from "../../styleTokens";
 import type { UseAuth } from "../../lib/useAuth";
+import { SelectField } from "../shared/fields";
 import { useAdminUsers } from "./users/usersStore";
 import type { AdminUserRow } from "./users/userTypes";
+
+const ROLE_FILTER_OPTIONS = [
+  { value: "all", label: "All roles" },
+  { value: "admin", label: "Admin" },
+  { value: "user", label: "User" },
+];
 
 const UserRow = ({ item, isSelf, onToggleRole }: {
   item: AdminUserRow; isSelf: boolean; onToggleRole: (item: AdminUserRow) => void;
@@ -40,6 +49,13 @@ const UserRow = ({ item, isSelf, onToggleRole }: {
 
 export const AdminUsersPage = ({ auth }: { auth: UseAuth }) => {
   const { users, loading, error, reload, setRole } = useAdminUsers();
+  const [query, setQuery] = useState("");
+  const [roleFilter, setRoleFilter] = useState("all");
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return users.filter(u => (roleFilter === "all" || u.role === roleFilter) && (!q || (u.email ?? "").toLowerCase().includes(q)));
+  }, [users, query, roleFilter]);
 
   const handleToggle = async (item: AdminUserRow) => {
     const nextRole = item.role === "admin" ? "user" : "admin";
@@ -71,9 +87,26 @@ export const AdminUsersPage = ({ auth }: { auth: UseAuth }) => {
 
   return (
     <div className="mt-2">
-      {users.map(item => (
-        <UserRow key={item.id} item={item} isSelf={item.id === auth.user?.id} onToggleRole={handleToggle} />
-      ))}
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <div className="flex flex-1 items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 shadow-sm">
+          <Search size={16} className="shrink-0" style={{ color: MUTED }} />
+          <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search email..."
+            className="w-full bg-transparent text-sm outline-none" style={{ color: NAVY }} />
+        </div>
+        <div className="sm:w-40">
+          <SelectField label="Filter by role" value={roleFilter} options={ROLE_FILTER_OPTIONS} onChange={setRoleFilter} />
+        </div>
+      </div>
+
+      {filtered.length === 0 ? (
+        <div className={`${cx.card} mt-3 text-center`}>
+          <p className={cx.footnote}>No users match your search.</p>
+        </div>
+      ) : (
+        filtered.map(item => (
+          <UserRow key={item.id} item={item} isSelf={item.id === auth.user?.id} onToggleRole={handleToggle} />
+        ))
+      )}
     </div>
   );
 };

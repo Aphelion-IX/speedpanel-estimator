@@ -2,27 +2,37 @@
 // Education Hub
 // =============================================================================
 // Self-contained document catalog/viewer page (no dependency on Wall or the
-// compute engine). Catalog data/search index lives in catalog.ts, the
-// pdfjs-dist lazy-loader in pdfjsLoader.ts, and the filter/card/section/
+// compute engine). Catalog data now comes live from Supabase's admin_documents
+// table via educationCatalogStore.ts -- the same table Admin > Documents
+// edits -- rather than the static eduDocuments.json snapshot; types, the
+// category taxonomy, and swatch resolution still live in catalog.ts. The
+// pdfjs-dist lazy-loader is in pdfjsLoader.ts, and the filter/card/section/
 // PDF-viewer/detail-panel pieces each in their own file -- this file is just
 // the page component: search/category/selection state, filtering, and
 // grid+detail composition.
 // =============================================================================
-import { useState, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { Search, FileText } from "lucide-react";
 import { cx, NAVY, MUTED } from "../styleTokens";
 import type { EffectiveLayout } from "../useLayoutMode";
 import { CardGrid, SectionLabel } from "../ui/primitives";
-import { EDU_DOCUMENTS, eduSearchIndex, type EduCategory, type EduDocument } from "./catalog";
+import { type EduCategory, type EduDocument } from "./catalog";
+import { useEducationCatalog } from "./educationCatalogStore";
 import { FilterChips } from "./FilterChips";
 import { RecentlyViewedStrip } from "./RecentlyViewedStrip";
 import { DocumentCard } from "./DocumentCard";
 import { DocumentDetailPanel, type DetailTab } from "./DocumentDetailPanel";
 
+// Metadata-only match -- see educationCatalogStore.ts's header comment for why
+// this replaced the old extracted-PDF-text MiniSearch index.
+const matchesQuery = (d: EduDocument, q: string): boolean =>
+  [d.title, d.category, d.description, ...d.tags].some(f => f.toLowerCase().includes(q));
+
 export const EducationHub = ({ layoutMode }: { layoutMode: EffectiveLayout }) => {
+  const { documents, loading, error, reload } = useEducationCatalog();
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<EduCategory>("All");
-  const [selectedId, setSelectedId] = useState<string>(EDU_DOCUMENTS[0].id);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [recentIds, setRecentIds] = useState<string[]>([]);
   const [detailTab, setDetailTab] = useState<DetailTab>("scan");
   // Grid + a persistent detail panel (aside on web, stacked below on phone) is always the
@@ -30,15 +40,18 @@ export const EducationHub = ({ layoutMode }: { layoutMode: EffectiveLayout }) =>
   // separate mode the user has to enter/exit to see anything.
   const [expanded, setExpanded] = useState(false);
 
+  // Seed the initial selection once documents arrive -- can't default
+  // synchronously to documents[0].id like the old EDU_DOCUMENTS constant
+  // allowed, since this is now an async Supabase fetch.
+  useEffect(() => {
+    if (!selectedId && documents.length > 0) setSelectedId(documents[0].id);
+  }, [documents, selectedId]);
+
   const filtered = useMemo(() => {
-    const q = query.trim();
+    const q = query.trim().toLowerCase();
     const byCategory = (d: EduDocument) => category === "All" || d.category === category;
-    if (!q) return EDU_DOCUMENTS.filter(byCategory);
-    // Full-text search (title/tags/category/description/extracted PDF text) via the
-    // pre-built MiniSearch index -- see scripts/add-education-doc.mjs.
-    const matchIds = new Set(eduSearchIndex.search(q, { prefix: true, fuzzy: 0.2, boost: { title: 3, tags: 2 } }).map(r => r.id));
-    return EDU_DOCUMENTS.filter(d => byCategory(d) && matchIds.has(d.id));
-  }, [query, category]);
+    return documents.filter(d => byCategory(d) && (!q || matchesQuery(d, q)));
+  }, [documents, query, category]);
 
   const selectDoc = (id: string) => {
     setSelectedId(id);
@@ -51,7 +64,20 @@ export const EducationHub = ({ layoutMode }: { layoutMode: EffectiveLayout }) =>
     setExpanded(true);
   };
 
-  const selectedDoc = EDU_DOCUMENTS.find(d => d.id === selectedId) ?? EDU_DOCUMENTS[0];
+  const selectedDoc = documents.find(d => d.id === selectedId) ?? documents[0] ?? null;
+
+  if (loading) {
+    return <div className={`${cx.card} mt-6 text-sm`} style={{ color: MUTED }}>Loading...</div>;
+  }
+
+  if (error) {
+    return (
+      <div className={`${cx.card} mt-6`}>
+        <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+        <button onClick={() => reload()} className="mt-2 text-sm font-bold" style={{ color: NAVY }}>Retry</button>
+      </div>
+    );
+  }
 
   const gridBody = (
     <>
@@ -61,7 +87,7 @@ export const EducationHub = ({ layoutMode }: { layoutMode: EffectiveLayout }) =>
           className="w-full bg-transparent text-sm outline-none" style={{ color: NAVY }} />
       </div>
       <div className="mt-3"><FilterChips active={category} onChange={setCategory} /></div>
-      <RecentlyViewedStrip ids={recentIds} docs={EDU_DOCUMENTS} onSelect={selectDoc} />
+      <RecentlyViewedStrip ids={recentIds} docs={documents} onSelect={selectDoc} />
       <div className="mt-5"><SectionLabel icon={<FileText size={14} />}>All Documents ({filtered.length})</SectionLabel></div>
       {filtered.length === 0 ? (
         <div className={cx.card + " mt-3 text-center"}>
@@ -77,9 +103,12 @@ export const EducationHub = ({ layoutMode }: { layoutMode: EffectiveLayout }) =>
     </>
   );
 
-  const detailPanel = (
+  // Null when the catalog has no documents at all (e.g. every row deleted in
+  // Admin > Documents) -- DocumentDetailPanel requires a non-null doc, so the
+  // wrapper below only renders it once a selection exists.
+  const detailPanel = selectedDoc && (
     <DocumentDetailPanel
-      doc={selectedDoc} allDocs={EDU_DOCUMENTS} tab={detailTab} onTabChange={setDetailTab} onSelectRelated={selectDoc}
+      doc={selectedDoc} allDocs={documents} tab={detailTab} onTabChange={setDetailTab} onSelectRelated={selectDoc}
       expanded={expanded} onToggleExpand={() => setExpanded(v => !v)} layoutMode={layoutMode}
     />
   );
@@ -94,7 +123,7 @@ export const EducationHub = ({ layoutMode }: { layoutMode: EffectiveLayout }) =>
     return (
       <div className="mt-2">
         {gridBody}
-        <div className={expanded ? expandedClass : "mt-6"}>{detailPanel}</div>
+        {detailPanel && <div className={expanded ? expandedClass : "mt-6"}>{detailPanel}</div>}
       </div>
     );
   }
@@ -102,7 +131,7 @@ export const EducationHub = ({ layoutMode }: { layoutMode: EffectiveLayout }) =>
   return (
     <div className="mt-2 grid grid-cols-[1fr_380px] items-start gap-6">
       <div className="min-w-0">{gridBody}</div>
-      <aside className={expanded ? expandedClass : "sticky top-5"}>{detailPanel}</aside>
+      {detailPanel && <aside className={expanded ? expandedClass : "sticky top-5"}>{detailPanel}</aside>}
     </div>
   );
 };
