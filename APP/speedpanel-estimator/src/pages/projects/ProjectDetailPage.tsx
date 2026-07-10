@@ -6,20 +6,30 @@
 // walls -- the calculator UI itself is not duplicated here, see wallStore.ts's
 // loadFrom/exportSnapshot. Stage stepper and review actions are layered on by
 // ReviewActionPanel/StageStepper (added alongside the stage-tracker work).
+//
+// This is "the project journey" view (see ProjectsListPage.tsx's new card
+// strip, which links here) -- deliberately left functionally unchanged in the
+// command-centre visual pass: StageStepper/ReviewActionPanel already reflect
+// this app's real Draft/Install review/Technical review/Approved pipeline, so
+// they aren't swapped for a look-alike Manufacturing/Delivery/Installation
+// stepper that would imply tracking this app doesn't have yet. Only the
+// colour-coded badges + a short Ref line are new here; a delivery's own
+// status lives on OrderDetailPage.tsx (reached via the Orders list below),
+// not duplicated onto this page.
 // =============================================================================
 import { useState } from "react";
 import { cx, NAVY, BLUE, WHITE, MUTED } from "../../styleTokens";
 import { Field } from "../shared/fields";
-import { saveProjectLocally } from "../../wallStore";
 import { useProject } from "./projectDetailStore";
 import { StageStepper } from "./StageStepper";
 import { ReviewActionPanel } from "./ReviewActionPanel";
 import { useProjectOrders } from "./orders/ordersStore";
-import { ORDER_STAGE_LABELS } from "./orders/orderTypes";
+import { ORDER_STAGE_LABELS, ORDER_STAGE_BADGE_CLASS } from "./orders/orderTypes";
+import { STAGE_LABELS, PROJECT_STAGE_BADGE_CLASS } from "./projectTypes";
 import type { ProjectRow } from "./projectTypes";
 
 export const ProjectDetailPage = ({ id, onBack, onOpenEstimator, onRequestQuote, onCreateOrder, onOpenOrder }: {
-  id: string; onBack: () => void; onOpenEstimator: (project: ProjectRow) => void; onRequestQuote: (id: string) => void;
+  id: string; onBack: () => void; onOpenEstimator: (project: ProjectRow) => void; onRequestQuote: () => void;
   onCreateOrder: (id: string) => void; onOpenOrder: (id: string, orderId: string) => void;
 }) => {
   const { orders } = useProjectOrders(id);
@@ -80,8 +90,13 @@ export const ProjectDetailPage = ({ id, onBack, onOpenEstimator, onRequestQuote,
         ) : (
           <div className="flex items-start justify-between gap-2">
             <div>
-              <h1 className="text-lg font-bold" style={{ color: NAVY }}>{project.name}</h1>
-              <p className="mt-1 text-xs" style={{ color: MUTED }}>Last updated {new Date(project.updated_at).toLocaleString()}</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-lg font-bold" style={{ color: NAVY }}>{project.name}</h1>
+                <span className={`${cx.badge} ${PROJECT_STAGE_BADGE_CLASS[project.stage]}`}>{STAGE_LABELS[project.stage]}</span>
+              </div>
+              <p className="mt-1 text-xs" style={{ color: MUTED }}>
+                Ref: {project.id.slice(0, 8).toUpperCase()} &middot; Last updated {new Date(project.updated_at).toLocaleString()}
+              </p>
             </div>
             <button onClick={startRename} className="shrink-0 text-sm font-semibold hover:underline" style={{ color: BLUE }}>Rename</button>
           </div>
@@ -98,7 +113,7 @@ export const ProjectDetailPage = ({ id, onBack, onOpenEstimator, onRequestQuote,
             className="rounded-xl px-4 py-2.5 text-sm font-bold" style={{ background: BLUE, color: WHITE }}>
             Open in Estimator
           </button>
-          <button onClick={() => { saveProjectLocally(project.data); onRequestQuote(project.id); }}
+          <button onClick={onRequestQuote}
             className="rounded-xl border border-slate-200 dark:border-slate-700 px-4 py-2.5 text-sm font-bold" style={{ color: NAVY }}>
             Request a quote
           </button>
@@ -122,7 +137,7 @@ export const ProjectDetailPage = ({ id, onBack, onOpenEstimator, onRequestQuote,
               <button key={o.id} onClick={() => onOpenOrder(project.id, o.id)}
                 className="flex w-full items-center justify-between gap-2 rounded-xl border border-slate-200 dark:border-slate-700 px-4 py-2.5 text-left text-sm">
                 <span style={{ color: NAVY }}>{new Date(o.created_at).toLocaleDateString()} -- ${o.total_inc_gst.toFixed(2)}</span>
-                <span className={cx.footnote}>{ORDER_STAGE_LABELS[o.stage]}</span>
+                <span className={`${cx.badge} ${ORDER_STAGE_BADGE_CLASS[o.stage]}`}>{ORDER_STAGE_LABELS[o.stage]}</span>
               </button>
             ))}
           </div>

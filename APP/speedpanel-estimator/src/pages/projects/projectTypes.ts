@@ -24,7 +24,6 @@ export const STAGES = ["draft", "install_review", "technical_review", "approved"
 export type Stage = typeof STAGES[number];
 
 const REVIEW_STATUSES = ["pending", "approved", "changes_requested"] as const;
-export type ReviewStatus = typeof REVIEW_STATUSES[number];
 
 export const SavedProjectDataSchema = PersistedProjectSchema.extend({
   system: z.string(), mode: z.string(), dimUnit: z.string(),
@@ -51,4 +50,13 @@ export const STAGE_LABELS: Record<Stage, string> = {
   install_review: "Install review",
   technical_review: "Technical review",
   approved: "Approved",
+};
+
+// Same slate/blue/amber/emerald convention as orders/orderTypes.ts's
+// ORDER_STAGE_BADGE_CLASS, so both pipelines' badges read consistently.
+export const PROJECT_STAGE_BADGE_CLASS: Record<Stage, string> = {
+  draft: "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400",
+  install_review: "bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400",
+  technical_review: "bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400",
+  approved: "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400",
 };

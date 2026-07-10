@@ -16,13 +16,15 @@ import type { UseAuth } from "../lib/useAuth";
 export const AuthStatus = ({ auth, onSignInClick }: { auth: UseAuth; onSignInClick: () => void }) => {
   if (auth.loading) return null;
 
+  // Coloured (BLUE fill) only once actually signed in -- a neutral outline
+  // button beforehand, so the fill reads as "you're logged in", not as a
+  // generic call-to-action.
   if (!auth.session) {
     return (
       <button
         onClick={onSignInClick}
         title="Log in"
-        className="grid h-10 w-10 place-items-center rounded-xl shadow-sm active:scale-95 transition-all"
-        style={{ background: BLUE, color: WHITE }}
+        className="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 shadow-sm active:scale-95 transition-all"
       >
         <LogIn size={16} />
       </button>
@@ -33,7 +35,8 @@ export const AuthStatus = ({ auth, onSignInClick }: { auth: UseAuth; onSignInCli
     <button
       onClick={() => auth.signOut()}
       title={auth.user?.email ? `Signed in as ${auth.user.email} -- click to log out` : "Log out"}
-      className="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 shadow-sm active:scale-95 transition-all"
+      className="grid h-10 w-10 place-items-center rounded-xl shadow-sm active:scale-95 transition-all"
+      style={{ background: BLUE, color: WHITE }}
     >
       <LogOut size={16} />
     </button>

@@ -158,10 +158,13 @@ revoke execute on function public.handle_new_user() from authenticated;
 -- Customer quote requests
 -- =============================================================================
 -- Public (anonymous, no auth) customers submit via the "Request a Quote" form
--- at src/pages/ProjectsPage.tsx. Only an authenticated admin (profiles.role =
+-- at src/pages/projects/QuoteRequestPage.tsx, nested under the Projects tab
+-- (see ProjectsRouter.tsx). Only an authenticated admin (profiles.role =
 -- 'admin') may read or update rows. project_snapshot, when present, is the
 -- raw wallStore.ts PersistedProject payload the customer opted to attach --
--- stored as-is, never recomputed/validated server-side.
+-- stored as-is, never recomputed/validated server-side. See project_id below
+-- for the real FK link used when the request is submitted from a specific
+-- signed-in user's saved project instead.
 --
 -- These are the first insert/update policies in this file (every table above
 -- only has "for select"). Public write access is intentional -- this is the
@@ -634,6 +637,17 @@ alter table panels   add column price_per_panel numeric;
 alter table tracks   add column price_per_metre numeric;
 alter table fixings  add column price_per_box numeric;
 alter table sealants add column price_per_box numeric;
+
+-- =============================================================================
+-- Quote requests: optional link to a saved project
+-- =============================================================================
+-- Added after the fact, once the projects table existed to link to -- same
+-- append-only convention as the per-unit pricing columns above. Nullable +
+-- "on delete set null" (NOT "not null"/"cascade" like orders.project_id):
+-- anonymous, project-less quote requests must remain possible, and deleting
+-- a project should detach, not delete, any request historically tied to it.
+-- =============================================================================
+alter table requests add column project_id uuid references projects (id) on delete set null;
 
 -- =============================================================================
 -- Customer Orders, delivery splitting, and pro forma invoice requests
