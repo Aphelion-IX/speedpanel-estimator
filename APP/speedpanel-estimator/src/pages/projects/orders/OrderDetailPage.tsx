@@ -14,6 +14,7 @@ import { useOrderDeliveries } from "./orderDeliveriesStore";
 import { OrderLineItemsTable, type DraftLineItem } from "./OrderLineItemsTable";
 import { DeliveryBatchCard } from "./DeliveryBatchCard";
 import { AddDeliveryForm } from "./AddDeliveryForm";
+import { ManufacturingProgress } from "./ManufacturingProgress";
 import { ORDER_STAGE_LABELS, ORDER_STAGE_BADGE_CLASS } from "./orderTypes";
 
 export const OrderDetailPage = ({ orderId, onBack, onViewProforma }: {
@@ -107,6 +108,15 @@ export const OrderDetailPage = ({ orderId, onBack, onViewProforma }: {
           )}
         </div>
       </div>
+
+      {order.stage === "proforma_issued" && (
+        <div className="mt-5">
+          <div className={cx.cardHd}>Manufacturing</div>
+          <div className={`${cx.card} mt-2`}>
+            <ManufacturingProgress order={order} />
+          </div>
+        </div>
+      )}
 
       <div className="mt-5">
         <div className={cx.cardHd}>Deliveries</div>

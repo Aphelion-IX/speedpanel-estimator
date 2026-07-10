@@ -9,14 +9,21 @@
 // actions that don't belong in a feature card below) followed by a 3-column
 // card row (Orders, Manufacturing & Delivery, Request Services) and a
 // 2-column card row (Activity, Documents) -- mirroring a richer
-// command-centre layout while only ever showing real data. Manufacturing &
-// Delivery and Documents are explicit "coming soon" placeholders (no
-// fabricated numbers/statuses) since this app doesn't track panel counts,
-// per-delivery status, or file uploads yet -- StageStepper/ReviewActionPanel
-// already reflect the real Draft/Install review/Technical review/Approved
-// pipeline, so they aren't swapped for a look-alike stepper implying
-// tracking this app doesn't have. A delivery's own status lives on
-// OrderDetailPage.tsx (reached via the Orders card), not duplicated here.
+// command-centre layout while only ever showing real data.
+//
+// Manufacturing & Delivery shows the project's most recently created
+// confirmed order (stage = 'proforma_issued', orders is already sorted
+// newest-first) -- admin-editable via AdminManufacturingPage.tsx, read-only
+// here (and in more detail on OrderDetailPage.tsx, reached via the Orders
+// card, for a project with more than one order in production). Falls back
+// to an honest "No orders in production yet" state, not a blanket
+// "coming soon", now that there's real data to check for.
+//
+// Documents remains an explicit "coming soon" placeholder -- no fabricated
+// data, since this app has no file storage yet. StageStepper/
+// ReviewActionPanel already reflect the real Draft/Install review/Technical
+// review/Approved pipeline, so they aren't swapped for a look-alike stepper
+// implying tracking this app doesn't have.
 // =============================================================================
 import { useState } from "react";
 import {
@@ -31,7 +38,9 @@ import { useProject } from "./projectDetailStore";
 import { StageStepper } from "./StageStepper";
 import { ReviewActionPanel } from "./ReviewActionPanel";
 import { useProjectOrders } from "./orders/ordersStore";
-import { ORDER_STAGE_LABELS, ORDER_STAGE_BADGE_CLASS } from "./orders/orderTypes";
+import { useOrderDeliveries } from "./orders/orderDeliveriesStore";
+import { ManufacturingProgress } from "./orders/ManufacturingProgress";
+import { ORDER_STAGE_LABELS, ORDER_STAGE_BADGE_CLASS, DELIVERY_STATUS_LABELS, DELIVERY_STATUS_BADGE_CLASS } from "./orders/orderTypes";
 import { STAGES, STAGE_LABELS, PROJECT_STAGE_BADGE_CLASS } from "./projectTypes";
 import {
   useProjectActivity, STAGE_EVENT_LABELS, STAGE_EVENT_DESCRIPTIONS, relativeTime,
@@ -59,6 +68,12 @@ export const ProjectDashboard = ({ id, onOpenEstimator, onRequestQuote, onCreate
   layoutMode: EffectiveLayout;
 }) => {
   const { orders } = useProjectOrders(id);
+  // Manufacturing & delivery is admin-editable per-order (see
+  // AdminManufacturingPage.tsx) -- this card shows the most recently created
+  // order that's actually confirmed (orders is already sorted newest-first),
+  // since that's the only stage this data ever applies to.
+  const latestProductionOrder = orders.find(o => o.stage === "proforma_issued");
+  const { deliveries: latestOrderDeliveries } = useOrderDeliveries(latestProductionOrder?.id ?? "");
   const { events, loading: activityLoading, error: activityError } = useProjectActivity(id);
   const { project, loading, error, reload, rename, deleteProject, requestInstallReview, requestTechnicalReview } = useProject(id);
   const [name, setName] = useState("");
@@ -180,12 +195,26 @@ export const ProjectDashboard = ({ id, onOpenEstimator, onRequestQuote, onCreate
         </Card>
 
         <Card title="Manufacturing & Delivery" icon={<Factory size={14} />}>
-          <div className="grid place-items-center gap-2 py-2 text-center">
-            <Factory size={28} style={{ color: MUTED }} />
-            <p className={cx.footnote} style={{ paddingTop: 0 }}>
-              Coming soon -- live panel counts and delivery status will appear here once your order is in production.
-            </p>
-          </div>
+          {!latestProductionOrder ? (
+            <div className="grid place-items-center gap-2 py-2 text-center">
+              <Factory size={28} style={{ color: MUTED }} />
+              <p className={cx.footnote} style={{ paddingTop: 0 }}>No orders in production yet.</p>
+            </div>
+          ) : (
+            <>
+              <ManufacturingProgress order={latestProductionOrder} />
+              {latestOrderDeliveries.length > 0 && (
+                <div className="mt-3 space-y-2">
+                  {latestOrderDeliveries.map(d => (
+                    <div key={d.id} className="flex items-center justify-between gap-2 rounded-xl border border-slate-200 dark:border-slate-700 px-3 py-2 text-sm">
+                      <span style={{ color: NAVY }}>Delivery {d.sequence_no}</span>
+                      <span className={`${cx.badge} ${DELIVERY_STATUS_BADGE_CLASS[d.status]}`}>{DELIVERY_STATUS_LABELS[d.status]}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
         </Card>
 
         <ReviewActionPanel project={project} onChanged={reload} onRequestQuote={() => onRequestQuote(project.id)}

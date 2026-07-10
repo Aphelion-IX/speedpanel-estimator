@@ -872,3 +872,32 @@ grant execute on function public.submit_order(uuid) to authenticated;
 grant execute on function public.request_proforma_invoice(uuid) to authenticated;
 grant execute on function public.issue_proforma_invoice(uuid, text) to authenticated;
 grant execute on function public.cancel_order(uuid) to authenticated;
+
+-- =============================================================================
+-- Manufacturing & delivery tracking (admin-editable)
+-- =============================================================================
+-- Applies once an order is confirmed (stage = 'proforma_issued') -- there's
+-- no later order stage representing "fulfilled", so this tracking data IS
+-- the fulfillment record, not a transition into a new stage.
+--
+-- No new RLS policies or RPCs needed: orders' own "Owners and admins can
+-- update orders" policy already lets an admin write any column (same
+-- frontend-discipline tradeoff already noted on that policy above), and
+-- order_deliveries' "Owners can manage deliveries while draft, admins
+-- anytime" policy already gives admins unrestricted write access -- both
+-- simply unused by any UI until now.
+--
+-- panels_manufactured is nullable ("not started/no data yet" vs a real 0).
+-- Total panel count is deliberately NOT stored here -- it's computed
+-- client-side from the order's own line_items (category in
+-- ('panel','custom_panel'), summed qty -- see
+-- src/export/priceEstimateReportData.ts's ORDER_LINE_ITEM_CATEGORIES) so it
+-- can never drift out of sync with the order it's describing.
+alter table orders add column panels_manufactured int;
+alter table orders add column manufacturing_est_completion date;
+
+-- planned -> scheduled -> in_transit -> delivered, admin-set per delivery
+-- batch. Same check-constraint-as-enum convention as orders.stage/
+-- projects.stage above.
+alter table order_deliveries add column status text not null default 'planned'
+  check (status in ('planned', 'scheduled', 'in_transit', 'delivered'));
