@@ -14,6 +14,7 @@
 // requires a session.
 // =============================================================================
 import { cx, MUTED } from "../../styleTokens";
+import type { EffectiveLayout } from "../../useLayoutMode";
 import type { UseAuth } from "../../lib/useAuth";
 import type { Route } from "../../appShell/useHashRoute";
 import { SignInGate } from "./SignInGate";
@@ -24,12 +25,13 @@ import { OrderBuilderPage } from "./orders/OrderBuilderPage";
 import { OrderDetailPage } from "./orders/OrderDetailPage";
 import type { ProjectRow } from "./projectTypes";
 
-export const ProjectsRouter = ({ route, navigate, auth, onOpenEstimator, pendingNote }: {
+export const ProjectsRouter = ({ route, navigate, auth, onOpenEstimator, pendingNote, layoutMode }: {
   route: Extract<Route, { tab: "projects" }>;
   navigate: (r: Route) => void;
   auth: UseAuth;
   onOpenEstimator: (project: ProjectRow) => void;
   pendingNote?: string;
+  layoutMode: EffectiveLayout;
 }) => {
   if (auth.loading) return <div className={`${cx.card} mt-6 text-sm`} style={{ color: MUTED }}>Loading...</div>;
   if (!route.id && route.request) {
@@ -66,5 +68,5 @@ export const ProjectsRouter = ({ route, navigate, auth, onOpenEstimator, pending
       />
     );
   }
-  return <ProjectsListPage user={auth.user} onOpen={id => navigate({ tab: "projects", id })} />;
+  return <ProjectsListPage user={auth.user} onOpen={id => navigate({ tab: "projects", id })} layoutMode={layoutMode} />;
 };

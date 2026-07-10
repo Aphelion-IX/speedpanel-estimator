@@ -177,6 +177,7 @@ export default function SpeedpanelEstimator() {
             route={route} navigate={navigate} auth={auth}
             onOpenEstimator={openProjectInEstimator}
             pendingNote={pendingSystemSelection ? `Sign in to create "${pendingSystemSelection.name}"` : undefined}
+            layoutMode={layoutMode}
           />
         )}
 
