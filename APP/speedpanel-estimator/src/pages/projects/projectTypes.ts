@@ -24,7 +24,6 @@ export const STAGES = ["draft", "install_review", "technical_review", "approved"
 export type Stage = typeof STAGES[number];
 
 const REVIEW_STATUSES = ["pending", "approved", "changes_requested"] as const;
-export type ReviewStatus = typeof REVIEW_STATUSES[number];
 
 export const SavedProjectDataSchema = PersistedProjectSchema.extend({
   system: z.string(), mode: z.string(), dimUnit: z.string(),

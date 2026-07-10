@@ -2,9 +2,8 @@
 // Admin Products -- catalog entity types
 // =============================================================================
 // Deliberately independent of src/data.ts's PanelSpec/SystemConfig -- this is a
-// separate, parallel admin dataset (seeded once from data.ts's current values
-// via seedFromData.ts) that exists purely so admins can browse/stage catalog
-// data ahead of a future Supabase-backed phase. Editing these types can never
+// separate, parallel admin dataset that exists purely so admins can
+// browse/stage catalog data via Supabase. Editing these types can never
 // affect the compute engine's types.
 // =============================================================================
 export type ProductCategory = "panel" | "track" | "fixing" | "sealant" | "colour";

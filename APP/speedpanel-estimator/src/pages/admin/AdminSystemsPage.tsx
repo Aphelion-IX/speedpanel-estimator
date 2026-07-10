@@ -4,7 +4,7 @@
 // Stages edits to the Internal/External "Locked system data" reference tables
 // (src/data.ts's INT_LOCKED/EXT_LOCKED), persisted to localStorage via
 // useSystemsStore -- fully decoupled from data.ts and the live calculators
-// (see systemsStore.ts/seedFromLockedData.ts). Unlike Products/Documents,
+// (see systemsStore.ts). Unlike Products/Documents,
 // this isn't a searchable collection of cards -- it's two flat ordered lists,
 // so the layout is a direct table editor (RepeatableRowEditor) plus a
 // live-style preview reusing DataRow/LDRow from ui/lockedData.tsx, the same

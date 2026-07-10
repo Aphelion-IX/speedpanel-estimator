@@ -4,9 +4,8 @@
 // Fetches the same admin_documents table Admin > Documents edits (see
 // supabase/schema.sql), so section/metadata edits made there now show up
 // here directly -- no separate publish step. Deliberately does NOT import
-// from src/pages/admin/documents/ (the reverse of seedFromEducation.ts's own
-// one-directional import) to keep this public feature independent of the
-// admin tooling's internals; the row shape is duplicated here rather than
+// from src/pages/admin/documents/ to keep this public feature independent of
+// the admin tooling's internals; the row shape is duplicated here rather than
 // shared, same "duplicated, not reused" call as documentMappers.ts's own
 // category enum.
 //

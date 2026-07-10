@@ -26,4 +26,3 @@ export const SystemLockedRowsRowSchema = z.object({
   system: z.enum(["internal", "external"]),
   rows: z.array(z.object({ key: z.string(), value: z.string() })),
 });
-export type SystemLockedRowsRow = z.infer<typeof SystemLockedRowsRowSchema>;

@@ -1,10 +1,9 @@
 // =============================================================================
 // Admin Documents -- catalog entity types
 // =============================================================================
-// A localStorage staging catalog for the Education Hub's document metadata,
-// deliberately independent of src/education/catalog.ts's EduDocument/EduSection
-// (seeded once from EDU_DOCUMENTS via seedFromEducation.ts) -- same "parallel
-// admin dataset" pattern as src/pages/admin/products/productTypes.ts. Editing
+// A staging catalog for the Education Hub's document metadata, deliberately
+// independent of src/education/catalog.ts's EduDocument/EduSection -- same
+// "parallel admin dataset" pattern as src/pages/admin/products/productTypes.ts. Editing
 // these types can never affect the live Education Hub. CatalogEntity isn't
 // imported from productTypes.ts for the same reason: the two admin sections
 // stay decoupled from each other, not just from their respective live data.

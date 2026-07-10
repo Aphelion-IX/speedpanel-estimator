@@ -3,7 +3,7 @@
 // =============================================================================
 // Master/detail page for staging Education Hub document metadata, persisted to
 // localStorage via useDocumentStore -- fully decoupled from src/education/ and
-// the live Education Hub (see documentStore.ts/seedFromEducation.ts).
+// the live Education Hub (see documentStore.ts).
 // Composition mirrors AdminProductsPage.tsx (itself modeled on EducationHub.tsx):
 // gridBody (search + category chips + card grid) and a persistent detailPanel,
 // stacked on phone / a sticky aside on web. Category filter chips are reused
