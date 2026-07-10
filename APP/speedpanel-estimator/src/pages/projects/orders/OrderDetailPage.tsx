@@ -14,15 +14,7 @@ import { useOrderDeliveries } from "./orderDeliveriesStore";
 import { OrderLineItemsTable, type DraftLineItem } from "./OrderLineItemsTable";
 import { DeliveryBatchCard } from "./DeliveryBatchCard";
 import { AddDeliveryForm } from "./AddDeliveryForm";
-import { ORDER_STAGE_LABELS } from "./orderTypes";
-
-const STAGE_BADGE_CLASS: Record<string, string> = {
-  draft: "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400",
-  submitted: "bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400",
-  proforma_requested: "bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400",
-  proforma_issued: "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400",
-  cancelled: "bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400",
-};
+import { ORDER_STAGE_LABELS, ORDER_STAGE_BADGE_CLASS } from "./orderTypes";
 
 export const OrderDetailPage = ({ orderId, onBack, onViewProforma }: {
   orderId: string; onBack: () => void; onViewProforma: (orderId: string) => void;
@@ -64,7 +56,7 @@ export const OrderDetailPage = ({ orderId, onBack, onViewProforma }: {
       <div className={`${cx.card} mt-3`}>
         <div className="flex items-start justify-between gap-2">
           <h1 className="text-lg font-bold" style={{ color: NAVY }}>Order</h1>
-          <span className={`${cx.badge} ${STAGE_BADGE_CLASS[order.stage]}`}>{ORDER_STAGE_LABELS[order.stage]}</span>
+          <span className={`${cx.badge} ${ORDER_STAGE_BADGE_CLASS[order.stage]}`}>{ORDER_STAGE_LABELS[order.stage]}</span>
         </div>
         <p className={cx.footnote}>Created {new Date(order.created_at).toLocaleString()}</p>
 

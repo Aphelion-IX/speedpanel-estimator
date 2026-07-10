@@ -27,6 +27,16 @@ export const ORDER_STAGE_LABELS: Record<OrderStage, string> = {
   cancelled: "Cancelled",
 };
 
+// Was local to OrderDetailPage.tsx as STAGE_BADGE_CLASS -- exported here so
+// ProjectDetailPage.tsx's orders list can share the same colour convention.
+export const ORDER_STAGE_BADGE_CLASS: Record<OrderStage, string> = {
+  draft: "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400",
+  submitted: "bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400",
+  proforma_requested: "bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400",
+  proforma_issued: "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400",
+  cancelled: "bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400",
+};
+
 export const OrderRowSchema = z.object({
   id: z.string(),
   project_id: z.string(),
