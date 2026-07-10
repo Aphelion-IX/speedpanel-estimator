@@ -28,7 +28,7 @@ export const ORDER_STAGE_LABELS: Record<OrderStage, string> = {
 };
 
 // Was local to OrderDetailPage.tsx as STAGE_BADGE_CLASS -- exported here so
-// ProjectDetailPage.tsx's orders list can share the same colour convention.
+// ProjectDashboard.tsx's orders list can share the same colour convention.
 export const ORDER_STAGE_BADGE_CLASS: Record<OrderStage, string> = {
   draft: "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400",
   submitted: "bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400",

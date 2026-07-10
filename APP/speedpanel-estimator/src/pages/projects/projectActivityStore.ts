@@ -1,7 +1,7 @@
 // =============================================================================
 // Project activity feed
 // =============================================================================
-// Feeds ProjectDetailPage.tsx's "Activity" card -- a real feed from
+// Feeds ProjectDashboard.tsx's "Activity" card -- a real feed from
 // project_stage_events (see supabase/schema.sql), already RLS-readable by
 // the project's owner ("Owners and admins can read project stage events"),
 // just never surfaced anywhere customer-facing before now -- only the Admin

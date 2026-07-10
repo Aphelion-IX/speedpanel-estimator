@@ -12,7 +12,7 @@
 // one, so there's a single source of truth for the project row.
 //
 // Icon+label+chevron row style (not solid buttons) matches every other
-// "request a service" row on ProjectDetailPage.tsx's card grid.
+// "request a service" row on ProjectDashboard.tsx's card grid.
 // =============================================================================
 import { useState } from "react";
 import { ChevronRight, Wrench } from "lucide-react";

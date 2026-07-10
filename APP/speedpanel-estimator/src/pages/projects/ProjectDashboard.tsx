@@ -1,26 +1,22 @@
 // =============================================================================
-// Project detail
+// Project dashboard
 // =============================================================================
-// Thin wrapper around a saved project: name/rename, delete, and (once wired
-// by the caller) opening it in the normal Estimator tab to actually edit
-// walls -- the calculator UI itself is not duplicated here, see wallStore.ts's
-// loadFrom/exportSnapshot.
-//
-// This is "the project journey" view (see ProjectsListPage.tsx's card strip,
-// which links here). Structured as a hero card (icon block standing in for a
-// real project photo, which this app doesn't have -- name/badge/Ref/rename,
-// a real-data stat row, StageStepper, and the two actions that don't belong
-// in a feature card below) followed by a 3-column card row (Orders,
-// Manufacturing & Delivery, Request Services) and a 2-column card row
-// (Activity, Documents) -- mirroring a richer command-centre layout while
-// only ever showing real data. Manufacturing & Delivery and Documents are
-// explicit "coming soon" placeholders (no fabricated numbers/statuses) since
-// this app doesn't track panel counts, per-delivery status, or file uploads
-// yet -- StageStepper/ReviewActionPanel already reflect the real
-// Draft/Install review/Technical review/Approved pipeline, so they aren't
-// swapped for a look-alike stepper implying tracking this app doesn't have.
-// A delivery's own status lives on OrderDetailPage.tsx (reached via the
-// Orders card), not duplicated onto this page.
+// The full "project journey" view for a single project -- embedded directly
+// under ProjectsListPage.tsx's carousel (whichever project is selected
+// there), not a separate page/route. Structured as a hero card (icon block
+// standing in for a real project photo, which this app doesn't have --
+// name/badge/Ref/rename, a real-data stat row, StageStepper, and the two
+// actions that don't belong in a feature card below) followed by a 3-column
+// card row (Orders, Manufacturing & Delivery, Request Services) and a
+// 2-column card row (Activity, Documents) -- mirroring a richer
+// command-centre layout while only ever showing real data. Manufacturing &
+// Delivery and Documents are explicit "coming soon" placeholders (no
+// fabricated numbers/statuses) since this app doesn't track panel counts,
+// per-delivery status, or file uploads yet -- StageStepper/ReviewActionPanel
+// already reflect the real Draft/Install review/Technical review/Approved
+// pipeline, so they aren't swapped for a look-alike stepper implying
+// tracking this app doesn't have. A delivery's own status lives on
+// OrderDetailPage.tsx (reached via the Orders card), not duplicated here.
 // =============================================================================
 import { useState } from "react";
 import { Building2, Package, Factory, Activity as ActivityIcon, FileText } from "lucide-react";
@@ -39,8 +35,8 @@ import type { ProjectRow } from "./projectTypes";
 
 const stageProgress = (stage: ProjectRow["stage"]): number => Math.round(STAGES.indexOf(stage) / (STAGES.length - 1) * 100);
 
-export const ProjectDetailPage = ({ id, onBack, onOpenEstimator, onRequestQuote, onCreateOrder, onOpenOrder, layoutMode }: {
-  id: string; onBack: () => void; onOpenEstimator: (project: ProjectRow) => void; onRequestQuote: () => void;
+export const ProjectDashboard = ({ id, onOpenEstimator, onRequestQuote, onCreateOrder, onOpenOrder, layoutMode }: {
+  id: string; onOpenEstimator: (project: ProjectRow) => void; onRequestQuote: (id: string) => void;
   onCreateOrder: (id: string) => void; onOpenOrder: (id: string, orderId: string) => void;
   layoutMode: EffectiveLayout;
 }) => {
@@ -53,14 +49,13 @@ export const ProjectDetailPage = ({ id, onBack, onOpenEstimator, onRequestQuote,
   const [actionError, setActionError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  if (loading) return <div className={`${cx.card} mt-6 text-sm`} style={{ color: MUTED }}>Loading...</div>;
+  if (loading) return <div className={`${cx.card} mt-5 text-sm`} style={{ color: MUTED }}>Loading...</div>;
 
   if (error || !project) {
     return (
-      <div className={`${cx.card} mt-6`}>
+      <div className={`${cx.card} mt-5`}>
         <p className="text-sm text-red-600 dark:text-red-400">{error || "Project not found."}</p>
-        <button onClick={() => reload()} className="mt-2 mr-4 text-sm font-bold" style={{ color: NAVY }}>Retry</button>
-        <button onClick={onBack} className="mt-2 text-sm font-bold" style={{ color: BLUE }}>Back to projects</button>
+        <button onClick={() => reload()} className="mt-2 text-sm font-bold" style={{ color: NAVY }}>Retry</button>
       </div>
     );
   }
@@ -81,15 +76,12 @@ export const ProjectDetailPage = ({ id, onBack, onOpenEstimator, onRequestQuote,
     setDeleting(true);
     const err = await deleteProject();
     setDeleting(false);
-    if (err) { setActionError(err); return; }
-    onBack();
+    if (err) setActionError(err);
   };
 
   return (
-    <div className="mt-2">
-      <button onClick={onBack} className="text-sm font-semibold hover:underline" style={{ color: BLUE }}>&larr; Back to projects</button>
-
-      <div className={`${cx.card} mt-3`}>
+    <div className="mt-5">
+      <div className={cx.card}>
         {editingName ? (
           <form onSubmit={submitRename} className="flex items-end gap-2">
             <div className="flex-1"><Field label="Project name" value={name} onChange={setName} required /></div>
@@ -174,7 +166,7 @@ export const ProjectDetailPage = ({ id, onBack, onOpenEstimator, onRequestQuote,
           </p>
         </Card>
 
-        <ReviewActionPanel project={project} onChanged={reload} onRequestQuote={onRequestQuote}
+        <ReviewActionPanel project={project} onChanged={reload} onRequestQuote={() => onRequestQuote(project.id)}
           onRequestInstallReview={requestInstallReview} onRequestTechnicalReview={requestTechnicalReview} />
       </CardGrid>
 
