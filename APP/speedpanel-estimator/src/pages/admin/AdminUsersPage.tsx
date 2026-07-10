@@ -8,20 +8,70 @@
 // Receives `auth` as a prop (App.tsx's own useAuth() instance, same
 // convention as ProjectsRouter) rather than calling useAuth() again here,
 // which would open a second independent auth subscription.
+//
+// "Invite user" creates a REAL account (not just a role pre-authorization)
+// via the admin-invite-user Edge Function -- see usersStore.ts's inviteUser
+// and supabase/functions/admin-invite-user/index.ts. The invited person gets
+// a Supabase email with a link to set their own password; this app never
+// generates or displays one. Always rendered (not gated behind the list's
+// own loading/error/empty states) so an admin can invite the very first user
+// even before any account exists.
 // =============================================================================
 import { useMemo, useState } from "react";
 import { Search } from "lucide-react";
-import { cx, NAVY, MUTED, BLUE } from "../../styleTokens";
+import { cx, NAVY, MUTED, BLUE, WHITE } from "../../styleTokens";
 import type { UseAuth } from "../../lib/useAuth";
-import { SelectField } from "../shared/fields";
+import { Field, SelectField } from "../shared/fields";
 import { useAdminUsers } from "./users/usersStore";
-import type { AdminUserRow } from "./users/userTypes";
+import type { AdminUserRow, UserRole } from "./users/userTypes";
+
+const ROLE_OPTIONS = [
+  { value: "user", label: "User" },
+  { value: "admin", label: "Admin" },
+];
 
 const ROLE_FILTER_OPTIONS = [
   { value: "all", label: "All roles" },
-  { value: "admin", label: "Admin" },
-  { value: "user", label: "User" },
+  ...ROLE_OPTIONS,
 ];
+
+const InviteUserForm = ({ onInvite }: { onInvite: (email: string, role: UserRole) => Promise<string | null> }) => {
+  const [email, setEmail] = useState("");
+  const [role, setRole] = useState<UserRole>("user");
+  const [inviting, setInviting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email.trim()) return;
+    setInviting(true);
+    setError(null);
+    setSuccess(false);
+    const err = await onInvite(email.trim(), role);
+    setInviting(false);
+    if (err) { setError(err); return; }
+    setEmail("");
+    setRole("user");
+    setSuccess(true);
+  };
+
+  return (
+    <div className={cx.card}>
+      <h1 className="text-sm font-bold" style={{ color: NAVY }}>Invite user</h1>
+      <form onSubmit={handleSubmit} className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-end">
+        <div className="flex-1"><Field label="Email" value={email} onChange={setEmail} type="email" required autoComplete="email" /></div>
+        <div className="sm:w-36"><SelectField label="Role" value={role} options={ROLE_OPTIONS} onChange={v => setRole(v as UserRole)} /></div>
+        <button type="submit" disabled={inviting || !email.trim()}
+          className="h-[46px] shrink-0 rounded-xl px-5 text-sm font-bold disabled:opacity-50" style={{ background: BLUE, color: WHITE }}>
+          {inviting ? "Inviting..." : "Invite"}
+        </button>
+      </form>
+      {error && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{error}</p>}
+      {success && <p className="mt-2 text-sm font-semibold" style={{ color: BLUE }}>Invited -- they'll get an email to set their password.</p>}
+    </div>
+  );
+};
 
 const UserRow = ({ item, isSelf, onToggleRole }: {
   item: AdminUserRow; isSelf: boolean; onToggleRole: (item: AdminUserRow) => void;
@@ -48,7 +98,7 @@ const UserRow = ({ item, isSelf, onToggleRole }: {
 };
 
 export const AdminUsersPage = ({ auth }: { auth: UseAuth }) => {
-  const { users, loading, error, reload, setRole } = useAdminUsers();
+  const { users, loading, error, reload, setRole, inviteUser } = useAdminUsers();
   const [query, setQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
 
@@ -64,48 +114,53 @@ export const AdminUsersPage = ({ auth }: { auth: UseAuth }) => {
     if (err) window.alert(err);
   };
 
-  if (loading) {
-    return <div className={`${cx.card} mt-6 text-sm`} style={{ color: MUTED }}>Loading...</div>;
-  }
-
-  if (error) {
-    return (
-      <div className={`${cx.card} mt-6`}>
-        <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
-        <button onClick={() => reload()} className="mt-2 text-sm font-bold" style={{ color: NAVY }}>Retry</button>
-      </div>
-    );
-  }
-
-  if (users.length === 0) {
-    return (
-      <div className={`${cx.card} mt-6 text-center`}>
-        <p className={cx.footnote}>No signed-up users yet.</p>
-      </div>
-    );
-  }
+  const handleInvite = async (email: string, role: UserRole) => {
+    const { error: err } = await inviteUser(email, role);
+    return err;
+  };
 
   return (
     <div className="mt-2">
-      <div className="flex flex-col gap-2 sm:flex-row">
-        <div className="flex flex-1 items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 shadow-sm">
-          <Search size={16} className="shrink-0" style={{ color: MUTED }} />
-          <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search email..."
-            className="w-full bg-transparent text-sm outline-none" style={{ color: NAVY }} />
-        </div>
-        <div className="sm:w-40">
-          <SelectField label="Filter by role" value={roleFilter} options={ROLE_FILTER_OPTIONS} onChange={setRoleFilter} />
-        </div>
-      </div>
+      <InviteUserForm onInvite={handleInvite} />
 
-      {filtered.length === 0 ? (
-        <div className={`${cx.card} mt-3 text-center`}>
-          <p className={cx.footnote}>No users match your search.</p>
+      {loading && <div className={`${cx.card} mt-3 text-sm`} style={{ color: MUTED }}>Loading...</div>}
+
+      {!loading && error && (
+        <div className={`${cx.card} mt-3`}>
+          <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+          <button onClick={() => reload()} className="mt-2 text-sm font-bold" style={{ color: NAVY }}>Retry</button>
         </div>
-      ) : (
-        filtered.map(item => (
-          <UserRow key={item.id} item={item} isSelf={item.id === auth.user?.id} onToggleRole={handleToggle} />
-        ))
+      )}
+
+      {!loading && !error && users.length === 0 && (
+        <div className={`${cx.card} mt-3 text-center`}>
+          <p className={cx.footnote}>No signed-up users yet.</p>
+        </div>
+      )}
+
+      {!loading && !error && users.length > 0 && (
+        <>
+          <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+            <div className="flex flex-1 items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 shadow-sm">
+              <Search size={16} className="shrink-0" style={{ color: MUTED }} />
+              <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search email..."
+                className="w-full bg-transparent text-sm outline-none" style={{ color: NAVY }} />
+            </div>
+            <div className="sm:w-40">
+              <SelectField label="Filter by role" value={roleFilter} options={ROLE_FILTER_OPTIONS} onChange={setRoleFilter} />
+            </div>
+          </div>
+
+          {filtered.length === 0 ? (
+            <div className={`${cx.card} mt-3 text-center`}>
+              <p className={cx.footnote}>No users match your search.</p>
+            </div>
+          ) : (
+            filtered.map(item => (
+              <UserRow key={item.id} item={item} isSelf={item.id === auth.user?.id} onToggleRole={handleToggle} />
+            ))
+          )}
+        </>
       )}
     </div>
   );

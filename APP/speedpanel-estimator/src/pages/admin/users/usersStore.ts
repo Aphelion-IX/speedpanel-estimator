@@ -7,6 +7,12 @@
 // server-side, same defense-in-depth as review_install/review_technical in
 // adminProjectsStore.ts: an unauthenticated or non-admin session gets an
 // empty list / an error back, never another user's data.
+//
+// inviteUser() is the one exception to "everything here is an RPC" --
+// creating a real auth.users row needs the service-role key, which can never
+// be shipped to the browser, so it goes through the admin-invite-user Edge
+// Function instead (see supabase/functions/admin-invite-user/index.ts),
+// which re-checks is_admin() itself before doing anything privileged.
 // =============================================================================
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "../../../lib/supabaseClient";
@@ -44,5 +50,30 @@ export function useAdminUsers() {
     return null;
   };
 
-  return { ...state, reload: load, setRole };
+  const inviteUser = async (email: string, role: UserRole): Promise<{ id: string | null; error: string | null }> => {
+    if (!supabase) return { id: null, error: NOT_CONFIGURED };
+    const { data, error } = await supabase.functions.invoke<{ id?: string }>("admin-invite-user", { body: { email, role } });
+    if (error) {
+      // A non-2xx response leaves `data` null and `error` a generic
+      // FunctionsHttpError whose `.context` is the raw Response -- our
+      // function always returns a JSON { error } body in that case, so read
+      // it instead of surfacing supabase-js's generic status-code message.
+      // context is NOT a Response for other failure modes (e.g. the
+      // function isn't deployed / a network error), so guard with
+      // `instanceof` rather than assuming the shape.
+      const context = (error as { context?: unknown }).context;
+      let message = error.message;
+      if (context instanceof Response) {
+        try {
+          const body: { error?: string } = await context.clone().json();
+          if (body?.error) message = body.error;
+        } catch { /* not JSON -- keep the generic message */ }
+      }
+      return { id: null, error: message };
+    }
+    await load();
+    return { id: data?.id ?? null, error: null };
+  };
+
+  return { ...state, reload: load, setRole, inviteUser };
 }
