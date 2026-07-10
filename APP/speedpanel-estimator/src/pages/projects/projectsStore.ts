@@ -10,6 +10,9 @@
 import { useCallback, useEffect, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import { supabase } from "../../lib/supabaseClient";
+import { defaultWall } from "../../wallStore";
+import { SYSTEMS } from "../../appShell/systems";
+import type { WallSystemId } from "../../App";
 import { saveProjectSnapshot } from "./saveProjectSnapshot";
 import { ProjectRowSchema, type ProjectRow, type SavedProjectData } from "./projectTypes";
 
@@ -23,12 +26,45 @@ interface ProjectsState {
   error: string | null;
 }
 
+// One default wall, not an empty list -- useWallStore's own initial state and
+// resetWalls() never allow zero walls either (see wallStore.ts's
+// defaultWall(1)/[defaultWall(1)]), because `active` (walls.find(...) ||
+// walls[0]) has nothing to fall back to otherwise, and App.tsx reads
+// active.orient unconditionally the moment a project's snapshot is loaded
+// into the Estimator.
 export function blankSnapshot(): SavedProjectData {
   return {
-    v: 1, walls: [], activeId: 1, nextId: 2,
+    v: 1, walls: [defaultWall(1, "vertical")], activeId: 1, nextId: 2,
     projectStock: "", projectLock: false, customLengthInput: "", customActive: false,
     system: "int-vert", mode: "project", dimUnit: "m",
   };
+}
+
+// Same shape as blankSnapshot(), but pre-set to a specific system/wallSystem
+// -- used when a project is created from the System Selector (see
+// App.tsx's createProjectFromSystem). wallSystem lives on the wall itself
+// (WallSchema.wallSystem), not the project shell, so seeding it here on the
+// one starting wall is the only place it can go.
+export function seedSnapshotForSystem(system: string, wallSystem?: WallSystemId): SavedProjectData {
+  const orient = SYSTEMS.find(s => s.id === system)?.orient ?? "vertical";
+  return {
+    v: 1, walls: [{ ...defaultWall(1, orient), wallSystem: wallSystem ?? "standard" }], activeId: 1, nextId: 2,
+    projectStock: "", projectLock: false, customLengthInput: "", customActive: false,
+    system, mode: "project", dimUnit: "m",
+  };
+}
+
+// Standalone insert, decoupled from useProjects()'s list-fetching hook so
+// callers that just need to create a project (e.g. App.tsx's System
+// Selector wiring) don't have to mount the whole list fetch too.
+export async function insertProject(userId: string, name: string, data: SavedProjectData): Promise<{ project: ProjectRow | null; error: string | null }> {
+  if (!supabase) return { project: null, error: NOT_CONFIGURED };
+  const { data: row, error } = await supabase.from("projects")
+    .insert({ owner_id: userId, name, data })
+    .select("*").single();
+  if (error) return { project: null, error: error.message };
+  const parsed = ProjectRowSchema.safeParse(row);
+  return parsed.success ? { project: parsed.data, error: null } : { project: null, error: BAD_SHAPE };
 }
 
 export function useProjects(user: User | null) {
@@ -53,16 +89,11 @@ export function useProjects(user: User | null) {
   useEffect(() => { load(); }, [load]);
 
   const createProject = async (name: string): Promise<{ id: string | null; error: string | null }> => {
-    if (!supabase) return { id: null, error: NOT_CONFIGURED };
     if (!user) return { id: null, error: NOT_SIGNED_IN };
-    const { data, error } = await supabase.from("projects")
-      .insert({ owner_id: user.id, name, data: blankSnapshot() })
-      .select("*").single();
-    if (error) return { id: null, error: error.message };
-    const parsed = ProjectRowSchema.safeParse(data);
-    if (!parsed.success) return { id: null, error: BAD_SHAPE };
-    setState(s => ({ ...s, projects: [parsed.data, ...s.projects] }));
-    return { id: parsed.data.id, error: null };
+    const { project, error } = await insertProject(user.id, name, blankSnapshot());
+    if (error || !project) return { id: null, error };
+    setState(s => ({ ...s, projects: [project, ...s.projects] }));
+    return { id: project.id, error: null };
   };
 
   const renameProject = async (id: string, name: string): Promise<string | null> => {

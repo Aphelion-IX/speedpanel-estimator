@@ -20,8 +20,10 @@ import { useCornerShaftLinking } from "./appShell/useCornerShaftLinking";
 import { useHashRoute } from "./appShell/useHashRoute";
 import { ProjectsRouter } from "./pages/projects/ProjectsRouter";
 import { saveProjectSnapshot } from "./pages/projects/saveProjectSnapshot";
+import { insertProject, seedSnapshotForSystem } from "./pages/projects/projectsStore";
 import type { ProjectRow, SavedProjectData } from "./pages/projects/projectTypes";
 import { ProformaInvoicePage } from "./pages/projects/orders/ProformaInvoicePage";
+import type { WallSystemOption } from "./systemSelector/systemOptions";
 
 // Not part of the initial bundle -- a typical customer never visits /admin,
 // so the entire Admin section (ten sub-pages' worth of code) is only
@@ -108,6 +110,36 @@ export default function SpeedpanelEstimator() {
     if (err) setSaveProjectError(err);
   };
 
+  // System Selector's "Select System" -- creates a new saved project pre-set
+  // to the chosen system/wallSystem (see projectsStore.ts's
+  // seedSnapshotForSystem) and opens it in the Estimator, same as opening any
+  // other existing project. Signed-out visitors get redirected to sign in
+  // first; pendingSystemSelection remembers their choice (name + system)
+  // across that redirect so it auto-resumes the moment they're signed in,
+  // rather than making them re-pick the system afterwards.
+  const [pendingSystemSelection, setPendingSystemSelection] = useState<{ option: WallSystemOption; name: string } | null>(null);
+
+  const doCreateProjectFromSystem = async (option: WallSystemOption, name: string): Promise<string | null> => {
+    const data = seedSnapshotForSystem(option.system!, option.wallSystem);
+    const { project, error } = await insertProject(auth.user!.id, name, data);
+    if (error || !project) return error;
+    openProjectInEstimator(project);
+    return null;
+  };
+
+  const createProjectFromSystem = async (option: WallSystemOption, name: string): Promise<string | null> => {
+    if (!auth.session) { setPendingSystemSelection({ option, name }); navigate({ tab: "projects" }); return null; }
+    return doCreateProjectFromSystem(option, name);
+  };
+
+  useEffect(() => {
+    if (!auth.session || !pendingSystemSelection) return;
+    const { option, name } = pendingSystemSelection;
+    setPendingSystemSelection(null);
+    doCreateProjectFromSystem(option, name).then(err => { if (err) window.alert(err); });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [auth.session]);
+
   // Standalone printable document -- no TopNav/app chrome at all, simpler
   // than fighting print CSS to hide it. Rendered as an alternate branch of
   // this same return (not an early return above) so every hook this
@@ -135,12 +167,16 @@ export default function SpeedpanelEstimator() {
         />
         <div className="mt-4 h-[2px] w-full rounded-full" style={{ background: `linear-gradient(90deg, ${NAVY} 0%, ${BLUE} 55%, ${GOLD} 100%)` }} />
 
-        {route.tab === "selector"  && <SystemSelector layoutMode={layoutMode} system={system} activeWallSystem={active.wallSystem} />}
+        {route.tab === "selector"  && (
+          <SystemSelector layoutMode={layoutMode} system={system} activeWallSystem={active.wallSystem}
+            onCreateProject={createProjectFromSystem} />
+        )}
         {route.tab === "education" && <EducationHub layoutMode={layoutMode} />}
         {route.tab === "projects"  && (
           <ProjectsRouter
             route={route} navigate={navigate} auth={auth}
             onOpenEstimator={openProjectInEstimator}
+            pendingNote={pendingSystemSelection ? `Sign in to create "${pendingSystemSelection.name}"` : undefined}
           />
         )}
 

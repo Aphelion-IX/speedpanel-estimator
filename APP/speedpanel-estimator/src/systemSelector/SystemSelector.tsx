@@ -8,10 +8,16 @@
 // from the root component -- no local selection state, so it can never drift
 // from what the estimator is actually configured with.
 //
-// NOTE: "Select System" and "View Guide" are intentionally inert stubs for now
-// (no onClick wired) -- wiring them to actually switch system/orientation/
-// wallSystem and jump to the System Estimator tab is a deliberate follow-up,
-// not done here.
+// "Select System" (for cards with a real option.system mapping) creates a new
+// saved project pre-set to that system/wallSystem via onCreateProject (see
+// App.tsx's createProjectFromSystem) and jumps into the Estimator with it
+// open -- see WallSystemOptionCard.tsx for the inline naming prompt and
+// projectsStore.ts's seedSnapshotForSystem for how orient/wallSystem get
+// baked into the new project's first wall (a naive switchSystem(option.system)
+// alone wouldn't be enough here, since active.orient is a separate per-wall
+// field from `system` -- WallsCard's Standard/Corner/Shaft picker gates on
+// active.orient === "horizontal", not sys.orient). "View Guide" remains an
+// inert stub.
 // =============================================================================
 import { NAVY, MUTED, cx } from "../styleTokens";
 import type { EffectiveLayout } from "../useLayoutMode";
@@ -28,22 +34,13 @@ import { SelectSystemPlaceholder } from "./SelectSystemPlaceholder";
 // active.wallSystem) passed down from SpeedpanelEstimator -- no local selection state,
 // so it can never drift from what the estimator is actually configured with.
 //
-// NOTE: "Select System" and "View Guide" are intentionally inert stubs for now (no
-// onClick wired) -- wiring them to actually switch system/orientation/wallSystem and
-// jump to the System Estimator tab is a deliberate follow-up, not done here. When that
-// lands: a naive switchSystem(option.system) alone is NOT enough, because active.orient
-// is a separate per-wall field from `system` -- WallsCard's Standard/Corner/Shaft
-// picker gates on active.orient === "horizontal", not sys.orient. The real wiring will
-// need switchOrient(target.orient) (which already resets wallSystem/unlinks partners
-// correctly) in addition to switchSystem, or selecting Corner/Shaft after a Vertical
-// system would silently leave the wall vertical with no picker visible.
-//
 // The wall-system catalog lives in systemOptions.ts (pure data), the card renderer
 // in WallSystemOptionCard.tsx, and the two static sidebar/placeholder blocks in
 // HowToChooseSidebar.tsx / SelectSystemPlaceholder.tsx -- this file is just the page
 // composition + selected-state logic.
-export const SystemSelector = ({ layoutMode, system, activeWallSystem }: {
+export const SystemSelector = ({ layoutMode, system, activeWallSystem, onCreateProject }: {
   layoutMode: EffectiveLayout; system: string; activeWallSystem: WallSystemId;
+  onCreateProject: (option: WallSystemOption, name: string) => Promise<string | null>;
 }) => {
   const isSelected = (option: WallSystemOption) =>
     option.system !== undefined && system === option.system &&
@@ -65,7 +62,8 @@ export const SystemSelector = ({ layoutMode, system, activeWallSystem }: {
         <div className={cx.cardHd}>Basic Systems</div>
         <CardGrid layoutMode={layoutMode} minWidth={260} stretch>
           {WALL_SYSTEM_OPTIONS.filter(o => o.group === "basic").map(o => (
-            <WallSystemOptionCard key={o.id} option={o} selected={isSelected(o)} />
+            <WallSystemOptionCard key={o.id} option={o} selected={isSelected(o)}
+              onCreateProject={name => onCreateProject(o, name)} />
           ))}
         </CardGrid>
       </div>
@@ -74,7 +72,8 @@ export const SystemSelector = ({ layoutMode, system, activeWallSystem }: {
         <div className={cx.cardHd}>Application-Specific Systems</div>
         <CardGrid layoutMode={layoutMode} minWidth={260} stretch>
           {WALL_SYSTEM_OPTIONS.filter(o => o.group === "application").map(o => (
-            <WallSystemOptionCard key={o.id} option={o} selected={isSelected(o)} />
+            <WallSystemOptionCard key={o.id} option={o} selected={isSelected(o)}
+              onCreateProject={name => onCreateProject(o, name)} />
           ))}
         </CardGrid>
       </div>

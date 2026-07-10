@@ -24,17 +24,18 @@ import { OrderBuilderPage } from "./orders/OrderBuilderPage";
 import { OrderDetailPage } from "./orders/OrderDetailPage";
 import type { ProjectRow } from "./projectTypes";
 
-export const ProjectsRouter = ({ route, navigate, auth, onOpenEstimator }: {
+export const ProjectsRouter = ({ route, navigate, auth, onOpenEstimator, pendingNote }: {
   route: Extract<Route, { tab: "projects" }>;
   navigate: (r: Route) => void;
   auth: UseAuth;
   onOpenEstimator: (project: ProjectRow) => void;
+  pendingNote?: string;
 }) => {
   if (auth.loading) return <div className={`${cx.card} mt-6 text-sm`} style={{ color: MUTED }}>Loading...</div>;
   if (!route.id && route.request) {
     return <QuoteRequestPage onBack={() => navigate({ tab: "projects" })} />;
   }
-  if (!auth.session) return <SignInGate auth={auth} onRequestQuote={() => navigate({ tab: "projects", request: true })} />;
+  if (!auth.session) return <SignInGate auth={auth} onRequestQuote={() => navigate({ tab: "projects", request: true })} pendingNote={pendingNote} />;
   if (route.id && route.newOrder) {
     return (
       <OrderBuilderPage projectId={route.id} auth={auth}
