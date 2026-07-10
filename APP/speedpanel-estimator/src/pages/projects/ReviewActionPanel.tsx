@@ -15,16 +15,18 @@
 // "request a service" row on ProjectDashboard.tsx's card grid.
 // =============================================================================
 import { useState } from "react";
-import { ChevronRight, Wrench } from "lucide-react";
+import { ChevronRight, ClipboardCheck, ClipboardList, FileText, Wrench } from "lucide-react";
 import { cx, NAVY, BLUE, MUTED } from "../../styleTokens";
 import { Card } from "../../ui/primitives";
 import type { ProjectRow } from "./projectTypes";
 
-const ServiceRow = ({ label, onClick, disabled }: { label: string; onClick: () => void; disabled?: boolean }) => (
+const ServiceRow = ({ label, icon, onClick, disabled }: { label: string; icon: React.ReactNode; onClick: () => void; disabled?: boolean }) => (
   <button onClick={onClick} disabled={disabled}
     className="flex w-full items-center justify-between gap-2 rounded-xl border border-slate-200 dark:border-slate-700 px-4 py-3 text-left text-sm font-semibold disabled:opacity-50"
     style={{ color: NAVY }}>
-    {label}
+    <span className="flex items-center gap-2">
+      <span style={{ color: BLUE }}>{icon}</span>{label}
+    </span>
     <ChevronRight size={15} className="shrink-0" style={{ color: MUTED }} />
   </button>
 );
@@ -62,9 +64,13 @@ export const ReviewActionPanel = ({ project, onRequestQuote, onRequestInstallRev
 
       {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
 
-      <ServiceRow label="Request a quote" onClick={onRequestQuote} />
-      {canRequestInstall && <ServiceRow label="Request install review" onClick={() => run(onRequestInstallReview)} disabled={submitting} />}
-      {canRequestTechnical && <ServiceRow label="Request technical review" onClick={() => run(onRequestTechnicalReview)} disabled={submitting} />}
+      <ServiceRow label="Request a quote" icon={<FileText size={15} />} onClick={onRequestQuote} />
+      {canRequestInstall && (
+        <ServiceRow label="Request install review" icon={<ClipboardCheck size={15} />} onClick={() => run(onRequestInstallReview)} disabled={submitting} />
+      )}
+      {canRequestTechnical && (
+        <ServiceRow label="Request technical review" icon={<ClipboardList size={15} />} onClick={() => run(onRequestTechnicalReview)} disabled={submitting} />
+      )}
       {project.stage === "install_review" && (
         <p className="text-sm" style={{ color: NAVY }}>Install review requested -- waiting on Speedpanel.</p>
       )}

@@ -37,6 +37,36 @@ export const STAGE_EVENT_LABELS: Record<StageEventType, string> = {
   technical_review_changes_requested: "Technical review changes requested",
 };
 
+// One-line generic description per event type, shown under the label when
+// the event itself has no admin-written note (see ProjectDashboard.tsx's
+// Activity card) -- kept generic/honest, not fabricating any detail this
+// app doesn't actually know about the event.
+export const STAGE_EVENT_DESCRIPTIONS: Record<StageEventType, string> = {
+  install_review_requested: "You requested an install review for this project.",
+  install_review_approved: "Speedpanel approved your install review.",
+  install_review_changes_requested: "Speedpanel requested changes to your install review.",
+  technical_review_requested: "You requested a technical review for this project.",
+  technical_review_approved: "Speedpanel approved your technical review.",
+  technical_review_changes_requested: "Speedpanel requested changes to your technical review.",
+};
+
+// "2 hrs ago" / "Yesterday" / "3 Jul 2025" -- short relative time for
+// recent events, falling back to a plain date once it's more than a week
+// old rather than an ever-growing "14 days ago".
+export function relativeTime(dateStr: string): string {
+  const date = new Date(dateStr);
+  const diffMs = Date.now() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  if (diffMins < 1) return "Just now";
+  if (diffMins < 60) return `${diffMins} min${diffMins !== 1 ? "s" : ""} ago`;
+  const diffHours = Math.floor(diffMins / 60);
+  if (diffHours < 24) return `${diffHours} hr${diffHours !== 1 ? "s" : ""} ago`;
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffDays === 1) return "Yesterday";
+  if (diffDays < 7) return `${diffDays} days ago`;
+  return date.toLocaleDateString();
+}
+
 const ProjectActivityRowSchema = z.object({
   id: z.string(),
   event_type: z.enum(STAGE_EVENT_TYPES),

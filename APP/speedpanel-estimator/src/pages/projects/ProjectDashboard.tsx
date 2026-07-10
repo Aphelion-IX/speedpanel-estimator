@@ -19,10 +19,13 @@
 // OrderDetailPage.tsx (reached via the Orders card), not duplicated here.
 // =============================================================================
 import { useState } from "react";
-import { Building2, Package, Factory, Activity as ActivityIcon, FileText } from "lucide-react";
+import {
+  Building2, Package, Factory, Activity as ActivityIcon, FileText,
+  Send, CheckCircle2, AlertCircle,
+} from "lucide-react";
 import { cx, NAVY, BLUE, WHITE, MUTED } from "../../styleTokens";
 import { Field } from "../shared/fields";
-import { Card, CardGrid, Stat } from "../../ui/primitives";
+import { Card, CardGrid, Stat, ProgressRing } from "../../ui/primitives";
 import type { EffectiveLayout } from "../../useLayoutMode";
 import { useProject } from "./projectDetailStore";
 import { StageStepper } from "./StageStepper";
@@ -30,10 +33,25 @@ import { ReviewActionPanel } from "./ReviewActionPanel";
 import { useProjectOrders } from "./orders/ordersStore";
 import { ORDER_STAGE_LABELS, ORDER_STAGE_BADGE_CLASS } from "./orders/orderTypes";
 import { STAGES, STAGE_LABELS, PROJECT_STAGE_BADGE_CLASS } from "./projectTypes";
-import { useProjectActivity, STAGE_EVENT_LABELS } from "./projectActivityStore";
+import {
+  useProjectActivity, STAGE_EVENT_LABELS, STAGE_EVENT_DESCRIPTIONS, relativeTime,
+  type StageEventType,
+} from "./projectActivityStore";
 import type { ProjectRow } from "./projectTypes";
 
 const stageProgress = (stage: ProjectRow["stage"]): number => Math.round(STAGES.indexOf(stage) / (STAGES.length - 1) * 100);
+
+// Colour-coded by outcome, same slate/blue/amber/emerald semantics already
+// used for stage badges elsewhere -- requested (blue, in progress),
+// approved (emerald, good outcome), changes requested (amber, needs action).
+const EVENT_ICON: Record<StageEventType, { Icon: typeof Send; className: string }> = {
+  install_review_requested: { Icon: Send, className: "bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400" },
+  technical_review_requested: { Icon: Send, className: "bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400" },
+  install_review_approved: { Icon: CheckCircle2, className: "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400" },
+  technical_review_approved: { Icon: CheckCircle2, className: "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400" },
+  install_review_changes_requested: { Icon: AlertCircle, className: "bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400" },
+  technical_review_changes_requested: { Icon: AlertCircle, className: "bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400" },
+};
 
 export const ProjectDashboard = ({ id, onOpenEstimator, onRequestQuote, onCreateOrder, onOpenOrder, layoutMode }: {
   id: string; onOpenEstimator: (project: ProjectRow) => void; onRequestQuote: (id: string) => void;
@@ -105,14 +123,15 @@ export const ProjectDashboard = ({ id, onOpenEstimator, onRequestQuote, onCreate
                     <span className={`${cx.badge} ${PROJECT_STAGE_BADGE_CLASS[project.stage]}`}>{STAGE_LABELS[project.stage]}</span>
                   </div>
                   <p className="mt-1 text-xs" style={{ color: MUTED }}>
-                    Ref: {project.id.slice(0, 8).toUpperCase()} &middot; Last updated {new Date(project.updated_at).toLocaleString()}
+                    Ref: {project.id.slice(0, 8).toUpperCase()} &middot; Created {new Date(project.created_at).toLocaleDateString()}
+                    &middot; Last updated {new Date(project.updated_at).toLocaleString()}
                   </p>
                 </div>
                 <button onClick={startRename} className="shrink-0 text-sm font-semibold hover:underline" style={{ color: BLUE }}>Rename</button>
               </div>
 
               <div className="mt-3 grid grid-cols-3 gap-2 max-w-sm">
-                <Stat value={`${stageProgress(project.stage)}%`} label="Progress" />
+                <ProgressRing percent={stageProgress(project.stage)} label="Project Progress" />
                 <Stat value={STAGE_LABELS[project.stage]} label="Current stage" />
                 <Stat value={orders.length} label="Orders" />
               </div>
@@ -161,9 +180,12 @@ export const ProjectDashboard = ({ id, onOpenEstimator, onRequestQuote, onCreate
         </Card>
 
         <Card title="Manufacturing & Delivery" icon={<Factory size={14} />}>
-          <p className={cx.footnote} style={{ paddingTop: 0 }}>
-            Coming soon -- live panel counts and delivery status will appear here once your order is in production.
-          </p>
+          <div className="grid place-items-center gap-2 py-2 text-center">
+            <Factory size={28} style={{ color: MUTED }} />
+            <p className={cx.footnote} style={{ paddingTop: 0 }}>
+              Coming soon -- live panel counts and delivery status will appear here once your order is in production.
+            </p>
+          </div>
         </Card>
 
         <ReviewActionPanel project={project} onChanged={reload} onRequestQuote={() => onRequestQuote(project.id)}
@@ -180,23 +202,34 @@ export const ProjectDashboard = ({ id, onOpenEstimator, onRequestQuote, onCreate
             <p className={cx.footnote} style={{ paddingTop: 0 }}>No activity yet.</p>
           ) : (
             <div className="space-y-3">
-              {events.map(e => (
-                <div key={e.id} className={cx.rowBorder}>
-                  <div className="flex items-baseline justify-between gap-2">
-                    <span className="text-sm font-semibold" style={{ color: NAVY }}>{STAGE_EVENT_LABELS[e.event_type]}</span>
-                    <span className={cx.footnote} style={{ paddingTop: 0 }}>{new Date(e.created_at).toLocaleDateString()}</span>
+              {events.map(e => {
+                const { Icon, className } = EVENT_ICON[e.event_type];
+                return (
+                  <div key={e.id} className={`flex gap-3 ${cx.rowBorder}`}>
+                    <div className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg ${className}`}>
+                      <Icon size={15} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-baseline justify-between gap-2">
+                        <span className="text-sm font-semibold" style={{ color: NAVY }}>{STAGE_EVENT_LABELS[e.event_type]}</span>
+                        <span className={cx.footnote} style={{ paddingTop: 0 }}>{relativeTime(e.created_at)}</span>
+                      </div>
+                      <p className={cx.footnote}>{e.note || STAGE_EVENT_DESCRIPTIONS[e.event_type]}</p>
+                    </div>
                   </div>
-                  {e.note && <p className={cx.footnote}>{e.note}</p>}
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </Card>
 
         <Card title="Documents" icon={<FileText size={14} />}>
-          <p className={cx.footnote} style={{ paddingTop: 0 }}>
-            Coming soon -- shop drawings, delivery dockets, and other project documents will appear here.
-          </p>
+          <div className="grid place-items-center gap-2 py-2 text-center">
+            <FileText size={28} style={{ color: MUTED }} />
+            <p className={cx.footnote} style={{ paddingTop: 0 }}>
+              Coming soon -- shop drawings, delivery dockets, and other project documents will appear here.
+            </p>
+          </div>
         </Card>
       </CardGrid>
     </div>

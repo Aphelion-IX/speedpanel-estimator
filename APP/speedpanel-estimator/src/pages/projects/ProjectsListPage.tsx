@@ -42,14 +42,17 @@ const ProjectCard = ({ item, selected, onSelect }: { item: ProjectRow; selected:
   <button onClick={() => onSelect(item.id)}
     className="shrink-0 w-64 rounded-xl border-2 bg-white dark:bg-slate-800 px-3.5 py-3.5 text-left transition-shadow hover:shadow-md"
     style={selected ? { borderColor: BLUE } : { borderColor: "transparent" }}>
-    <div className="flex items-start gap-2.5">
-      <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-blue-50 dark:bg-blue-950/40">
-        <Building2 size={16} style={{ color: BLUE }} />
+    <div className="flex items-start justify-between gap-2">
+      <div className="flex min-w-0 items-start gap-2.5">
+        <div className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg ${PROJECT_STAGE_BADGE_CLASS[item.stage]}`}>
+          <Building2 size={16} />
+        </div>
+        <div className="min-w-0">
+          <div className="truncate text-sm font-bold" style={{ color: NAVY }}>{item.name}</div>
+          <div className="text-xs" style={{ color: MUTED }}>Ref: {item.id.slice(0, 8).toUpperCase()}</div>
+        </div>
       </div>
-      <div className="min-w-0 flex-1">
-        <div className="truncate text-sm font-bold" style={{ color: NAVY }}>{item.name}</div>
-        <span className={`${cx.badge} mt-1 inline-block ${PROJECT_STAGE_BADGE_CLASS[item.stage]}`}>{STAGE_LABELS[item.stage]}</span>
-      </div>
+      <span className={`${cx.badge} shrink-0 ${PROJECT_STAGE_BADGE_CLASS[item.stage]}`}>{STAGE_LABELS[item.stage]}</span>
     </div>
     <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-700">
       <div className="h-full rounded-full transition-all" style={{ width: `${stageProgress(item.stage)}%`, background: BLUE }} />
