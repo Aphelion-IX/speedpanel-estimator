@@ -82,16 +82,6 @@ export const PersistedProjectSchema = z.object({
 });
 export type PersistedProject = z.infer<typeof PersistedProjectSchema>;
 
-// Stage a project snapshot into the device-local slot without going through
-// the store hook -- used by ProjectDetailPage.tsx's "Request a quote" button
-// so QuoteRequestPage.tsx's existing, unmodified loadProject() call picks up
-// that specific project's data (the hash router has no query-string support
-// to pass an id directly).
-export function saveProjectLocally(data: PersistedProject) {
-  if (typeof window === "undefined") return;
-  try { window.localStorage.setItem(PROJECT_KEY, JSON.stringify(data)); } catch { /* ignore quota/serialization errors */ }
-}
-
 // Backfill orient for walls saved before orientation became per-wall --
 // shared by loadProject() (device-local) and useWallStore's loadFrom()
 // (Supabase-saved projects), since both read a PersistedProject-shaped

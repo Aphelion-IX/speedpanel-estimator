@@ -10,7 +10,6 @@
 import { useState } from "react";
 import { cx, NAVY, BLUE, WHITE, MUTED } from "../../styleTokens";
 import { Field } from "../shared/fields";
-import { saveProjectLocally } from "../../wallStore";
 import { useProject } from "./projectDetailStore";
 import { StageStepper } from "./StageStepper";
 import { ReviewActionPanel } from "./ReviewActionPanel";
@@ -19,7 +18,7 @@ import { ORDER_STAGE_LABELS } from "./orders/orderTypes";
 import type { ProjectRow } from "./projectTypes";
 
 export const ProjectDetailPage = ({ id, onBack, onOpenEstimator, onRequestQuote, onCreateOrder, onOpenOrder }: {
-  id: string; onBack: () => void; onOpenEstimator: (project: ProjectRow) => void; onRequestQuote: (id: string) => void;
+  id: string; onBack: () => void; onOpenEstimator: (project: ProjectRow) => void; onRequestQuote: () => void;
   onCreateOrder: (id: string) => void; onOpenOrder: (id: string, orderId: string) => void;
 }) => {
   const { orders } = useProjectOrders(id);
@@ -98,7 +97,7 @@ export const ProjectDetailPage = ({ id, onBack, onOpenEstimator, onRequestQuote,
             className="rounded-xl px-4 py-2.5 text-sm font-bold" style={{ background: BLUE, color: WHITE }}>
             Open in Estimator
           </button>
-          <button onClick={() => { saveProjectLocally(project.data); onRequestQuote(project.id); }}
+          <button onClick={onRequestQuote}
             className="rounded-xl border border-slate-200 dark:border-slate-700 px-4 py-2.5 text-sm font-bold" style={{ color: NAVY }}>
             Request a quote
           </button>

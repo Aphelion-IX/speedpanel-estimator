@@ -13,14 +13,13 @@ import { useState } from "react";
 import { Menu, X } from "lucide-react";
 import { BLUE, WHITE } from "../styleTokens";
 
-export type TopNavTab = "estimator" | "selector" | "education" | "projects" | "quote" | "admin";
+export type TopNavTab = "estimator" | "selector" | "education" | "projects" | "admin";
 
 const TOP_NAV_ITEMS: { key: TopNavTab; label: string }[] = [
   { key: "estimator", label: "System Estimator" },
   { key: "selector",  label: "System Selector" },
   { key: "education", label: "Education Hub" },
   { key: "projects",  label: "Projects" },
-  { key: "quote",     label: "Request a Quote" },
   { key: "admin",     label: "Admin" },
 ];
 

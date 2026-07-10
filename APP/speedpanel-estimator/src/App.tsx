@@ -19,7 +19,6 @@ import { SystemRows } from "./appShell/systemRows";
 import { useCornerShaftLinking } from "./appShell/useCornerShaftLinking";
 import { useHashRoute } from "./appShell/useHashRoute";
 import { ProjectsRouter } from "./pages/projects/ProjectsRouter";
-import { QuoteRequestPage } from "./pages/projects/QuoteRequestPage";
 import { saveProjectSnapshot } from "./pages/projects/saveProjectSnapshot";
 import type { ProjectRow, SavedProjectData } from "./pages/projects/projectTypes";
 import { ProformaInvoicePage } from "./pages/projects/orders/ProformaInvoicePage";
@@ -142,10 +141,8 @@ export default function SpeedpanelEstimator() {
           <ProjectsRouter
             route={route} navigate={navigate} auth={auth}
             onOpenEstimator={openProjectInEstimator}
-            onRequestQuote={() => navigate({ tab: "quote" })}
           />
         )}
-        {route.tab === "quote"    && <QuoteRequestPage />}
 
         {route.tab === "admin" && (
           <Suspense fallback={<div className="mt-6 text-sm" style={{ color: MUTED }}>Loading...</div>}>

@@ -20,13 +20,16 @@ interface ProjectState {
   error: string | null;
 }
 
-export function useProject(id: string) {
+// id is optional so QuoteRequestPage.tsx can call this unconditionally (React
+// hooks can't be called conditionally) for its anonymous, project-less flow --
+// an unset id just short-circuits to an idle, empty state, no fetch fired.
+export function useProject(id: string | undefined) {
   const [state, setState] = useState<ProjectState>(() =>
-    !supabase ? { project: null, loading: false, error: NOT_CONFIGURED } : { project: null, loading: true, error: null },
+    !id || !supabase ? { project: null, loading: false, error: id ? NOT_CONFIGURED : null } : { project: null, loading: true, error: null },
   );
 
   const load = useCallback(async () => {
-    if (!supabase) return;
+    if (!id || !supabase) return;
     setState(s => ({ ...s, loading: true, error: null }));
     const { data, error } = await supabase.from("projects").select("*").eq("id", id).single();
     if (error) { setState({ project: null, loading: false, error: error.message }); return; }
@@ -46,6 +49,7 @@ export function useProject(id: string) {
   };
 
   const saveSnapshot = async (data: SavedProjectData): Promise<string | null> => {
+    if (!id) return NOT_CONFIGURED;
     const err = await saveProjectSnapshot(id, data);
     if (err) return err;
     setState(s => (s.project ? { ...s, project: { ...s.project, data, updated_at: new Date().toISOString() } } : s));

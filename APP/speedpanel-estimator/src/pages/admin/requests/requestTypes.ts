@@ -25,6 +25,10 @@ export const AdminRequestRowSchema = z.object({
   // versioned independently via its own "v" field, that may not match the
   // app's current shape -- see wallStore.ts's PersistedProject.
   project_snapshot: z.record(z.string(), z.unknown()).nullable(),
+  // Real FK to a saved project (see supabase/schema.sql), set when the
+  // request was submitted from that project's own "Request a quote" button
+  // rather than the anonymous flow -- see QuoteRequestPage.tsx.
+  project_id: z.string().nullable(),
   status: z.enum(REQUEST_STATUSES),
 });
 export type AdminRequestRow = z.infer<typeof AdminRequestRowSchema>;

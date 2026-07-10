@@ -36,6 +36,7 @@ const RequestRow = ({ item, onStatusChange }: { item: AdminRequestRow; onStatusC
       {item.email}{item.phone ? ` · ${item.phone}` : ""}
     </p>
     {item.message && <p className="mt-2 text-sm leading-relaxed" style={{ color: NAVY }}>{item.message}</p>}
+    {item.project_id && <p className="mt-2 text-xs" style={{ color: MUTED }}>Linked project: {item.project_id}</p>}
 
     <div className="mt-3 max-w-[200px]">
       <SelectField label="Status" value={item.status} options={STATUS_OPTIONS}

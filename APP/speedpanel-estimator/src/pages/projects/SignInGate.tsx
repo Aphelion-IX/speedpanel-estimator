@@ -6,13 +6,16 @@
 // state. Built from the same Field/card/button conventions as
 // QuoteRequestPage.tsx's form -- no shared <Button> exists anywhere in this
 // codebase, so the submit button is hand-rolled the same way that form's is.
+// Also the discoverability entry point for the anonymous "Request a Quote"
+// flow now that it's nested under Projects instead of its own top-nav tab --
+// onRequestQuote below routes to it without requiring a session.
 // =============================================================================
 import { useState } from "react";
 import { cx, NAVY, BLUE, WHITE } from "../../styleTokens";
 import { Field } from "../shared/fields";
 import type { UseAuth } from "../../lib/useAuth";
 
-export const SignInGate = ({ auth }: { auth: UseAuth }) => {
+export const SignInGate = ({ auth, onRequestQuote }: { auth: UseAuth; onRequestQuote: () => void }) => {
   const [mode, setMode] = useState<"signIn" | "signUp">("signIn");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -58,6 +61,9 @@ export const SignInGate = ({ auth }: { auth: UseAuth }) => {
       <button onClick={() => { setMode(m => m === "signIn" ? "signUp" : "signIn"); setError(null); }}
         className="mt-3 text-sm font-semibold hover:underline" style={{ color: BLUE }}>
         {mode === "signIn" ? "Need an account? Sign up" : "Already have an account? Sign in"}
+      </button>
+      <button onClick={onRequestQuote} className="mt-3 block text-sm font-semibold hover:underline" style={{ color: BLUE }}>
+        Just want a quote? Request one without an account &rarr;
       </button>
     </div>
   );

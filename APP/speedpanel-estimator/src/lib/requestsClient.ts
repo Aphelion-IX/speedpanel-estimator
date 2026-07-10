@@ -13,6 +13,10 @@
 // network round trip. projectSnapshot, when provided, comes from this same
 // device's own loadProject() (see wallStore.ts's PersistedProjectSchema),
 // which already validates on read -- no need to re-validate it here.
+// projectId, when provided, is a real requests.project_id FK to a signed-in
+// user's saved project (see ProjectsRouter.tsx's project-scoped "request"
+// route) -- an app-derived UUID, not raw input, so like projectSnapshot it
+// isn't part of SubmitRequestSchema either.
 // =============================================================================
 import { z } from "zod";
 import { supabase } from "./supabaseClient";
@@ -24,6 +28,7 @@ export interface SubmitRequestInput {
   phone?: string;
   message?: string;
   projectSnapshot?: PersistedProject | null;
+  projectId?: string;
 }
 
 export const SubmitRequestSchema = z.object({
@@ -43,6 +48,7 @@ export async function submitRequest(input: SubmitRequestInput): Promise<string |
     phone: parsed.data.phone || null,
     message: parsed.data.message || null,
     project_snapshot: input.projectSnapshot ?? null,
+    project_id: input.projectId ?? null,
   });
   return error ? error.message : null;
 }
