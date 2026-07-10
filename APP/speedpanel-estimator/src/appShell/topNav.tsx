@@ -11,23 +11,27 @@
 // =============================================================================
 import { useState } from "react";
 import { Menu, X } from "lucide-react";
-import { BLUE, WHITE } from "../styleTokens";
+import { BLUE, WHITE, NAVY } from "../styleTokens";
 
 export type TopNavTab = "estimator" | "selector" | "education" | "projects" | "admin";
 
 const TOP_NAV_ITEMS: { key: TopNavTab; label: string }[] = [
-  { key: "estimator", label: "System Estimator" },
-  { key: "selector",  label: "System Selector" },
-  { key: "education", label: "Education Hub" },
   { key: "projects",  label: "Projects" },
+  { key: "selector",  label: "System Selector" },
+  { key: "estimator", label: "System Estimator" },
+  { key: "education", label: "Education Hub" },
   { key: "admin",     label: "Admin" },
 ];
 
+// Inactive labels use NAVY (the app's primary text colour, same token used
+// for headings elsewhere) rather than a pale slate shade -- darker/more
+// legible than the previous text-slate-400. Uppercase + tracking-wide
+// matches the cx.lbl/cardHd convention already used for section headings.
 const TopNavTabButton = ({ label, active, onClick, className = "" }: { label: string; active: boolean; onClick: () => void; className?: string }) => (
   <button
     onClick={onClick}
-    className={`rounded-xl px-3.5 py-2 text-sm font-bold whitespace-nowrap transition-all ${active ? "" : "text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"} ${className}`}
-    style={active ? { background: BLUE, color: WHITE } : undefined}
+    className={`rounded-xl px-3.5 py-2 text-sm font-bold uppercase tracking-wide whitespace-nowrap transition-all ${active ? "" : "hover:bg-slate-100 dark:hover:bg-slate-800"} ${className}`}
+    style={active ? { background: BLUE, color: WHITE } : { color: NAVY }}
   >
     {label}
   </button>
