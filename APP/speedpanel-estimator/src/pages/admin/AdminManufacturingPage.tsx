@@ -75,7 +75,7 @@ const ManufacturingRow = ({ row, onSaveManufacturing, onStatusChange }: {
 };
 
 export const AdminManufacturingPage = () => {
-  const { rows, loading, error, reload, updateManufacturing, updateDeliveryStatus } = useAdminManufacturing();
+  const { rows, loading, loadingMore, hasMore, error, reload, loadMore, updateManufacturing, updateDeliveryStatus } = useAdminManufacturing();
 
   if (loading) return <div className={`${cx.card} mt-6 text-sm`} style={{ color: MUTED }}>Loading...</div>;
 
@@ -101,6 +101,13 @@ export const AdminManufacturingPage = () => {
       {rows.map(row => (
         <ManufacturingRow key={row.order.id} row={row} onSaveManufacturing={updateManufacturing} onStatusChange={updateDeliveryStatus} />
       ))}
+
+      {hasMore && (
+        <button onClick={() => loadMore()} disabled={loadingMore}
+          className="mt-3 w-full rounded-xl border border-slate-200 dark:border-slate-700 px-4 py-2.5 text-sm font-bold disabled:opacity-50" style={{ color: NAVY }}>
+          {loadingMore ? "Loading..." : "Load more"}
+        </button>
+      )}
     </div>
   );
 };

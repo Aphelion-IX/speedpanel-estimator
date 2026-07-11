@@ -562,7 +562,19 @@ create policy "Public update access" on math_constants
 -- Backs the Admin > Users and Admin > Audit Log pages.
 -- =============================================================================
 
-create or replace function public.admin_list_users()
+-- create or replace only overloads on an exact signature match -- dropping
+-- the old zero-arg version first avoids ending up with both it and the new
+-- paginated one callable side by side (PostgREST would then have two
+-- same-named RPCs to disambiguate between).
+drop function if exists public.admin_list_users();
+
+-- Paginated (p_limit/p_offset, default page size 50) -- this roster grows
+-- with the customer base and has no natural upper bound, unlike the
+-- pending-review-style queues elsewhere in Admin that self-limit to
+-- whatever's currently awaiting action. admin_count_users() below is the
+-- companion total-count RPC (used by Admin > Analytics), so that page never
+-- has to page through every row just to count them.
+create or replace function public.admin_list_users(p_limit int default 50, p_offset int default 0)
 returns table (id uuid, email text, role text, created_at timestamptz)
 language sql security definer stable
 set search_path = public
@@ -571,10 +583,23 @@ as $$
   from public.profiles p
   join auth.users u on u.id = p.id
   where public.is_admin()
-  order by p.created_at desc;
+  order by p.created_at desc
+  limit p_limit offset p_offset;
 $$;
-revoke execute on function public.admin_list_users() from public, anon;
-grant execute on function public.admin_list_users() to authenticated;
+revoke execute on function public.admin_list_users(int, int) from public, anon;
+grant execute on function public.admin_list_users(int, int) to authenticated;
+
+create or replace function public.admin_count_users()
+returns table (total bigint, admins bigint)
+language sql security definer stable
+set search_path = public
+as $$
+  select count(*), count(*) filter (where role = 'admin')
+  from public.profiles
+  where public.is_admin();
+$$;
+revoke execute on function public.admin_count_users() from public, anon;
+grant execute on function public.admin_count_users() to authenticated;
 
 create or replace function public.admin_set_role(p_user_id uuid, p_role text)
 returns void
@@ -604,7 +629,13 @@ $$;
 revoke execute on function public.admin_set_role(uuid, text) from public, anon;
 grant execute on function public.admin_set_role(uuid, text) to authenticated;
 
-create or replace function public.admin_list_stage_events()
+-- Same "drop the old exact-zero-arg overload first" reasoning as
+-- admin_list_users above.
+drop function if exists public.admin_list_stage_events();
+
+-- Paginated, same reasoning as admin_list_users above -- this audit trail
+-- only ever grows, one row per install/technical review action, forever.
+create or replace function public.admin_list_stage_events(p_limit int default 50, p_offset int default 0)
 returns table (
   id uuid, project_id uuid, project_name text,
   actor_id uuid, actor_email text,
@@ -618,10 +649,11 @@ as $$
   join public.projects pr on pr.id = e.project_id
   left join auth.users u on u.id = e.actor_id
   where public.is_admin()
-  order by e.created_at desc;
+  order by e.created_at desc
+  limit p_limit offset p_offset;
 $$;
-revoke execute on function public.admin_list_stage_events() from public, anon;
-grant execute on function public.admin_list_stage_events() to authenticated;
+revoke execute on function public.admin_list_stage_events(int, int) from public, anon;
+grant execute on function public.admin_list_stage_events(int, int) to authenticated;
 
 -- =============================================================================
 -- Admin catalog: per-unit pricing fields (nullable -- foundation for Orders)
@@ -986,3 +1018,27 @@ create policy "Owners and admins can delete project document files" on storage.o
         and (projects.owner_id = auth.uid() or public.is_admin())
     )
   );
+
+-- =============================================================================
+-- Foreign key indexes
+-- =============================================================================
+-- Postgres auto-indexes primary keys but NOT the referencing (foreign key)
+-- side of a relationship -- every RLS policy in this schema that gates a
+-- child table via "exists (select 1 from parent where parent.id = child.fk
+-- and ...)" was, until now, doing a full sequential scan of the parent (or
+-- child) table on every single query, on every row check. Harmless at the
+-- row counts this app has had so far; not harmless once the customer base
+-- (and therefore project/order/document/event counts) grows an order of
+-- magnitude or two. Cheap and purely additive to add now while the tables
+-- are still small enough that building the index is instant.
+create index if not exists idx_projects_owner_id            on projects (owner_id);
+create index if not exists idx_project_stage_events_project_id on project_stage_events (project_id);
+create index if not exists idx_project_stage_events_actor_id   on project_stage_events (actor_id);
+create index if not exists idx_requests_project_id           on requests (project_id);
+create index if not exists idx_orders_project_id             on orders (project_id);
+create index if not exists idx_orders_owner_id               on orders (owner_id);
+create index if not exists idx_order_deliveries_order_id     on order_deliveries (order_id);
+create index if not exists idx_order_stage_events_order_id   on order_stage_events (order_id);
+create index if not exists idx_order_stage_events_actor_id   on order_stage_events (actor_id);
+create index if not exists idx_project_documents_project_id  on project_documents (project_id);
+create index if not exists idx_project_documents_uploaded_by on project_documents (uploaded_by);

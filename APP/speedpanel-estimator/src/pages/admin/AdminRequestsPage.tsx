@@ -56,7 +56,7 @@ const RequestRow = ({ item, onStatusChange }: { item: AdminRequestRow; onStatusC
 );
 
 export const AdminRequestsPage = () => {
-  const { requests, loading, error, reload, updateStatus } = useAdminRequests();
+  const { requests, loading, loadingMore, hasMore, error, reload, loadMore, updateStatus } = useAdminRequests();
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
 
@@ -103,6 +103,9 @@ export const AdminRequestsPage = () => {
           <SelectField label="Filter by status" value={statusFilter} options={STATUS_FILTER_OPTIONS} onChange={setStatusFilter} />
         </div>
       </div>
+      {hasMore && query.trim() && (
+        <p className="mt-2 text-xs" style={{ color: MUTED }}>Search only covers requests loaded so far -- load more below if you can't find who you're after.</p>
+      )}
 
       {filtered.length === 0 ? (
         <div className={`${cx.card} mt-3 text-center`}>
@@ -110,6 +113,13 @@ export const AdminRequestsPage = () => {
         </div>
       ) : (
         filtered.map(item => <RequestRow key={item.id} item={item} onStatusChange={handleStatusChange} />)
+      )}
+
+      {hasMore && (
+        <button onClick={() => loadMore()} disabled={loadingMore}
+          className="mt-3 w-full rounded-xl border border-slate-200 dark:border-slate-700 px-4 py-2.5 text-sm font-bold disabled:opacity-50" style={{ color: NAVY }}>
+          {loadingMore ? "Loading..." : "Load more"}
+        </button>
       )}
     </div>
   );

@@ -98,7 +98,7 @@ const UserRow = ({ item, isSelf, onToggleRole }: {
 };
 
 export const AdminUsersPage = ({ auth }: { auth: UseAuth }) => {
-  const { users, loading, error, reload, setRole, inviteUser } = useAdminUsers();
+  const { users, loading, loadingMore, hasMore, error, reload, loadMore, setRole, inviteUser } = useAdminUsers();
   const [query, setQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
 
@@ -150,6 +150,9 @@ export const AdminUsersPage = ({ auth }: { auth: UseAuth }) => {
               <SelectField label="Filter by role" value={roleFilter} options={ROLE_FILTER_OPTIONS} onChange={setRoleFilter} />
             </div>
           </div>
+          {hasMore && query.trim() && (
+            <p className="mt-2 text-xs" style={{ color: MUTED }}>Search only covers users loaded so far -- load more below if you can't find who you're after.</p>
+          )}
 
           {filtered.length === 0 ? (
             <div className={`${cx.card} mt-3 text-center`}>
@@ -159,6 +162,13 @@ export const AdminUsersPage = ({ auth }: { auth: UseAuth }) => {
             filtered.map(item => (
               <UserRow key={item.id} item={item} isSelf={item.id === auth.user?.id} onToggleRole={handleToggle} />
             ))
+          )}
+
+          {hasMore && (
+            <button onClick={() => loadMore()} disabled={loadingMore}
+              className="mt-3 w-full rounded-xl border border-slate-200 dark:border-slate-700 px-4 py-2.5 text-sm font-bold disabled:opacity-50" style={{ color: NAVY }}>
+              {loadingMore ? "Loading..." : "Load more"}
+            </button>
           )}
         </>
       )}
