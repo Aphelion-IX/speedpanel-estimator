@@ -2474,6 +2474,42 @@ $$;
 revoke execute on function public.admin_set_user_company(uuid, uuid, text) from public, anon;
 grant execute on function public.admin_set_user_company(uuid, uuid, text) to authenticated;
 
+-- Adds an EXISTING auth user (e.g. created directly in Supabase, or from any
+-- other path that left them without a company yet) to a company by email,
+-- wrapping admin_set_user_company's insert logic but keyed by email instead
+-- of a pre-known user_id -- the normal invite flow (invitations table) only
+-- auto-links on NEW signup (see handle_new_user()'s on_auth_user_created
+-- trigger), so an account created before the invite is sent needs this
+-- instead of falling back on the invite-then-accept path. Errors clearly if
+-- no account exists yet for that email, since that IS the "use Invite
+-- instead" case.
+create or replace function public.admin_add_company_member_by_email(p_company_id uuid, p_email text, p_role text) returns void
+language plpgsql security definer
+set search_path = public
+as $$
+declare
+  v_user_id uuid;
+begin
+  if not public.has_staff_role(array[]::text[]) then raise exception 'Not authorized'; end if;
+  if coalesce(p_role, '') not in ('owner', 'admin', 'project_manager', 'estimator', 'site_user', 'viewer') then
+    raise exception 'Invalid role';
+  end if;
+  if not exists (select 1 from companies where id = p_company_id) then raise exception 'Company not found'; end if;
+
+  select id into v_user_id from auth.users where lower(email) = lower(trim(p_email));
+  if v_user_id is null then
+    raise exception 'No account exists yet for that email -- use Invite instead, or create the account first.';
+  end if;
+
+  insert into company_memberships (company_id, user_id, role, status, invited_by, joined_at)
+    values (p_company_id, v_user_id, p_role, 'active', auth.uid(), now())
+    on conflict (company_id, user_id) do update set role = excluded.role, status = 'active';
+  perform public.log_audit(p_company_id, auth.uid(), 'member_added_by_admin', v_user_id);
+end;
+$$;
+revoke execute on function public.admin_add_company_member_by_email(uuid, text, text) from public, anon;
+grant execute on function public.admin_add_company_member_by_email(uuid, text, text) to authenticated;
+
 -- =============================================================================
 -- Assigned Speedpanel Team
 -- =============================================================================

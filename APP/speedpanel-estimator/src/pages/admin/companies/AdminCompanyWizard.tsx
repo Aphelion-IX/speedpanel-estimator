@@ -77,9 +77,15 @@ const CompanyDetailsStep = ({ onCreated }: { onCreated: (companyId: string) => v
 };
 
 const CustomerUsersStep = ({ companyId, onNext }: { companyId: string; onNext: () => void }) => {
-  const { inviteMember } = useCompanyMembers(companyId);
+  const { inviteMember, addExistingMember } = useCompanyMembers(companyId);
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<CompanyRole>("owner");
+  // Off = normal email invite (new person, no account yet). On = the account
+  // was already created directly in Supabase before this company existed --
+  // the normal invite's auto-link-on-signup only fires for a brand-new
+  // auth.users row, so that order of operations needs addExistingMember
+  // instead (see admin_add_company_member_by_email in supabase/schema.sql).
+  const [alreadyExists, setAlreadyExists] = useState(false);
   const [added, setAdded] = useState<string[]>([]);
   const [inviting, setInviting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -89,7 +95,9 @@ const CustomerUsersStep = ({ companyId, onNext }: { companyId: string; onNext: (
     if (!email.trim()) return;
     setInviting(true);
     setError(null);
-    const err = await inviteMember({ email: email.trim(), role });
+    const err = alreadyExists
+      ? await addExistingMember({ email: email.trim(), role })
+      : await inviteMember({ email: email.trim(), role });
     setInviting(false);
     if (err) { setError(err); return; }
     setAdded(a => [...a, email.trim()]);
@@ -102,6 +110,10 @@ const CustomerUsersStep = ({ companyId, onNext }: { companyId: string; onNext: (
       <p className={cx.footnote} style={{ paddingTop: 0 }}>
         Add this company's initial users now, or skip and add them later from the company's own Team page.
       </p>
+      <label className="flex items-center gap-2 text-sm" style={{ color: NAVY }}>
+        <input type="checkbox" checked={alreadyExists} onChange={e => setAlreadyExists(e.target.checked)} />
+        Account already exists (created directly in Supabase) -- skip the invitation email
+      </label>
       <form onSubmit={handleAdd} className="flex flex-col gap-2 sm:flex-row sm:items-end">
         <div className="flex-1"><Field label="Email" value={email} onChange={setEmail} type="email" autoComplete="email" /></div>
         <div className="sm:w-56"><SelectField label="Role" value={role} options={ROLE_OPTIONS} onChange={v => setRole(v as CompanyRole)} /></div>

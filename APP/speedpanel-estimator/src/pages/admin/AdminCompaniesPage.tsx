@@ -29,7 +29,7 @@ const CompanyRow = ({ company, myUserId }: { company: AdminCompanyRow; myUserId:
     <p className={cx.footnote}>Created {new Date(company.created_at).toLocaleDateString()}</p>
     <div className="mt-3 space-y-2">
       <AccordionCard summary="Members">
-        <CompanyMemberList companyId={company.id} myUserId={myUserId} canManage={true} />
+        <CompanyMemberList companyId={company.id} myUserId={myUserId} canManage={true} canDirectAdd={true} />
       </AccordionCard>
       <AccordionCard summary="Speedpanel Team">
         <StaffTeamAssignmentPanel companyId={company.id} />
