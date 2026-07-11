@@ -1,9 +1,10 @@
 // =============================================================================
 // Admin > Documents -- catalog CRUD page
 // =============================================================================
-// Master/detail page for staging Education Hub document metadata, persisted to
-// localStorage via useDocumentStore -- fully decoupled from src/education/ and
-// the live Education Hub (see documentStore.ts).
+// Master/detail page for editing Education Hub document metadata, a live
+// Supabase fetch via useDocumentStore (RLS-gated writes) -- the same
+// admin_documents table the live Education Hub reads from (see
+// documentStore.ts).
 // Composition mirrors AdminProductsPage.tsx (itself modeled on EducationHub.tsx):
 // gridBody (search + category chips + card grid) and a persistent detailPanel,
 // stacked on phone / a sticky aside on web. Category filter chips are reused

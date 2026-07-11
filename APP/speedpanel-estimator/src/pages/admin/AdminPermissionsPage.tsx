@@ -4,11 +4,13 @@
 // =============================================================================
 // External-only by design -- internal staff access lives on Admin > Users
 // ("Add Speedpanel staff" / "Promote an existing account to staff") instead,
-// not here, so this page has one clear scope. Company access below
-// consolidates a capability that already existed as a secondary form buried
-// elsewhere (CompanyMemberList.tsx's "Add an existing account") into a
-// prominent, dedicated card -- that original form stays too, this page is
-// an additional, more discoverable entry point, not a replacement.
+// not here, so this page has one clear scope. This is now the ONE canonical
+// place for granting/creating external company access outside the "New
+// company" wizard's own first-run step -- CompanyMemberList.tsx (Admin >
+// Companies' Members accordion) used to have a duplicate "Add an existing
+// account" form; that was removed in favor of this page's company-picker
+// version, which covers every company from one place instead of requiring
+// you to already have the right company's accordion open.
 //
 // Company access is for an account that ALREADY exists (a former customer
 // signup, or one created directly in Supabase) -- no email is sent. Add

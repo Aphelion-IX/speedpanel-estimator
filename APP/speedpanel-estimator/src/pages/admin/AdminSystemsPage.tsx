@@ -1,10 +1,10 @@
 // =============================================================================
 // Admin > Systems -- "Locked system data" staging editor
 // =============================================================================
-// Stages edits to the Internal/External "Locked system data" reference tables
-// (src/data.ts's INT_LOCKED/EXT_LOCKED), persisted to localStorage via
-// useSystemsStore -- fully decoupled from data.ts and the live calculators
-// (see systemsStore.ts). Unlike Products/Documents,
+// Edits the Internal/External "Locked system data" reference tables
+// (src/data.ts's INT_LOCKED/EXT_LOCKED), a live Supabase fetch with local
+// in-progress draft state via useSystemsStore -- only Save persists, see
+// systemsStore.ts. Unlike Products/Documents,
 // this isn't a searchable collection of cards -- it's two flat ordered lists,
 // so the layout is a direct table editor (RepeatableRowEditor) plus a
 // live-style preview reusing DataRow/LDRow from ui/lockedData.tsx, the same

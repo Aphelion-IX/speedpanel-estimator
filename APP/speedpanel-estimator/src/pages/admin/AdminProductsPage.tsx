@@ -1,12 +1,12 @@
 // =============================================================================
 // Admin > Products -- catalog CRUD page
 // =============================================================================
-// Master/detail page for browsing/staging Speedpanel's material catalogs
-// (Panels, Tracks, Fixings, Sealant, External colours), persisted to
-// localStorage via useProductStore -- fully decoupled from src/data.ts and the
-// live estimator (see productStore.ts). Composition mirrors
-// EducationHub.tsx: gridBody (search + category chips + card grid) and a
-// persistent detailPanel, stacked on phone / a sticky aside on web. Category/
+// Master/detail page for browsing/editing Speedpanel's material catalogs
+// (Panels, Tracks, Fixings, Sealant, External colours), a live Supabase
+// fetch via useProductStore (RLS-gated writes, see productStore.ts).
+// Composition mirrors EducationHub.tsx: gridBody (search + category chips
+// + card grid) and a persistent detailPanel, stacked on phone / a sticky
+// aside on web. Category/
 // selection state stays page-local -- #/admin/products remains the one stable
 // URL, same as EducationHub keeps its selection out of the URL too.
 // =============================================================================

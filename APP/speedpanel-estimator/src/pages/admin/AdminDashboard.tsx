@@ -41,8 +41,8 @@ const ADMIN_GROUPS: { heading: string; items: AdminSection[] }[] = [
   {
     heading: "Catalog",
     items: [
-      { key: "products",  label: "Products",  description: "Panel, track and fixing product data.",   icon: <Package size={16} /> },
-      { key: "systems",   label: "Systems",   description: "Wall system definitions and spans.",       icon: <Layers size={16} /> },
+      { key: "products",  label: "Products",  description: "Panel, track, fixing, sealant and colour product data.",   icon: <Package size={16} /> },
+      { key: "systems",   label: "Systems",   description: "Locked system reference data (Internal/External).", icon: <Layers size={16} /> },
       { key: "maths",     label: "Maths",     description: "Estimate calculation constants (waste, stock lengths, spans).", icon: <Calculator size={16} /> },
       { key: "documents", label: "Documents", description: "Education Hub document library.",          icon: <FileText size={16} /> },
     ],

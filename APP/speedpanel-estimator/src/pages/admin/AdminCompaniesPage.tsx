@@ -8,7 +8,10 @@
 // the same roster+invite/role/suspend/remove controls the customer-facing
 // Team page uses, now reachable here thanks to is_company_admin's
 // is_admin() bypass) and "Speedpanel Team" (StaffTeamAssignmentPanel.tsx --
-// the actual new feature this page exists to support).
+// the actual new feature this page exists to support). Adding an existing
+// account or creating a brand-new one lives on Admin > Permissions instead
+// (its own company picker covers every company, not just this one) --
+// intentionally not duplicated here.
 // =============================================================================
 import { useState } from "react";
 import { Plus } from "lucide-react";
@@ -29,7 +32,7 @@ const CompanyRow = ({ company, myUserId }: { company: AdminCompanyRow; myUserId:
     <p className={cx.footnote}>Created {new Date(company.created_at).toLocaleDateString()}</p>
     <div className="mt-3 space-y-2">
       <AccordionCard summary="Members">
-        <CompanyMemberList companyId={company.id} myUserId={myUserId} canManage={true} canDirectAdd={true} />
+        <CompanyMemberList companyId={company.id} myUserId={myUserId} canManage={true} />
       </AccordionCard>
       <AccordionCard summary="Speedpanel Team">
         <StaffTeamAssignmentPanel companyId={company.id} />

@@ -11,14 +11,17 @@
 // this company", on the Admin side it's always true (is_admin() is the real
 // gate either way).
 //
-// canDirectAdd (Admin > Companies only, never passed by CompanyTeamPage.tsx)
-// additionally renders AddExistingMemberForm -- admin_add_company_member_by_email
-// is has_staff_role(array[])-gated (super_admin) server-side, so it would
-// just fail for a customer's own company admin; the prop keeps the control
-// itself from ever being offered to them in the first place.
+// Admin-only "add an existing account" / "create a brand-new account"
+// shortcuts deliberately do NOT live here (they used to, as
+// AddExistingMemberForm behind a canDirectAdd prop) -- Admin > Permissions
+// is now the one canonical place for those, with its own company picker,
+// so this component doesn't need a second admin-only surface duplicating
+// the same admin_add_company_member_by_email RPC. InviteMemberForm below
+// stays here since it's genuinely different in kind (self-service, used by
+// customers too via CompanyTeamPage.tsx, not admin-only).
 // =============================================================================
 import { useState } from "react";
-import { UserPlus, UserCheck, Mail } from "lucide-react";
+import { UserPlus, Mail } from "lucide-react";
 import { cx, NAVY, BLUE, WHITE } from "../../styleTokens";
 import { Field, SelectField, TextAreaField } from "../shared/fields";
 import {
@@ -111,55 +114,6 @@ const InviteMemberForm = ({ companyId, onInvited }: {
   );
 };
 
-// Admin-only alternative to InviteMemberForm above -- for an account that
-// already exists (e.g. created directly in Supabase before the company was
-// set up here), skipping the invite/accept flow entirely. See
-// admin_add_company_member_by_email in supabase/schema.sql for why the
-// normal invite's auto-link-on-signup doesn't cover this order of operations.
-const AddExistingMemberForm = ({ onAdded }: {
-  onAdded: (input: { email: string; role: CompanyRole }) => Promise<string | null>;
-}) => {
-  const [email, setEmail] = useState("");
-  const [role, setRole] = useState<CompanyRole>("owner");
-  const [adding, setAdding] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!email.trim()) return;
-    setAdding(true);
-    setError(null);
-    setSuccess(false);
-    const err = await onAdded({ email: email.trim(), role });
-    setAdding(false);
-    if (err) { setError(err); return; }
-    setEmail("");
-    setSuccess(true);
-  };
-
-  return (
-    <div className={`${cx.card} mt-3`}>
-      <div className="flex items-center gap-2 text-sm font-bold" style={{ color: NAVY }}>
-        <UserCheck size={15} /> Add an existing account
-      </div>
-      <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-        For an account already created directly in Supabase -- skips the invitation email and joins them immediately. Errors if no account exists yet for that email.
-      </p>
-      <form onSubmit={handleSubmit} className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-end">
-        <div className="flex-1"><Field label="Email" value={email} onChange={setEmail} type="email" required autoComplete="email" /></div>
-        <div className="sm:w-56"><SelectField label="Role" value={role} options={ROLE_OPTIONS} onChange={v => setRole(v as CompanyRole)} /></div>
-        <button type="submit" disabled={adding || !email.trim()}
-          className="h-[46px] shrink-0 rounded-xl border border-slate-200 dark:border-slate-700 px-5 text-sm font-bold disabled:opacity-50" style={{ color: BLUE }}>
-          {adding ? "Adding..." : "Add"}
-        </button>
-      </form>
-      {error && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{error}</p>}
-      {success && <p className="mt-2 text-sm font-semibold" style={{ color: BLUE }}>Added.</p>}
-    </div>
-  );
-};
-
 const MemberRow = ({ member, isSelf, canManage, onSetRole, onSetStatus, onRemove }: {
   member: CompanyMemberRow; isSelf: boolean; canManage: boolean;
   onSetRole: (role: CompanyRole) => void;
@@ -222,10 +176,10 @@ const PendingInvitationRow = ({ invitation, canManage, onResend, onCancel }: {
   </div>
 );
 
-export const CompanyMemberList = ({ companyId, myUserId, canManage, canDirectAdd = false }: {
-  companyId: string; myUserId: string | null; canManage: boolean; canDirectAdd?: boolean;
+export const CompanyMemberList = ({ companyId, myUserId, canManage }: {
+  companyId: string; myUserId: string | null; canManage: boolean;
 }) => {
-  const { members, invitations, loading, error, inviteMember, addExistingMember, resendInvitation, cancelInvitation, setRole, setStatus, removeMember, removalWarnings } = useCompanyMembers(companyId);
+  const { members, invitations, loading, error, inviteMember, resendInvitation, cancelInvitation, setRole, setStatus, removeMember, removalWarnings } = useCompanyMembers(companyId);
   const [actionError, setActionError] = useState<string | null>(null);
 
   const run = async (action: () => Promise<string | null>) => {
@@ -257,7 +211,6 @@ export const CompanyMemberList = ({ companyId, myUserId, canManage, canDirectAdd
       {canManage && (
         <div className="mt-3">
           <InviteMemberForm companyId={companyId} onInvited={inviteMember} />
-          {canDirectAdd && <AddExistingMemberForm onAdded={addExistingMember} />}
         </div>
       )}
 
