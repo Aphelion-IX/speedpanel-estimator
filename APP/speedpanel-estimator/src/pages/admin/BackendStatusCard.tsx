@@ -1,23 +1,19 @@
 // =============================================================================
-// Admin Dashboard -- Supabase backend status card
+// Admin Dashboard -- Supabase backend status footer
 // =============================================================================
 // Read-only indicator of whether Supabase env vars are configured. Every
 // admin section (Products/Systems/Documents/Maths/Requests/Projects) reads
 // and writes live Supabase tables -- see productStore.ts, systemsStore.ts,
 // documentStore.ts, mathConstantsStore.ts, requestsStore.ts,
 // adminProjectsStore.ts -- gated by supabaseClient.ts's isSupabaseConfigured.
+// Rendered as a compact muted footer line (ops diagnostic, not a business
+// tile) rather than a full card, to keep it out of the main tile grid.
 // =============================================================================
-import { cx, NAVY } from "../../styleTokens";
-import { Row } from "../../ui/primitives";
+import { cx } from "../../styleTokens";
 import { isSupabaseConfigured } from "../../lib/supabaseClient";
 
 export const BackendStatusCard = () => (
-  <div className={`${cx.card} mt-3`}>
-    <div className="text-sm font-bold" style={{ color: NAVY }}>Supabase backend</div>
-    <div className="mt-2 space-y-1">
-      <Row k="Environment configured" v={isSupabaseConfigured ? "Yes" : "No"} dim />
-      <Row k="Mode" v="Live Supabase catalog" dim />
-      <Row k="Status" v={isSupabaseConfigured ? "Supabase ready" : "Not configured"} hl={isSupabaseConfigured} />
-    </div>
-  </div>
+  <p className={`${cx.hr} text-sm leading-relaxed text-slate-400 dark:text-slate-500`}>
+    Supabase backend: {isSupabaseConfigured ? "ready" : "not configured"}
+  </p>
 );
