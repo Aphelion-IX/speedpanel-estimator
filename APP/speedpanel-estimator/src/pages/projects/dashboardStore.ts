@@ -1,11 +1,11 @@
 // =============================================================================
 // Projects dashboard -- orders pipeline summary
 // =============================================================================
-// Feeds the "Orders" stat row on ProjectsListPage.tsx's dashboard. orders has
-// a direct owner_id column (see supabase/schema.sql's "Owners and admins can
-// read orders" policy) -- no need to join through project_id to find "this
-// user's orders", same reasoning schema.sql itself gives for why owner_id is
-// duplicated onto orders rather than only living on projects.
+// Feeds the "Orders" stat row on ProjectsListPage.tsx's dashboard. No
+// client-side owner_id filter -- trusts RLS (company/project-membership-
+// aware, see schema.sql's can_view_project()) to return exactly the caller's
+// own orders plus any shared through a company, the same "server is the
+// real gate" convention this store's sibling stores already use.
 //
 // Narrower Zod schema than orderTypes.ts's full OrderRowSchema, matching
 // admin/products/productMappers.ts's convention of a schema shaped to what's
@@ -44,7 +44,7 @@ export function useOrdersSummary(user: User | null) {
   const load = useCallback(async () => {
     if (!supabase || !user) return;
     setState(s => ({ ...s, loading: true, error: null }));
-    const { data, error } = await supabase.from("orders").select("stage, total_inc_gst").eq("owner_id", user.id);
+    const { data, error } = await supabase.from("orders").select("stage, total_inc_gst");
     if (error) { setState({ ordersByStage: emptyByStage(), ordersTotal: 0, totalValue: 0, loading: false, error: error.message }); return; }
     const parsed = OrderSummaryRowSchema.array().safeParse(data ?? []);
     if (!parsed.success) { setState({ ordersByStage: emptyByStage(), ordersTotal: 0, totalValue: 0, loading: false, error: BAD_SHAPE }); return; }

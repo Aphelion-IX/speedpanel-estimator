@@ -56,18 +56,29 @@ export function seedSnapshotForSystem(system: string, wallSystem?: WallSystemId)
 
 // Standalone insert, decoupled from useProjects()'s list-fetching hook so
 // callers that just need to create a project (e.g. App.tsx's System
-// Selector wiring) don't have to mount the whole list fetch too.
-export async function insertProject(userId: string, name: string, data: SavedProjectData): Promise<{ project: ProjectRow | null; error: string | null }> {
+// Selector wiring) don't have to mount the whole list fetch too. companyId,
+// when provided, auto-assigns the new project to that company (see
+// supabase/schema.sql's "Multi-user company workspaces" section) so
+// teammates see it immediately -- omitted/null keeps today's solo behavior
+// unchanged.
+export async function insertProject(userId: string, name: string, data: SavedProjectData, companyId?: string | null): Promise<{ project: ProjectRow | null; error: string | null }> {
   if (!supabase) return { project: null, error: NOT_CONFIGURED };
   const { data: row, error } = await supabase.from("projects")
-    .insert({ owner_id: userId, name, data })
+    .insert({ owner_id: userId, name, data, company_id: companyId ?? null })
     .select("*").single();
   if (error) return { project: null, error: error.message };
   const parsed = ProjectRowSchema.safeParse(row);
   return parsed.success ? { project: parsed.data, error: null } : { project: null, error: BAD_SHAPE };
 }
 
-export function useProjects(user: User | null) {
+// activeCompanyId (from useCompanyMemberships) is threaded through so
+// createProject() below auto-assigns new projects to it -- the list itself
+// no longer filters by owner_id client-side (see load()), trusting RLS
+// (now company/project-membership-aware, see schema.sql's
+// can_view_project()) the same "server is the real gate" way most other
+// stores in this app already do, so a company's shared projects show up
+// here without any client-side company filter either.
+export function useProjects(user: User | null, activeCompanyId?: string | null) {
   const [state, setState] = useState<ProjectsState>(() =>
     !supabase ? { projects: [], loading: false, error: NOT_CONFIGURED }
     : !user ? { projects: [], loading: false, error: NOT_SIGNED_IN }
@@ -78,7 +89,7 @@ export function useProjects(user: User | null) {
     if (!supabase || !user) return;
     setState(s => ({ ...s, loading: true, error: null }));
     const { data, error } = await supabase.from("projects").select("*")
-      .eq("owner_id", user.id).is("deleted_at", null)
+      .is("deleted_at", null)
       .order("updated_at", { ascending: false });
     if (error) { setState({ projects: [], loading: false, error: error.message }); return; }
     const parsed = ProjectRowSchema.array().safeParse(data ?? []);
@@ -90,7 +101,7 @@ export function useProjects(user: User | null) {
 
   const createProject = async (name: string): Promise<{ id: string | null; error: string | null }> => {
     if (!user) return { id: null, error: NOT_SIGNED_IN };
-    const { project, error } = await insertProject(user.id, name, blankSnapshot());
+    const { project, error } = await insertProject(user.id, name, blankSnapshot(), activeCompanyId);
     if (error || !project) return { id: null, error };
     setState(s => ({ ...s, projects: [project, ...s.projects] }));
     return { id: project.id, error: null };

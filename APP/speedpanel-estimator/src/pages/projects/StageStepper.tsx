@@ -5,7 +5,7 @@
 // anywhere else in this codebase. A plain horizontal row of the four linear
 // stages (draft -> install_review -> technical_review -> approved), with
 // every stage up to and including the current one filled, later ones muted.
-// Reused by both the customer's ProjectDetailPage and the admin review queue.
+// Reused by both the customer's ProjectDashboard and the admin review queue.
 // =============================================================================
 import { cx, BLUE, WHITE, MUTED } from "../../styleTokens";
 import { STAGES, STAGE_LABELS, type Stage } from "./projectTypes";

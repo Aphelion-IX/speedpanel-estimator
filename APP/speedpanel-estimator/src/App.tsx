@@ -3,6 +3,7 @@ import { RotateCcw, AlertTriangle, Settings } from "lucide-react";
 import { useLayoutMode } from "./useLayoutMode";
 import { useThemeMode } from "./useThemeMode";
 import { useAuth } from "./lib/useAuth";
+import { useCompanyMemberships } from "./lib/useCompanyMemberships";
 import { useWallStore } from "./wallStore";
 import { NAVY, BLUE, GOLD, MUTED } from "./styleTokens";
 import { SectionLabel } from "./ui/primitives";
@@ -15,6 +16,7 @@ import { loadSession, saveSession } from "./appShell/session";
 import { TopNav, type TopNavTab } from "./appShell/topNav";
 import { LayoutModeToggle, ThemeToggle } from "./appShell/headerToggles";
 import { AuthStatus } from "./appShell/AuthStatus";
+import { CompanySwitcher } from "./appShell/CompanySwitcher";
 import { SystemRows } from "./appShell/systemRows";
 import { useCornerShaftLinking } from "./appShell/useCornerShaftLinking";
 import { useHashRoute } from "./appShell/useHashRoute";
@@ -23,6 +25,8 @@ import { saveProjectSnapshot } from "./pages/projects/saveProjectSnapshot";
 import { insertProject, seedSnapshotForSystem } from "./pages/projects/projectsStore";
 import type { ProjectRow, SavedProjectData } from "./pages/projects/projectTypes";
 import { ProformaInvoicePage } from "./pages/projects/orders/ProformaInvoicePage";
+import { CompanyRouter } from "./pages/company/CompanyRouter";
+import { PendingInvitationsBanner } from "./pages/company/PendingInvitationsBanner";
 import type { WallSystemOption } from "./systemSelector/systemOptions";
 
 // Not part of the initial bundle -- a typical customer never visits /admin,
@@ -40,10 +44,14 @@ export default function SpeedpanelEstimator() {
   const [showWall, setShowWall]               = useState(true);
   const [dimUnit, setDimUnit] = useState(() => savedSession ? savedSession.dimUnit : "m");
   const { route, navigate } = useHashRoute();
-  const switchTab = (tab: TopNavTab) => tab === "admin" ? navigate({ tab: "admin", sub: "dashboard" }) : navigate({ tab });
+  const switchTab = (tab: TopNavTab) =>
+    tab === "admin" ? navigate({ tab: "admin", sub: "dashboard" })
+    : tab === "company" ? navigate({ tab: "company", sub: "team" })
+    : navigate({ tab });
   const { effective: layoutMode, toggleLayout } = useLayoutMode();
   const { effective: themeMode, toggleTheme } = useThemeMode();
   const auth = useAuth();
+  const company = useCompanyMemberships(auth);
 
   // Which saved (Supabase) project, if any, is currently open in the
   // Estimator tab -- see wallStore.ts's persistLocally/loadFrom/exportSnapshot.
@@ -121,7 +129,7 @@ export default function SpeedpanelEstimator() {
 
   const doCreateProjectFromSystem = async (option: WallSystemOption, name: string): Promise<string | null> => {
     const data = seedSnapshotForSystem(option.system!, option.wallSystem);
-    const { project, error } = await insertProject(auth.user!.id, name, data);
+    const { project, error } = await insertProject(auth.user!.id, name, data, company.activeCompanyId);
     if (error || !project) return error;
     openProjectInEstimator(project);
     return null;
@@ -157,6 +165,7 @@ export default function SpeedpanelEstimator() {
           activeTab={route.tab}
           onTabChange={switchTab}
           right={<>
+            <CompanySwitcher company={company} />
             <AuthStatus auth={auth} onSignInClick={() => navigate({ tab: "projects" })} />
             <ThemeToggle effective={themeMode} onToggle={toggleTheme} />
             <LayoutModeToggle effective={layoutMode} onToggle={toggleLayout} />
@@ -167,6 +176,11 @@ export default function SpeedpanelEstimator() {
         />
         <div className="mt-4 h-[2px] w-full rounded-full" style={{ background: `linear-gradient(90deg, ${NAVY} 0%, ${BLUE} 55%, ${GOLD} 100%)` }} />
 
+        {/* Renders nothing when there's no pending invitation -- safe to
+            mount unconditionally on every tab, not just Projects, since it's
+            about the account, not any one page. */}
+        {auth.session && <PendingInvitationsBanner userEmail={auth.user?.email} onAccepted={company.reload} />}
+
         {route.tab === "selector"  && (
           <SystemSelector layoutMode={layoutMode} system={system} activeWallSystem={active.wallSystem}
             onCreateProject={createProjectFromSystem} />
@@ -174,10 +188,15 @@ export default function SpeedpanelEstimator() {
         {route.tab === "education" && <EducationHub layoutMode={layoutMode} />}
         {route.tab === "projects"  && (
           <ProjectsRouter
-            route={route} navigate={navigate} auth={auth}
+            route={route} navigate={navigate} auth={auth} company={company}
             onOpenEstimator={openProjectInEstimator}
             pendingNote={pendingSystemSelection ? `Sign in to create "${pendingSystemSelection.name}"` : undefined}
+            layoutMode={layoutMode}
           />
+        )}
+
+        {route.tab === "company" && (
+          <CompanyRouter route={route} navigate={navigate} userId={auth.user?.id ?? null} company={company} />
         )}
 
         {route.tab === "admin" && (

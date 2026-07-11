@@ -9,7 +9,11 @@
 // =============================================================================
 import { useCallback, useEffect, useState } from "react";
 
-export type AdminSubPage = "dashboard" | "products" | "systems" | "maths" | "documents" | "requests" | "projectReviews" | "users" | "analytics" | "auditLog" | "orders";
+export type AdminSubPage = "dashboard" | "products" | "systems" | "maths" | "documents" | "requests" | "projectReviews" | "users" | "analytics" | "auditLog" | "orders" | "manufacturing" | "companies" | "myAssignments";
+// "create" removed -- self-service company creation no longer exists, see
+// CompanyRouter.tsx/NoCompanyPage.tsx. Companies are created only via the
+// Admin > Companies wizard.
+export type CompanySubPage = "team" | "activity";
 
 export type Route =
   | { tab: "estimator" }
@@ -22,12 +26,17 @@ export type Route =
   // have no saved project to attach to, see ProjectsRouter.tsx.
   | { tab: "projects"; id?: string; orderId?: string; newOrder?: boolean; request?: boolean }
   | { tab: "admin"; sub: AdminSubPage }
+  // Top-level (not nested under "projects") since it's about the signed-in
+  // user's account/company membership, not any one project -- same reasoning
+  // "admin" is its own top-level tab rather than nested somewhere else.
+  | { tab: "company"; sub: CompanySubPage }
   // Top-level (not nested under "projects") since both the customer and an
   // admin reach this -- App.tsx renders it standalone, before the normal
   // shell/nav JSX, since it's a printable document, not a page in the app.
   | { tab: "proforma"; orderId: string };
 
-const ADMIN_SUBPAGES: AdminSubPage[] = ["products", "systems", "maths", "documents", "requests", "projectReviews", "users", "analytics", "auditLog", "orders"];
+const ADMIN_SUBPAGES: AdminSubPage[] = ["products", "systems", "maths", "documents", "requests", "projectReviews", "users", "analytics", "auditLog", "orders", "manufacturing", "companies", "myAssignments"];
+const COMPANY_SUBPAGES: CompanySubPage[] = ["team", "activity"];
 
 function parseHash(hash: string): Route {
   const segments = hash.replace(/^#\/?/, "").split("/").filter(Boolean);
@@ -35,6 +44,10 @@ function parseHash(hash: string): Route {
   if (first === "admin") {
     const sub = ADMIN_SUBPAGES.find(s => s === second) ?? "dashboard";
     return { tab: "admin", sub };
+  }
+  if (first === "company") {
+    const sub = COMPANY_SUBPAGES.find(s => s === second) ?? "team";
+    return { tab: "company", sub };
   }
   if (first === "projects") {
     if (second === "request" && !third) return { tab: "projects", request: true };
@@ -57,6 +70,7 @@ function parseHash(hash: string): Route {
 
 function routeToHash(route: Route): string {
   if (route.tab === "admin") return route.sub === "dashboard" ? "#/admin" : `#/admin/${route.sub}`;
+  if (route.tab === "company") return `#/company/${route.sub}`;
   if (route.tab === "estimator") return "#/";
   if (route.tab === "projects") {
     if (!route.id) return route.request ? "#/projects/request" : "#/projects";

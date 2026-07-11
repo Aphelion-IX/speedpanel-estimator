@@ -15,6 +15,8 @@ function baseOrder(overrides: Partial<OrderRow> = {}): OrderRow {
     unpriced_item_count: 1, customer_note: null,
     submitted_at: "2026-01-01T00:00:00.000Z", proforma_requested_at: "2026-01-02T00:00:00.000Z",
     proforma_issued_at: "2026-01-03T00:00:00.000Z", cancelled_at: null,
+    panels_manufactured: null, manufacturing_est_completion: null,
+    company_id: null,
     created_at: "2026-01-01T00:00:00.000Z", updated_at: "2026-01-03T00:00:00.000Z",
     ...overrides,
   };
@@ -26,6 +28,7 @@ function baseDelivery(overrides: Partial<OrderDeliveryRow> = {}): OrderDeliveryR
     address_line1: "1 Example St", address_line2: null, suburb: "Sydney", state: "NSW", postcode: "2000",
     requested_date: "2026-02-01", contact_name: "Jane", contact_phone: "0400000000", notes: null,
     item_allocations: [{ lineItemId: "li1", qty: 21 }],
+    status: "planned",
     created_at: "2026-01-01T00:00:00.000Z", updated_at: "2026-01-01T00:00:00.000Z",
     ...overrides,
   };

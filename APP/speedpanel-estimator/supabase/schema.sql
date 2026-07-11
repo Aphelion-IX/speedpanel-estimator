@@ -119,6 +119,33 @@ create table if not exists profiles (
   updated_at timestamptz not null default now()
 );
 
+-- display_name/title/phone: nullable, no signup UI sets these -- profiles
+-- has no name/contact concept anywhere else in this app (email only, via
+-- auth.users). Only meaningful for role='admin' rows, shown as "Your
+-- Speedpanel Team" contact details instead of a raw email -- see
+-- admin_set_staff_profile() and the "Assigned Speedpanel Team" section
+-- below.
+alter table profiles add column display_name text;
+alter table profiles add column title text;
+alter table profiles add column phone text;
+
+-- Internal Speedpanel job function -- distinct from the binary `role`
+-- access gate above (which only answers "can this person reach Admin at
+-- all") and from staff_assignments.role (which company relationship this
+-- person holds, per company). One value per person, reusing the same 5
+-- labels as staff_assignments plus 'super_admin' (full access) -- a staff
+-- member's job function is also what they're eligible to be assigned as on
+-- a company's Speedpanel Team, so this is one role list, not two. null is a
+-- deliberate grandfather state (full access, same as super_admin), not "no
+-- access" -- see has_staff_role() below.
+alter table profiles add column staff_role text
+  check (staff_role in ('super_admin', 'project_manager', 'bdm', 'internal_sales', 'dispatch', 'technical_services'));
+
+-- Backfill: every admin account that exists before this migration keeps
+-- full access, explicitly, rather than relying only on has_staff_role()'s
+-- null-fallback long-term.
+update profiles set staff_role = 'super_admin' where role = 'admin' and staff_role is null;
+
 alter table profiles enable row level security;
 
 create policy "Users can read own profile" on profiles
@@ -269,6 +296,36 @@ $$;
 -- security advisor after first deploying this without the explicit "anon").
 revoke execute on function public.is_admin() from public, anon;
 grant execute on function public.is_admin() to authenticated;
+
+-- Finer-grained check layered ON TOP of is_admin(), not a replacement --
+-- used only by the specific internal-staff-only RPCs/policies that opted
+-- into it (see "Internal staff roles" section below); every other is_admin()
+-- call in this file is untouched. staff_role is null OR 'super_admin'
+-- always passes, regardless of p_roles -- a defensive default so a not-yet-
+-- assigned admin is never silently locked out of everything.
+create or replace function public.has_staff_role(p_roles text[]) returns boolean
+language sql security definer stable
+set search_path = public
+as $$
+  select public.is_admin() and exists (
+    select 1 from profiles where id = auth.uid()
+      and (staff_role is null or staff_role = 'super_admin' or staff_role = any(p_roles))
+  );
+$$;
+revoke execute on function public.has_staff_role(text[]) from public, anon;
+grant execute on function public.has_staff_role(text[]) to authenticated;
+
+-- Narrowed from a plain role='admin' check to has_staff_role() -- Requests
+-- triage is a BDM function, per "Internal staff roles". Redefined here
+-- (rather than at the table's original "Admins can update requests" policy
+-- further up) since has_staff_role() isn't defined until this point in the
+-- file -- same "policy redefined later once its dependency exists" pattern
+-- already used throughout this schema (e.g. projects/orders policies
+-- redefined after can_edit_project).
+drop policy "Admins can update requests" on requests;
+create policy "Admins can update requests" on requests
+  for update using (public.has_staff_role(array['bdm']))
+  with check (public.has_staff_role(array['bdm']));
 
 create policy "Owners and admins can read projects" on projects
   for select using (auth.uid() = owner_id or public.is_admin());
@@ -562,19 +619,53 @@ create policy "Public update access" on math_constants
 -- Backs the Admin > Users and Admin > Audit Log pages.
 -- =============================================================================
 
-create or replace function public.admin_list_users()
-returns table (id uuid, email text, role text, created_at timestamptz)
+-- create or replace only overloads on an exact signature match -- dropping
+-- the old zero-arg version first avoids ending up with both it and the new
+-- paginated one callable side by side (PostgREST would then have two
+-- same-named RPCs to disambiguate between).
+drop function if exists public.admin_list_users();
+
+-- Paginated (p_limit/p_offset, default page size 50) -- this roster grows
+-- with the customer base and has no natural upper bound, unlike the
+-- pending-review-style queues elsewhere in Admin that self-limit to
+-- whatever's currently awaiting action. admin_count_users() below is the
+-- companion total-count RPC (used by Admin > Analytics), so that page never
+-- has to page through every row just to count them.
+-- create or replace can't change an existing function's return columns --
+-- drop first (same reasoning as the zero-arg overload drop above) since
+-- this is gaining display_name/title/phone/staff_role.
+drop function if exists public.admin_list_users(int, int);
+
+-- Staff directory only (role = 'admin') -- external/customer accounts are
+-- managed exclusively via each company's own roster on Admin > Companies
+-- now, never listed here. has_staff_role(array[]) (super_admin) rather than
+-- plain is_admin() -- see "Internal staff roles" section below.
+create or replace function public.admin_list_users(p_limit int default 50, p_offset int default 0)
+returns table (id uuid, email text, role text, created_at timestamptz, display_name text, title text, phone text, staff_role text)
 language sql security definer stable
 set search_path = public
 as $$
-  select p.id, u.email, p.role, p.created_at
+  select p.id, u.email, p.role, p.created_at, p.display_name, p.title, p.phone, p.staff_role
   from public.profiles p
   join auth.users u on u.id = p.id
-  where public.is_admin()
-  order by p.created_at desc;
+  where p.role = 'admin' and public.has_staff_role(array[]::text[])
+  order by p.created_at desc
+  limit p_limit offset p_offset;
 $$;
-revoke execute on function public.admin_list_users() from public, anon;
-grant execute on function public.admin_list_users() to authenticated;
+revoke execute on function public.admin_list_users(int, int) from public, anon;
+grant execute on function public.admin_list_users(int, int) to authenticated;
+
+create or replace function public.admin_count_users()
+returns table (total bigint, admins bigint)
+language sql security definer stable
+set search_path = public
+as $$
+  select count(*), count(*) filter (where role = 'admin')
+  from public.profiles
+  where public.has_staff_role(array[]::text[]);
+$$;
+revoke execute on function public.admin_count_users() from public, anon;
+grant execute on function public.admin_count_users() to authenticated;
 
 create or replace function public.admin_set_role(p_user_id uuid, p_role text)
 returns void
@@ -584,7 +675,7 @@ as $$
 declare
   v_admin_count int;
 begin
-  if not public.is_admin() then raise exception 'Not authorized'; end if;
+  if not public.has_staff_role(array[]::text[]) then raise exception 'Not authorized'; end if;
   if coalesce(p_role, '') not in ('user', 'admin') then raise exception 'Invalid role'; end if;
 
   -- Refuse to demote the only remaining admin -- would otherwise lock every
@@ -604,7 +695,51 @@ $$;
 revoke execute on function public.admin_set_role(uuid, text) from public, anon;
 grant execute on function public.admin_set_role(uuid, text) to authenticated;
 
-create or replace function public.admin_list_stage_events()
+-- Sets another admin's (or their own) display_name/title/phone, shown as
+-- their "Your Speedpanel Team" contact details once assigned to a company.
+-- Users area is super_admin-only from here on (has_staff_role(array[]) --
+-- Admin > Users is a staff directory, not a general account list, so only
+-- a super_admin manages it, same reasoning as admin_set_role/
+-- admin_set_staff_role below).
+create or replace function public.admin_set_staff_profile(p_user_id uuid, p_display_name text, p_title text, p_phone text)
+returns void
+language plpgsql security definer
+set search_path = public
+as $$
+begin
+  if not public.has_staff_role(array[]::text[]) then raise exception 'Not authorized'; end if;
+  update profiles set display_name = nullif(trim(p_display_name), ''), title = nullif(trim(p_title), ''),
+    phone = nullif(trim(p_phone), ''), updated_at = now()
+    where id = p_user_id;
+  if not found then raise exception 'User not found'; end if;
+end;
+$$;
+revoke execute on function public.admin_set_staff_profile(uuid, text, text, text) from public, anon;
+grant execute on function public.admin_set_staff_profile(uuid, text, text, text) to authenticated;
+
+create or replace function public.admin_set_staff_role(p_user_id uuid, p_staff_role text) returns void
+language plpgsql security definer
+set search_path = public
+as $$
+begin
+  if not public.has_staff_role(array[]::text[]) then raise exception 'Not authorized'; end if;
+  if coalesce(p_staff_role, '') not in ('super_admin', 'project_manager', 'bdm', 'internal_sales', 'dispatch', 'technical_services') then
+    raise exception 'Invalid staff role';
+  end if;
+  update profiles set staff_role = p_staff_role, updated_at = now() where id = p_user_id and role = 'admin';
+  if not found then raise exception 'Staff account not found'; end if;
+end;
+$$;
+revoke execute on function public.admin_set_staff_role(uuid, text) from public, anon;
+grant execute on function public.admin_set_staff_role(uuid, text) to authenticated;
+
+-- Same "drop the old exact-zero-arg overload first" reasoning as
+-- admin_list_users above.
+drop function if exists public.admin_list_stage_events();
+
+-- Paginated, same reasoning as admin_list_users above -- this audit trail
+-- only ever grows, one row per install/technical review action, forever.
+create or replace function public.admin_list_stage_events(p_limit int default 50, p_offset int default 0)
 returns table (
   id uuid, project_id uuid, project_name text,
   actor_id uuid, actor_email text,
@@ -617,11 +752,12 @@ as $$
   from public.project_stage_events e
   join public.projects pr on pr.id = e.project_id
   left join auth.users u on u.id = e.actor_id
-  where public.is_admin()
-  order by e.created_at desc;
+  where public.has_staff_role(array[]::text[])
+  order by e.created_at desc
+  limit p_limit offset p_offset;
 $$;
-revoke execute on function public.admin_list_stage_events() from public, anon;
-grant execute on function public.admin_list_stage_events() to authenticated;
+revoke execute on function public.admin_list_stage_events(int, int) from public, anon;
+grant execute on function public.admin_list_stage_events(int, int) to authenticated;
 
 -- =============================================================================
 -- Admin catalog: per-unit pricing fields (nullable -- foundation for Orders)
@@ -832,7 +968,9 @@ as $$
 declare
   v_stage text;
 begin
-  if not public.is_admin() then raise exception 'Not authorized'; end if;
+  -- Standalone admin-decision RPC, no customer-facing path shares this
+  -- check -- narrowed to Internal Sales, who own order approvals.
+  if not public.has_staff_role(array['internal_sales']) then raise exception 'Not authorized'; end if;
 
   select stage into v_stage from orders where id = p_order_id for update;
   if v_stage is null then raise exception 'Order not found'; end if;
@@ -872,3 +1010,1549 @@ grant execute on function public.submit_order(uuid) to authenticated;
 grant execute on function public.request_proforma_invoice(uuid) to authenticated;
 grant execute on function public.issue_proforma_invoice(uuid, text) to authenticated;
 grant execute on function public.cancel_order(uuid) to authenticated;
+
+-- =============================================================================
+-- Manufacturing & delivery tracking (admin-editable)
+-- =============================================================================
+-- Applies once an order is confirmed (stage = 'proforma_issued') -- there's
+-- no later order stage representing "fulfilled", so this tracking data IS
+-- the fulfillment record, not a transition into a new stage.
+--
+-- No new RLS policies or RPCs needed: orders' own "Owners and admins can
+-- update orders" policy already lets an admin write any column (same
+-- frontend-discipline tradeoff already noted on that policy above), and
+-- order_deliveries' "Owners can manage deliveries while draft, admins
+-- anytime" policy already gives admins unrestricted write access -- both
+-- simply unused by any UI until now.
+--
+-- panels_manufactured is nullable ("not started/no data yet" vs a real 0).
+-- Total panel count is deliberately NOT stored here -- it's computed
+-- client-side from the order's own line_items (category in
+-- ('panel','custom_panel'), summed qty -- see
+-- src/export/priceEstimateReportData.ts's ORDER_LINE_ITEM_CATEGORIES) so it
+-- can never drift out of sync with the order it's describing.
+alter table orders add column panels_manufactured int;
+alter table orders add column manufacturing_est_completion date;
+
+-- planned -> scheduled -> in_transit -> delivered, admin-set per delivery
+-- batch. Same check-constraint-as-enum convention as orders.stage/
+-- projects.stage above.
+alter table order_deliveries add column status text not null default 'planned'
+  check (status in ('planned', 'scheduled', 'in_transit', 'delivered'));
+
+-- Dispatch-only writes (has_staff_role(array['dispatch'])), via dedicated
+-- RPCs rather than narrowing the "Owners, company, and admins can update
+-- orders"/"...manage deliveries..." RLS policies further down this file:
+-- those are shared with customer self-service order edits via
+-- can_edit_project, so narrowing their is_admin() clause would break that
+-- shared path. These two replace AdminManufacturingPage.tsx's previous
+-- direct .update() calls -- see adminManufacturingStore.ts.
+create or replace function public.admin_update_manufacturing(
+  p_order_id uuid, p_panels_manufactured int, p_manufacturing_est_completion date
+) returns void
+language plpgsql security definer
+set search_path = public
+as $$
+begin
+  if not public.has_staff_role(array['dispatch']) then raise exception 'Not authorized'; end if;
+  update orders set panels_manufactured = p_panels_manufactured,
+    manufacturing_est_completion = p_manufacturing_est_completion, updated_at = now()
+    where id = p_order_id and stage = 'proforma_issued';
+  if not found then raise exception 'Order not found or not yet confirmed'; end if;
+end;
+$$;
+revoke execute on function public.admin_update_manufacturing(uuid, int, date) from public, anon;
+grant execute on function public.admin_update_manufacturing(uuid, int, date) to authenticated;
+
+create or replace function public.admin_update_delivery_status(p_delivery_id uuid, p_status text) returns void
+language plpgsql security definer
+set search_path = public
+as $$
+begin
+  if not public.has_staff_role(array['dispatch']) then raise exception 'Not authorized'; end if;
+  if coalesce(p_status, '') not in ('planned', 'scheduled', 'in_transit', 'delivered') then raise exception 'Invalid status'; end if;
+  update order_deliveries set status = p_status where id = p_delivery_id;
+  if not found then raise exception 'Delivery not found'; end if;
+end;
+$$;
+revoke execute on function public.admin_update_delivery_status(uuid, text) from public, anon;
+grant execute on function public.admin_update_delivery_status(uuid, text) to authenticated;
+
+-- =============================================================================
+-- Project documents -- file storage (shop drawings, delivery dockets, etc.)
+-- =============================================================================
+-- This app's first real file-upload feature -- Education Hub's admin_documents
+-- deliberately has no storage backend (fileUrl points at a static /docs path,
+-- see AdminDocument's own schema comment), but per-project documents are
+-- genuinely user-uploaded, so they need one. Same split as orders/
+-- order_deliveries: a private Storage bucket holds the bytes, a plain table
+-- holds the queryable metadata (who uploaded what, when, under what name) --
+-- listing storage.objects directly would work too, but every other resource
+-- in this app is a Postgres row with RLS, and this keeps that consistent
+-- (e.g. lets the Activity feed or a future admin view join against it later).
+--
+-- Storage path convention: `${project_id}/${uuid}-${original filename}` --
+-- the leading path segment is what storage.foldername() below keys off to
+-- reach back to the owning project for its RLS check, same "encode the
+-- parent in the path" trick Storage policies commonly use since
+-- storage.objects has no project_id column of its own.
+insert into storage.buckets (id, name, public) values ('project-documents', 'project-documents', false)
+  on conflict (id) do nothing;
+
+create table if not exists project_documents (
+  id uuid primary key default gen_random_uuid(),
+  project_id uuid not null references projects (id) on delete cascade,
+  uploaded_by uuid not null references auth.users (id) on delete cascade,
+  storage_path text not null,
+  file_name text not null,
+  file_size int not null,
+  content_type text,
+  created_at timestamptz not null default now()
+);
+
+alter table project_documents enable row level security;
+
+create policy "Owners and admins can read project documents" on project_documents
+  for select using (
+    exists (select 1 from projects where projects.id = project_id and (projects.owner_id = auth.uid() or public.is_admin()))
+  );
+
+create policy "Owners and admins can upload project documents" on project_documents
+  for insert with check (
+    uploaded_by = auth.uid()
+    and exists (select 1 from projects where projects.id = project_id and (projects.owner_id = auth.uid() or public.is_admin()))
+  );
+
+create policy "Owners and admins can delete project documents" on project_documents
+  for delete using (
+    exists (select 1 from projects where projects.id = project_id and (projects.owner_id = auth.uid() or public.is_admin()))
+  );
+
+-- Mirror the same owner-or-admin check on the actual storage bytes -- without
+-- these, the project_documents row could be readable while the file itself
+-- is either unfetchable (no select policy) or, worse, editable/removable by
+-- anyone (no policy at all defaults to allow nothing, but explicit beats
+-- implicit here given this is the app's first bucket).
+create policy "Owners and admins can read project document files" on storage.objects
+  for select using (
+    bucket_id = 'project-documents'
+    and exists (
+      select 1 from projects
+      where projects.id::text = (storage.foldername(name))[1]
+        and (projects.owner_id = auth.uid() or public.is_admin())
+    )
+  );
+
+create policy "Owners and admins can upload project document files" on storage.objects
+  for insert with check (
+    bucket_id = 'project-documents'
+    and exists (
+      select 1 from projects
+      where projects.id::text = (storage.foldername(name))[1]
+        and (projects.owner_id = auth.uid() or public.is_admin())
+    )
+  );
+
+create policy "Owners and admins can delete project document files" on storage.objects
+  for delete using (
+    bucket_id = 'project-documents'
+    and exists (
+      select 1 from projects
+      where projects.id::text = (storage.foldername(name))[1]
+        and (projects.owner_id = auth.uid() or public.is_admin())
+    )
+  );
+
+-- =============================================================================
+-- Foreign key indexes
+-- =============================================================================
+-- Postgres auto-indexes primary keys but NOT the referencing (foreign key)
+-- side of a relationship -- every RLS policy in this schema that gates a
+-- child table via "exists (select 1 from parent where parent.id = child.fk
+-- and ...)" was, until now, doing a full sequential scan of the parent (or
+-- child) table on every single query, on every row check. Harmless at the
+-- row counts this app has had so far; not harmless once the customer base
+-- (and therefore project/order/document/event counts) grows an order of
+-- magnitude or two. Cheap and purely additive to add now while the tables
+-- are still small enough that building the index is instant.
+create index if not exists idx_projects_owner_id            on projects (owner_id);
+create index if not exists idx_project_stage_events_project_id on project_stage_events (project_id);
+create index if not exists idx_project_stage_events_actor_id   on project_stage_events (actor_id);
+create index if not exists idx_requests_project_id           on requests (project_id);
+create index if not exists idx_orders_project_id             on orders (project_id);
+create index if not exists idx_orders_owner_id               on orders (owner_id);
+create index if not exists idx_order_deliveries_order_id     on order_deliveries (order_id);
+create index if not exists idx_order_stage_events_order_id   on order_stage_events (order_id);
+create index if not exists idx_order_stage_events_actor_id   on order_stage_events (actor_id);
+create index if not exists idx_project_documents_project_id  on project_documents (project_id);
+create index if not exists idx_project_documents_uploaded_by on project_documents (uploaded_by);
+
+-- =============================================================================
+-- Multi-user company workspaces
+-- =============================================================================
+-- Lets several individual accounts share access to the same company's
+-- projects/orders/documents, instead of every resource belonging to exactly
+-- one owner_id forever. Deliberately NOT a single profiles.company_id column
+-- -- a user can belong to more than one company (consultants, people who
+-- change employers, Speedpanel support) so membership is its own table with
+-- one row per (company, user) pair, per the multi-company-from-day-one
+-- requirement, NOT a shortcut this app explicitly rejected.
+--
+-- Six fixed roles (role-templates, not a dynamic permissions matrix):
+-- owner/admin manage the company itself and see every company project by
+-- default; project_manager also sees every company project but can't manage
+-- membership; estimator/site_user/viewer only see projects they're
+-- explicitly assigned to via project_memberships, and viewer is read-only
+-- there (see can_view_project/can_edit_project further below).
+--
+-- Everything here is additive: owner_id-only projects/orders (company_id
+-- null) keep behaving exactly as before this section existed -- see
+-- can_view_project/can_edit_project's first clause.
+-- =============================================================================
+
+create table if not exists companies (
+  id uuid primary key default gen_random_uuid(),
+  legal_name text not null,
+  trading_name text,
+  abn text,
+  customer_account_number text,
+  billing_email text,
+  phone text,
+  address text,
+  status text not null default 'active' check (status in ('active', 'suspended', 'closed')),
+  created_by uuid not null references auth.users (id),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+-- One row per (company, user) -- a user can hold multiple rows across
+-- different companies, so this is never collapsed onto profiles.
+create table if not exists company_memberships (
+  id uuid primary key default gen_random_uuid(),
+  company_id uuid not null references companies (id) on delete cascade,
+  user_id uuid not null references auth.users (id) on delete cascade,
+  role text not null check (role in ('owner', 'admin', 'project_manager', 'estimator', 'site_user', 'viewer')),
+  status text not null default 'active' check (status in ('active', 'suspended', 'removed')),
+  invited_by uuid references auth.users (id),
+  joined_at timestamptz not null default now(),
+  last_active_at timestamptz,
+  unique (company_id, user_id)
+);
+
+-- Pending/accepted/expired/cancelled invite states. A brand-new email gets a
+-- real account immediately via Supabase Auth's own inviteUserByEmail (see
+-- the company-invite-member Edge Function) -- there's no "pending account,
+-- no login yet" state for that case, acceptance IS setting a password. An
+-- email that already has an account instead sits here as 'pending' until
+-- that person accepts in-app (see accept_company_invitation below), since
+-- this app has no way to send a notification email to an existing user.
+create table if not exists invitations (
+  id uuid primary key default gen_random_uuid(),
+  company_id uuid not null references companies (id) on delete cascade,
+  email text not null,
+  invitee_name text,
+  role text not null check (role in ('owner', 'admin', 'project_manager', 'estimator', 'site_user', 'viewer')),
+  status text not null default 'pending' check (status in ('pending', 'accepted', 'expired', 'cancelled')),
+  invited_by uuid not null references auth.users (id),
+  message text,
+  -- Which specific projects to grant access to on acceptance (via
+  -- project_memberships) -- null/empty means "whatever the role's default
+  -- company-wide reach already covers, nothing project-specific to add".
+  project_ids uuid[],
+  created_at timestamptz not null default now(),
+  expires_at timestamptz not null default (now() + interval '14 days'),
+  accepted_at timestamptz
+);
+
+-- Grants access to one SPECIFIC project regardless of company-wide role --
+-- how estimator/site_user/viewer (who don't see the whole company by
+-- default) get scoped in. project_role is what actually makes 'viewer'
+-- read-only rather than just narrower-scoped -- see can_view_project vs
+-- can_edit_project below, which is what this column's value actually gates.
+create table if not exists project_memberships (
+  project_id uuid not null references projects (id) on delete cascade,
+  user_id uuid not null references auth.users (id) on delete cascade,
+  project_role text not null default 'editor' check (project_role in ('editor', 'viewer')),
+  added_by uuid references auth.users (id),
+  added_at timestamptz not null default now(),
+  primary key (project_id, user_id)
+);
+
+-- Company-workspace event log -- membership changes plus the
+-- project/order/delivery lifecycle events that matter when several people
+-- can modify the same data. NOT a full field-level audit of every edit (see
+-- log_audit() below) -- only fires when company_id is not null, since a
+-- solo/personal project has no company to attribute an entry to.
+create table if not exists audit_logs (
+  id uuid primary key default gen_random_uuid(),
+  company_id uuid references companies (id) on delete cascade,
+  actor_id uuid references auth.users (id),
+  event_type text not null,
+  target_user_id uuid references auth.users (id),
+  project_id uuid references projects (id) on delete set null,
+  detail jsonb,
+  created_at timestamptz not null default now()
+);
+
+alter table companies            enable row level security;
+alter table company_memberships  enable row level security;
+alter table invitations          enable row level security;
+alter table project_memberships  enable row level security;
+alter table audit_logs           enable row level security;
+
+-- =============================================================================
+-- Company-aware columns on projects/orders
+-- =============================================================================
+alter table projects add column company_id uuid references companies (id) on delete set null;
+alter table projects add column project_manager_user_id uuid references auth.users (id);
+alter table orders   add column company_id uuid references companies (id) on delete set null;
+
+-- =============================================================================
+-- Company-workspace helper functions
+-- =============================================================================
+-- Same security-definer, revoke-then-grant-to-authenticated convention as
+-- is_admin() above throughout.
+
+-- owner OR admin -- the general "can manage this company" gate (invite,
+-- remove/role-change anyone below Owner, edit company details, view all).
+-- has_staff_role(array[]) (super_admin) rather than plain is_admin():
+-- Speedpanel staff manage every company via this bypass, not by joining it
+-- as a member (see "Company-creation cutover" -- admin_create_company never
+-- adds the calling admin to company_memberships), and per "Internal staff
+-- roles" below, company management is super_admin-only, not every internal
+-- role. Without this bypass at all, an admin who created a company
+-- couldn't call company_set_member_role/company_remove_member/
+-- resend_company_invitation/etc. for it, or pass company-invite-member's
+-- is_company_admin check.
+create or replace function public.is_company_admin(p_company_id uuid) returns boolean
+language sql security definer stable
+set search_path = public
+as $$
+  select public.has_staff_role(array[]::text[]) or exists (
+    select 1 from company_memberships
+    where company_id = p_company_id and user_id = auth.uid() and status = 'active' and role in ('owner', 'admin')
+  );
+$$;
+revoke execute on function public.is_company_admin(uuid) from public, anon;
+grant execute on function public.is_company_admin(uuid) to authenticated;
+
+-- owner ONLY (plus the same super_admin bypass as is_company_admin above) --
+-- gates the actions an Admin must not have: touching another Owner's
+-- role/status, or promoting someone else to Owner.
+create or replace function public.is_company_owner(p_company_id uuid) returns boolean
+language sql security definer stable
+set search_path = public
+as $$
+  select public.has_staff_role(array[]::text[]) or exists (
+    select 1 from company_memberships
+    where company_id = p_company_id and user_id = auth.uid() and status = 'active' and role = 'owner'
+  );
+$$;
+revoke execute on function public.is_company_owner(uuid) from public, anon;
+grant execute on function public.is_company_owner(uuid) to authenticated;
+
+-- Read access to a project: its own owner_id, Speedpanel admin, any active
+-- owner/admin/project_manager of the project's company (company-wide reach),
+-- or an explicit project_memberships row (either 'editor' or 'viewer').
+create or replace function public.can_view_project(p_owner_id uuid, p_company_id uuid, p_project_id uuid) returns boolean
+language sql security definer stable
+set search_path = public
+as $$
+  select
+    auth.uid() = p_owner_id
+    or public.is_admin()
+    or (p_company_id is not null and exists (
+      select 1 from company_memberships cm
+      where cm.company_id = p_company_id and cm.user_id = auth.uid() and cm.status = 'active'
+        and cm.role in ('owner', 'admin', 'project_manager')
+    ))
+    or exists (select 1 from project_memberships pm where pm.project_id = p_project_id and pm.user_id = auth.uid());
+$$;
+revoke execute on function public.can_view_project(uuid, uuid, uuid) from public, anon;
+grant execute on function public.can_view_project(uuid, uuid, uuid) to authenticated;
+
+-- Write access to a project: same as can_view_project, except an explicit
+-- project_memberships row only counts when project_role = 'editor' -- this
+-- is what actually makes a 'viewer' assignment read-only rather than just
+-- narrower-scoped than a company-wide role.
+create or replace function public.can_edit_project(p_owner_id uuid, p_company_id uuid, p_project_id uuid) returns boolean
+language sql security definer stable
+set search_path = public
+as $$
+  select
+    auth.uid() = p_owner_id
+    or public.is_admin()
+    or (p_company_id is not null and exists (
+      select 1 from company_memberships cm
+      where cm.company_id = p_company_id and cm.user_id = auth.uid() and cm.status = 'active'
+        and cm.role in ('owner', 'admin', 'project_manager')
+    ))
+    or exists (
+      select 1 from project_memberships pm
+      where pm.project_id = p_project_id and pm.user_id = auth.uid() and pm.project_role = 'editor'
+    );
+$$;
+revoke execute on function public.can_edit_project(uuid, uuid, uuid) from public, anon;
+grant execute on function public.can_edit_project(uuid, uuid, uuid) to authenticated;
+
+-- Stricter than can_edit_project -- deliberately has NO project_memberships
+-- path at all, so estimator/site_user/viewer can never submit an order
+-- regardless of project assignment (only company-wide owner/admin/
+-- project_manager, the project's own owner, or Speedpanel admin can).
+create or replace function public.can_submit_orders(p_owner_id uuid, p_company_id uuid, p_project_id uuid) returns boolean
+language sql security definer stable
+set search_path = public
+as $$
+  select
+    auth.uid() = p_owner_id
+    or public.is_admin()
+    or (p_company_id is not null and exists (
+      select 1 from company_memberships cm
+      where cm.company_id = p_company_id and cm.user_id = auth.uid() and cm.status = 'active'
+        and cm.role in ('owner', 'admin', 'project_manager')
+    ));
+$$;
+revoke execute on function public.can_submit_orders(uuid, uuid, uuid) from public, anon;
+grant execute on function public.can_submit_orders(uuid, uuid, uuid) to authenticated;
+
+-- Shared audit-log writer -- silently a no-op when p_company_id is null
+-- (solo/personal projects have nothing to attribute a company-audit entry
+-- to), so every call site can call this unconditionally without its own
+-- null-check.
+create or replace function public.log_audit(
+  p_company_id uuid, p_actor_id uuid, p_event_type text,
+  p_target_user_id uuid default null, p_project_id uuid default null, p_detail jsonb default null
+) returns void
+language plpgsql security definer
+set search_path = public
+as $$
+begin
+  if p_company_id is null then return; end if;
+  insert into audit_logs (company_id, actor_id, event_type, target_user_id, project_id, detail)
+    values (p_company_id, p_actor_id, p_event_type, p_target_user_id, p_project_id, p_detail);
+end;
+$$;
+revoke execute on function public.log_audit(uuid, uuid, text, uuid, uuid, jsonb) from public, anon;
+grant execute on function public.log_audit(uuid, uuid, text, uuid, uuid, jsonb) to authenticated;
+
+-- =============================================================================
+-- RLS: companies, company_memberships, invitations, project_memberships, audit_logs
+-- =============================================================================
+
+create policy "Company members can read their own company" on companies
+  for select using (
+    exists (select 1 from company_memberships cm where cm.company_id = companies.id and cm.user_id = auth.uid() and cm.status = 'active')
+    or public.is_admin()
+  );
+
+create policy "Owner or admin can update their own company" on companies
+  for update using (public.is_company_admin(id)) with check (public.is_company_admin(id));
+
+-- No delete policy in v1 -- no self-service or admin company-closure flow yet.
+
+create policy "Members can read their own membership rows" on company_memberships
+  for select using (user_id = auth.uid() or public.is_company_admin(company_id) or public.is_admin());
+
+-- No direct insert/update/delete policy -- every membership change goes
+-- through the security definer RPCs below (company_set_member_role,
+-- company_remove_member, company_set_member_status, the
+-- invitation-acceptance path, admin_set_user_company), each of which does
+-- its own privilege check before writing.
+
+create policy "Company admins can read their own invitations" on invitations
+  for select using (
+    public.is_company_admin(company_id)
+    or email = (select email from auth.users where id = auth.uid())
+    or public.is_admin()
+  );
+
+-- No direct insert/update/delete -- see company-invite-member Edge Function
+-- and the resend/cancel/accept/decline RPCs below.
+
+create policy "Project access implies project_memberships visibility" on project_memberships
+  for select using (
+    exists (
+      select 1 from projects p
+      where p.id = project_id and public.can_view_project(p.owner_id, p.company_id, p.id)
+    )
+  );
+
+-- No direct insert/update/delete -- see add_project_member/
+-- remove_project_member/set_project_member_role below.
+
+create policy "Company admins can read their own audit log" on audit_logs
+  for select using (public.is_company_admin(company_id) or public.is_admin());
+
+-- No insert/update/delete policy -- rows are only ever written by
+-- log_audit(), which is security definer and bypasses RLS.
+
+-- =============================================================================
+-- Extend existing RLS to company/project-membership access
+-- =============================================================================
+-- Every policy below is a straight rewrite (drop + recreate under the same
+-- name) of an existing "owner_id = auth.uid() or is_admin()"-shaped policy,
+-- swapping in can_view_project()/can_edit_project() -- read policies get the
+-- view function, write policies (insert/update/delete/"manage") get the edit
+-- function, so a project_memberships 'viewer' assignment is genuinely
+-- read-only rather than sharing one boolean with every write check too.
+-- can_view_project/can_edit_project's first clause is still
+-- "auth.uid() = owner_id", so solo projects (company_id null) behave
+-- identically to before this section existed.
+
+drop policy "Owners and admins can read projects" on projects;
+create policy "Owners, company, and admins can read projects" on projects
+  for select using (public.can_view_project(owner_id, company_id, id));
+
+drop policy "Owners and admins can update projects" on projects;
+create policy "Owners, company, and admins can update projects" on projects
+  for update using (public.can_edit_project(owner_id, company_id, id))
+  with check (public.can_edit_project(owner_id, company_id, id));
+
+-- "Owners can create their own projects" (insert) is untouched -- a member
+-- always creates a project as themselves; company-wide sharing takes effect
+-- via the read/update policies above the moment company_id is set.
+
+drop policy "Owners and admins can read project stage events" on project_stage_events;
+create policy "Owners, company, and admins can read project stage events" on project_stage_events
+  for select using (
+    exists (select 1 from projects p where p.id = project_id and public.can_view_project(p.owner_id, p.company_id, p.id))
+  );
+
+drop policy "Owners and admins can read orders" on orders;
+create policy "Owners, company, and admins can read orders" on orders
+  for select using (public.can_view_project(owner_id, company_id, project_id));
+
+drop policy "Owners can create their own orders" on orders;
+create policy "Project access can create orders" on orders
+  for insert with check (
+    auth.uid() = owner_id
+    and exists (
+      select 1 from projects p where p.id = project_id and public.can_edit_project(p.owner_id, p.company_id, p.id)
+    )
+  );
+
+drop policy "Owners and admins can update orders" on orders;
+create policy "Owners, company, and admins can update orders" on orders
+  for update using (public.can_edit_project(owner_id, company_id, project_id))
+  with check (public.can_edit_project(owner_id, company_id, project_id));
+
+drop policy "Owners and admins can read order deliveries" on order_deliveries;
+create policy "Owners, company, and admins can read order deliveries" on order_deliveries
+  for select using (
+    exists (select 1 from orders o where o.id = order_id and public.can_view_project(o.owner_id, o.company_id, o.project_id))
+  );
+
+drop policy "Owners can manage deliveries while draft, admins anytime" on order_deliveries;
+create policy "Editors can manage deliveries while draft, admins anytime" on order_deliveries
+  for all using (
+    (exists (
+      select 1 from orders o where o.id = order_id and o.stage = 'draft'
+        and public.can_edit_project(o.owner_id, o.company_id, o.project_id)
+    ))
+    or public.is_admin()
+  )
+  with check (
+    (exists (
+      select 1 from orders o where o.id = order_id and o.stage = 'draft'
+        and public.can_edit_project(o.owner_id, o.company_id, o.project_id)
+    ))
+    or public.is_admin()
+  );
+
+drop policy "Owners and admins can read order stage events" on order_stage_events;
+create policy "Owners, company, and admins can read order stage events" on order_stage_events
+  for select using (
+    exists (select 1 from orders o where o.id = order_id and public.can_view_project(o.owner_id, o.company_id, o.project_id))
+  );
+
+drop policy "Owners and admins can read project documents" on project_documents;
+create policy "Owners, company, and admins can read project documents" on project_documents
+  for select using (
+    exists (select 1 from projects p where p.id = project_id and public.can_view_project(p.owner_id, p.company_id, p.id))
+  );
+
+drop policy "Owners and admins can upload project documents" on project_documents;
+create policy "Editors can upload project documents" on project_documents
+  for insert with check (
+    uploaded_by = auth.uid()
+    and exists (select 1 from projects p where p.id = project_id and public.can_edit_project(p.owner_id, p.company_id, p.id))
+  );
+
+drop policy "Owners and admins can delete project documents" on project_documents;
+create policy "Editors can delete project documents" on project_documents
+  for delete using (
+    exists (select 1 from projects p where p.id = project_id and public.can_edit_project(p.owner_id, p.company_id, p.id))
+  );
+
+drop policy "Owners and admins can read project document files" on storage.objects;
+create policy "Owners, company, and admins can read project document files" on storage.objects
+  for select using (
+    bucket_id = 'project-documents'
+    and exists (
+      select 1 from projects p
+      where p.id::text = (storage.foldername(name))[1] and public.can_view_project(p.owner_id, p.company_id, p.id)
+    )
+  );
+
+drop policy "Owners and admins can upload project document files" on storage.objects;
+create policy "Editors can upload project document files" on storage.objects
+  for insert with check (
+    bucket_id = 'project-documents'
+    and exists (
+      select 1 from projects p
+      where p.id::text = (storage.foldername(name))[1] and public.can_edit_project(p.owner_id, p.company_id, p.id)
+    )
+  );
+
+drop policy "Owners and admins can delete project document files" on storage.objects;
+create policy "Editors can delete project document files" on storage.objects
+  for delete using (
+    bucket_id = 'project-documents'
+    and exists (
+      select 1 from projects p
+      where p.id::text = (storage.foldername(name))[1] and public.can_edit_project(p.owner_id, p.company_id, p.id)
+    )
+  );
+
+-- =============================================================================
+-- Denormalization + auto-membership triggers
+-- =============================================================================
+
+-- orders.company_id always mirrors the PARENT PROJECT's company_id -- never
+-- set by the client (see ordersStore.ts, which needs zero changes because of
+-- this). Never itself the security boundary either: every RLS/RPC check
+-- above always does a live company_memberships lookup, so even a
+-- momentarily-stale value here couldn't leak or restrict access -- it exists
+-- purely so orders can be queried/filtered by company without a join.
+create or replace function public.sync_order_company_id() returns trigger
+language plpgsql security definer
+set search_path = public
+as $$
+begin
+  new.company_id := (select company_id from public.projects where id = new.project_id);
+  return new;
+end;
+$$;
+
+drop trigger if exists sync_orders_company_id on orders;
+create trigger sync_orders_company_id
+  before insert or update on orders
+  for each row execute function public.sync_order_company_id();
+
+-- Trigger-only function -- no legitimate direct-RPC caller, same as
+-- handle_new_user() above.
+revoke execute on function public.sync_order_company_id() from public;
+revoke execute on function public.sync_order_company_id() from anon;
+revoke execute on function public.sync_order_company_id() from authenticated;
+
+-- Auto-adds a project's creator to project_memberships as 'editor', and logs
+-- a 'project_created' audit event. Not load-bearing for access itself
+-- (owner_id = auth.uid() already grants access unconditionally), but keeps
+-- the project's member roster accurate from the moment it exists, which the
+-- Project Access UI depends on.
+create or replace function public.on_project_created() returns trigger
+language plpgsql security definer
+set search_path = public
+as $$
+begin
+  insert into public.project_memberships (project_id, user_id, project_role, added_by)
+    values (new.id, new.owner_id, 'editor', new.owner_id)
+    on conflict (project_id, user_id) do nothing;
+  perform public.log_audit(new.company_id, new.owner_id, 'project_created', null, new.id);
+  return new;
+end;
+$$;
+
+drop trigger if exists on_project_created on projects;
+create trigger on_project_created
+  after insert on projects
+  for each row execute function public.on_project_created();
+
+revoke execute on function public.on_project_created() from public;
+revoke execute on function public.on_project_created() from anon;
+revoke execute on function public.on_project_created() from authenticated;
+
+-- Logs a 'delivery_requested' audit event whenever a delivery batch is added
+-- to a company order -- log_audit() itself no-ops when company_id is null.
+create or replace function public.on_order_delivery_created() returns trigger
+language plpgsql security definer
+set search_path = public
+as $$
+declare
+  v_company uuid;
+  v_project uuid;
+begin
+  select company_id, project_id into v_company, v_project from public.orders where id = new.order_id;
+  perform public.log_audit(v_company, auth.uid(), 'delivery_requested', null, v_project, jsonb_build_object('delivery_id', new.id));
+  return new;
+end;
+$$;
+
+drop trigger if exists on_order_delivery_created on order_deliveries;
+create trigger on_order_delivery_created
+  after insert on order_deliveries
+  for each row execute function public.on_order_delivery_created();
+
+revoke execute on function public.on_order_delivery_created() from public;
+revoke execute on function public.on_order_delivery_created() from anon;
+revoke execute on function public.on_order_delivery_created() from authenticated;
+
+-- =============================================================================
+-- Extend existing stage-transition RPCs for company access + audit logging
+-- =============================================================================
+-- Each of these does its own ownership check in PL/pgSQL (security definer,
+-- so it bypasses RLS entirely) -- the RLS rewrite above doesn't touch these
+-- at all, they need their own edits. Same signatures as before (create or
+-- replace, not a new overload), so every existing caller keeps working
+-- unchanged.
+
+create or replace function public.request_install_review(p_project_id uuid)
+returns void
+language plpgsql security definer
+set search_path = public
+as $$
+declare
+  v_owner uuid;
+  v_company uuid;
+  v_stage text;
+begin
+  select owner_id, company_id, stage into v_owner, v_company, v_stage from projects where id = p_project_id for update;
+  if v_owner is null then raise exception 'Project not found'; end if;
+  -- can_edit_project's first clause is auth.uid() = p_owner_id, so this
+  -- subsumes the original "is distinct from" owner-only check while adding
+  -- company-wide/project_memberships-editor access.
+  if not public.can_edit_project(v_owner, v_company, p_project_id) then raise exception 'Not authorized'; end if;
+  if v_stage <> 'draft' then raise exception 'Install review can only be requested from Draft'; end if;
+
+  update projects set stage = 'install_review', install_review_status = 'pending', updated_at = now()
+    where id = p_project_id;
+  insert into project_stage_events (project_id, actor_id, event_type)
+    values (p_project_id, auth.uid(), 'install_review_requested');
+  perform public.log_audit(v_company, auth.uid(), 'install_review_requested', null, p_project_id);
+end;
+$$;
+
+create or replace function public.review_install(p_project_id uuid, p_decision text, p_note text default null)
+returns void
+language plpgsql security definer
+set search_path = public
+as $$
+declare
+  v_stage text;
+  v_company uuid;
+begin
+  -- Standalone admin-decision RPC, no customer-facing path shares this
+  -- check -- narrowed to the two internal roles who actually do reviews.
+  if not public.has_staff_role(array['project_manager', 'technical_services']) then raise exception 'Not authorized'; end if;
+  if coalesce(p_decision, '') not in ('approved', 'changes_requested') then raise exception 'Invalid decision'; end if;
+
+  select stage, company_id into v_stage, v_company from projects where id = p_project_id for update;
+  if v_stage is null then raise exception 'Project not found'; end if;
+  if v_stage <> 'install_review' then raise exception 'Project is not awaiting install review'; end if;
+
+  if p_decision = 'approved' then
+    update projects set stage = 'draft', install_review_status = 'approved', updated_at = now()
+      where id = p_project_id;
+    insert into project_stage_events (project_id, actor_id, event_type, note)
+      values (p_project_id, auth.uid(), 'install_review_approved', p_note);
+    perform public.log_audit(v_company, auth.uid(), 'install_review_approved', null, p_project_id, jsonb_build_object('note', p_note));
+  else
+    update projects set stage = 'draft', install_review_status = 'changes_requested', install_review_note = p_note, updated_at = now()
+      where id = p_project_id;
+    insert into project_stage_events (project_id, actor_id, event_type, note)
+      values (p_project_id, auth.uid(), 'install_review_changes_requested', p_note);
+    perform public.log_audit(v_company, auth.uid(), 'install_review_changes_requested', null, p_project_id, jsonb_build_object('note', p_note));
+  end if;
+end;
+$$;
+
+create or replace function public.request_technical_review(p_project_id uuid)
+returns void
+language plpgsql security definer
+set search_path = public
+as $$
+declare
+  v_owner uuid;
+  v_company uuid;
+  v_stage text;
+  v_install_status text;
+begin
+  select owner_id, company_id, stage, install_review_status into v_owner, v_company, v_stage, v_install_status
+    from projects where id = p_project_id for update;
+  if v_owner is null then raise exception 'Project not found'; end if;
+  if not public.can_edit_project(v_owner, v_company, p_project_id) then raise exception 'Not authorized'; end if;
+  if v_stage <> 'draft' then raise exception 'Technical review can only be requested from Draft'; end if;
+  if v_install_status is distinct from 'approved' then raise exception 'Install review must be approved first'; end if;
+
+  update projects set stage = 'technical_review', technical_review_status = 'pending', updated_at = now()
+    where id = p_project_id;
+  insert into project_stage_events (project_id, actor_id, event_type)
+    values (p_project_id, auth.uid(), 'technical_review_requested');
+  perform public.log_audit(v_company, auth.uid(), 'technical_review_requested', null, p_project_id);
+end;
+$$;
+
+create or replace function public.review_technical(p_project_id uuid, p_decision text, p_note text default null)
+returns void
+language plpgsql security definer
+set search_path = public
+as $$
+declare
+  v_stage text;
+  v_company uuid;
+begin
+  if not public.has_staff_role(array['project_manager', 'technical_services']) then raise exception 'Not authorized'; end if;
+  if coalesce(p_decision, '') not in ('approved', 'changes_requested') then raise exception 'Invalid decision'; end if;
+
+  select stage, company_id into v_stage, v_company from projects where id = p_project_id for update;
+  if v_stage is null then raise exception 'Project not found'; end if;
+  if v_stage <> 'technical_review' then raise exception 'Project is not awaiting technical review'; end if;
+
+  if p_decision = 'approved' then
+    update projects set stage = 'approved', technical_review_status = 'approved', updated_at = now()
+      where id = p_project_id;
+    insert into project_stage_events (project_id, actor_id, event_type, note)
+      values (p_project_id, auth.uid(), 'technical_review_approved', p_note);
+    perform public.log_audit(v_company, auth.uid(), 'technical_review_approved', null, p_project_id, jsonb_build_object('note', p_note));
+  else
+    update projects set stage = 'draft', technical_review_status = 'changes_requested', technical_review_note = p_note, updated_at = now()
+      where id = p_project_id;
+    insert into project_stage_events (project_id, actor_id, event_type, note)
+      values (p_project_id, auth.uid(), 'technical_review_changes_requested', p_note);
+    perform public.log_audit(v_company, auth.uid(), 'technical_review_changes_requested', null, p_project_id, jsonb_build_object('note', p_note));
+  end if;
+end;
+$$;
+
+create or replace function public.submit_order(p_order_id uuid)
+returns void
+language plpgsql security definer
+set search_path = public
+as $$
+declare
+  v_owner uuid;
+  v_company uuid;
+  v_project uuid;
+  v_stage text;
+begin
+  select owner_id, company_id, project_id, stage into v_owner, v_company, v_project, v_stage
+    from orders where id = p_order_id for update;
+  if v_owner is null then raise exception 'Order not found'; end if;
+  -- Stricter than install/technical review requests: can_submit_orders has
+  -- no project_memberships path, so estimator/site_user/viewer can never
+  -- submit regardless of project assignment.
+  if not public.can_submit_orders(v_owner, v_company, v_project) then raise exception 'Not authorized'; end if;
+  if v_stage <> 'draft' then raise exception 'Order can only be submitted from Draft'; end if;
+  if not exists (select 1 from order_deliveries where order_id = p_order_id) then
+    raise exception 'Add at least one delivery before submitting';
+  end if;
+
+  update orders set stage = 'submitted', submitted_at = now(), updated_at = now() where id = p_order_id;
+  insert into order_stage_events (order_id, actor_id, event_type) values (p_order_id, auth.uid(), 'submitted');
+  perform public.log_audit(v_company, auth.uid(), 'order_submitted', null, v_project, jsonb_build_object('order_id', p_order_id));
+end;
+$$;
+
+create or replace function public.request_proforma_invoice(p_order_id uuid)
+returns void
+language plpgsql security definer
+set search_path = public
+as $$
+declare
+  v_owner uuid;
+  v_company uuid;
+  v_project uuid;
+  v_stage text;
+begin
+  select owner_id, company_id, project_id, stage into v_owner, v_company, v_project, v_stage
+    from orders where id = p_order_id for update;
+  if v_owner is null then raise exception 'Order not found'; end if;
+  if not public.can_submit_orders(v_owner, v_company, v_project) then raise exception 'Not authorized'; end if;
+  if v_stage <> 'submitted' then raise exception 'A pro forma invoice can only be requested once the order is submitted'; end if;
+
+  update orders set stage = 'proforma_requested', proforma_requested_at = now(), updated_at = now() where id = p_order_id;
+  insert into order_stage_events (order_id, actor_id, event_type) values (p_order_id, auth.uid(), 'proforma_requested');
+  perform public.log_audit(v_company, auth.uid(), 'proforma_requested', null, v_project, jsonb_build_object('order_id', p_order_id));
+end;
+$$;
+
+create or replace function public.cancel_order(p_order_id uuid)
+returns void
+language plpgsql security definer
+set search_path = public
+as $$
+declare
+  v_owner uuid;
+  v_company uuid;
+  v_project uuid;
+  v_stage text;
+begin
+  select owner_id, company_id, project_id, stage into v_owner, v_company, v_project, v_stage
+    from orders where id = p_order_id for update;
+  if v_owner is null then raise exception 'Order not found'; end if;
+  -- can_edit_project already includes is_admin() in its OR chain, so this
+  -- subsumes the original "owner or admin" check while adding company-wide/
+  -- project_memberships-editor access.
+  if not public.can_edit_project(v_owner, v_company, v_project) then raise exception 'Not authorized'; end if;
+  if v_stage not in ('draft', 'submitted', 'proforma_requested') then raise exception 'Order can no longer be cancelled'; end if;
+
+  update orders set stage = 'cancelled', cancelled_at = now(), updated_at = now() where id = p_order_id;
+  insert into order_stage_events (order_id, actor_id, event_type) values (p_order_id, auth.uid(), 'cancelled');
+end;
+$$;
+
+-- =============================================================================
+-- Self-service company creation, membership, and invitations
+-- =============================================================================
+
+-- Self-service company creation has been removed -- Speedpanel now creates
+-- every company via the Admin > Companies wizard (admin_create_company
+-- below), never the customer. No production rows ever existed under the
+-- old self-service create_company() (confirmed empty before this cutover),
+-- so this is a clean drop, not a migration.
+drop function if exists public.create_company(text, text, text, text, text, text);
+
+-- is_admin()-gated. Deliberately does NOT add the calling admin to
+-- company_memberships -- Speedpanel staff manage every company via the
+-- is_admin() bypass added to is_company_admin/is_company_owner above, not by
+-- being a member. The company's actual first Owner is added afterward via
+-- the normal invite path (company-invite-member / admin-invite-user with
+-- companyId+companyRole), same as any other member.
+create or replace function public.admin_create_company(
+  p_legal_name text, p_trading_name text default null, p_abn text default null,
+  p_customer_account_number text default null, p_billing_email text default null,
+  p_phone text default null, p_address text default null
+) returns uuid
+language plpgsql security definer
+set search_path = public
+as $$
+declare
+  v_company_id uuid;
+begin
+  if not public.has_staff_role(array[]::text[]) then raise exception 'Not authorized'; end if;
+  if coalesce(trim(p_legal_name), '') = '' then raise exception 'Company name is required'; end if;
+
+  insert into companies (legal_name, trading_name, abn, customer_account_number, billing_email, phone, address, created_by)
+    values (p_legal_name, p_trading_name, p_abn, p_customer_account_number, p_billing_email, p_phone, p_address, auth.uid())
+    returning id into v_company_id;
+  perform public.log_audit(v_company_id, auth.uid(), 'company_created');
+  return v_company_id;
+end;
+$$;
+revoke execute on function public.admin_create_company(text, text, text, text, text, text, text) from public, anon;
+grant execute on function public.admin_create_company(text, text, text, text, text, text, text) to authenticated;
+
+-- handle_new_user() extended (redefined here, after invitations/
+-- company_memberships/project_memberships/log_audit all exist) to
+-- auto-accept any pending invitation(s) addressed to the new email --
+-- clicking the invite link and setting a password IS accepting, for the
+-- brand-new-person path (see company-invite-member Edge Function). The
+-- existing on_auth_user_created trigger already points at this function by
+-- name, so redefining it here is sufficient -- no need to redrop/recreate
+-- the trigger itself.
+create or replace function public.handle_new_user()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_invite record;
+  v_project_id uuid;
+begin
+  insert into public.profiles (id) values (new.id);
+
+  for v_invite in
+    select * from public.invitations where email = new.email and status = 'pending'
+  loop
+    insert into public.company_memberships (company_id, user_id, role, status, invited_by, joined_at)
+      values (v_invite.company_id, new.id, v_invite.role, 'active', v_invite.invited_by, now())
+      on conflict (company_id, user_id) do nothing;
+
+    if v_invite.project_ids is not null then
+      foreach v_project_id in array v_invite.project_ids loop
+        insert into public.project_memberships (project_id, user_id, added_by)
+          values (v_project_id, new.id, v_invite.invited_by)
+          on conflict (project_id, user_id) do nothing;
+      end loop;
+    end if;
+
+    update public.invitations set status = 'accepted', accepted_at = now() where id = v_invite.id;
+    perform public.log_audit(v_invite.company_id, new.id, 'invitation_accepted', new.id);
+  end loop;
+
+  return new;
+end;
+$$;
+
+create or replace function public.resend_company_invitation(p_invitation_id uuid) returns void
+language plpgsql security definer
+set search_path = public
+as $$
+declare
+  v_company uuid;
+  v_status text;
+begin
+  select company_id, status into v_company, v_status from invitations where id = p_invitation_id;
+  if v_company is null then raise exception 'Invitation not found'; end if;
+  if not public.is_company_admin(v_company) then raise exception 'Not authorized'; end if;
+  if v_status <> 'pending' then raise exception 'Only a pending invitation can be resent'; end if;
+
+  -- Metadata-only: extends the expiry window. Actually re-sending Supabase's
+  -- own invite email (for the still-no-account case) needs the service-role
+  -- key, so that half happens in company-invite-member's "resend" mode,
+  -- which calls this RPC for the validation + expiry reset.
+  update invitations set expires_at = now() + interval '14 days' where id = p_invitation_id;
+end;
+$$;
+revoke execute on function public.resend_company_invitation(uuid) from public, anon;
+grant execute on function public.resend_company_invitation(uuid) to authenticated;
+
+create or replace function public.cancel_company_invitation(p_invitation_id uuid) returns void
+language plpgsql security definer
+set search_path = public
+as $$
+declare
+  v_company uuid;
+begin
+  select company_id into v_company from invitations where id = p_invitation_id;
+  if v_company is null then raise exception 'Invitation not found'; end if;
+  if not public.is_company_admin(v_company) then raise exception 'Not authorized'; end if;
+
+  update invitations set status = 'cancelled' where id = p_invitation_id;
+end;
+$$;
+revoke execute on function public.cancel_company_invitation(uuid) from public, anon;
+grant execute on function public.cancel_company_invitation(uuid) to authenticated;
+
+-- Accept/decline path for an EXISTING user invited into a second company
+-- (no email capability to notify them, so this is an in-app banner + these
+-- two RPCs instead -- see PendingInvitationsBanner.tsx).
+create or replace function public.accept_company_invitation(p_invitation_id uuid) returns void
+language plpgsql security definer
+set search_path = public
+as $$
+declare
+  v_invite record;
+  v_caller_email text;
+  v_project_id uuid;
+begin
+  select * into v_invite from invitations where id = p_invitation_id for update;
+  if v_invite.id is null then raise exception 'Invitation not found'; end if;
+  if v_invite.status <> 'pending' then raise exception 'This invitation is no longer pending'; end if;
+
+  select email into v_caller_email from auth.users where id = auth.uid();
+  if v_invite.email is distinct from v_caller_email then raise exception 'Not authorized'; end if;
+
+  insert into company_memberships (company_id, user_id, role, status, invited_by, joined_at)
+    values (v_invite.company_id, auth.uid(), v_invite.role, 'active', v_invite.invited_by, now())
+    on conflict (company_id, user_id) do nothing;
+
+  if v_invite.project_ids is not null then
+    foreach v_project_id in array v_invite.project_ids loop
+      insert into project_memberships (project_id, user_id, added_by)
+        values (v_project_id, auth.uid(), v_invite.invited_by)
+        on conflict (project_id, user_id) do nothing;
+    end loop;
+  end if;
+
+  update invitations set status = 'accepted', accepted_at = now() where id = p_invitation_id;
+  perform public.log_audit(v_invite.company_id, auth.uid(), 'invitation_accepted', auth.uid());
+end;
+$$;
+revoke execute on function public.accept_company_invitation(uuid) from public, anon;
+grant execute on function public.accept_company_invitation(uuid) to authenticated;
+
+create or replace function public.decline_company_invitation(p_invitation_id uuid) returns void
+language plpgsql security definer
+set search_path = public
+as $$
+declare
+  v_email text;
+  v_caller_email text;
+begin
+  select email into v_email from invitations where id = p_invitation_id;
+  if v_email is null then raise exception 'Invitation not found'; end if;
+  select email into v_caller_email from auth.users where id = auth.uid();
+  if v_email is distinct from v_caller_email then raise exception 'Not authorized'; end if;
+
+  update invitations set status = 'cancelled' where id = p_invitation_id;
+end;
+$$;
+revoke execute on function public.decline_company_invitation(uuid) from public, anon;
+grant execute on function public.decline_company_invitation(uuid) to authenticated;
+
+-- =============================================================================
+-- Self-service member management
+-- =============================================================================
+
+create or replace function public.company_set_member_role(p_company_id uuid, p_user_id uuid, p_role text) returns void
+language plpgsql security definer
+set search_path = public
+as $$
+declare
+  v_target_role text;
+  v_owner_count int;
+begin
+  if not public.is_company_admin(p_company_id) then raise exception 'Not authorized'; end if;
+  if coalesce(p_role, '') not in ('owner', 'admin', 'project_manager', 'estimator', 'site_user', 'viewer') then
+    raise exception 'Invalid role';
+  end if;
+
+  select role into v_target_role from company_memberships where company_id = p_company_id and user_id = p_user_id;
+  if v_target_role is null then raise exception 'User not found in this company'; end if;
+
+  -- Owner/Admin asymmetry: an Admin can freely manage project_manager/
+  -- estimator/site_user/viewer rows, but touching an existing Owner's role,
+  -- or promoting someone else TO Owner, requires the caller to be an Owner.
+  if (v_target_role = 'owner' or p_role = 'owner') and not public.is_company_owner(p_company_id) then
+    raise exception 'Only an owner can change another owner''s role or promote someone to owner';
+  end if;
+
+  if v_target_role = 'owner' and p_role <> 'owner' then
+    select count(*) into v_owner_count from company_memberships
+      where company_id = p_company_id and role = 'owner' and status = 'active';
+    if v_owner_count <= 1 then raise exception 'Cannot demote the only remaining owner'; end if;
+  end if;
+
+  update company_memberships set role = p_role where company_id = p_company_id and user_id = p_user_id;
+  perform public.log_audit(p_company_id, auth.uid(), 'role_changed', p_user_id, null,
+    jsonb_build_object('from', v_target_role, 'to', p_role));
+end;
+$$;
+revoke execute on function public.company_set_member_role(uuid, uuid, text) from public, anon;
+grant execute on function public.company_set_member_role(uuid, uuid, text) to authenticated;
+
+create or replace function public.company_set_member_status(p_company_id uuid, p_user_id uuid, p_status text) returns void
+language plpgsql security definer
+set search_path = public
+as $$
+declare
+  v_target_role text;
+  v_owner_count int;
+begin
+  if not public.is_company_admin(p_company_id) then raise exception 'Not authorized'; end if;
+  if coalesce(p_status, '') not in ('active', 'suspended') then raise exception 'Invalid status'; end if;
+  if p_user_id = auth.uid() and p_status = 'suspended' then raise exception 'Cannot suspend yourself.'; end if;
+
+  select role into v_target_role from company_memberships where company_id = p_company_id and user_id = p_user_id;
+  if v_target_role is null then raise exception 'User not found in this company'; end if;
+
+  if v_target_role = 'owner' and not public.is_company_owner(p_company_id) then
+    raise exception 'Only an owner can suspend another owner';
+  end if;
+
+  if v_target_role = 'owner' and p_status = 'suspended' then
+    select count(*) into v_owner_count from company_memberships
+      where company_id = p_company_id and role = 'owner' and status = 'active';
+    if v_owner_count <= 1 then raise exception 'Cannot suspend the only remaining owner'; end if;
+  end if;
+
+  update company_memberships set status = p_status where company_id = p_company_id and user_id = p_user_id;
+  perform public.log_audit(p_company_id, auth.uid(), 'member_status_changed', p_user_id, null, jsonb_build_object('status', p_status));
+end;
+$$;
+revoke execute on function public.company_set_member_status(uuid, uuid, text) from public, anon;
+grant execute on function public.company_set_member_status(uuid, uuid, text) to authenticated;
+
+create or replace function public.company_remove_member(p_company_id uuid, p_user_id uuid) returns void
+language plpgsql security definer
+set search_path = public
+as $$
+declare
+  v_target_role text;
+  v_owner_count int;
+begin
+  if not public.is_company_admin(p_company_id) then raise exception 'Not authorized'; end if;
+  if p_user_id = auth.uid() then raise exception 'Cannot remove yourself -- ask another admin, or contact Speedpanel.'; end if;
+
+  select role into v_target_role from company_memberships where company_id = p_company_id and user_id = p_user_id;
+  if v_target_role is null then raise exception 'User not found in this company'; end if;
+
+  if v_target_role = 'owner' and not public.is_company_owner(p_company_id) then
+    raise exception 'Only an owner can remove another owner';
+  end if;
+
+  if v_target_role = 'owner' then
+    select count(*) into v_owner_count from company_memberships
+      where company_id = p_company_id and role = 'owner' and status = 'active';
+    if v_owner_count <= 1 then raise exception 'Cannot remove the only remaining owner'; end if;
+  end if;
+
+  -- Soft removal (preserves history, doesn't delete the login), plus clean
+  -- up any lingering project-level access within this company so a removed
+  -- member doesn't retain narrow access via project_memberships.
+  update company_memberships set status = 'removed' where company_id = p_company_id and user_id = p_user_id;
+  delete from project_memberships
+    where user_id = p_user_id and project_id in (select id from projects where company_id = p_company_id);
+  perform public.log_audit(p_company_id, auth.uid(), 'member_removed', p_user_id);
+end;
+$$;
+revoke execute on function public.company_remove_member(uuid, uuid) from public, anon;
+grant execute on function public.company_remove_member(uuid, uuid) to authenticated;
+
+-- Read-only advisory counts shown before the removal confirm dialog --
+-- doesn't block removal, matches this app's existing window.confirm()-style
+-- destructive-action pattern. Empty result set (not an error) for a
+-- non-admin caller, same "where public.is_company_admin(...)" idiom as
+-- admin_list_users.
+create or replace function public.company_member_removal_warnings(p_company_id uuid, p_user_id uuid)
+returns table (active_projects_as_pm bigint, draft_orders bigint, open_reviews_as_pm bigint)
+language sql security definer stable
+set search_path = public
+as $$
+  select
+    (select count(*) from projects where project_manager_user_id = p_user_id and company_id = p_company_id and stage <> 'approved' and deleted_at is null),
+    (select count(*) from orders where owner_id = p_user_id and company_id = p_company_id and stage = 'draft'),
+    (select count(*) from projects where project_manager_user_id = p_user_id and company_id = p_company_id
+       and (install_review_status = 'pending' or technical_review_status = 'pending'))
+  where public.is_company_admin(p_company_id);
+$$;
+revoke execute on function public.company_member_removal_warnings(uuid, uuid) from public, anon;
+grant execute on function public.company_member_removal_warnings(uuid, uuid) to authenticated;
+
+-- Readable by any active member of the company (not just admins) -- backs
+-- the Members screen's roster, including the "Project access" column
+-- (assigned_project_count).
+create or replace function public.company_list_members(p_company_id uuid)
+returns table (user_id uuid, email text, role text, status text, joined_at timestamptz, last_active_at timestamptz, assigned_project_count bigint)
+language sql security definer stable
+set search_path = public
+as $$
+  select cm.user_id, u.email, cm.role, cm.status, cm.joined_at, cm.last_active_at,
+    (select count(*) from project_memberships pm where pm.user_id = cm.user_id
+       and pm.project_id in (select id from projects where company_id = p_company_id)) as assigned_project_count
+  from company_memberships cm
+  join auth.users u on u.id = cm.user_id
+  where cm.company_id = p_company_id
+    and (exists (select 1 from company_memberships me where me.company_id = p_company_id and me.user_id = auth.uid() and me.status = 'active') or public.is_admin())
+  order by cm.joined_at asc;
+$$;
+revoke execute on function public.company_list_members(uuid) from public, anon;
+grant execute on function public.company_list_members(uuid) to authenticated;
+
+-- Called once per sign-in from the frontend -- the only writer of
+-- last_active_at, which otherwise would just be a dead column.
+create or replace function public.touch_last_active() returns void
+language sql security definer
+set search_path = public
+as $$
+  update company_memberships set last_active_at = now() where user_id = auth.uid() and status = 'active';
+$$;
+revoke execute on function public.touch_last_active() from public, anon;
+grant execute on function public.touch_last_active() to authenticated;
+
+-- Paginated, same shape as admin_list_stage_events. Backs the Activity Log
+-- screen.
+create or replace function public.company_list_audit_log(p_company_id uuid, p_limit int default 50, p_offset int default 0)
+returns table (
+  id uuid, actor_id uuid, actor_email text, event_type text,
+  target_user_id uuid, target_email text, project_id uuid, project_name text,
+  detail jsonb, created_at timestamptz
+)
+language sql security definer stable
+set search_path = public
+as $$
+  select al.id, al.actor_id, au.email, al.event_type, al.target_user_id, tu.email, al.project_id, pr.name, al.detail, al.created_at
+  from audit_logs al
+  left join auth.users au on au.id = al.actor_id
+  left join auth.users tu on tu.id = al.target_user_id
+  left join projects pr on pr.id = al.project_id
+  where al.company_id = p_company_id and public.is_company_admin(p_company_id)
+  order by al.created_at desc
+  limit p_limit offset p_offset;
+$$;
+revoke execute on function public.company_list_audit_log(uuid, int, int) from public, anon;
+grant execute on function public.company_list_audit_log(uuid, int, int) to authenticated;
+
+-- =============================================================================
+-- Project-level assignment
+-- =============================================================================
+-- Gated by can_edit_project on the TARGET project, not company_admin -- so an
+-- Owner/Admin/Project Manager can assign people to any company project, and
+-- someone with only a project_memberships 'editor' row on this one project
+-- can also manage its own roster (matches Project Manager's "invite or
+-- assign users to projects, where permitted").
+
+create or replace function public.add_project_member(p_project_id uuid, p_user_id uuid, p_project_role text default 'editor') returns void
+language plpgsql security definer
+set search_path = public
+as $$
+declare
+  v_owner uuid;
+  v_company uuid;
+begin
+  select owner_id, company_id into v_owner, v_company from projects where id = p_project_id;
+  if v_owner is null then raise exception 'Project not found'; end if;
+  if not public.can_edit_project(v_owner, v_company, p_project_id) then raise exception 'Not authorized'; end if;
+  if coalesce(p_project_role, '') not in ('editor', 'viewer') then raise exception 'Invalid project role'; end if;
+  -- Target must actually be a member of the project's company -- otherwise
+  -- this would be a backdoor to grant an outsider access.
+  if v_company is not null and not exists (
+    select 1 from company_memberships where company_id = v_company and user_id = p_user_id and status = 'active'
+  ) then
+    raise exception 'User is not a member of this project''s company';
+  end if;
+
+  insert into project_memberships (project_id, user_id, project_role, added_by)
+    values (p_project_id, p_user_id, p_project_role, auth.uid())
+    on conflict (project_id, user_id) do update set project_role = excluded.project_role;
+  perform public.log_audit(v_company, auth.uid(), 'project_reassigned', p_user_id, p_project_id, jsonb_build_object('project_role', p_project_role));
+end;
+$$;
+revoke execute on function public.add_project_member(uuid, uuid, text) from public, anon;
+grant execute on function public.add_project_member(uuid, uuid, text) to authenticated;
+
+create or replace function public.set_project_member_role(p_project_id uuid, p_user_id uuid, p_project_role text) returns void
+language plpgsql security definer
+set search_path = public
+as $$
+declare
+  v_owner uuid;
+  v_company uuid;
+begin
+  select owner_id, company_id into v_owner, v_company from projects where id = p_project_id;
+  if v_owner is null then raise exception 'Project not found'; end if;
+  if not public.can_edit_project(v_owner, v_company, p_project_id) then raise exception 'Not authorized'; end if;
+  if coalesce(p_project_role, '') not in ('editor', 'viewer') then raise exception 'Invalid project role'; end if;
+
+  update project_memberships set project_role = p_project_role where project_id = p_project_id and user_id = p_user_id;
+  if not found then raise exception 'User is not assigned to this project'; end if;
+  perform public.log_audit(v_company, auth.uid(), 'project_reassigned', p_user_id, p_project_id, jsonb_build_object('project_role', p_project_role));
+end;
+$$;
+revoke execute on function public.set_project_member_role(uuid, uuid, text) from public, anon;
+grant execute on function public.set_project_member_role(uuid, uuid, text) to authenticated;
+
+create or replace function public.remove_project_member(p_project_id uuid, p_user_id uuid) returns void
+language plpgsql security definer
+set search_path = public
+as $$
+declare
+  v_owner uuid;
+  v_company uuid;
+begin
+  select owner_id, company_id into v_owner, v_company from projects where id = p_project_id;
+  if v_owner is null then raise exception 'Project not found'; end if;
+  if not public.can_edit_project(v_owner, v_company, p_project_id) then raise exception 'Not authorized'; end if;
+  if p_user_id = v_owner then raise exception 'Cannot remove the project owner'; end if;
+
+  delete from project_memberships where project_id = p_project_id and user_id = p_user_id;
+  perform public.log_audit(v_company, auth.uid(), 'project_reassigned', p_user_id, p_project_id, jsonb_build_object('removed', true));
+end;
+$$;
+revoke execute on function public.remove_project_member(uuid, uuid) from public, anon;
+grant execute on function public.remove_project_member(uuid, uuid) to authenticated;
+
+-- =============================================================================
+-- Admin (Speedpanel staff) visibility into companies
+-- =============================================================================
+-- Read-only visibility for support purposes, reusing the access Speedpanel
+-- staff already implicitly have via is_admin() -- NOT the deferred
+-- SupportAccess grant model (time-boxed, reason-logged access), just a plain
+-- admin-gated read view + the one write action needed to bootstrap a
+-- company's first Owner from the existing Admin > Users roster.
+
+create or replace function public.admin_list_companies()
+returns table (id uuid, name text, member_count bigint, created_at timestamptz)
+language sql security definer stable
+set search_path = public
+as $$
+  select c.id, coalesce(c.trading_name, c.legal_name), count(cm.id) filter (where cm.status = 'active'), c.created_at
+  from companies c
+  left join company_memberships cm on cm.company_id = c.id
+  where public.has_staff_role(array[]::text[])
+  group by c.id, c.trading_name, c.legal_name, c.created_at
+  order by c.created_at desc;
+$$;
+revoke execute on function public.admin_list_companies() from public, anon;
+grant execute on function public.admin_list_companies() to authenticated;
+
+-- Assigns/detaches an EXISTING user to/from a company. p_company_id = null
+-- detaches (soft, mirrors company_remove_member's effect) -- also doubles as
+-- the general support tool for "move this user to a different company".
+create or replace function public.admin_set_user_company(p_user_id uuid, p_company_id uuid, p_role text default null) returns void
+language plpgsql security definer
+set search_path = public
+as $$
+begin
+  if not public.has_staff_role(array[]::text[]) then raise exception 'Not authorized'; end if;
+
+  if p_company_id is null then
+    update company_memberships set status = 'removed' where user_id = p_user_id and status = 'active';
+    return;
+  end if;
+
+  if coalesce(p_role, '') not in ('owner', 'admin', 'project_manager', 'estimator', 'site_user', 'viewer') then
+    raise exception 'Invalid role';
+  end if;
+  if not exists (select 1 from companies where id = p_company_id) then raise exception 'Company not found'; end if;
+
+  insert into company_memberships (company_id, user_id, role, status, invited_by, joined_at)
+    values (p_company_id, p_user_id, p_role, 'active', auth.uid(), now())
+    on conflict (company_id, user_id) do update set role = excluded.role, status = 'active';
+  perform public.log_audit(p_company_id, auth.uid(), 'member_added_by_admin', p_user_id);
+end;
+$$;
+revoke execute on function public.admin_set_user_company(uuid, uuid, text) from public, anon;
+grant execute on function public.admin_set_user_company(uuid, uuid, text) to authenticated;
+
+-- =============================================================================
+-- Assigned Speedpanel Team
+-- =============================================================================
+-- A fixed, Speedpanel-managed roster of internal contacts per company --
+-- Project Manager, BDM, Internal Sales, Dispatch, Technical Services -- read
+-- only for the customer (shown as "Your Speedpanel Team"), editable only by
+-- Speedpanel admins. Deliberately a separate table from company_memberships:
+-- these are relationships between the customer and Speedpanel, not the
+-- customer's own users/roles, even though 'project_manager' happens to be a
+-- label both sides use for different things -- see StaffRole vs CompanyRole
+-- in companyTypes.ts/staffTypes.ts, never conflated in code.
+--
+-- project_manager/bdm are "Single Assignment" (relationship owners -- one
+-- person should own it); internal_sales/dispatch/technical_services are
+-- "Multiple Assignment" (departments -- several people may be involved).
+-- The partial unique index below enforces single-assignment at the DB
+-- level, not just in the RPC.
+create table staff_assignments (
+  id uuid primary key default gen_random_uuid(),
+  company_id uuid not null references companies (id) on delete cascade,
+  staff_user_id uuid not null references auth.users (id),
+  role text not null check (role in ('project_manager', 'bdm', 'internal_sales', 'dispatch', 'technical_services')),
+  is_primary boolean not null default false,
+  active boolean not null default true,
+  created_by uuid references auth.users (id),
+  created_at timestamptz not null default now(),
+  unique (company_id, staff_user_id, role)
+);
+create unique index staff_assignments_single_role_idx on staff_assignments (company_id, role)
+  where active and role in ('project_manager', 'bdm');
+
+alter table staff_assignments enable row level security;
+
+-- Read-only for customers -- any active member of the company can see who's
+-- assigned, but there is no insert/update/delete policy at all: every write
+-- goes through admin_set_staff_assignment/admin_remove_staff_assignment
+-- below, both is_admin()-gated. Not even a company Owner can write here.
+create policy "Members and admins can read staff assignments" on staff_assignments
+  for select using (
+    public.is_admin()
+    or exists (select 1 from company_memberships cm where cm.company_id = staff_assignments.company_id and cm.user_id = auth.uid() and cm.status = 'active')
+  );
+
+-- is_admin()-gated; validates the role and that the target is currently a
+-- Speedpanel admin account (staff_assignments has no other concept of
+-- "employee" -- if Speedpanel wants a team-alias assignee with no personal
+-- login, they'd give it its own admin account, same as any other staff
+-- member). For project_manager/bdm, deactivates any other active row for
+-- that (company, role) first so the partial unique index above holds, then
+-- upserts -- reactivating a previously-removed assignment is idempotent
+-- rather than erroring on the (company_id, staff_user_id, role) unique
+-- constraint.
+create or replace function public.admin_set_staff_assignment(p_company_id uuid, p_staff_user_id uuid, p_role text) returns void
+language plpgsql security definer
+set search_path = public
+as $$
+declare
+  v_is_single boolean;
+begin
+  if not public.has_staff_role(array[]::text[]) then raise exception 'Not authorized'; end if;
+  if coalesce(p_role, '') not in ('project_manager', 'bdm', 'internal_sales', 'dispatch', 'technical_services') then
+    raise exception 'Invalid role';
+  end if;
+  if not exists (select 1 from profiles where id = p_staff_user_id and role = 'admin') then
+    raise exception 'Staff must be a Speedpanel admin account';
+  end if;
+
+  v_is_single := p_role in ('project_manager', 'bdm');
+  if v_is_single then
+    update staff_assignments set active = false
+      where company_id = p_company_id and role = p_role and active and staff_user_id <> p_staff_user_id;
+  end if;
+
+  insert into staff_assignments (company_id, staff_user_id, role, is_primary, active, created_by)
+    values (p_company_id, p_staff_user_id, p_role, v_is_single, true, auth.uid())
+    on conflict (company_id, staff_user_id, role) do update set active = true, is_primary = excluded.is_primary;
+  perform public.log_audit(p_company_id, auth.uid(), 'staff_assignment_added', p_staff_user_id, null, jsonb_build_object('role', p_role));
+end;
+$$;
+revoke execute on function public.admin_set_staff_assignment(uuid, uuid, text) from public, anon;
+grant execute on function public.admin_set_staff_assignment(uuid, uuid, text) to authenticated;
+
+create or replace function public.admin_remove_staff_assignment(p_company_id uuid, p_staff_user_id uuid, p_role text) returns void
+language plpgsql security definer
+set search_path = public
+as $$
+begin
+  if not public.has_staff_role(array[]::text[]) then raise exception 'Not authorized'; end if;
+  update staff_assignments set active = false
+    where company_id = p_company_id and staff_user_id = p_staff_user_id and role = p_role and active;
+  if not found then raise exception 'Assignment not found'; end if;
+  perform public.log_audit(p_company_id, auth.uid(), 'staff_assignment_removed', p_staff_user_id, null, jsonb_build_object('role', p_role));
+end;
+$$;
+revoke execute on function public.admin_remove_staff_assignment(uuid, uuid, text) from public, anon;
+grant execute on function public.admin_remove_staff_assignment(uuid, uuid, text) to authenticated;
+
+-- Same access shape as company_list_members -- any active member of the
+-- company, or is_admin(). Powers both the customer-facing "Your Speedpanel
+-- Team" card and the admin assignment editor (the admin sees the same rows
+-- via the is_admin() OR-clause, no separate admin-only RPC needed).
+create or replace function public.company_list_staff_team(p_company_id uuid)
+returns table (staff_user_id uuid, email text, display_name text, title text, phone text, role text, is_primary boolean)
+language sql security definer stable
+set search_path = public
+as $$
+  select sa.staff_user_id, u.email, p.display_name, p.title, p.phone, sa.role, sa.is_primary
+  from staff_assignments sa
+  join auth.users u on u.id = sa.staff_user_id
+  join profiles p on p.id = sa.staff_user_id
+  where sa.active
+    and (public.is_admin() or exists (select 1 from company_memberships cm where cm.company_id = p_company_id and cm.user_id = auth.uid() and cm.status = 'active'))
+    and sa.company_id = p_company_id
+  order by sa.role, u.email;
+$$;
+revoke execute on function public.company_list_staff_team(uuid) from public, anon;
+grant execute on function public.company_list_staff_team(uuid) to authenticated;
+
+-- super_admin-gated (has_staff_role(array[])) -- the picker source for the
+-- assignment UI (wizard step 3 and the Admin > Companies per-company
+-- editor). Returns staff_role so the frontend can filter each role
+-- section's candidate list to people whose own job function matches (or
+-- who are super_admin) -- see StaffTeamAssignmentPanel.tsx.
+drop function if exists public.admin_list_staff_candidates();
+
+create or replace function public.admin_list_staff_candidates()
+returns table (id uuid, email text, display_name text, title text, staff_role text)
+language sql security definer stable
+set search_path = public
+as $$
+  select p.id, u.email, p.display_name, p.title, p.staff_role
+  from profiles p
+  join auth.users u on u.id = p.id
+  where p.role = 'admin' and public.has_staff_role(array[]::text[])
+  order by coalesce(p.display_name, u.email);
+$$;
+revoke execute on function public.admin_list_staff_candidates() from public, anon;
+grant execute on function public.admin_list_staff_candidates() to authenticated;
+
+-- =============================================================================
+-- Foreign key indexes -- company workspace tables
+-- =============================================================================
+-- Same reasoning as the "Foreign key indexes" section above: Postgres
+-- doesn't auto-index the referencing side of a relationship, and every RLS
+-- policy/RPC introduced by this section filters on exactly these columns.
+create index if not exists idx_company_memberships_company_id on company_memberships (company_id);
+create index if not exists idx_company_memberships_user_id    on company_memberships (user_id);
+create index if not exists idx_invitations_company_id         on invitations (company_id);
+create index if not exists idx_invitations_email              on invitations (email);
+create index if not exists idx_project_memberships_user_id    on project_memberships (user_id);
+create index if not exists idx_audit_logs_company_id          on audit_logs (company_id);
+create index if not exists idx_audit_logs_actor_id            on audit_logs (actor_id);
+create index if not exists idx_audit_logs_target_user_id      on audit_logs (target_user_id);
+create index if not exists idx_audit_logs_project_id          on audit_logs (project_id);
+create index if not exists idx_projects_company_id            on projects (company_id);
+create index if not exists idx_projects_project_manager       on projects (project_manager_user_id);
+create index if not exists idx_orders_company_id              on orders (company_id);
+create index if not exists idx_staff_assignments_company_id   on staff_assignments (company_id);
+create index if not exists idx_staff_assignments_staff_user_id on staff_assignments (staff_user_id);

@@ -10,7 +10,7 @@ import { useAdminAuditLog } from "./auditLog/auditLogStore";
 import { STAGE_EVENT_LABELS } from "./auditLog/auditLogTypes";
 
 export const AdminAuditLogPage = () => {
-  const { events, loading, error, reload } = useAdminAuditLog();
+  const { events, loading, loadingMore, hasMore, error, reload, loadMore } = useAdminAuditLog();
 
   if (loading) {
     return <div className={`${cx.card} mt-6 text-sm`} style={{ color: MUTED }}>Loading...</div>;
@@ -47,6 +47,13 @@ export const AdminAuditLogPage = () => {
           {item.note && <p className="mt-2 text-sm leading-relaxed" style={{ color: NAVY }}>{item.note}</p>}
         </div>
       ))}
+
+      {hasMore && (
+        <button onClick={() => loadMore()} disabled={loadingMore}
+          className="mt-3 w-full rounded-xl border border-slate-200 dark:border-slate-700 px-4 py-2.5 text-sm font-bold disabled:opacity-50" style={{ color: NAVY }}>
+          {loadingMore ? "Loading..." : "Load more"}
+        </button>
+      )}
     </div>
   );
 };
