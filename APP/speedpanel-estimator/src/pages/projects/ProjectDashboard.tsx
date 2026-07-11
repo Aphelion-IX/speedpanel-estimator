@@ -19,15 +19,14 @@
 // to an honest "No orders in production yet" state, not a blanket
 // "coming soon", now that there's real data to check for.
 //
-// Documents remains an explicit "coming soon" placeholder -- no fabricated
-// data, since this app has no file storage yet. StageStepper/
+// Documents is real (Supabase Storage-backed, see documents/) -- StageStepper/
 // ReviewActionPanel already reflect the real Draft/Install review/Technical
 // review/Approved pipeline, so they aren't swapped for a look-alike stepper
 // implying tracking this app doesn't have.
 // =============================================================================
 import { useState } from "react";
 import {
-  Building2, Package, Factory, Activity as ActivityIcon, FileText,
+  Building2, Package, Factory, Activity as ActivityIcon,
   Send, CheckCircle2, AlertCircle,
 } from "lucide-react";
 import { cx, NAVY, BLUE, WHITE, MUTED } from "../../styleTokens";
@@ -46,6 +45,7 @@ import {
   useProjectActivity, STAGE_EVENT_LABELS, STAGE_EVENT_DESCRIPTIONS, relativeTime,
   type StageEventType,
 } from "./projectActivityStore";
+import { ProjectDocumentsCard } from "./documents/ProjectDocumentsCard";
 import type { ProjectRow } from "./projectTypes";
 
 const stageProgress = (stage: ProjectRow["stage"]): number => Math.round(STAGES.indexOf(stage) / (STAGES.length - 1) * 100);
@@ -62,8 +62,8 @@ const EVENT_ICON: Record<StageEventType, { Icon: typeof Send; className: string 
   technical_review_changes_requested: { Icon: AlertCircle, className: "bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400" },
 };
 
-export const ProjectDashboard = ({ id, onOpenEstimator, onRequestQuote, onCreateOrder, onOpenOrder, layoutMode }: {
-  id: string; onOpenEstimator: (project: ProjectRow) => void; onRequestQuote: (id: string) => void;
+export const ProjectDashboard = ({ id, userId, onOpenEstimator, onRequestQuote, onCreateOrder, onOpenOrder, layoutMode }: {
+  id: string; userId: string | null; onOpenEstimator: (project: ProjectRow) => void; onRequestQuote: (id: string) => void;
   onCreateOrder: (id: string) => void; onOpenOrder: (id: string, orderId: string) => void;
   layoutMode: EffectiveLayout;
 }) => {
@@ -252,14 +252,7 @@ export const ProjectDashboard = ({ id, onOpenEstimator, onRequestQuote, onCreate
           )}
         </Card>
 
-        <Card title="Documents" icon={<FileText size={14} />}>
-          <div className="grid place-items-center gap-2 py-2 text-center">
-            <FileText size={28} style={{ color: MUTED }} />
-            <p className={cx.footnote} style={{ paddingTop: 0 }}>
-              Coming soon -- shop drawings, delivery dockets, and other project documents will appear here.
-            </p>
-          </div>
-        </Card>
+        <ProjectDocumentsCard projectId={project.id} userId={userId} />
       </CardGrid>
     </div>
   );

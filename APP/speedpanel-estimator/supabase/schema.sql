@@ -901,3 +901,88 @@ alter table orders add column manufacturing_est_completion date;
 -- projects.stage above.
 alter table order_deliveries add column status text not null default 'planned'
   check (status in ('planned', 'scheduled', 'in_transit', 'delivered'));
+
+-- =============================================================================
+-- Project documents -- file storage (shop drawings, delivery dockets, etc.)
+-- =============================================================================
+-- This app's first real file-upload feature -- Education Hub's admin_documents
+-- deliberately has no storage backend (fileUrl points at a static /docs path,
+-- see AdminDocument's own schema comment), but per-project documents are
+-- genuinely user-uploaded, so they need one. Same split as orders/
+-- order_deliveries: a private Storage bucket holds the bytes, a plain table
+-- holds the queryable metadata (who uploaded what, when, under what name) --
+-- listing storage.objects directly would work too, but every other resource
+-- in this app is a Postgres row with RLS, and this keeps that consistent
+-- (e.g. lets the Activity feed or a future admin view join against it later).
+--
+-- Storage path convention: `${project_id}/${uuid}-${original filename}` --
+-- the leading path segment is what storage.foldername() below keys off to
+-- reach back to the owning project for its RLS check, same "encode the
+-- parent in the path" trick Storage policies commonly use since
+-- storage.objects has no project_id column of its own.
+insert into storage.buckets (id, name, public) values ('project-documents', 'project-documents', false)
+  on conflict (id) do nothing;
+
+create table if not exists project_documents (
+  id uuid primary key default gen_random_uuid(),
+  project_id uuid not null references projects (id) on delete cascade,
+  uploaded_by uuid not null references auth.users (id) on delete cascade,
+  storage_path text not null,
+  file_name text not null,
+  file_size int not null,
+  content_type text,
+  created_at timestamptz not null default now()
+);
+
+alter table project_documents enable row level security;
+
+create policy "Owners and admins can read project documents" on project_documents
+  for select using (
+    exists (select 1 from projects where projects.id = project_id and (projects.owner_id = auth.uid() or public.is_admin()))
+  );
+
+create policy "Owners and admins can upload project documents" on project_documents
+  for insert with check (
+    uploaded_by = auth.uid()
+    and exists (select 1 from projects where projects.id = project_id and (projects.owner_id = auth.uid() or public.is_admin()))
+  );
+
+create policy "Owners and admins can delete project documents" on project_documents
+  for delete using (
+    exists (select 1 from projects where projects.id = project_id and (projects.owner_id = auth.uid() or public.is_admin()))
+  );
+
+-- Mirror the same owner-or-admin check on the actual storage bytes -- without
+-- these, the project_documents row could be readable while the file itself
+-- is either unfetchable (no select policy) or, worse, editable/removable by
+-- anyone (no policy at all defaults to allow nothing, but explicit beats
+-- implicit here given this is the app's first bucket).
+create policy "Owners and admins can read project document files" on storage.objects
+  for select using (
+    bucket_id = 'project-documents'
+    and exists (
+      select 1 from projects
+      where projects.id::text = (storage.foldername(name))[1]
+        and (projects.owner_id = auth.uid() or public.is_admin())
+    )
+  );
+
+create policy "Owners and admins can upload project document files" on storage.objects
+  for insert with check (
+    bucket_id = 'project-documents'
+    and exists (
+      select 1 from projects
+      where projects.id::text = (storage.foldername(name))[1]
+        and (projects.owner_id = auth.uid() or public.is_admin())
+    )
+  );
+
+create policy "Owners and admins can delete project document files" on storage.objects
+  for delete using (
+    bucket_id = 'project-documents'
+    and exists (
+      select 1 from projects
+      where projects.id::text = (storage.foldername(name))[1]
+        and (projects.owner_id = auth.uid() or public.is_admin())
+    )
+  );

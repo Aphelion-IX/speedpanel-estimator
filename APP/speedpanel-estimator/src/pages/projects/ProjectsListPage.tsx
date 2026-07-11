@@ -155,7 +155,7 @@ export const ProjectsListPage = ({ user, selectedId, onSelect, onOpenEstimator, 
       )}
 
       {!loading && !error && effectiveId && (
-        <ProjectDashboard id={effectiveId} onOpenEstimator={onOpenEstimator} onRequestQuote={onRequestQuote}
+        <ProjectDashboard id={effectiveId} userId={user?.id ?? null} onOpenEstimator={onOpenEstimator} onRequestQuote={onRequestQuote}
           onCreateOrder={onCreateOrder} onOpenOrder={onOpenOrder} layoutMode={layoutMode} />
       )}
 
