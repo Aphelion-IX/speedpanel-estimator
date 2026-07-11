@@ -13,6 +13,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "../../../lib/supabaseClient";
 import { StaffTeamMemberRowSchema, StaffCandidateRowSchema, type StaffTeamMemberRow, type StaffCandidateRow, type StaffRole } from "../../company/staffTypes";
+import type { CompanyRole } from "../../company/companyTypes";
 import { z } from "zod";
 
 const NOT_CONFIGURED = "Companies aren't configured for this environment.";
@@ -71,6 +72,20 @@ export function useAdminCreateCompany() {
   };
 
   return { submitting, createCompany };
+}
+
+// One-shot wrapper around admin_add_company_member_by_email, for the
+// AdminPermissionsPage.tsx company picker -- unlike useCompanyMembers'
+// addExistingMember (bound to one companyId for the lifetime of that hook
+// instance), this takes companyId per call, since the caller here picks a
+// different company each time via a select field rather than already being
+// scoped to one company's own Members panel.
+export async function adminGrantCompanyAccess(input: { companyId: string; email: string; role: CompanyRole }): Promise<string | null> {
+  if (!supabase) return NOT_CONFIGURED;
+  const { error } = await supabase.rpc("admin_add_company_member_by_email", {
+    p_company_id: input.companyId, p_email: input.email, p_role: input.role,
+  });
+  return error ? error.message : null;
 }
 
 // Loaded once -- the picker source for assigning staff to a company (wizard

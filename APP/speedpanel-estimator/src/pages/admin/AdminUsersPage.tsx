@@ -71,6 +71,50 @@ const InviteUserForm = ({ onInvite }: { onInvite: (email: string, staffRole: Int
   );
 };
 
+// For an account that already exists (a former customer signup, or one
+// created directly in Supabase) rather than a brand-new hire -- looks the
+// account up by email and sets role='admin' + staff_role in one step
+// (admin_promote_user_to_staff_by_email), after which it shows up in the
+// list below like any other staff account. No email is sent; the person's
+// existing login already works.
+const PromoteUserForm = ({ onPromote }: { onPromote: (email: string, staffRole: InternalRole) => Promise<string | null> }) => {
+  const [email, setEmail] = useState("");
+  const [staffRole, setStaffRole] = useState<InternalRole>("project_manager");
+  const [promoting, setPromoting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email.trim()) return;
+    setPromoting(true);
+    setError(null);
+    setSuccess(false);
+    const err = await onPromote(email.trim(), staffRole);
+    setPromoting(false);
+    if (err) { setError(err); return; }
+    setEmail("");
+    setSuccess(true);
+  };
+
+  return (
+    <div className={`${cx.card} mt-3`}>
+      <h1 className="text-sm font-bold" style={{ color: NAVY }}>Promote an existing account to staff</h1>
+      <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">For an account that already exists (e.g. created directly in Supabase) rather than a brand-new hire. No email is sent -- their existing login already works.</p>
+      <form onSubmit={handleSubmit} className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-end">
+        <div className="flex-1"><Field label="Email" value={email} onChange={setEmail} type="email" required autoComplete="email" /></div>
+        <div className="sm:w-56"><SelectField label="Role" value={staffRole} options={STAFF_ROLE_OPTIONS} onChange={v => setStaffRole(v as InternalRole)} /></div>
+        <button type="submit" disabled={promoting || !email.trim()}
+          className="h-[46px] shrink-0 rounded-xl border border-slate-200 dark:border-slate-700 px-5 text-sm font-bold disabled:opacity-50" style={{ color: BLUE }}>
+          {promoting ? "Promoting..." : "Promote"}
+        </button>
+      </form>
+      {error && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{error}</p>}
+      {success && <p className="mt-2 text-sm font-semibold" style={{ color: BLUE }}>Promoted -- they now appear in the staff list below.</p>}
+    </div>
+  );
+};
+
 // display_name/title/phone are how this person shows up on a customer's
 // "Your Speedpanel Team" card once assigned via Admin > Companies, see
 // supabase/schema.sql's admin_set_staff_profile.
@@ -143,7 +187,7 @@ const UserRow = ({ item, isSelf, onSetStaffRole, onSaveStaffProfile }: {
 };
 
 export const AdminUsersPage = ({ auth }: { auth: UseAuth }) => {
-  const { users, loading, loadingMore, hasMore, error, reload, loadMore, setStaffRole, setStaffProfile, inviteUser } = useAdminUsers();
+  const { users, loading, loadingMore, hasMore, error, reload, loadMore, setStaffRole, setStaffProfile, inviteUser, promoteToStaff } = useAdminUsers();
   const [query, setQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
 
@@ -157,6 +201,8 @@ export const AdminUsersPage = ({ auth }: { auth: UseAuth }) => {
     return err;
   };
 
+  const handlePromote = (email: string, staffRole: InternalRole) => promoteToStaff(email, staffRole);
+
   const handleSetStaffRole = (item: AdminUserRow, staffRole: InternalRole) => setStaffRole(item.id, staffRole);
 
   const handleSaveStaffProfile = (item: AdminUserRow, input: { displayName: string; title: string; phone: string }) =>
@@ -165,6 +211,7 @@ export const AdminUsersPage = ({ auth }: { auth: UseAuth }) => {
   return (
     <div className="mt-2">
       <InviteUserForm onInvite={handleInvite} />
+      <PromoteUserForm onPromote={handlePromote} />
 
       {loading && <div className={`${cx.card} mt-3 text-sm`} style={{ color: MUTED }}>Loading...</div>}
 

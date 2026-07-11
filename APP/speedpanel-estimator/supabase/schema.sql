@@ -810,6 +810,38 @@ $$;
 revoke execute on function public.admin_set_staff_role(uuid, text) from public, anon;
 grant execute on function public.admin_set_staff_role(uuid, text) to authenticated;
 
+-- Promotes an EXISTING account (role='user' -- e.g. a former customer
+-- signup, or an account created directly in Supabase) to Speedpanel staff
+-- in one step, by email. admin_set_staff_role above requires role='admin'
+-- already, and admin_list_users()/admin_list_staff_candidates() both filter
+-- to role='admin' rows, so a role='user' account is otherwise invisible
+-- and unreachable from Admin > Users -- this is the promotion path into
+-- that visibility, mirroring admin_add_company_member_by_email's
+-- lookup-by-email shape for the company-member case.
+create or replace function public.admin_promote_user_to_staff_by_email(p_email text, p_staff_role text) returns void
+language plpgsql security definer
+set search_path = public
+as $$
+declare
+  v_user_id uuid;
+begin
+  if not public.has_staff_role(array[]::text[]) then raise exception 'Not authorized'; end if;
+  if coalesce(p_staff_role, '') not in ('super_admin', 'project_manager', 'bdm', 'internal_sales', 'dispatch', 'technical_services') then
+    raise exception 'Invalid staff role';
+  end if;
+
+  select id into v_user_id from auth.users where lower(email) = lower(trim(p_email));
+  if v_user_id is null then
+    raise exception 'No account exists yet for that email -- ask them to sign up first, or use Invite instead.';
+  end if;
+
+  update profiles set role = 'admin', staff_role = p_staff_role, updated_at = now() where id = v_user_id;
+  if not found then raise exception 'Profile not found for that account.'; end if;
+end;
+$$;
+revoke execute on function public.admin_promote_user_to_staff_by_email(text, text) from public, anon;
+grant execute on function public.admin_promote_user_to_staff_by_email(text, text) to authenticated;
+
 -- Same "drop the old exact-zero-arg overload first" reasoning as
 -- admin_list_users above.
 drop function if exists public.admin_list_stage_events();

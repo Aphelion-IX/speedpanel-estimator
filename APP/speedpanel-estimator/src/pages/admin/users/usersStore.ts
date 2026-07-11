@@ -30,6 +30,14 @@
 // privileged. Every invite from this page is inherently a new Speedpanel
 // hire (role='admin' always) with a required staffRole -- there's no more
 // "invite as a plain user" option here.
+//
+// promoteToStaff() covers the other case: an account that already exists
+// (a former customer signup, or one created directly in Supabase) that
+// needs to become staff. Since admin_list_users() only ever returns
+// role='admin' rows, such an account is otherwise invisible on this page --
+// promoteToStaff() looks it up by email and sets role='admin' + staff_role
+// in one step (admin_promote_user_to_staff_by_email), after which it shows
+// up in the normal list like any other staff account.
 // =============================================================================
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "../../../lib/supabaseClient";
@@ -79,6 +87,19 @@ export function useAdminUsers() {
     return null;
   };
 
+  // For an EXISTING account (role='user' -- a former customer signup, or one
+  // created directly in Supabase) that needs to become staff. admin_set_staff_role
+  // above requires role='admin' already, and this page's own list only ever shows
+  // role='admin' rows, so a role='user' account is otherwise invisible/unreachable
+  // here -- this is the promotion path in, by email instead of a pre-known id.
+  const promoteToStaff = async (email: string, staffRole: InternalRole): Promise<string | null> => {
+    if (!supabase) return NOT_CONFIGURED;
+    const { error } = await supabase.rpc("admin_promote_user_to_staff_by_email", { p_email: email, p_staff_role: staffRole });
+    if (error) return error.message;
+    await load();
+    return null;
+  };
+
   // Speedpanel staff contact details (display_name/title/phone) -- only
   // meaningful for role='admin' rows, see AdminUsersPage.tsx's staff-profile
   // edit form and this app's "Assigned Speedpanel Team" feature.
@@ -122,5 +143,5 @@ export function useAdminUsers() {
     return { id: data?.id ?? null, error: null };
   };
 
-  return { ...state, reload: load, loadMore, setStaffRole, setStaffProfile, inviteUser };
+  return { ...state, reload: load, loadMore, setStaffRole, setStaffProfile, inviteUser, promoteToStaff };
 }

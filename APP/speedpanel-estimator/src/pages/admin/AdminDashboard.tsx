@@ -1,4 +1,4 @@
-import { Package, Layers, Calculator, FileText, ClipboardList, FolderCheck, Users, BarChart3, History, Truck, Factory, Building2, UserCheck } from "lucide-react";
+import { Package, Layers, Calculator, FileText, ClipboardList, FolderCheck, Users, BarChart3, History, Truck, Factory, Building2, UserCheck, ShieldCheck } from "lucide-react";
 import { cx, BLUE, NAVY } from "../../styleTokens";
 import { PlaceholderPage } from "../PlaceholderPage";
 import { BackendStatusCard } from "./BackendStatusCard";
@@ -28,6 +28,7 @@ const ADMIN_GROUPS: { heading: string; items: AdminSection[] }[] = [
     items: [
       { key: "users",     label: "Users",     description: "Signed-up accounts and admin role management.", icon: <Users size={16} /> },
       { key: "companies", label: "Companies", description: "Company workspace records and support visibility.", icon: <Building2 size={16} /> },
+      { key: "permissions", label: "Permissions", description: "Grant staff or company access to an existing account, without an invite.", icon: <ShieldCheck size={16} /> },
     ],
   },
   {
