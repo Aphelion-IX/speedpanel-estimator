@@ -58,6 +58,9 @@ export const OrderRowSchema = z.object({
   // panel count is deliberately not a column -- see totalPanelCount() below.
   panels_manufactured: z.number().nullable(),
   manufacturing_est_completion: z.string().nullable(),
+  // Mirrors the parent project's company_id (see supabase/schema.sql's
+  // sync_order_company_id trigger) -- null for an ordinary solo order.
+  company_id: z.string().nullable(),
   created_at: z.string(),
   updated_at: z.string(),
 });

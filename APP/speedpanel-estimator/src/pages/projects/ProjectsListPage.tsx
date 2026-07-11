@@ -107,13 +107,19 @@ const NewProjectCard = ({ onCreate }: { onCreate: (name: string) => Promise<stri
   );
 };
 
-export const ProjectsListPage = ({ user, selectedId, onSelect, onOpenEstimator, onRequestQuote, onCreateOrder, onOpenOrder, layoutMode }: {
+export const ProjectsListPage = ({
+  user, selectedId, onSelect, onOpenEstimator, onRequestQuote, onCreateOrder, onOpenOrder, layoutMode,
+  hasCompany, activeCompanyId, onCreateCompany, onTeam,
+}: {
   user: User | null; selectedId?: string; onSelect: (id: string) => void;
   onOpenEstimator: (project: ProjectRow) => void; onRequestQuote: (id: string) => void;
   onCreateOrder: (id: string) => void; onOpenOrder: (id: string, orderId: string) => void;
   layoutMode: EffectiveLayout;
+  // Company-workspace entry points -- see useCompanyMemberships.ts. Solo
+  // usage (hasCompany false) keeps working exactly as before if ignored.
+  hasCompany: boolean; activeCompanyId: string | null; onCreateCompany: () => void; onTeam: () => void;
 }) => {
-  const { projects, loading, error, reload, createProject } = useProjects(user);
+  const { projects, loading, error, reload, createProject } = useProjects(user, activeCompanyId);
   const { ordersByStage, ordersTotal, totalValue, loading: ordersLoading } = useOrdersSummary(user);
 
   const projectsByStage = useMemo(
@@ -132,7 +138,24 @@ export const ProjectsListPage = ({ user, selectedId, onSelect, onOpenEstimator, 
 
   return (
     <div className="mt-2">
-      <h1 className="text-2xl font-bold" style={{ color: NAVY }}>My Projects</h1>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h1 className="text-2xl font-bold" style={{ color: NAVY }}>My Projects</h1>
+        {hasCompany && (
+          <button onClick={onTeam} className="text-sm font-bold" style={{ color: BLUE }}>Team &rarr;</button>
+        )}
+      </div>
+
+      {!hasCompany && (
+        <div className={`${cx.card} mt-3 flex flex-wrap items-center justify-between gap-3`}>
+          <div>
+            <p className="text-sm font-semibold" style={{ color: NAVY }}>Working with a team?</p>
+            <p className={cx.footnote} style={{ paddingTop: 0 }}>Set up a company workspace so colleagues can see and manage the same projects.</p>
+          </div>
+          <button onClick={onCreateCompany} className="shrink-0 rounded-xl px-4 py-2 text-sm font-bold" style={{ background: BLUE, color: WHITE }}>
+            Set up company
+          </button>
+        </div>
+      )}
 
       {loading && <div className={`${cx.card} mt-3 text-sm`} style={{ color: MUTED }}>Loading...</div>}
 

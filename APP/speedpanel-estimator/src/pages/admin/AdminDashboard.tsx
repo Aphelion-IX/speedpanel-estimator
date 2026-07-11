@@ -1,4 +1,4 @@
-import { Package, Layers, Calculator, FileText, ClipboardList, FolderCheck, Users, BarChart3, History, Truck, Factory } from "lucide-react";
+import { Package, Layers, Calculator, FileText, ClipboardList, FolderCheck, Users, BarChart3, History, Truck, Factory, Building2 } from "lucide-react";
 import { cx, BLUE, NAVY } from "../../styleTokens";
 import { PlaceholderPage } from "../PlaceholderPage";
 import { BackendStatusCard } from "./BackendStatusCard";
@@ -14,6 +14,7 @@ const ADMIN_SECTIONS: { key: AdminSubPage; label: string; description: string; i
   { key: "orders",    label: "Orders",    description: "Customer orders awaiting a pro forma invoice.", icon: <Truck size={16} /> },
   { key: "manufacturing", label: "Manufacturing & Delivery", description: "Update panel manufacturing progress and delivery status for confirmed orders.", icon: <Factory size={16} /> },
   { key: "users",     label: "Users",     description: "Signed-up accounts and admin role management.", icon: <Users size={16} /> },
+  { key: "companies", label: "Companies", description: "Company workspace records and support visibility.", icon: <Building2 size={16} /> },
   { key: "analytics", label: "Analytics", description: "Counts across requests, projects, catalog and users.", icon: <BarChart3 size={16} /> },
   { key: "auditLog",  label: "Audit Log", description: "Install/technical review history.",        icon: <History size={16} /> },
 ];

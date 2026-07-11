@@ -40,6 +40,11 @@ export const ProjectRowSchema = z.object({
   install_review_note: z.string().nullable(),
   technical_review_status: z.enum(REVIEW_STATUSES).nullable(),
   technical_review_note: z.string().nullable(),
+  // Company workspace fields (see supabase/schema.sql's "Multi-user company
+  // workspaces" section) -- both null means an ordinary solo project,
+  // unchanged from before that section existed.
+  company_id: z.string().nullable(),
+  project_manager_user_id: z.string().nullable(),
   created_at: z.string(),
   updated_at: z.string(),
 });

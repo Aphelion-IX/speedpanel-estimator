@@ -13,7 +13,13 @@ import { useState } from "react";
 import { Menu, X } from "lucide-react";
 import { BLUE, WHITE, NAVY } from "../styleTokens";
 
-export type TopNavTab = "estimator" | "selector" | "education" | "projects" | "admin";
+// "company" is intentionally not in TOP_NAV_ITEMS below -- Company Team/
+// Activity/Create pages are reached via a header control near AuthStatus.tsx
+// and entry-point callouts on ProjectsListPage.tsx, not a top-nav tab. It's
+// still part of this union purely so route.tab (which includes it) type-checks
+// as an activeTab value -- it just never matches any TOP_NAV_ITEMS key, so no
+// button ever highlights for it.
+export type TopNavTab = "estimator" | "selector" | "education" | "projects" | "admin" | "company";
 
 const TOP_NAV_ITEMS: { key: TopNavTab; label: string }[] = [
   { key: "projects",  label: "Projects" },

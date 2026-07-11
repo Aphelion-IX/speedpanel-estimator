@@ -19,6 +19,7 @@
 import { cx, MUTED } from "../../styleTokens";
 import type { EffectiveLayout } from "../../useLayoutMode";
 import type { UseAuth } from "../../lib/useAuth";
+import type { UseCompanyMemberships } from "../../lib/useCompanyMemberships";
 import type { Route } from "../../appShell/useHashRoute";
 import { SignInGate } from "./SignInGate";
 import { ProjectsListPage } from "./ProjectsListPage";
@@ -27,10 +28,11 @@ import { OrderBuilderPage } from "./orders/OrderBuilderPage";
 import { OrderDetailPage } from "./orders/OrderDetailPage";
 import type { ProjectRow } from "./projectTypes";
 
-export const ProjectsRouter = ({ route, navigate, auth, onOpenEstimator, pendingNote, layoutMode }: {
+export const ProjectsRouter = ({ route, navigate, auth, company, onOpenEstimator, pendingNote, layoutMode }: {
   route: Extract<Route, { tab: "projects" }>;
   navigate: (r: Route) => void;
   auth: UseAuth;
+  company: UseCompanyMemberships;
   onOpenEstimator: (project: ProjectRow) => void;
   pendingNote?: string;
   layoutMode: EffectiveLayout;
@@ -66,6 +68,10 @@ export const ProjectsRouter = ({ route, navigate, auth, onOpenEstimator, pending
       onCreateOrder={id => navigate({ tab: "projects", id, newOrder: true })}
       onOpenOrder={(id, orderId) => navigate({ tab: "projects", id, orderId })}
       layoutMode={layoutMode}
+      hasCompany={company.memberships.length > 0}
+      activeCompanyId={company.activeCompanyId}
+      onCreateCompany={() => navigate({ tab: "company", sub: "create" })}
+      onTeam={() => navigate({ tab: "company", sub: "team" })}
     />
   );
 };

@@ -24,6 +24,7 @@ import { AdminAnalyticsPage } from "./AdminAnalyticsPage";
 import { AdminAuditLogPage } from "./AdminAuditLogPage";
 import { AdminOrdersPage } from "./AdminOrdersPage";
 import { AdminManufacturingPage } from "./AdminManufacturingPage";
+import { AdminCompaniesPage } from "./AdminCompaniesPage";
 
 export const AdminRoot = ({ route, navigate, layoutMode, auth }: {
   route: Extract<Route, { tab: "admin" }>;
@@ -56,6 +57,7 @@ export const AdminRoot = ({ route, navigate, layoutMode, auth }: {
           {route.sub === "auditLog"  && <AdminAuditLogPage />}
           {route.sub === "orders"    && <AdminOrdersPage />}
           {route.sub === "manufacturing" && <AdminManufacturingPage />}
+          {route.sub === "companies" && <AdminCompaniesPage />}
         </>
       )}
     </AdminGate>

@@ -20,6 +20,11 @@
 // handle_new_user()'s existing trigger (supabase/schema.sql) auto-provisions
 // the new user's `profiles` row (role: "user") the moment inviteUserByEmail
 // creates their auth.users row -- no schema/trigger changes needed here.
+//
+// Optional companyId/companyRole body fields let Admin > Companies bootstrap
+// a company's first Owner/Admin from a brand-new account in one step,
+// reusing this same audited invite pipeline rather than duplicating it --
+// still is_admin()-gated, still service-role-only inside this function.
 // =============================================================================
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -30,6 +35,7 @@ const CORS_HEADERS = {
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const VALID_ROLES = ["user", "admin"];
+const VALID_COMPANY_ROLES = ["owner", "admin", "project_manager", "estimator", "site_user", "viewer"];
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } });
@@ -39,7 +45,7 @@ Deno.serve(async req => {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS_HEADERS });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
 
-  let body: { email?: unknown; role?: unknown };
+  let body: { email?: unknown; role?: unknown; companyId?: unknown; companyRole?: unknown };
   try {
     body = await req.json();
   } catch {
@@ -48,8 +54,11 @@ Deno.serve(async req => {
 
   const email = typeof body.email === "string" ? body.email.trim() : "";
   const role = typeof body.role === "string" ? body.role : "user";
+  const companyId = typeof body.companyId === "string" ? body.companyId : null;
+  const companyRole = typeof body.companyRole === "string" ? body.companyRole : null;
   if (!EMAIL_RE.test(email)) return json({ error: "Enter a valid email address." }, 400);
   if (!VALID_ROLES.includes(role)) return json({ error: "Invalid role." }, 400);
+  if (companyId && !VALID_COMPANY_ROLES.includes(companyRole ?? "")) return json({ error: "Invalid company role." }, 400);
 
   const authHeader = req.headers.get("Authorization");
   if (!authHeader) return json({ error: "Not authorized" }, 401);
@@ -62,6 +71,9 @@ Deno.serve(async req => {
   const { data: isAdmin, error: authError } = await callerClient.rpc("is_admin");
   if (authError || !isAdmin) return json({ error: "Not authorized" }, 403);
 
+  const { data: callerData } = await callerClient.auth.getUser();
+  const callerId = callerData.user?.id ?? null;
+
   const serviceClient = createClient(supabaseUrl, serviceRoleKey);
 
   const { data, error } = await serviceClient.auth.admin.inviteUserByEmail(email);
@@ -70,6 +82,13 @@ Deno.serve(async req => {
   if (role === "admin") {
     const { error: roleError } = await serviceClient.from("profiles").update({ role: "admin" }).eq("id", data.user.id);
     if (roleError) return json({ error: roleError.message }, 400);
+  }
+
+  if (companyId) {
+    const { error: companyError } = await serviceClient
+      .from("company_memberships")
+      .insert({ company_id: companyId, user_id: data.user.id, role: companyRole, status: "active", invited_by: callerId });
+    if (companyError) return json({ error: companyError.message }, 400);
   }
 
   return json({ id: data.user.id });
