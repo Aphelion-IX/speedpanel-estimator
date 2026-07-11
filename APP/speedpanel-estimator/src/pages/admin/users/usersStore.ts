@@ -29,7 +29,11 @@
 // which re-checks has_staff_role(array[]) itself before doing anything
 // privileged. Every invite from this page is inherently a new Speedpanel
 // hire (role='admin' always) with a required staffRole -- there's no more
-// "invite as a plain user" option here.
+// "invite as a plain user" option here. An optional `password` switches the
+// Edge Function from emailing a set-password link to creating the account
+// live immediately with that password (see CreateStaffForm in
+// AdminUsersPage.tsx) -- same function, same downstream role/staffRole
+// assignment, just a different account-creation call inside it.
 //
 // promoteToStaff() covers the other case: an account that already exists
 // (a former customer signup, or one created directly in Supabase) that
@@ -118,9 +122,9 @@ export function useAdminUsers() {
     return null;
   };
 
-  const inviteUser = async (email: string, staffRole: InternalRole): Promise<{ id: string | null; error: string | null }> => {
+  const inviteUser = async (email: string, staffRole: InternalRole, password?: string): Promise<{ id: string | null; error: string | null }> => {
     if (!supabase) return { id: null, error: NOT_CONFIGURED };
-    const { data, error } = await supabase.functions.invoke<{ id?: string }>("admin-invite-user", { body: { email, role: "admin", staffRole } });
+    const { data, error } = await supabase.functions.invoke<{ id?: string }>("admin-invite-user", { body: { email, role: "admin", staffRole, ...(password ? { password } : {}) } });
     if (error) {
       // A non-2xx response leaves `data` null and `error` a generic
       // FunctionsHttpError whose `.context` is the raw Response -- our

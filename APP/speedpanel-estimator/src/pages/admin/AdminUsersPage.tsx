@@ -13,13 +13,18 @@
 // convention as ProjectsRouter) rather than calling useAuth() again here,
 // which would open a second independent auth subscription.
 //
-// "Invite" creates a REAL account (not just a role pre-authorization) via
-// the admin-invite-user Edge Function -- see usersStore.ts's inviteUser and
-// supabase/functions/admin-invite-user/index.ts. The invited person gets a
-// Supabase email with a link to set their own password; this app never
-// generates or displays one. Always rendered (not gated behind the list's
-// own loading/error/empty states) so a super_admin can invite the very
-// first staff account even before any exists.
+// Creates a REAL account (not just a role pre-authorization) via the
+// admin-invite-user Edge Function -- see usersStore.ts's inviteUser and
+// supabase/functions/admin-invite-user/index.ts. Two methods, one form (a
+// "Method" dropdown rather than two separate cards, since they're the same
+// action with a different last step): "Send invite email" (the original
+// flow -- Supabase emails a set-password link, this app never generates or
+// displays one) or "Set password directly" (the account is live
+// immediately with the password typed here, no email sent -- for a
+// super_admin who creates the account themselves rather than having the
+// new hire self-serve). Always rendered (not gated behind the list's own
+// loading/error/empty states) so a super_admin can create the very first
+// staff account even before any exists.
 // =============================================================================
 import { useMemo, useState } from "react";
 import { Search } from "lucide-react";
@@ -34,39 +39,59 @@ const STAFF_ROLE_OPTIONS = INTERNAL_ROLES.map(value => ({ value, label: INTERNAL
 
 const ROLE_FILTER_OPTIONS = [{ value: "all", label: "All roles" }, ...STAFF_ROLE_OPTIONS];
 
-const InviteUserForm = ({ onInvite }: { onInvite: (email: string, staffRole: InternalRole) => Promise<string | null> }) => {
+const CREATE_METHOD_OPTIONS = [
+  { value: "password", label: "Set password directly" },
+  { value: "invite", label: "Send invite email" },
+];
+type CreateMethod = "password" | "invite";
+
+const CreateStaffForm = ({ onCreate }: { onCreate: (email: string, staffRole: InternalRole, password: string | null) => Promise<string | null> }) => {
+  const [method, setMethod] = useState<CreateMethod>("password");
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [staffRole, setStaffRole] = useState<InternalRole>("project_manager");
-  const [inviting, setInviting] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
+  const [success, setSuccess] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email.trim()) return;
-    setInviting(true);
+    if (!email.trim() || (method === "password" && password.length < 8)) return;
+    setSubmitting(true);
     setError(null);
-    setSuccess(false);
-    const err = await onInvite(email.trim(), staffRole);
-    setInviting(false);
+    setSuccess(null);
+    const err = await onCreate(email.trim(), staffRole, method === "password" ? password : null);
+    setSubmitting(false);
     if (err) { setError(err); return; }
     setEmail("");
-    setSuccess(true);
+    setPassword("");
+    setSuccess(method === "password" ? "Created -- their account is live now with the password you set." : "Invited -- they'll get an email to set their password.");
   };
 
   return (
     <div className={cx.card}>
-      <h1 className="text-sm font-bold" style={{ color: NAVY }}>Invite Speedpanel staff</h1>
-      <form onSubmit={handleSubmit} className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-end">
-        <div className="flex-1"><Field label="Email" value={email} onChange={setEmail} type="email" required autoComplete="email" /></div>
-        <div className="sm:w-56"><SelectField label="Role" value={staffRole} options={STAFF_ROLE_OPTIONS} onChange={v => setStaffRole(v as InternalRole)} /></div>
-        <button type="submit" disabled={inviting || !email.trim()}
-          className="h-[46px] shrink-0 rounded-xl px-5 text-sm font-bold disabled:opacity-50" style={{ background: BLUE, color: WHITE }}>
-          {inviting ? "Inviting..." : "Invite"}
-        </button>
+      <h1 className="text-sm font-bold" style={{ color: NAVY }}>Add Speedpanel staff</h1>
+      <form onSubmit={handleSubmit} className="mt-3 space-y-2">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+          <div className="sm:w-56"><SelectField label="Method" value={method} options={CREATE_METHOD_OPTIONS} onChange={v => setMethod(v as CreateMethod)} /></div>
+          <div className="flex-1"><Field label="Email" value={email} onChange={setEmail} type="email" required autoComplete="email" /></div>
+          <div className="sm:w-56"><SelectField label="Staff role" value={staffRole} options={STAFF_ROLE_OPTIONS} onChange={v => setStaffRole(v as InternalRole)} /></div>
+        </div>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+          {method === "password" && (
+            <div className="flex-1">
+              <Field label="Password" value={password} onChange={setPassword} type="password" required autoComplete="new-password" />
+              <p className="mt-1 text-xs" style={{ color: MUTED }}>At least 8 characters. Share it with them directly -- it's never shown again.</p>
+            </div>
+          )}
+          <button type="submit" disabled={submitting || !email.trim() || (method === "password" && password.length < 8)}
+            className="h-[46px] shrink-0 rounded-xl px-5 text-sm font-bold disabled:opacity-50" style={{ background: BLUE, color: WHITE }}>
+            {submitting ? "Adding..." : method === "password" ? "Create" : "Invite"}
+          </button>
+        </div>
       </form>
       {error && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{error}</p>}
-      {success && <p className="mt-2 text-sm font-semibold" style={{ color: BLUE }}>Invited -- they'll get an email to set their password.</p>}
+      {success && <p className="mt-2 text-sm font-semibold" style={{ color: BLUE }}>{success}</p>}
     </div>
   );
 };
@@ -218,8 +243,8 @@ export const AdminUsersPage = ({ auth }: { auth: UseAuth }) => {
     return users.filter(u => (roleFilter === "all" || u.staff_role === roleFilter) && (!q || (u.email ?? "").toLowerCase().includes(q)));
   }, [users, query, roleFilter]);
 
-  const handleInvite = async (email: string, staffRole: InternalRole) => {
-    const { error: err } = await inviteUser(email, staffRole);
+  const handleCreate = async (email: string, staffRole: InternalRole, password: string | null) => {
+    const { error: err } = await inviteUser(email, staffRole, password ?? undefined);
     return err;
   };
 
@@ -232,7 +257,7 @@ export const AdminUsersPage = ({ auth }: { auth: UseAuth }) => {
 
   return (
     <div className="mt-2">
-      <InviteUserForm onInvite={handleInvite} />
+      <CreateStaffForm onCreate={handleCreate} />
       <PromoteUserForm onPromote={handlePromote} />
 
       {loading && <div className={`${cx.card} mt-3 text-sm`} style={{ color: MUTED }}>Loading...</div>}

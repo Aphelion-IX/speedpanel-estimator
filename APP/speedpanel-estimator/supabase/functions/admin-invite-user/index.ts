@@ -32,6 +32,14 @@
 // function. staffRole is separate from companyRole: staffRole is this
 // person's own internal job function (only meaningful when role='admin'),
 // companyRole is the customer-side role they'd hold in an external company.
+//
+// Optional `password` body field switches account creation from
+// inviteUserByEmail() (sends a Supabase email with a set-password link) to
+// admin.createUser({ password, email_confirm: true }) (account is live
+// immediately, no email sent, no link to click) -- for a super_admin who
+// creates the account directly rather than inviting someone to self-serve.
+// Everything downstream (role/staffRole/company assignment) is identical
+// either way.
 // =============================================================================
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -53,7 +61,7 @@ Deno.serve(async req => {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS_HEADERS });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
 
-  let body: { email?: unknown; role?: unknown; companyId?: unknown; companyRole?: unknown; staffRole?: unknown };
+  let body: { email?: unknown; role?: unknown; companyId?: unknown; companyRole?: unknown; staffRole?: unknown; password?: unknown };
   try {
     body = await req.json();
   } catch {
@@ -65,10 +73,12 @@ Deno.serve(async req => {
   const companyId = typeof body.companyId === "string" ? body.companyId : null;
   const companyRole = typeof body.companyRole === "string" ? body.companyRole : null;
   const staffRole = typeof body.staffRole === "string" ? body.staffRole : null;
+  const password = typeof body.password === "string" ? body.password : null;
   if (!EMAIL_RE.test(email)) return json({ error: "Enter a valid email address." }, 400);
   if (!VALID_ROLES.includes(role)) return json({ error: "Invalid role." }, 400);
   if (companyId && !VALID_COMPANY_ROLES.includes(companyRole ?? "")) return json({ error: "Invalid company role." }, 400);
   if (staffRole && !VALID_STAFF_ROLES.includes(staffRole)) return json({ error: "Invalid staff role." }, 400);
+  if (password !== null && password.length < 8) return json({ error: "Password must be at least 8 characters." }, 400);
 
   const authHeader = req.headers.get("Authorization");
   if (!authHeader) return json({ error: "Not authorized" }, 401);
@@ -86,8 +96,10 @@ Deno.serve(async req => {
 
   const serviceClient = createClient(supabaseUrl, serviceRoleKey);
 
-  const { data, error } = await serviceClient.auth.admin.inviteUserByEmail(email);
-  if (error || !data.user) return json({ error: error?.message ?? "Could not invite user." }, 400);
+  const { data, error } = password
+    ? await serviceClient.auth.admin.createUser({ email, password, email_confirm: true })
+    : await serviceClient.auth.admin.inviteUserByEmail(email);
+  if (error || !data.user) return json({ error: error?.message ?? "Could not create user." }, 400);
 
   if (role === "admin" || staffRole) {
     const { error: roleError } = await serviceClient.from("profiles")
@@ -103,5 +115,5 @@ Deno.serve(async req => {
     if (companyError) return json({ error: companyError.message }, 400);
   }
 
-  return json({ id: data.user.id });
+  return json({ id: data.user.id, created: Boolean(password) });
 });
