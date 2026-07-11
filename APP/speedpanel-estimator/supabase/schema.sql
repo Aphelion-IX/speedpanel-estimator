@@ -129,6 +129,23 @@ alter table profiles add column display_name text;
 alter table profiles add column title text;
 alter table profiles add column phone text;
 
+-- Internal Speedpanel job function -- distinct from the binary `role`
+-- access gate above (which only answers "can this person reach Admin at
+-- all") and from staff_assignments.role (which company relationship this
+-- person holds, per company). One value per person, reusing the same 5
+-- labels as staff_assignments plus 'super_admin' (full access) -- a staff
+-- member's job function is also what they're eligible to be assigned as on
+-- a company's Speedpanel Team, so this is one role list, not two. null is a
+-- deliberate grandfather state (full access, same as super_admin), not "no
+-- access" -- see has_staff_role() below.
+alter table profiles add column staff_role text
+  check (staff_role in ('super_admin', 'project_manager', 'bdm', 'internal_sales', 'dispatch', 'technical_services'));
+
+-- Backfill: every admin account that exists before this migration keeps
+-- full access, explicitly, rather than relying only on has_staff_role()'s
+-- null-fallback long-term.
+update profiles set staff_role = 'super_admin' where role = 'admin' and staff_role is null;
+
 alter table profiles enable row level security;
 
 create policy "Users can read own profile" on profiles
@@ -279,6 +296,36 @@ $$;
 -- security advisor after first deploying this without the explicit "anon").
 revoke execute on function public.is_admin() from public, anon;
 grant execute on function public.is_admin() to authenticated;
+
+-- Finer-grained check layered ON TOP of is_admin(), not a replacement --
+-- used only by the specific internal-staff-only RPCs/policies that opted
+-- into it (see "Internal staff roles" section below); every other is_admin()
+-- call in this file is untouched. staff_role is null OR 'super_admin'
+-- always passes, regardless of p_roles -- a defensive default so a not-yet-
+-- assigned admin is never silently locked out of everything.
+create or replace function public.has_staff_role(p_roles text[]) returns boolean
+language sql security definer stable
+set search_path = public
+as $$
+  select public.is_admin() and exists (
+    select 1 from profiles where id = auth.uid()
+      and (staff_role is null or staff_role = 'super_admin' or staff_role = any(p_roles))
+  );
+$$;
+revoke execute on function public.has_staff_role(text[]) from public, anon;
+grant execute on function public.has_staff_role(text[]) to authenticated;
+
+-- Narrowed from a plain role='admin' check to has_staff_role() -- Requests
+-- triage is a BDM function, per "Internal staff roles". Redefined here
+-- (rather than at the table's original "Admins can update requests" policy
+-- further up) since has_staff_role() isn't defined until this point in the
+-- file -- same "policy redefined later once its dependency exists" pattern
+-- already used throughout this schema (e.g. projects/orders policies
+-- redefined after can_edit_project).
+drop policy "Admins can update requests" on requests;
+create policy "Admins can update requests" on requests
+  for update using (public.has_staff_role(array['bdm']))
+  with check (public.has_staff_role(array['bdm']));
 
 create policy "Owners and admins can read projects" on projects
   for select using (auth.uid() = owner_id or public.is_admin());
@@ -586,18 +633,22 @@ drop function if exists public.admin_list_users();
 -- has to page through every row just to count them.
 -- create or replace can't change an existing function's return columns --
 -- drop first (same reasoning as the zero-arg overload drop above) since
--- this is gaining display_name/title/phone.
+-- this is gaining display_name/title/phone/staff_role.
 drop function if exists public.admin_list_users(int, int);
 
+-- Staff directory only (role = 'admin') -- external/customer accounts are
+-- managed exclusively via each company's own roster on Admin > Companies
+-- now, never listed here. has_staff_role(array[]) (super_admin) rather than
+-- plain is_admin() -- see "Internal staff roles" section below.
 create or replace function public.admin_list_users(p_limit int default 50, p_offset int default 0)
-returns table (id uuid, email text, role text, created_at timestamptz, display_name text, title text, phone text)
+returns table (id uuid, email text, role text, created_at timestamptz, display_name text, title text, phone text, staff_role text)
 language sql security definer stable
 set search_path = public
 as $$
-  select p.id, u.email, p.role, p.created_at, p.display_name, p.title, p.phone
+  select p.id, u.email, p.role, p.created_at, p.display_name, p.title, p.phone, p.staff_role
   from public.profiles p
   join auth.users u on u.id = p.id
-  where public.is_admin()
+  where p.role = 'admin' and public.has_staff_role(array[]::text[])
   order by p.created_at desc
   limit p_limit offset p_offset;
 $$;
@@ -611,7 +662,7 @@ set search_path = public
 as $$
   select count(*), count(*) filter (where role = 'admin')
   from public.profiles
-  where public.is_admin();
+  where public.has_staff_role(array[]::text[]);
 $$;
 revoke execute on function public.admin_count_users() from public, anon;
 grant execute on function public.admin_count_users() to authenticated;
@@ -624,7 +675,7 @@ as $$
 declare
   v_admin_count int;
 begin
-  if not public.is_admin() then raise exception 'Not authorized'; end if;
+  if not public.has_staff_role(array[]::text[]) then raise exception 'Not authorized'; end if;
   if coalesce(p_role, '') not in ('user', 'admin') then raise exception 'Invalid role'; end if;
 
   -- Refuse to demote the only remaining admin -- would otherwise lock every
@@ -644,19 +695,19 @@ $$;
 revoke execute on function public.admin_set_role(uuid, text) from public, anon;
 grant execute on function public.admin_set_role(uuid, text) to authenticated;
 
--- Lets any admin set another admin's (or their own) display_name/title/phone
--- -- a small trusted-internal-team affordance, same "any admin can act on
--- any other admin" shape as admin_set_role itself. Not restricted to
--- role='admin' targets at the DB level (nothing meaningful stops setting it
--- on a 'user' row), but the only UI that calls this only shows the edit
--- control for admin rows -- see AdminUsersPage.tsx.
+-- Sets another admin's (or their own) display_name/title/phone, shown as
+-- their "Your Speedpanel Team" contact details once assigned to a company.
+-- Users area is super_admin-only from here on (has_staff_role(array[]) --
+-- Admin > Users is a staff directory, not a general account list, so only
+-- a super_admin manages it, same reasoning as admin_set_role/
+-- admin_set_staff_role below).
 create or replace function public.admin_set_staff_profile(p_user_id uuid, p_display_name text, p_title text, p_phone text)
 returns void
 language plpgsql security definer
 set search_path = public
 as $$
 begin
-  if not public.is_admin() then raise exception 'Not authorized'; end if;
+  if not public.has_staff_role(array[]::text[]) then raise exception 'Not authorized'; end if;
   update profiles set display_name = nullif(trim(p_display_name), ''), title = nullif(trim(p_title), ''),
     phone = nullif(trim(p_phone), ''), updated_at = now()
     where id = p_user_id;
@@ -665,6 +716,22 @@ end;
 $$;
 revoke execute on function public.admin_set_staff_profile(uuid, text, text, text) from public, anon;
 grant execute on function public.admin_set_staff_profile(uuid, text, text, text) to authenticated;
+
+create or replace function public.admin_set_staff_role(p_user_id uuid, p_staff_role text) returns void
+language plpgsql security definer
+set search_path = public
+as $$
+begin
+  if not public.has_staff_role(array[]::text[]) then raise exception 'Not authorized'; end if;
+  if coalesce(p_staff_role, '') not in ('super_admin', 'project_manager', 'bdm', 'internal_sales', 'dispatch', 'technical_services') then
+    raise exception 'Invalid staff role';
+  end if;
+  update profiles set staff_role = p_staff_role, updated_at = now() where id = p_user_id and role = 'admin';
+  if not found then raise exception 'Staff account not found'; end if;
+end;
+$$;
+revoke execute on function public.admin_set_staff_role(uuid, text) from public, anon;
+grant execute on function public.admin_set_staff_role(uuid, text) to authenticated;
 
 -- Same "drop the old exact-zero-arg overload first" reasoning as
 -- admin_list_users above.
@@ -685,7 +752,7 @@ as $$
   from public.project_stage_events e
   join public.projects pr on pr.id = e.project_id
   left join auth.users u on u.id = e.actor_id
-  where public.is_admin()
+  where public.has_staff_role(array[]::text[])
   order by e.created_at desc
   limit p_limit offset p_offset;
 $$;
@@ -901,7 +968,9 @@ as $$
 declare
   v_stage text;
 begin
-  if not public.is_admin() then raise exception 'Not authorized'; end if;
+  -- Standalone admin-decision RPC, no customer-facing path shares this
+  -- check -- narrowed to Internal Sales, who own order approvals.
+  if not public.has_staff_role(array['internal_sales']) then raise exception 'Not authorized'; end if;
 
   select stage into v_stage from orders where id = p_order_id for update;
   if v_stage is null then raise exception 'Order not found'; end if;
@@ -970,6 +1039,44 @@ alter table orders add column manufacturing_est_completion date;
 -- projects.stage above.
 alter table order_deliveries add column status text not null default 'planned'
   check (status in ('planned', 'scheduled', 'in_transit', 'delivered'));
+
+-- Dispatch-only writes (has_staff_role(array['dispatch'])), via dedicated
+-- RPCs rather than narrowing the "Owners, company, and admins can update
+-- orders"/"...manage deliveries..." RLS policies further down this file:
+-- those are shared with customer self-service order edits via
+-- can_edit_project, so narrowing their is_admin() clause would break that
+-- shared path. These two replace AdminManufacturingPage.tsx's previous
+-- direct .update() calls -- see adminManufacturingStore.ts.
+create or replace function public.admin_update_manufacturing(
+  p_order_id uuid, p_panels_manufactured int, p_manufacturing_est_completion date
+) returns void
+language plpgsql security definer
+set search_path = public
+as $$
+begin
+  if not public.has_staff_role(array['dispatch']) then raise exception 'Not authorized'; end if;
+  update orders set panels_manufactured = p_panels_manufactured,
+    manufacturing_est_completion = p_manufacturing_est_completion, updated_at = now()
+    where id = p_order_id and stage = 'proforma_issued';
+  if not found then raise exception 'Order not found or not yet confirmed'; end if;
+end;
+$$;
+revoke execute on function public.admin_update_manufacturing(uuid, int, date) from public, anon;
+grant execute on function public.admin_update_manufacturing(uuid, int, date) to authenticated;
+
+create or replace function public.admin_update_delivery_status(p_delivery_id uuid, p_status text) returns void
+language plpgsql security definer
+set search_path = public
+as $$
+begin
+  if not public.has_staff_role(array['dispatch']) then raise exception 'Not authorized'; end if;
+  if coalesce(p_status, '') not in ('planned', 'scheduled', 'in_transit', 'delivered') then raise exception 'Invalid status'; end if;
+  update order_deliveries set status = p_status where id = p_delivery_id;
+  if not found then raise exception 'Delivery not found'; end if;
+end;
+$$;
+revoke execute on function public.admin_update_delivery_status(uuid, text) from public, anon;
+grant execute on function public.admin_update_delivery_status(uuid, text) to authenticated;
 
 -- =============================================================================
 -- Project documents -- file storage (shop drawings, delivery dockets, etc.)
@@ -1208,19 +1315,20 @@ alter table orders   add column company_id uuid references companies (id) on del
 
 -- owner OR admin -- the general "can manage this company" gate (invite,
 -- remove/role-change anyone below Owner, edit company details, view all).
--- or is_admin(): Speedpanel staff manage every company via the admin
--- bypass, not by joining it as a member (see "Company-creation cutover" --
--- admin_create_company never adds the calling admin to company_memberships).
--- Without this, an admin who created a company couldn't call
--- company_set_member_role/company_remove_member/resend_company_invitation/
--- etc. for it, or pass company-invite-member's is_company_admin check --
--- matches the bypass can_view_project/can_edit_project/can_submit_orders
--- already have; this was a gap relative to those.
+-- has_staff_role(array[]) (super_admin) rather than plain is_admin():
+-- Speedpanel staff manage every company via this bypass, not by joining it
+-- as a member (see "Company-creation cutover" -- admin_create_company never
+-- adds the calling admin to company_memberships), and per "Internal staff
+-- roles" below, company management is super_admin-only, not every internal
+-- role. Without this bypass at all, an admin who created a company
+-- couldn't call company_set_member_role/company_remove_member/
+-- resend_company_invitation/etc. for it, or pass company-invite-member's
+-- is_company_admin check.
 create or replace function public.is_company_admin(p_company_id uuid) returns boolean
 language sql security definer stable
 set search_path = public
 as $$
-  select public.is_admin() or exists (
+  select public.has_staff_role(array[]::text[]) or exists (
     select 1 from company_memberships
     where company_id = p_company_id and user_id = auth.uid() and status = 'active' and role in ('owner', 'admin')
   );
@@ -1228,14 +1336,14 @@ $$;
 revoke execute on function public.is_company_admin(uuid) from public, anon;
 grant execute on function public.is_company_admin(uuid) to authenticated;
 
--- owner ONLY (plus is_admin(), same reasoning as is_company_admin above) --
+-- owner ONLY (plus the same super_admin bypass as is_company_admin above) --
 -- gates the actions an Admin must not have: touching another Owner's
 -- role/status, or promoting someone else to Owner.
 create or replace function public.is_company_owner(p_company_id uuid) returns boolean
 language sql security definer stable
 set search_path = public
 as $$
-  select public.is_admin() or exists (
+  select public.has_staff_role(array[]::text[]) or exists (
     select 1 from company_memberships
     where company_id = p_company_id and user_id = auth.uid() and status = 'active' and role = 'owner'
   );
@@ -1633,7 +1741,9 @@ declare
   v_stage text;
   v_company uuid;
 begin
-  if not public.is_admin() then raise exception 'Not authorized'; end if;
+  -- Standalone admin-decision RPC, no customer-facing path shares this
+  -- check -- narrowed to the two internal roles who actually do reviews.
+  if not public.has_staff_role(array['project_manager', 'technical_services']) then raise exception 'Not authorized'; end if;
   if coalesce(p_decision, '') not in ('approved', 'changes_requested') then raise exception 'Invalid decision'; end if;
 
   select stage, company_id into v_stage, v_company from projects where id = p_project_id for update;
@@ -1691,7 +1801,7 @@ declare
   v_stage text;
   v_company uuid;
 begin
-  if not public.is_admin() then raise exception 'Not authorized'; end if;
+  if not public.has_staff_role(array['project_manager', 'technical_services']) then raise exception 'Not authorized'; end if;
   if coalesce(p_decision, '') not in ('approved', 'changes_requested') then raise exception 'Invalid decision'; end if;
 
   select stage, company_id into v_stage, v_company from projects where id = p_project_id for update;
@@ -1819,7 +1929,7 @@ as $$
 declare
   v_company_id uuid;
 begin
-  if not public.is_admin() then raise exception 'Not authorized'; end if;
+  if not public.has_staff_role(array[]::text[]) then raise exception 'Not authorized'; end if;
   if coalesce(trim(p_legal_name), '') = '' then raise exception 'Company name is required'; end if;
 
   insert into companies (legal_name, trading_name, abn, customer_account_number, billing_email, phone, address, created_by)
@@ -2251,7 +2361,7 @@ as $$
   select c.id, coalesce(c.trading_name, c.legal_name), count(cm.id) filter (where cm.status = 'active'), c.created_at
   from companies c
   left join company_memberships cm on cm.company_id = c.id
-  where public.is_admin()
+  where public.has_staff_role(array[]::text[])
   group by c.id, c.trading_name, c.legal_name, c.created_at
   order by c.created_at desc;
 $$;
@@ -2266,7 +2376,7 @@ language plpgsql security definer
 set search_path = public
 as $$
 begin
-  if not public.is_admin() then raise exception 'Not authorized'; end if;
+  if not public.has_staff_role(array[]::text[]) then raise exception 'Not authorized'; end if;
 
   if p_company_id is null then
     update company_memberships set status = 'removed' where user_id = p_user_id and status = 'active';
@@ -2346,7 +2456,7 @@ as $$
 declare
   v_is_single boolean;
 begin
-  if not public.is_admin() then raise exception 'Not authorized'; end if;
+  if not public.has_staff_role(array[]::text[]) then raise exception 'Not authorized'; end if;
   if coalesce(p_role, '') not in ('project_manager', 'bdm', 'internal_sales', 'dispatch', 'technical_services') then
     raise exception 'Invalid role';
   end if;
@@ -2374,7 +2484,7 @@ language plpgsql security definer
 set search_path = public
 as $$
 begin
-  if not public.is_admin() then raise exception 'Not authorized'; end if;
+  if not public.has_staff_role(array[]::text[]) then raise exception 'Not authorized'; end if;
   update staff_assignments set active = false
     where company_id = p_company_id and staff_user_id = p_staff_user_id and role = p_role and active;
   if not found then raise exception 'Assignment not found'; end if;
@@ -2405,17 +2515,22 @@ $$;
 revoke execute on function public.company_list_staff_team(uuid) from public, anon;
 grant execute on function public.company_list_staff_team(uuid) to authenticated;
 
--- is_admin()-gated -- the picker source for the assignment UI (wizard step
--- 3 and the Admin > Companies per-company editor).
+-- super_admin-gated (has_staff_role(array[])) -- the picker source for the
+-- assignment UI (wizard step 3 and the Admin > Companies per-company
+-- editor). Returns staff_role so the frontend can filter each role
+-- section's candidate list to people whose own job function matches (or
+-- who are super_admin) -- see StaffTeamAssignmentPanel.tsx.
+drop function if exists public.admin_list_staff_candidates();
+
 create or replace function public.admin_list_staff_candidates()
-returns table (id uuid, email text, display_name text, title text)
+returns table (id uuid, email text, display_name text, title text, staff_role text)
 language sql security definer stable
 set search_path = public
 as $$
-  select p.id, u.email, p.display_name, p.title
+  select p.id, u.email, p.display_name, p.title, p.staff_role
   from profiles p
   join auth.users u on u.id = p.id
-  where p.role = 'admin' and public.is_admin()
+  where p.role = 'admin' and public.has_staff_role(array[]::text[])
   order by coalesce(p.display_name, u.email);
 $$;
 revoke execute on function public.admin_list_staff_candidates() from public, anon;

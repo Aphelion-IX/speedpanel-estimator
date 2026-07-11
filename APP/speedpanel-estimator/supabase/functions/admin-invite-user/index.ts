@@ -11,11 +11,15 @@
 // Two Supabase clients, two purposes:
 // - `callerClient` (anon key + the caller's own Authorization header,
 //   forwarded automatically by supabase.functions.invoke()) is used ONLY to
-//   check is_admin() -- the exact same security-definer RPC
-//   admin_list_users()/admin_set_role() already gate on (see
-//   supabase/schema.sql), reused here rather than reimplemented.
+//   check has_staff_role(array[]) (super_admin) -- the exact same
+//   security-definer RPC admin_list_users()/admin_set_staff_role() already
+//   gate on (see supabase/schema.sql), reused here rather than
+//   reimplemented. Every account created through this function is
+//   inherently a new Speedpanel hire (Admin > Users is a staff directory
+//   now, not a general account list), so this is stricter than plain
+//   is_admin() on purpose.
 // - `serviceClient` (service-role key) is used ONLY after that check passes,
-//   to actually create the account and optionally promote its role.
+//   to actually create the account and set its role/staff_role.
 //
 // handle_new_user()'s existing trigger (supabase/schema.sql) auto-provisions
 // the new user's `profiles` row (role: "user") the moment inviteUserByEmail
@@ -24,7 +28,10 @@
 // Optional companyId/companyRole body fields let Admin > Companies bootstrap
 // a company's first Owner/Admin from a brand-new account in one step,
 // reusing this same audited invite pipeline rather than duplicating it --
-// still is_admin()-gated, still service-role-only inside this function.
+// still has_staff_role(array[])-gated, still service-role-only inside this
+// function. staffRole is separate from companyRole: staffRole is this
+// person's own internal job function (only meaningful when role='admin'),
+// companyRole is the customer-side role they'd hold in an external company.
 // =============================================================================
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -36,6 +43,7 @@ const CORS_HEADERS = {
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const VALID_ROLES = ["user", "admin"];
 const VALID_COMPANY_ROLES = ["owner", "admin", "project_manager", "estimator", "site_user", "viewer"];
+const VALID_STAFF_ROLES = ["super_admin", "project_manager", "bdm", "internal_sales", "dispatch", "technical_services"];
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } });
@@ -45,7 +53,7 @@ Deno.serve(async req => {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS_HEADERS });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
 
-  let body: { email?: unknown; role?: unknown; companyId?: unknown; companyRole?: unknown };
+  let body: { email?: unknown; role?: unknown; companyId?: unknown; companyRole?: unknown; staffRole?: unknown };
   try {
     body = await req.json();
   } catch {
@@ -56,9 +64,11 @@ Deno.serve(async req => {
   const role = typeof body.role === "string" ? body.role : "user";
   const companyId = typeof body.companyId === "string" ? body.companyId : null;
   const companyRole = typeof body.companyRole === "string" ? body.companyRole : null;
+  const staffRole = typeof body.staffRole === "string" ? body.staffRole : null;
   if (!EMAIL_RE.test(email)) return json({ error: "Enter a valid email address." }, 400);
   if (!VALID_ROLES.includes(role)) return json({ error: "Invalid role." }, 400);
   if (companyId && !VALID_COMPANY_ROLES.includes(companyRole ?? "")) return json({ error: "Invalid company role." }, 400);
+  if (staffRole && !VALID_STAFF_ROLES.includes(staffRole)) return json({ error: "Invalid staff role." }, 400);
 
   const authHeader = req.headers.get("Authorization");
   if (!authHeader) return json({ error: "Not authorized" }, 401);
@@ -68,8 +78,8 @@ Deno.serve(async req => {
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
   const callerClient = createClient(supabaseUrl, anonKey, { global: { headers: { Authorization: authHeader } } });
-  const { data: isAdmin, error: authError } = await callerClient.rpc("is_admin");
-  if (authError || !isAdmin) return json({ error: "Not authorized" }, 403);
+  const { data: isSuperAdmin, error: authError } = await callerClient.rpc("has_staff_role", { p_roles: [] });
+  if (authError || !isSuperAdmin) return json({ error: "Not authorized" }, 403);
 
   const { data: callerData } = await callerClient.auth.getUser();
   const callerId = callerData.user?.id ?? null;
@@ -79,8 +89,10 @@ Deno.serve(async req => {
   const { data, error } = await serviceClient.auth.admin.inviteUserByEmail(email);
   if (error || !data.user) return json({ error: error?.message ?? "Could not invite user." }, 400);
 
-  if (role === "admin") {
-    const { error: roleError } = await serviceClient.from("profiles").update({ role: "admin" }).eq("id", data.user.id);
+  if (role === "admin" || staffRole) {
+    const { error: roleError } = await serviceClient.from("profiles")
+      .update({ role: "admin", ...(staffRole ? { staff_role: staffRole } : {}) })
+      .eq("id", data.user.id);
     if (roleError) return json({ error: roleError.message }, 400);
   }
 

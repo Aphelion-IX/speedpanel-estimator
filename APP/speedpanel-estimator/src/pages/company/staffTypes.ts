@@ -53,8 +53,23 @@ export const StaffCandidateRowSchema = z.object({
   email: z.string().nullable(),
   display_name: z.string().nullable(),
   title: z.string().nullable(),
+  staff_role: z.string().nullable(),
 });
 export type StaffCandidateRow = z.infer<typeof StaffCandidateRowSchema>;
+
+// Every internal Speedpanel staff account has exactly one of these --
+// profiles.staff_role. Every StaffRole is also a valid InternalRole (a
+// person's job function doubles as which Assigned Team role they're
+// eligible to hold on a company), plus 'super_admin', which isn't itself an
+// assignable company relationship -- see has_staff_role() in
+// supabase/schema.sql.
+export const INTERNAL_ROLES = [...STAFF_ROLES, "super_admin"] as const;
+export type InternalRole = typeof INTERNAL_ROLES[number];
+
+export const INTERNAL_ROLE_LABELS: Record<InternalRole, string> = {
+  ...STAFF_ROLE_LABELS,
+  super_admin: "Super Admin",
+};
 
 // Best display name for a staff contact -- falls back through display_name
 // -> email -> raw id, same "never show a blank" convention as email

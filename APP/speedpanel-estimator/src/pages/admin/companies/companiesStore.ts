@@ -1,14 +1,15 @@
 // =============================================================================
 // Admin Companies -- Speedpanel-managed company workspaces
 // =============================================================================
-// Speedpanel staff manage every company via the is_admin() bypass added to
-// is_company_admin/is_company_owner (see supabase/schema.sql's "Company-
-// creation cutover") -- not the deferred SupportAccess grant model. That
-// bypass is also what lets this file's roster/staff-team management reuse
-// company/companyStore.ts's useCompanyMembers directly (AdminCompaniesPage.tsx
-// does) rather than a parallel read-only path: the same RPCs
-// (company_set_member_role/company_remove_member/etc.) now work for an admin
-// who was never added as a member of the company they're managing.
+// Speedpanel super_admins manage every company via the has_staff_role bypass
+// added to is_company_admin/is_company_owner (see supabase/schema.sql's
+// "Company-creation cutover"/"Internal staff roles") -- not the deferred
+// SupportAccess grant model. That bypass is also what lets this file's
+// roster/staff-team management reuse company/companyStore.ts's
+// useCompanyMembers directly (AdminCompaniesPage.tsx does) rather than a
+// parallel read-only path: the same RPCs (company_set_member_role/
+// company_remove_member/etc.) now work for an admin who was never added as
+// a member of the company they're managing.
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "../../../lib/supabaseClient";
 import { StaffTeamMemberRowSchema, StaffCandidateRowSchema, type StaffTeamMemberRow, type StaffCandidateRow, type StaffRole } from "../../company/staffTypes";
@@ -95,7 +96,8 @@ export function useAdminStaffCandidates() {
 
 // The Speedpanel Team editor's data + write actions for one company --
 // admin_set_staff_assignment/admin_remove_staff_assignment, both
-// is_admin()-gated server-side (see supabase/schema.sql).
+// has_staff_role(array[])-gated (super_admin) server-side (see
+// supabase/schema.sql).
 export function useStaffAssignments(companyId: string | null) {
   const [staff, setStaff] = useState<StaffTeamMemberRow[]>([]);
   const [loading, setLoading] = useState(true);

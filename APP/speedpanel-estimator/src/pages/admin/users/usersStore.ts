@@ -1,12 +1,17 @@
 // =============================================================================
-// Admin Users -- live Supabase fetch via security definer RPCs
+// Admin Users -- Speedpanel staff directory, live Supabase fetch via
+// security definer RPCs
 // =============================================================================
 // profiles has no email column and auth.users isn't directly queryable via
-// PostgREST, so both listing and role changes go through admin_list_users()/
-// admin_set_role() (see supabase/schema.sql) -- both is_admin()-gated
-// server-side, same defense-in-depth as review_install/review_technical in
-// adminProjectsStore.ts: an unauthenticated or non-admin session gets an
-// empty list / an error back, never another user's data.
+// PostgREST, so both listing and staff-role changes go through
+// admin_list_users()/admin_set_staff_role() (see supabase/schema.sql) --
+// both has_staff_role(array[])-gated (super_admin only) server-side, same
+// defense-in-depth as review_install/review_technical in
+// adminProjectsStore.ts: an unauthenticated or non-super-admin session gets
+// an empty list / an error back, never another account's data.
+// admin_list_users() itself is also narrowed to role='admin' rows only --
+// external/customer accounts are managed exclusively via each company's
+// roster on Admin > Companies now, never listed here.
 //
 // admin_list_users() is paginated (PAGE_SIZE per page, see schema.sql) --
 // this roster has no natural upper bound, unlike the pending-review-style
@@ -21,11 +26,15 @@
 // creating a real auth.users row needs the service-role key, which can never
 // be shipped to the browser, so it goes through the admin-invite-user Edge
 // Function instead (see supabase/functions/admin-invite-user/index.ts),
-// which re-checks is_admin() itself before doing anything privileged.
+// which re-checks has_staff_role(array[]) itself before doing anything
+// privileged. Every invite from this page is inherently a new Speedpanel
+// hire (role='admin' always) with a required staffRole -- there's no more
+// "invite as a plain user" option here.
 // =============================================================================
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "../../../lib/supabaseClient";
-import { AdminUserRowSchema, type AdminUserRow, type UserRole } from "./userTypes";
+import { AdminUserRowSchema, type AdminUserRow } from "./userTypes";
+import type { InternalRole } from "../../company/staffTypes";
 
 const NOT_CONFIGURED = "User management isn't configured for this environment.";
 const BAD_SHAPE = "Unexpected data shape from the server.";
@@ -62,11 +71,11 @@ export function useAdminUsers() {
     setState(s => ({ ...s, users: [...s.users, ...parsed.data], loadingMore: false, hasMore: parsed.data.length === PAGE_SIZE }));
   };
 
-  const setRole = async (id: string, role: UserRole): Promise<string | null> => {
+  const setStaffRole = async (id: string, staffRole: InternalRole): Promise<string | null> => {
     if (!supabase) return NOT_CONFIGURED;
-    const { error } = await supabase.rpc("admin_set_role", { p_user_id: id, p_role: role });
+    const { error } = await supabase.rpc("admin_set_staff_role", { p_user_id: id, p_staff_role: staffRole });
     if (error) return error.message;
-    setState(s => ({ ...s, users: s.users.map(u => u.id === id ? { ...u, role } : u) }));
+    setState(s => ({ ...s, users: s.users.map(u => u.id === id ? { ...u, staff_role: staffRole } : u) }));
     return null;
   };
 
@@ -88,9 +97,9 @@ export function useAdminUsers() {
     return null;
   };
 
-  const inviteUser = async (email: string, role: UserRole): Promise<{ id: string | null; error: string | null }> => {
+  const inviteUser = async (email: string, staffRole: InternalRole): Promise<{ id: string | null; error: string | null }> => {
     if (!supabase) return { id: null, error: NOT_CONFIGURED };
-    const { data, error } = await supabase.functions.invoke<{ id?: string }>("admin-invite-user", { body: { email, role } });
+    const { data, error } = await supabase.functions.invoke<{ id?: string }>("admin-invite-user", { body: { email, role: "admin", staffRole } });
     if (error) {
       // A non-2xx response leaves `data` null and `error` a generic
       // FunctionsHttpError whose `.context` is the raw Response -- our
@@ -113,5 +122,5 @@ export function useAdminUsers() {
     return { id: data?.id ?? null, error: null };
   };
 
-  return { ...state, reload: load, loadMore, setRole, setStaffProfile, inviteUser };
+  return { ...state, reload: load, loadMore, setStaffRole, setStaffProfile, inviteUser };
 }

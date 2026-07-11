@@ -6,10 +6,13 @@
 // later order stage representing "fulfilled", so this tracking data IS the
 // fulfillment record for as long as the order exists, not a transition to
 // filter out of view on success (see supabase/schema.sql's manufacturing &
-// delivery tracking comment). Both updateManufacturing/updateDeliveryStatus
-// are plain .update() calls, no RPC -- the existing "Owners and admins can
-// update orders"/"...admins anytime" RLS policies already permit this,
-// unused by any UI until now.
+// delivery tracking comment). updateManufacturing/updateDeliveryStatus go
+// through admin_update_manufacturing/admin_update_delivery_status (both
+// has_staff_role(array['dispatch'])-gated) rather than a plain .update() --
+// the shared "Owners, company, and admins can update orders" RLS policy
+// admins used to rely on for this is also the customer's own order-edit
+// path via can_edit_project, so it can't be narrowed to Dispatch alone; two
+// small dedicated RPCs keep this specific write scoped correctly instead.
 //
 // project_name comes via supabase-js's embedded-resource select
 // (orders.project_id -> projects.id is a real FK, so PostgREST can join it
@@ -102,7 +105,9 @@ export function useAdminManufacturing() {
     orderId: string, patch: { panels_manufactured: number | null; manufacturing_est_completion: string | null },
   ): Promise<string | null> => {
     if (!supabase) return NOT_CONFIGURED;
-    const { error } = await supabase.from("orders").update(patch).eq("id", orderId);
+    const { error } = await supabase.rpc("admin_update_manufacturing", {
+      p_order_id: orderId, p_panels_manufactured: patch.panels_manufactured, p_manufacturing_est_completion: patch.manufacturing_est_completion,
+    });
     if (error) return error.message;
     setState(s => ({
       ...s,
@@ -113,7 +118,7 @@ export function useAdminManufacturing() {
 
   const updateDeliveryStatus = async (deliveryId: string, status: DeliveryStatus): Promise<string | null> => {
     if (!supabase) return NOT_CONFIGURED;
-    const { error } = await supabase.from("order_deliveries").update({ status }).eq("id", deliveryId);
+    const { error } = await supabase.rpc("admin_update_delivery_status", { p_delivery_id: deliveryId, p_status: status });
     if (error) return error.message;
     setState(s => ({
       ...s,

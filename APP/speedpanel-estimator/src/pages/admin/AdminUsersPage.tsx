@@ -1,21 +1,25 @@
 // =============================================================================
-// Admin > Users -- signed-up accounts + role management
+// Admin > Users -- Speedpanel staff directory
 // =============================================================================
-// Replaces the manual "update profiles set role = 'admin' where id = ..."
-// SQL step (see supabase/schema.sql's profiles comment) with a UI toggle,
-// gated server-side by admin_set_role()'s is_admin() check and its own
-// "last admin" guard -- this page can't lock every admin out of itself.
+// Staff-only: external/customer accounts are managed exclusively via each
+// company's own roster on Admin > Companies now (see CompanyMemberList.tsx)
+// -- admin_list_users() itself is narrowed to role='admin' rows server-side
+// (see supabase/schema.sql), so this page never sees a customer account
+// regardless of what it queries for. Every invite from here is inherently a
+// new Speedpanel hire, with a required internal staff_role (used both for
+// Admin section access -- see adminSectionAccess.ts -- and eligibility for
+// Assigned Speedpanel Team assignment).
 // Receives `auth` as a prop (App.tsx's own useAuth() instance, same
 // convention as ProjectsRouter) rather than calling useAuth() again here,
 // which would open a second independent auth subscription.
 //
-// "Invite user" creates a REAL account (not just a role pre-authorization)
-// via the admin-invite-user Edge Function -- see usersStore.ts's inviteUser
-// and supabase/functions/admin-invite-user/index.ts. The invited person gets
-// a Supabase email with a link to set their own password; this app never
+// "Invite" creates a REAL account (not just a role pre-authorization) via
+// the admin-invite-user Edge Function -- see usersStore.ts's inviteUser and
+// supabase/functions/admin-invite-user/index.ts. The invited person gets a
+// Supabase email with a link to set their own password; this app never
 // generates or displays one. Always rendered (not gated behind the list's
-// own loading/error/empty states) so an admin can invite the very first user
-// even before any account exists.
+// own loading/error/empty states) so a super_admin can invite the very
+// first staff account even before any exists.
 // =============================================================================
 import { useMemo, useState } from "react";
 import { Search } from "lucide-react";
@@ -23,21 +27,16 @@ import { cx, NAVY, MUTED, BLUE, WHITE } from "../../styleTokens";
 import type { UseAuth } from "../../lib/useAuth";
 import { Field, SelectField } from "../shared/fields";
 import { useAdminUsers } from "./users/usersStore";
-import type { AdminUserRow, UserRole } from "./users/userTypes";
+import type { AdminUserRow } from "./users/userTypes";
+import { INTERNAL_ROLES, INTERNAL_ROLE_LABELS, type InternalRole } from "../company/staffTypes";
 
-const ROLE_OPTIONS = [
-  { value: "user", label: "User" },
-  { value: "admin", label: "Admin" },
-];
+const STAFF_ROLE_OPTIONS = INTERNAL_ROLES.map(value => ({ value, label: INTERNAL_ROLE_LABELS[value] }));
 
-const ROLE_FILTER_OPTIONS = [
-  { value: "all", label: "All roles" },
-  ...ROLE_OPTIONS,
-];
+const ROLE_FILTER_OPTIONS = [{ value: "all", label: "All roles" }, ...STAFF_ROLE_OPTIONS];
 
-const InviteUserForm = ({ onInvite }: { onInvite: (email: string, role: UserRole) => Promise<string | null> }) => {
+const InviteUserForm = ({ onInvite }: { onInvite: (email: string, staffRole: InternalRole) => Promise<string | null> }) => {
   const [email, setEmail] = useState("");
-  const [role, setRole] = useState<UserRole>("user");
+  const [staffRole, setStaffRole] = useState<InternalRole>("project_manager");
   const [inviting, setInviting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -48,20 +47,19 @@ const InviteUserForm = ({ onInvite }: { onInvite: (email: string, role: UserRole
     setInviting(true);
     setError(null);
     setSuccess(false);
-    const err = await onInvite(email.trim(), role);
+    const err = await onInvite(email.trim(), staffRole);
     setInviting(false);
     if (err) { setError(err); return; }
     setEmail("");
-    setRole("user");
     setSuccess(true);
   };
 
   return (
     <div className={cx.card}>
-      <h1 className="text-sm font-bold" style={{ color: NAVY }}>Invite user</h1>
+      <h1 className="text-sm font-bold" style={{ color: NAVY }}>Invite Speedpanel staff</h1>
       <form onSubmit={handleSubmit} className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-end">
         <div className="flex-1"><Field label="Email" value={email} onChange={setEmail} type="email" required autoComplete="email" /></div>
-        <div className="sm:w-36"><SelectField label="Role" value={role} options={ROLE_OPTIONS} onChange={v => setRole(v as UserRole)} /></div>
+        <div className="sm:w-56"><SelectField label="Role" value={staffRole} options={STAFF_ROLE_OPTIONS} onChange={v => setStaffRole(v as InternalRole)} /></div>
         <button type="submit" disabled={inviting || !email.trim()}
           className="h-[46px] shrink-0 rounded-xl px-5 text-sm font-bold disabled:opacity-50" style={{ background: BLUE, color: WHITE }}>
           {inviting ? "Inviting..." : "Invite"}
@@ -73,9 +71,9 @@ const InviteUserForm = ({ onInvite }: { onInvite: (email: string, role: UserRole
   );
 };
 
-// Only shown for role='admin' rows -- display_name/title/phone are how this
-// person shows up on a customer's "Your Speedpanel Team" card once assigned
-// via Admin > Companies, see supabase/schema.sql's admin_set_staff_profile.
+// display_name/title/phone are how this person shows up on a customer's
+// "Your Speedpanel Team" card once assigned via Admin > Companies, see
+// supabase/schema.sql's admin_set_staff_profile.
 const StaffProfileForm = ({ item, onSave }: { item: AdminUserRow; onSave: (input: { displayName: string; title: string; phone: string }) => Promise<string | null> }) => {
   const [displayName, setDisplayName] = useState(item.display_name ?? "");
   const [title, setTitle] = useState(item.title ?? "");
@@ -107,11 +105,19 @@ const StaffProfileForm = ({ item, onSave }: { item: AdminUserRow; onSave: (input
   );
 };
 
-const UserRow = ({ item, isSelf, onToggleRole, onSaveStaffProfile }: {
-  item: AdminUserRow; isSelf: boolean; onToggleRole: (item: AdminUserRow) => void;
+const UserRow = ({ item, isSelf, onSetStaffRole, onSaveStaffProfile }: {
+  item: AdminUserRow; isSelf: boolean;
+  onSetStaffRole: (item: AdminUserRow, staffRole: InternalRole) => Promise<string | null>;
   onSaveStaffProfile: (item: AdminUserRow, input: { displayName: string; title: string; phone: string }) => Promise<string | null>;
 }) => {
-  const isAdmin = item.role === "admin";
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSetStaffRole = async (staffRole: InternalRole) => {
+    setError(null);
+    const err = await onSetStaffRole(item, staffRole);
+    if (err) setError(err);
+  };
+
   return (
     <div className={`${cx.card} mt-3`}>
       <div className="flex items-start justify-between gap-2">
@@ -121,39 +127,37 @@ const UserRow = ({ item, isSelf, onToggleRole, onSaveStaffProfile }: {
           </div>
           <p className={cx.footnote}>Joined {new Date(item.created_at).toLocaleDateString()}</p>
         </div>
-        <span className={`${cx.badge} ${isAdmin ? "bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400" : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400"}`}>
-          {item.role}
+        <span className={`${cx.badge} bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400`}>
+          {item.staff_role ? INTERNAL_ROLE_LABELS[item.staff_role] : "Unassigned"}
         </span>
       </div>
-      <button onClick={() => onToggleRole(item)} className="mt-3 text-sm font-bold" style={{ color: BLUE }}>
-        {isAdmin ? "Remove admin" : "Make admin"}
-      </button>
-      {isAdmin && <StaffProfileForm item={item} onSave={input => onSaveStaffProfile(item, input)} />}
+      <div className="mt-3 w-56">
+        <SelectField label="Internal role" value={item.staff_role ?? ""}
+          options={item.staff_role ? STAFF_ROLE_OPTIONS : [{ value: "", label: "Choose a role..." }, ...STAFF_ROLE_OPTIONS]}
+          onChange={v => v && handleSetStaffRole(v as InternalRole)} />
+      </div>
+      {error && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{error}</p>}
+      <StaffProfileForm item={item} onSave={input => onSaveStaffProfile(item, input)} />
     </div>
   );
 };
 
 export const AdminUsersPage = ({ auth }: { auth: UseAuth }) => {
-  const { users, loading, loadingMore, hasMore, error, reload, loadMore, setRole, setStaffProfile, inviteUser } = useAdminUsers();
+  const { users, loading, loadingMore, hasMore, error, reload, loadMore, setStaffRole, setStaffProfile, inviteUser } = useAdminUsers();
   const [query, setQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return users.filter(u => (roleFilter === "all" || u.role === roleFilter) && (!q || (u.email ?? "").toLowerCase().includes(q)));
+    return users.filter(u => (roleFilter === "all" || u.staff_role === roleFilter) && (!q || (u.email ?? "").toLowerCase().includes(q)));
   }, [users, query, roleFilter]);
 
-  const handleToggle = async (item: AdminUserRow) => {
-    const nextRole = item.role === "admin" ? "user" : "admin";
-    if (item.role === "admin" && !window.confirm(`Remove admin access from ${item.email ?? "this user"}?`)) return;
-    const err = await setRole(item.id, nextRole);
-    if (err) window.alert(err);
-  };
-
-  const handleInvite = async (email: string, role: UserRole) => {
-    const { error: err } = await inviteUser(email, role);
+  const handleInvite = async (email: string, staffRole: InternalRole) => {
+    const { error: err } = await inviteUser(email, staffRole);
     return err;
   };
+
+  const handleSetStaffRole = (item: AdminUserRow, staffRole: InternalRole) => setStaffRole(item.id, staffRole);
 
   const handleSaveStaffProfile = (item: AdminUserRow, input: { displayName: string; title: string; phone: string }) =>
     setStaffProfile(item.id, input);
@@ -173,7 +177,7 @@ export const AdminUsersPage = ({ auth }: { auth: UseAuth }) => {
 
       {!loading && !error && users.length === 0 && (
         <div className={`${cx.card} mt-3 text-center`}>
-          <p className={cx.footnote}>No signed-up users yet.</p>
+          <p className={cx.footnote}>No Speedpanel staff accounts yet.</p>
         </div>
       )}
 
@@ -185,7 +189,7 @@ export const AdminUsersPage = ({ auth }: { auth: UseAuth }) => {
               <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search email..."
                 className="w-full bg-transparent text-sm outline-none" style={{ color: NAVY }} />
             </div>
-            <div className="sm:w-40">
+            <div className="sm:w-48">
               <SelectField label="Filter by role" value={roleFilter} options={ROLE_FILTER_OPTIONS} onChange={setRoleFilter} />
             </div>
           </div>
@@ -195,11 +199,11 @@ export const AdminUsersPage = ({ auth }: { auth: UseAuth }) => {
 
           {filtered.length === 0 ? (
             <div className={`${cx.card} mt-3 text-center`}>
-              <p className={cx.footnote}>No users match your search.</p>
+              <p className={cx.footnote}>No staff match your search.</p>
             </div>
           ) : (
             filtered.map(item => (
-              <UserRow key={item.id} item={item} isSelf={item.id === auth.user?.id} onToggleRole={handleToggle} onSaveStaffProfile={handleSaveStaffProfile} />
+              <UserRow key={item.id} item={item} isSelf={item.id === auth.user?.id} onSetStaffRole={handleSetStaffRole} onSaveStaffProfile={handleSaveStaffProfile} />
             ))
           )}
 
