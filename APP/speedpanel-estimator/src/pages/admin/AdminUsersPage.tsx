@@ -73,8 +73,43 @@ const InviteUserForm = ({ onInvite }: { onInvite: (email: string, role: UserRole
   );
 };
 
-const UserRow = ({ item, isSelf, onToggleRole }: {
+// Only shown for role='admin' rows -- display_name/title/phone are how this
+// person shows up on a customer's "Your Speedpanel Team" card once assigned
+// via Admin > Companies, see supabase/schema.sql's admin_set_staff_profile.
+const StaffProfileForm = ({ item, onSave }: { item: AdminUserRow; onSave: (input: { displayName: string; title: string; phone: string }) => Promise<string | null> }) => {
+  const [displayName, setDisplayName] = useState(item.display_name ?? "");
+  const [title, setTitle] = useState(item.title ?? "");
+  const [phone, setPhone] = useState(item.phone ?? "");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSave = async () => {
+    setSaving(true);
+    setError(null);
+    const err = await onSave({ displayName: displayName.trim(), title: title.trim(), phone: phone.trim() });
+    setSaving(false);
+    if (err) setError(err);
+  };
+
+  return (
+    <div className="mt-3 grid gap-2 sm:grid-cols-3">
+      <Field label="Display name" value={displayName} onChange={setDisplayName} />
+      <Field label="Title" value={title} onChange={setTitle} />
+      <div className="flex items-end gap-2">
+        <div className="flex-1"><Field label="Phone" value={phone} onChange={setPhone} /></div>
+        <button onClick={handleSave} disabled={saving}
+          className="h-[46px] shrink-0 rounded-xl border border-slate-200 dark:border-slate-700 px-4 text-sm font-bold disabled:opacity-50" style={{ color: BLUE }}>
+          {saving ? "Saving..." : "Save"}
+        </button>
+      </div>
+      {error && <p className="text-sm text-red-600 dark:text-red-400 sm:col-span-3">{error}</p>}
+    </div>
+  );
+};
+
+const UserRow = ({ item, isSelf, onToggleRole, onSaveStaffProfile }: {
   item: AdminUserRow; isSelf: boolean; onToggleRole: (item: AdminUserRow) => void;
+  onSaveStaffProfile: (item: AdminUserRow, input: { displayName: string; title: string; phone: string }) => Promise<string | null>;
 }) => {
   const isAdmin = item.role === "admin";
   return (
@@ -82,7 +117,7 @@ const UserRow = ({ item, isSelf, onToggleRole }: {
       <div className="flex items-start justify-between gap-2">
         <div>
           <div className="text-sm font-bold" style={{ color: NAVY }}>
-            {item.email ?? "(no email)"}{isSelf && <span className={cx.footnote}> (you)</span>}
+            {item.display_name || item.email || "(no email)"}{isSelf && <span className={cx.footnote}> (you)</span>}
           </div>
           <p className={cx.footnote}>Joined {new Date(item.created_at).toLocaleDateString()}</p>
         </div>
@@ -93,12 +128,13 @@ const UserRow = ({ item, isSelf, onToggleRole }: {
       <button onClick={() => onToggleRole(item)} className="mt-3 text-sm font-bold" style={{ color: BLUE }}>
         {isAdmin ? "Remove admin" : "Make admin"}
       </button>
+      {isAdmin && <StaffProfileForm item={item} onSave={input => onSaveStaffProfile(item, input)} />}
     </div>
   );
 };
 
 export const AdminUsersPage = ({ auth }: { auth: UseAuth }) => {
-  const { users, loading, loadingMore, hasMore, error, reload, loadMore, setRole, inviteUser } = useAdminUsers();
+  const { users, loading, loadingMore, hasMore, error, reload, loadMore, setRole, setStaffProfile, inviteUser } = useAdminUsers();
   const [query, setQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
 
@@ -118,6 +154,9 @@ export const AdminUsersPage = ({ auth }: { auth: UseAuth }) => {
     const { error: err } = await inviteUser(email, role);
     return err;
   };
+
+  const handleSaveStaffProfile = (item: AdminUserRow, input: { displayName: string; title: string; phone: string }) =>
+    setStaffProfile(item.id, input);
 
   return (
     <div className="mt-2">
@@ -160,7 +199,7 @@ export const AdminUsersPage = ({ auth }: { auth: UseAuth }) => {
             </div>
           ) : (
             filtered.map(item => (
-              <UserRow key={item.id} item={item} isSelf={item.id === auth.user?.id} onToggleRole={handleToggle} />
+              <UserRow key={item.id} item={item} isSelf={item.id === auth.user?.id} onToggleRole={handleToggle} onSaveStaffProfile={handleSaveStaffProfile} />
             ))
           )}
 

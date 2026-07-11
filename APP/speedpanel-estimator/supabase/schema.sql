@@ -119,6 +119,16 @@ create table if not exists profiles (
   updated_at timestamptz not null default now()
 );
 
+-- display_name/title/phone: nullable, no signup UI sets these -- profiles
+-- has no name/contact concept anywhere else in this app (email only, via
+-- auth.users). Only meaningful for role='admin' rows, shown as "Your
+-- Speedpanel Team" contact details instead of a raw email -- see
+-- admin_set_staff_profile() and the "Assigned Speedpanel Team" section
+-- below.
+alter table profiles add column display_name text;
+alter table profiles add column title text;
+alter table profiles add column phone text;
+
 alter table profiles enable row level security;
 
 create policy "Users can read own profile" on profiles
@@ -574,12 +584,17 @@ drop function if exists public.admin_list_users();
 -- whatever's currently awaiting action. admin_count_users() below is the
 -- companion total-count RPC (used by Admin > Analytics), so that page never
 -- has to page through every row just to count them.
+-- create or replace can't change an existing function's return columns --
+-- drop first (same reasoning as the zero-arg overload drop above) since
+-- this is gaining display_name/title/phone.
+drop function if exists public.admin_list_users(int, int);
+
 create or replace function public.admin_list_users(p_limit int default 50, p_offset int default 0)
-returns table (id uuid, email text, role text, created_at timestamptz)
+returns table (id uuid, email text, role text, created_at timestamptz, display_name text, title text, phone text)
 language sql security definer stable
 set search_path = public
 as $$
-  select p.id, u.email, p.role, p.created_at
+  select p.id, u.email, p.role, p.created_at, p.display_name, p.title, p.phone
   from public.profiles p
   join auth.users u on u.id = p.id
   where public.is_admin()
@@ -628,6 +643,28 @@ end;
 $$;
 revoke execute on function public.admin_set_role(uuid, text) from public, anon;
 grant execute on function public.admin_set_role(uuid, text) to authenticated;
+
+-- Lets any admin set another admin's (or their own) display_name/title/phone
+-- -- a small trusted-internal-team affordance, same "any admin can act on
+-- any other admin" shape as admin_set_role itself. Not restricted to
+-- role='admin' targets at the DB level (nothing meaningful stops setting it
+-- on a 'user' row), but the only UI that calls this only shows the edit
+-- control for admin rows -- see AdminUsersPage.tsx.
+create or replace function public.admin_set_staff_profile(p_user_id uuid, p_display_name text, p_title text, p_phone text)
+returns void
+language plpgsql security definer
+set search_path = public
+as $$
+begin
+  if not public.is_admin() then raise exception 'Not authorized'; end if;
+  update profiles set display_name = nullif(trim(p_display_name), ''), title = nullif(trim(p_title), ''),
+    phone = nullif(trim(p_phone), ''), updated_at = now()
+    where id = p_user_id;
+  if not found then raise exception 'User not found'; end if;
+end;
+$$;
+revoke execute on function public.admin_set_staff_profile(uuid, text, text, text) from public, anon;
+grant execute on function public.admin_set_staff_profile(uuid, text, text, text) to authenticated;
 
 -- Same "drop the old exact-zero-arg overload first" reasoning as
 -- admin_list_users above.
@@ -1171,11 +1208,19 @@ alter table orders   add column company_id uuid references companies (id) on del
 
 -- owner OR admin -- the general "can manage this company" gate (invite,
 -- remove/role-change anyone below Owner, edit company details, view all).
+-- or is_admin(): Speedpanel staff manage every company via the admin
+-- bypass, not by joining it as a member (see "Company-creation cutover" --
+-- admin_create_company never adds the calling admin to company_memberships).
+-- Without this, an admin who created a company couldn't call
+-- company_set_member_role/company_remove_member/resend_company_invitation/
+-- etc. for it, or pass company-invite-member's is_company_admin check --
+-- matches the bypass can_view_project/can_edit_project/can_submit_orders
+-- already have; this was a gap relative to those.
 create or replace function public.is_company_admin(p_company_id uuid) returns boolean
 language sql security definer stable
 set search_path = public
 as $$
-  select exists (
+  select public.is_admin() or exists (
     select 1 from company_memberships
     where company_id = p_company_id and user_id = auth.uid() and status = 'active' and role in ('owner', 'admin')
   );
@@ -1183,13 +1228,14 @@ $$;
 revoke execute on function public.is_company_admin(uuid) from public, anon;
 grant execute on function public.is_company_admin(uuid) to authenticated;
 
--- owner ONLY -- gates the actions an Admin must not have: touching another
--- Owner's role/status, or promoting someone else to Owner.
+-- owner ONLY (plus is_admin(), same reasoning as is_company_admin above) --
+-- gates the actions an Admin must not have: touching another Owner's
+-- role/status, or promoting someone else to Owner.
 create or replace function public.is_company_owner(p_company_id uuid) returns boolean
 language sql security definer stable
 set search_path = public
 as $$
-  select exists (
+  select public.is_admin() or exists (
     select 1 from company_memberships
     where company_id = p_company_id and user_id = auth.uid() and status = 'active' and role = 'owner'
   );
@@ -1300,10 +1346,10 @@ create policy "Members can read their own membership rows" on company_membership
   for select using (user_id = auth.uid() or public.is_company_admin(company_id) or public.is_admin());
 
 -- No direct insert/update/delete policy -- every membership change goes
--- through the security definer RPCs below (create_company,
--- company_set_member_role, company_remove_member, company_set_member_status,
--- the invitation-acceptance path, admin_set_user_company), each of which
--- does its own privilege check before writing.
+-- through the security definer RPCs below (company_set_member_role,
+-- company_remove_member, company_set_member_status, the
+-- invitation-acceptance path, admin_set_user_company), each of which does
+-- its own privilege check before writing.
 
 create policy "Company admins can read their own invitations" on invitations
   for select using (
@@ -1749,11 +1795,23 @@ $$;
 -- Self-service company creation, membership, and invitations
 -- =============================================================================
 
--- Any signed-in user, no gating -- self-service company creation, the
--- caller becomes the company's first Owner.
-create or replace function public.create_company(
+-- Self-service company creation has been removed -- Speedpanel now creates
+-- every company via the Admin > Companies wizard (admin_create_company
+-- below), never the customer. No production rows ever existed under the
+-- old self-service create_company() (confirmed empty before this cutover),
+-- so this is a clean drop, not a migration.
+drop function if exists public.create_company(text, text, text, text, text, text);
+
+-- is_admin()-gated. Deliberately does NOT add the calling admin to
+-- company_memberships -- Speedpanel staff manage every company via the
+-- is_admin() bypass added to is_company_admin/is_company_owner above, not by
+-- being a member. The company's actual first Owner is added afterward via
+-- the normal invite path (company-invite-member / admin-invite-user with
+-- companyId+companyRole), same as any other member.
+create or replace function public.admin_create_company(
   p_legal_name text, p_trading_name text default null, p_abn text default null,
-  p_billing_email text default null, p_phone text default null, p_address text default null
+  p_customer_account_number text default null, p_billing_email text default null,
+  p_phone text default null, p_address text default null
 ) returns uuid
 language plpgsql security definer
 set search_path = public
@@ -1761,19 +1819,18 @@ as $$
 declare
   v_company_id uuid;
 begin
+  if not public.is_admin() then raise exception 'Not authorized'; end if;
   if coalesce(trim(p_legal_name), '') = '' then raise exception 'Company name is required'; end if;
 
-  insert into companies (legal_name, trading_name, abn, billing_email, phone, address, created_by)
-    values (p_legal_name, p_trading_name, p_abn, p_billing_email, p_phone, p_address, auth.uid())
+  insert into companies (legal_name, trading_name, abn, customer_account_number, billing_email, phone, address, created_by)
+    values (p_legal_name, p_trading_name, p_abn, p_customer_account_number, p_billing_email, p_phone, p_address, auth.uid())
     returning id into v_company_id;
-  insert into company_memberships (company_id, user_id, role, status, joined_at)
-    values (v_company_id, auth.uid(), 'owner', 'active', now());
   perform public.log_audit(v_company_id, auth.uid(), 'company_created');
   return v_company_id;
 end;
 $$;
-revoke execute on function public.create_company(text, text, text, text, text, text) from public, anon;
-grant execute on function public.create_company(text, text, text, text, text, text) to authenticated;
+revoke execute on function public.admin_create_company(text, text, text, text, text, text, text) from public, anon;
+grant execute on function public.admin_create_company(text, text, text, text, text, text, text) to authenticated;
 
 -- handle_new_user() extended (redefined here, after invitations/
 -- company_memberships/project_memberships/log_audit all exist) to
@@ -2231,6 +2288,140 @@ revoke execute on function public.admin_set_user_company(uuid, uuid, text) from 
 grant execute on function public.admin_set_user_company(uuid, uuid, text) to authenticated;
 
 -- =============================================================================
+-- Assigned Speedpanel Team
+-- =============================================================================
+-- A fixed, Speedpanel-managed roster of internal contacts per company --
+-- Project Manager, BDM, Internal Sales, Dispatch, Technical Services -- read
+-- only for the customer (shown as "Your Speedpanel Team"), editable only by
+-- Speedpanel admins. Deliberately a separate table from company_memberships:
+-- these are relationships between the customer and Speedpanel, not the
+-- customer's own users/roles, even though 'project_manager' happens to be a
+-- label both sides use for different things -- see StaffRole vs CompanyRole
+-- in companyTypes.ts/staffTypes.ts, never conflated in code.
+--
+-- project_manager/bdm are "Single Assignment" (relationship owners -- one
+-- person should own it); internal_sales/dispatch/technical_services are
+-- "Multiple Assignment" (departments -- several people may be involved).
+-- The partial unique index below enforces single-assignment at the DB
+-- level, not just in the RPC.
+create table staff_assignments (
+  id uuid primary key default gen_random_uuid(),
+  company_id uuid not null references companies (id) on delete cascade,
+  staff_user_id uuid not null references auth.users (id),
+  role text not null check (role in ('project_manager', 'bdm', 'internal_sales', 'dispatch', 'technical_services')),
+  is_primary boolean not null default false,
+  active boolean not null default true,
+  created_by uuid references auth.users (id),
+  created_at timestamptz not null default now(),
+  unique (company_id, staff_user_id, role)
+);
+create unique index staff_assignments_single_role_idx on staff_assignments (company_id, role)
+  where active and role in ('project_manager', 'bdm');
+
+alter table staff_assignments enable row level security;
+
+-- Read-only for customers -- any active member of the company can see who's
+-- assigned, but there is no insert/update/delete policy at all: every write
+-- goes through admin_set_staff_assignment/admin_remove_staff_assignment
+-- below, both is_admin()-gated. Not even a company Owner can write here.
+create policy "Members and admins can read staff assignments" on staff_assignments
+  for select using (
+    public.is_admin()
+    or exists (select 1 from company_memberships cm where cm.company_id = staff_assignments.company_id and cm.user_id = auth.uid() and cm.status = 'active')
+  );
+
+-- is_admin()-gated; validates the role and that the target is currently a
+-- Speedpanel admin account (staff_assignments has no other concept of
+-- "employee" -- if Speedpanel wants a team-alias assignee with no personal
+-- login, they'd give it its own admin account, same as any other staff
+-- member). For project_manager/bdm, deactivates any other active row for
+-- that (company, role) first so the partial unique index above holds, then
+-- upserts -- reactivating a previously-removed assignment is idempotent
+-- rather than erroring on the (company_id, staff_user_id, role) unique
+-- constraint.
+create or replace function public.admin_set_staff_assignment(p_company_id uuid, p_staff_user_id uuid, p_role text) returns void
+language plpgsql security definer
+set search_path = public
+as $$
+declare
+  v_is_single boolean;
+begin
+  if not public.is_admin() then raise exception 'Not authorized'; end if;
+  if coalesce(p_role, '') not in ('project_manager', 'bdm', 'internal_sales', 'dispatch', 'technical_services') then
+    raise exception 'Invalid role';
+  end if;
+  if not exists (select 1 from profiles where id = p_staff_user_id and role = 'admin') then
+    raise exception 'Staff must be a Speedpanel admin account';
+  end if;
+
+  v_is_single := p_role in ('project_manager', 'bdm');
+  if v_is_single then
+    update staff_assignments set active = false
+      where company_id = p_company_id and role = p_role and active and staff_user_id <> p_staff_user_id;
+  end if;
+
+  insert into staff_assignments (company_id, staff_user_id, role, is_primary, active, created_by)
+    values (p_company_id, p_staff_user_id, p_role, v_is_single, true, auth.uid())
+    on conflict (company_id, staff_user_id, role) do update set active = true, is_primary = excluded.is_primary;
+  perform public.log_audit(p_company_id, auth.uid(), 'staff_assignment_added', p_staff_user_id, null, jsonb_build_object('role', p_role));
+end;
+$$;
+revoke execute on function public.admin_set_staff_assignment(uuid, uuid, text) from public, anon;
+grant execute on function public.admin_set_staff_assignment(uuid, uuid, text) to authenticated;
+
+create or replace function public.admin_remove_staff_assignment(p_company_id uuid, p_staff_user_id uuid, p_role text) returns void
+language plpgsql security definer
+set search_path = public
+as $$
+begin
+  if not public.is_admin() then raise exception 'Not authorized'; end if;
+  update staff_assignments set active = false
+    where company_id = p_company_id and staff_user_id = p_staff_user_id and role = p_role and active;
+  if not found then raise exception 'Assignment not found'; end if;
+  perform public.log_audit(p_company_id, auth.uid(), 'staff_assignment_removed', p_staff_user_id, null, jsonb_build_object('role', p_role));
+end;
+$$;
+revoke execute on function public.admin_remove_staff_assignment(uuid, uuid, text) from public, anon;
+grant execute on function public.admin_remove_staff_assignment(uuid, uuid, text) to authenticated;
+
+-- Same access shape as company_list_members -- any active member of the
+-- company, or is_admin(). Powers both the customer-facing "Your Speedpanel
+-- Team" card and the admin assignment editor (the admin sees the same rows
+-- via the is_admin() OR-clause, no separate admin-only RPC needed).
+create or replace function public.company_list_staff_team(p_company_id uuid)
+returns table (staff_user_id uuid, email text, display_name text, title text, phone text, role text, is_primary boolean)
+language sql security definer stable
+set search_path = public
+as $$
+  select sa.staff_user_id, u.email, p.display_name, p.title, p.phone, sa.role, sa.is_primary
+  from staff_assignments sa
+  join auth.users u on u.id = sa.staff_user_id
+  join profiles p on p.id = sa.staff_user_id
+  where sa.active
+    and (public.is_admin() or exists (select 1 from company_memberships cm where cm.company_id = p_company_id and cm.user_id = auth.uid() and cm.status = 'active'))
+    and sa.company_id = p_company_id
+  order by sa.role, u.email;
+$$;
+revoke execute on function public.company_list_staff_team(uuid) from public, anon;
+grant execute on function public.company_list_staff_team(uuid) to authenticated;
+
+-- is_admin()-gated -- the picker source for the assignment UI (wizard step
+-- 3 and the Admin > Companies per-company editor).
+create or replace function public.admin_list_staff_candidates()
+returns table (id uuid, email text, display_name text, title text)
+language sql security definer stable
+set search_path = public
+as $$
+  select p.id, u.email, p.display_name, p.title
+  from profiles p
+  join auth.users u on u.id = p.id
+  where p.role = 'admin' and public.is_admin()
+  order by coalesce(p.display_name, u.email);
+$$;
+revoke execute on function public.admin_list_staff_candidates() from public, anon;
+grant execute on function public.admin_list_staff_candidates() to authenticated;
+
+-- =============================================================================
 -- Foreign key indexes -- company workspace tables
 -- =============================================================================
 -- Same reasoning as the "Foreign key indexes" section above: Postgres
@@ -2248,3 +2439,5 @@ create index if not exists idx_audit_logs_project_id          on audit_logs (pro
 create index if not exists idx_projects_company_id            on projects (company_id);
 create index if not exists idx_projects_project_manager       on projects (project_manager_user_id);
 create index if not exists idx_orders_company_id              on orders (company_id);
+create index if not exists idx_staff_assignments_company_id   on staff_assignments (company_id);
+create index if not exists idx_staff_assignments_staff_user_id on staff_assignments (staff_user_id);

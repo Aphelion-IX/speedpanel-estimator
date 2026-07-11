@@ -70,7 +70,6 @@ export const ProjectsRouter = ({ route, navigate, auth, company, onOpenEstimator
       layoutMode={layoutMode}
       hasCompany={company.memberships.length > 0}
       activeCompanyId={company.activeCompanyId}
-      onCreateCompany={() => navigate({ tab: "company", sub: "create" })}
       onTeam={() => navigate({ tab: "company", sub: "team" })}
     />
   );

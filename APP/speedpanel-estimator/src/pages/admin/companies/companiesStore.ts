@@ -1,14 +1,17 @@
 // =============================================================================
-// Admin Companies -- read-only support visibility
+// Admin Companies -- Speedpanel-managed company workspaces
 // =============================================================================
-// Speedpanel staff already see everything via is_admin() -- this is just a
-// read view onto that existing access (admin_list_companies()/
-// company_list_members(), both is_admin()-gated in their own where clause,
-// see supabase/schema.sql), not the deferred SupportAccess grant model.
-// =============================================================================
+// Speedpanel staff manage every company via the is_admin() bypass added to
+// is_company_admin/is_company_owner (see supabase/schema.sql's "Company-
+// creation cutover") -- not the deferred SupportAccess grant model. That
+// bypass is also what lets this file's roster/staff-team management reuse
+// company/companyStore.ts's useCompanyMembers directly (AdminCompaniesPage.tsx
+// does) rather than a parallel read-only path: the same RPCs
+// (company_set_member_role/company_remove_member/etc.) now work for an admin
+// who was never added as a member of the company they're managing.
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "../../../lib/supabaseClient";
-import { CompanyMemberRowSchema, type CompanyMemberRow } from "../../company/companyTypes";
+import { StaffTeamMemberRowSchema, StaffCandidateRowSchema, type StaffTeamMemberRow, type StaffCandidateRow, type StaffRole } from "../../company/staffTypes";
 import { z } from "zod";
 
 const NOT_CONFIGURED = "Companies aren't configured for this environment.";
@@ -41,28 +44,92 @@ export function useAdminCompanies() {
   return { ...state, reload: load };
 }
 
-// Fetched on demand when an admin expands one company row -- not worth
-// loading every company's roster up front.
-export function useAdminCompanyMembers(companyId: string | null) {
-  const [members, setMembers] = useState<CompanyMemberRow[]>([]);
-  const [loading, setLoading] = useState(false);
+// One-shot wrapper around admin_create_company -- the only way a company
+// gets created now (see supabase/schema.sql's "Company-creation cutover").
+export function useAdminCreateCompany() {
+  const [submitting, setSubmitting] = useState(false);
+
+  const createCompany = async (input: {
+    legalName: string; tradingName?: string; abn?: string; customerAccountNumber?: string;
+    billingEmail?: string; phone?: string; address?: string;
+  }): Promise<{ id: string | null; error: string | null }> => {
+    if (!supabase) return { id: null, error: NOT_CONFIGURED };
+    setSubmitting(true);
+    const { data, error } = await supabase.rpc("admin_create_company", {
+      p_legal_name: input.legalName,
+      p_trading_name: input.tradingName || null,
+      p_abn: input.abn || null,
+      p_customer_account_number: input.customerAccountNumber || null,
+      p_billing_email: input.billingEmail || null,
+      p_phone: input.phone || null,
+      p_address: input.address || null,
+    });
+    setSubmitting(false);
+    if (error) return { id: null, error: error.message };
+    return { id: data as string, error: null };
+  };
+
+  return { submitting, createCompany };
+}
+
+// Loaded once -- the picker source for assigning staff to a company (wizard
+// step 3 and the per-company Speedpanel Team editor).
+export function useAdminStaffCandidates() {
+  const [candidates, setCandidates] = useState<StaffCandidateRow[]>([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!supabase || !companyId) { setMembers([]); return; }
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
-    supabase.rpc("company_list_members", { p_company_id: companyId }).then(({ data, error: err }) => {
-      if (cancelled) return;
+    if (!supabase) { setLoading(false); setError(NOT_CONFIGURED); return; }
+    supabase.rpc("admin_list_staff_candidates").then(({ data, error: err }) => {
       if (err) { setError(err.message); setLoading(false); return; }
-      const parsed = CompanyMemberRowSchema.array().safeParse(data ?? []);
+      const parsed = StaffCandidateRowSchema.array().safeParse(data ?? []);
       if (!parsed.success) { setError(BAD_SHAPE); setLoading(false); return; }
-      setMembers(parsed.data);
+      setCandidates(parsed.data);
       setLoading(false);
     });
-    return () => { cancelled = true; };
+  }, []);
+
+  return { candidates, loading, error };
+}
+
+// The Speedpanel Team editor's data + write actions for one company --
+// admin_set_staff_assignment/admin_remove_staff_assignment, both
+// is_admin()-gated server-side (see supabase/schema.sql).
+export function useStaffAssignments(companyId: string | null) {
+  const [staff, setStaff] = useState<StaffTeamMemberRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    if (!supabase || !companyId) { setStaff([]); setLoading(false); return; }
+    setLoading(true);
+    setError(null);
+    const { data, error: err } = await supabase.rpc("company_list_staff_team", { p_company_id: companyId });
+    if (err) { setError(err.message); setLoading(false); return; }
+    const parsed = StaffTeamMemberRowSchema.array().safeParse(data ?? []);
+    if (!parsed.success) { setError(BAD_SHAPE); setLoading(false); return; }
+    setStaff(parsed.data);
+    setLoading(false);
   }, [companyId]);
 
-  return { members, loading, error };
+  useEffect(() => { load(); }, [load]);
+
+  const setAssignment = async (staffUserId: string, role: StaffRole): Promise<string | null> => {
+    if (!supabase || !companyId) return NOT_CONFIGURED;
+    const { error: err } = await supabase.rpc("admin_set_staff_assignment", { p_company_id: companyId, p_staff_user_id: staffUserId, p_role: role });
+    if (err) return err.message;
+    await load();
+    return null;
+  };
+
+  const removeAssignment = async (staffUserId: string, role: StaffRole): Promise<string | null> => {
+    if (!supabase || !companyId) return NOT_CONFIGURED;
+    const { error: err } = await supabase.rpc("admin_remove_staff_assignment", { p_company_id: companyId, p_staff_user_id: staffUserId, p_role: role });
+    if (err) return err.message;
+    setStaff(s => s.filter(m => !(m.staff_user_id === staffUserId && m.role === role)));
+    return null;
+  };
+
+  return { staff, loading, error, reload: load, setAssignment, removeAssignment };
 }

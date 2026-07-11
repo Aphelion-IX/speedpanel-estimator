@@ -70,6 +70,24 @@ export function useAdminUsers() {
     return null;
   };
 
+  // Speedpanel staff contact details (display_name/title/phone) -- only
+  // meaningful for role='admin' rows, see AdminUsersPage.tsx's staff-profile
+  // edit form and this app's "Assigned Speedpanel Team" feature.
+  const setStaffProfile = async (id: string, input: { displayName: string; title: string; phone: string }): Promise<string | null> => {
+    if (!supabase) return NOT_CONFIGURED;
+    const { error } = await supabase.rpc("admin_set_staff_profile", {
+      p_user_id: id, p_display_name: input.displayName || null, p_title: input.title || null, p_phone: input.phone || null,
+    });
+    if (error) return error.message;
+    setState(s => ({
+      ...s,
+      users: s.users.map(u => u.id === id
+        ? { ...u, display_name: input.displayName || null, title: input.title || null, phone: input.phone || null }
+        : u),
+    }));
+    return null;
+  };
+
   const inviteUser = async (email: string, role: UserRole): Promise<{ id: string | null; error: string | null }> => {
     if (!supabase) return { id: null, error: NOT_CONFIGURED };
     const { data, error } = await supabase.functions.invoke<{ id?: string }>("admin-invite-user", { body: { email, role } });
@@ -95,5 +113,5 @@ export function useAdminUsers() {
     return { id: data?.id ?? null, error: null };
   };
 
-  return { ...state, reload: load, loadMore, setRole, inviteUser };
+  return { ...state, reload: load, loadMore, setRole, setStaffProfile, inviteUser };
 }

@@ -47,6 +47,7 @@ import {
 } from "./projectActivityStore";
 import { ProjectDocumentsCard } from "./documents/ProjectDocumentsCard";
 import { ProjectMembersCard } from "./ProjectMembersCard";
+import { ProjectSpeedpanelTeamCard } from "./ProjectSpeedpanelTeamCard";
 import type { ProjectRow } from "./projectTypes";
 
 const stageProgress = (stage: ProjectRow["stage"]): number => Math.round(STAGES.indexOf(stage) / (STAGES.length - 1) * 100);
@@ -255,6 +256,7 @@ export const ProjectDashboard = ({ id, userId, onOpenEstimator, onRequestQuote, 
 
         <ProjectDocumentsCard projectId={project.id} userId={userId} />
         {project.company_id && <ProjectMembersCard projectId={project.id} companyId={project.company_id} />}
+        {project.company_id && <ProjectSpeedpanelTeamCard companyId={project.company_id} />}
       </CardGrid>
     </div>
   );

@@ -137,4 +137,6 @@ export const EVENT_TYPE_LABELS: Record<string, string> = {
   member_removed: "Member removed",
   member_added_by_admin: "Added by Speedpanel admin",
   project_reassigned: "Project access changed",
+  staff_assignment_added: "Speedpanel team member assigned",
+  staff_assignment_removed: "Speedpanel team member removed",
 };

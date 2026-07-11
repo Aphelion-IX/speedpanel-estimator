@@ -2,13 +2,15 @@
 // Company workspaces -- team management stores
 // =============================================================================
 // Several small hooks, same {data,loading,error,reload,...actions} shape as
-// every other store in this app: useCreateCompany (one-shot RPC wrapper),
-// useCompanyMembers (roster + pending invites + every membership-management
-// action), useMyPendingInvitations (the accept/decline side, for an existing
-// user invited into a second company), useCompanyAuditLog (paginated, mirrors
-// admin/auditLog/auditLogStore.ts). inviteMember's error-unwrapping mirrors
-// usersStore.ts's inviteUser -- see that file's own comment for why
-// `context instanceof Response` matters.
+// every other store in this app: useCompanyMembers (roster + pending invites
+// + every membership-management action), useMyPendingInvitations (the
+// accept/decline side, for an existing user invited into a second company),
+// useCompanyAuditLog (paginated, mirrors admin/auditLog/auditLogStore.ts),
+// useCompanyStaffTeam (read-only "Your Speedpanel Team" data). Company
+// creation itself has no store here anymore -- it's Speedpanel-admin-only,
+// see admin/companies/adminCompaniesWizardStore.ts. inviteMember's
+// error-unwrapping mirrors usersStore.ts's inviteUser -- see that file's own
+// comment for why `context instanceof Response` matters.
 // =============================================================================
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "../../lib/supabaseClient";
@@ -16,34 +18,11 @@ import {
   CompanyMemberRowSchema, InvitationRowSchema, AuditLogRowSchema,
   type CompanyMemberRow, type InvitationRow, type AuditLogRow, type CompanyRole, type MembershipStatus,
 } from "./companyTypes";
+import { StaffTeamMemberRowSchema, type StaffTeamMemberRow } from "./staffTypes";
 
 const NOT_CONFIGURED = "Company workspaces aren't configured for this environment.";
 const BAD_SHAPE = "Unexpected data shape from the server.";
 const PAGE_SIZE = 50;
-
-export function useCreateCompany() {
-  const [submitting, setSubmitting] = useState(false);
-
-  const createCompany = async (input: {
-    legalName: string; tradingName?: string; abn?: string; billingEmail?: string; phone?: string; address?: string;
-  }): Promise<{ id: string | null; error: string | null }> => {
-    if (!supabase) return { id: null, error: NOT_CONFIGURED };
-    setSubmitting(true);
-    const { data, error } = await supabase.rpc("create_company", {
-      p_legal_name: input.legalName,
-      p_trading_name: input.tradingName || null,
-      p_abn: input.abn || null,
-      p_billing_email: input.billingEmail || null,
-      p_phone: input.phone || null,
-      p_address: input.address || null,
-    });
-    setSubmitting(false);
-    if (error) return { id: null, error: error.message };
-    return { id: data as string, error: null };
-  };
-
-  return { submitting, createCompany };
-}
 
 interface CompanyMembersState {
   members: CompanyMemberRow[];
@@ -216,6 +195,32 @@ export function useCompanyAuditLog(companyId: string | null) {
   };
 
   return { ...state, reload: load, loadMore };
+}
+
+// Read-only -- "Your Speedpanel Team" (company_list_staff_team() is readable
+// by any active member, is_admin() bypass included server-side). No mutating
+// actions here on purpose: the customer never edits this, see
+// StaffTeamAssignmentPanel.tsx (admin/companies) for the write side.
+export function useCompanyStaffTeam(companyId: string | null) {
+  const [staff, setStaff] = useState<StaffTeamMemberRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    if (!supabase || !companyId) { setStaff([]); setLoading(false); return; }
+    setLoading(true);
+    setError(null);
+    const { data, error: err } = await supabase.rpc("company_list_staff_team", { p_company_id: companyId });
+    if (err) { setError(err.message); setLoading(false); return; }
+    const parsed = StaffTeamMemberRowSchema.array().safeParse(data ?? []);
+    if (!parsed.success) { setError("Unexpected data shape from the server."); setLoading(false); return; }
+    setStaff(parsed.data);
+    setLoading(false);
+  }, [companyId]);
+
+  useEffect(() => { load(); }, [load]);
+
+  return { staff, loading, error, reload: load };
 }
 
 // Just id+name -- backs the invite panel's "selected projects only" picker

@@ -109,15 +109,18 @@ const NewProjectCard = ({ onCreate }: { onCreate: (name: string) => Promise<stri
 
 export const ProjectsListPage = ({
   user, selectedId, onSelect, onOpenEstimator, onRequestQuote, onCreateOrder, onOpenOrder, layoutMode,
-  hasCompany, activeCompanyId, onCreateCompany, onTeam,
+  hasCompany, activeCompanyId, onTeam,
 }: {
   user: User | null; selectedId?: string; onSelect: (id: string) => void;
   onOpenEstimator: (project: ProjectRow) => void; onRequestQuote: (id: string) => void;
   onCreateOrder: (id: string) => void; onOpenOrder: (id: string, orderId: string) => void;
   layoutMode: EffectiveLayout;
-  // Company-workspace entry points -- see useCompanyMemberships.ts. Solo
+  // Company-workspace entry point -- see useCompanyMemberships.ts. Solo
   // usage (hasCompany false) keeps working exactly as before if ignored.
-  hasCompany: boolean; activeCompanyId: string | null; onCreateCompany: () => void; onTeam: () => void;
+  // Company creation itself is Speedpanel-admin-only now (see
+  // NoCompanyPage.tsx), so there's no "set up a company" callout here
+  // anymore -- just the Team link once a company already exists.
+  hasCompany: boolean; activeCompanyId: string | null; onTeam: () => void;
 }) => {
   const { projects, loading, error, reload, createProject } = useProjects(user, activeCompanyId);
   const { ordersByStage, ordersTotal, totalValue, loading: ordersLoading } = useOrdersSummary(user);
@@ -144,18 +147,6 @@ export const ProjectsListPage = ({
           <button onClick={onTeam} className="text-sm font-bold" style={{ color: BLUE }}>Team &rarr;</button>
         )}
       </div>
-
-      {!hasCompany && (
-        <div className={`${cx.card} mt-3 flex flex-wrap items-center justify-between gap-3`}>
-          <div>
-            <p className="text-sm font-semibold" style={{ color: NAVY }}>Working with a team?</p>
-            <p className={cx.footnote} style={{ paddingTop: 0 }}>Set up a company workspace so colleagues can see and manage the same projects.</p>
-          </div>
-          <button onClick={onCreateCompany} className="shrink-0 rounded-xl px-4 py-2 text-sm font-bold" style={{ background: BLUE, color: WHITE }}>
-            Set up company
-          </button>
-        </div>
-      )}
 
       {loading && <div className={`${cx.card} mt-3 text-sm`} style={{ color: MUTED }}>Loading...</div>}
 

@@ -15,5 +15,10 @@ export const AdminUserRowSchema = z.object({
   email: z.string().nullable(),
   role: z.enum(USER_ROLES),
   created_at: z.string(),
+  // Only ever meaningfully set for role='admin' rows -- see
+  // admin_set_staff_profile() in supabase/schema.sql.
+  display_name: z.string().nullable(),
+  title: z.string().nullable(),
+  phone: z.string().nullable(),
 });
 export type AdminUserRow = z.infer<typeof AdminUserRowSchema>;
