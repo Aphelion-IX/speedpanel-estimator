@@ -610,6 +610,83 @@ create policy "Public update access" on math_constants
 -- second row structurally impossible even if insert were ever granted.
 
 -- =============================================================================
+-- Admin Maths -- durable cross-device copy of SystemTables (per-panel-type
+-- corner-post / horizontal-C-track / shaft-track decision tables)
+-- =============================================================================
+-- Same singleton pattern as math_constants above (see src/systemTables.ts),
+-- with a different fixed id. Unlike math_constants, this table IS seeded here
+-- with the defaults, so a fresh deploy's first save() succeeds immediately
+-- instead of silently no-op'ing against a row that was never created.
+-- =============================================================================
+create table if not exists system_tables (
+  id uuid primary key default '00000000-0000-0000-0000-000000000002'::uuid,
+  values jsonb not null,
+  updated_at timestamptz not null default now(),
+  check (id = '00000000-0000-0000-0000-000000000002'::uuid)
+);
+
+alter table system_tables enable row level security;
+
+create policy "Public read access" on system_tables for select using (true);
+create policy "Public update access" on system_tables
+  for update using (true) with check (true);
+-- No insert/delete policy -- the single row is seeded once (below) and the
+-- fixed default id + check constraint make a second row structurally
+-- impossible even if insert were ever granted.
+
+insert into system_tables (id, values) values (
+  '00000000-0000-0000-0000-000000000002',
+  '{
+    "cornerPost": {
+      "51": [
+        { "maxW": 3.0, "rows": [{ "maxH": 3.0, "section": "55 x 56 x 1.15" }, { "maxH": 4.0, "section": "55 x 57 x 1.50" }, { "maxH": 5.0, "section": "55 x 58 x 1.95" }] },
+        { "maxW": 4.5, "rows": [{ "maxH": 3.0, "section": "55 x 57 x 1.50" }, { "maxH": 4.0, "section": "55 x 58 x 1.95" }, { "maxH": 5.0, "section": "55 x 58 x 1.95" }] }
+      ],
+      "64": [
+        { "maxW": 3.0, "rows": [{ "maxH": 3.0, "section": "55 x 68 x 1.15" }, { "maxH": 4.0, "section": "55 x 69 x 1.50" }, { "maxH": 5.0, "section": "55 x 70 x 1.95" }] },
+        { "maxW": 4.5, "rows": [{ "maxH": 3.0, "section": "55 x 69 x 1.50" }, { "maxH": 4.0, "section": "55 x 70 x 1.95" }, { "maxH": 5.0, "section": "55 x 70 x 1.95" }] }
+      ],
+      "78": [
+        { "maxW": 3.0, "rows": [{ "maxH": 3.0, "section": "90 x 82 x 1.15" }, { "maxH": 4.5, "section": "90 x 83 x 1.50" }] },
+        { "maxW": 4.5, "rows": [{ "maxH": 3.0, "section": "90 x 83 x 1.50" }, { "maxH": 4.5, "section": "90 x 84 x 1.95" }] }
+      ]
+    },
+    "horizCtrack": {
+      "51": [
+        { "wMax": 3.0, "hMax": 3.0, "section": "55 x 56 x 1.15", "fix": 1 },
+        { "wMax": 4.5, "hMax": 3.0, "section": "55 x 57 x 1.50", "fix": 1 },
+        { "wMax": 3.0, "hMax": 4.0, "section": "55 x 57 x 1.50", "fix": 1 },
+        { "wMax": 4.5, "hMax": 4.0, "section": "55 x 58 x 1.95", "fix": 1 },
+        { "wMax": 4.5, "hMax": 5.0, "section": "55 x 58 x 1.95", "fix": 1 },
+        { "wMax": 4.5, "hMax": null, "section": "55 x 58 x 1.95", "fix": 1, "outsideTable": true }
+      ],
+      "64": [
+        { "wMax": 3.0, "hMax": 3.0, "section": "55 x 68 x 1.15", "fix": 1 },
+        { "wMax": 4.5, "hMax": 3.0, "section": "55 x 69 x 1.50", "fix": 1 },
+        { "wMax": 3.0, "hMax": 4.0, "section": "55 x 69 x 1.50", "fix": 1 },
+        { "wMax": 4.5, "hMax": 4.0, "section": "55 x 70 x 1.95", "fix": 1 },
+        { "wMax": 4.5, "hMax": 5.0, "section": "55 x 70 x 1.95", "fix": 1 },
+        { "wMax": 4.5, "hMax": null, "section": "55 x 70 x 1.95", "fix": 1, "outsideTable": true }
+      ],
+      "78": [
+        { "wMax": 3.0, "hMax": 3.0, "section": "90 x 82 x 1.15", "fix": 1 },
+        { "wMax": 4.5, "hMax": 3.0, "section": "90 x 83 x 1.50", "fix": 1 },
+        { "wMax": 3.0, "hMax": 4.5, "section": "90 x 83 x 1.50", "fix": 1 },
+        { "wMax": 4.5, "hMax": 4.5, "section": "90 x 84 x 1.95", "fix": 1 },
+        { "wMax": 3.5, "hMax": 6.0, "section": "90 x 84 x 1.95", "fix": 1 },
+        { "wMax": 4.5, "hMax": 6.0, "section": "90 x 84 x 1.95", "fix": 2 },
+        { "wMax": 4.5, "hMax": null, "section": "90 x 84 x 1.95", "fix": 2, "outsideTable": true }
+      ]
+    },
+    "shaftTrack": [
+      { "maxF": 3.0, "section": "90 x 82 x 1.50", "fixPerCourse": 1 },
+      { "maxF": 4.5, "section": "90 x 84 x 1.95", "fixPerCourse": 1 },
+      { "maxF": 6.0, "section": "90 x 84 x 1.95", "fixPerCourse": 2 }
+    ]
+  }'::jsonb
+) on conflict (id) do nothing;
+
+-- =============================================================================
 -- Admin: user roster, role management, and stage-event audit log
 -- =============================================================================
 -- profiles has no email column and auth.users is never directly queryable

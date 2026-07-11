@@ -7,7 +7,7 @@
 // =============================================================================
 import { r1, r2, ceilDiv0 } from "./mathUtils";
 import { orderWastePct } from "./computeUtils";
-import { CUSTOM_MAX_LENGTH, PACK, STOCK_LENGTHS, STOCK_WASTE_THRESHOLD } from "../data";
+import { CUSTOM_MAX_LENGTH, PACK, STOCK_LENGTHS, STOCK_WASTE_THRESHOLD, HIGH_WASTE_WARNING_PCT } from "../data";
 import type { CustomScheduleEntry, PanelGroup, PackResult } from "./wall.types";
 
 // --- Panel packing ------------------------------------------------------------
@@ -62,7 +62,7 @@ export interface RawPackExceeds { exceeds: true; tooShort?: false; groups?: unde
 export interface RawPackTooShort { tooShort: true; maxP: number; exceeds?: false; groups?: undefined; }
 export type RawPack = RawPackSuccess | RawPackExceeds | RawPackTooShort;
 
-export function packPanels(pieces: number[], forced: number | null, stocks = STOCK_LENGTHS, allowLong = false): RawPack {
+export function packPanels(pieces: number[], forced: number | null, stocks = STOCK_LENGTHS, allowLong = false, wasteThreshold = STOCK_WASTE_THRESHOLD): RawPack {
   pieces = pieces.filter(p => p > 1e-9).sort((a, b) => b - a);
   if (!pieces.length) return { groups: [], totalPanels: 0, waste: 0, usedLM: 0, cut: false };
   const maxP = pieces[0];
@@ -103,13 +103,13 @@ export function packPanels(pieces: number[], forced: number | null, stocks = STO
     const gm: Record<number, number> = {}; let pur = 0;
     for (const u of bins) { const fs = forced ? L : (atLeast(u)[0] || L); gm[fs] = (gm[fs] || 0) + 1; pur += fs; }
     const waste = pur - usedLM, wastePct = pur > 0 ? waste / pur : 0;
-    if (!best || (waste < best.waste - 1e-9 && wastePct <= STOCK_WASTE_THRESHOLD + 1e-9)) best = { waste, panels: bins.length, gm };
+    if (!best || (waste < best.waste - 1e-9 && wastePct <= wasteThreshold + 1e-9)) best = { waste, panels: bins.length, gm };
   }
   if (!best) return { exceeds: true };
   return { groups: Object.keys(best.gm).sort((a, b) => +a - +b).map(s => ({ stock: +s, pieces: best.gm[+s] })), totalPanels: best.panels, waste: best.waste, usedLM, cut: best.panels < pieces.length };
 }
 
-export const buildOption = (raw: RawPack, type: number): PackResult => {
+export const buildOption = (raw: RawPack, type: number, highWastePct = HIGH_WASTE_WARNING_PCT): PackResult => {
   if (!Array.isArray((raw as RawPackSuccess).groups)) return {
     invalid: true, ...raw,
     groups: [], panels: 0, packs: 0, orderedInPacks: 0,
@@ -135,7 +135,7 @@ export const buildOption = (raw: RawPack, type: number): PackResult => {
   return {
     groups: merged, panels, packs, orderedInPacks,
     offcut: r2(offcut), spareCount, spareLen: r2(spareLen), deliveredLen: r2(deliveredLen),
-    wastePct, anyUnder: merged.some(g => g.underPack), highWaste: wastePct >= 15,
+    wastePct, anyUnder: merged.some(g => g.underPack), highWaste: wastePct >= highWastePct,
     usedLM, cut: success.cut,
   };
 };

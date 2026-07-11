@@ -52,6 +52,8 @@ export const MathConstantsSchema = z.object({
   EXT_MAX_H_VERT: z.number(),
   EXT_MAX_W_HORIZ: z.number(),
   EXT_MAX_W_HORIZ_STACK: z.number(),
+  EXT_STOCK_WASTE_THRESHOLD: z.number(),
+  HIGH_WASTE_WARNING_PCT: z.number(),
 });
 export type MathConstants = z.infer<typeof MathConstantsSchema>;
 
@@ -85,6 +87,8 @@ export const MATH_CONSTANT_DEFAULTS: MathConstants = {
   EXT_MAX_H_VERT: 6.0,
   EXT_MAX_W_HORIZ: 4.5,
   EXT_MAX_W_HORIZ_STACK: 5.0,
+  EXT_STOCK_WASTE_THRESHOLD: 0.20,
+  HIGH_WASTE_WARNING_PCT: 15,
 };
 
 type FieldKind = "number" | "number[]";
@@ -94,6 +98,10 @@ export interface MathConstantField {
   label: string;
   kind: FieldKind;
   group: "internal" | "external";
+  // Tags a field as belonging to one specific panel type's tab (Admin > Maths)
+  // rather than the shared internal/external section. Fields without this tag
+  // render once, under the shared section for their group.
+  panelType?: 51 | 64 | 78;
   helpText: string;
 }
 
@@ -111,9 +119,9 @@ export const MATH_CONSTANT_FIELDS: MathConstantField[] = [
   { key: "MAX_W_HORIZ_STD_51_64", label: "Max horizontal span width, P51/P64 extended range (m)", kind: "number", group: "internal", helpText: "Breakpoint for the P51/P64 extended horizontal-span range." },
   { key: "MAX_W_HORIZ_STACK_78", label: "Max horizontal span width, P78 stacked (m)", kind: "number", group: "internal", helpText: "Width ceiling for stacked/shaft P78 walls." },
   { key: "STEEL_MAX_H_VERT", label: "Steel structure max vertical height (m)", kind: "number", group: "internal", helpText: "Vertical height cap for steel-structure walls." },
-  { key: "P51_MAX_H_VERT", label: "P51 max vertical height (m)", kind: "number", group: "internal", helpText: "Standard (non-steel-structure) vertical height cap for the 51 mm panel." },
-  { key: "P64_MAX_H_VERT", label: "P64 max vertical height (m)", kind: "number", group: "internal", helpText: "Standard (non-steel-structure) vertical height cap for the 64 mm panel." },
-  { key: "P78_MAX_H_VERT", label: "P78 max vertical height (m)", kind: "number", group: "internal", helpText: "Standard (non-steel-structure) vertical height cap for the 78 mm panel." },
+  { key: "P51_MAX_H_VERT", label: "P51 max vertical height (m)", kind: "number", group: "internal", panelType: 51, helpText: "Standard (non-steel-structure) vertical height cap for the 51 mm panel." },
+  { key: "P64_MAX_H_VERT", label: "P64 max vertical height (m)", kind: "number", group: "internal", panelType: 64, helpText: "Standard (non-steel-structure) vertical height cap for the 64 mm panel." },
+  { key: "P78_MAX_H_VERT", label: "P78 max vertical height (m)", kind: "number", group: "internal", panelType: 78, helpText: "Standard (non-steel-structure) vertical height cap for the 78 mm panel." },
   { key: "CUSTOM_MAX_LENGTH", label: "Custom cut max length (m)", kind: "number", group: "internal", helpText: "Absolute longest length that can be cut as a custom piece." },
   { key: "SHAFT_MAX_W", label: "Shaft wall max width (m)", kind: "number", group: "internal", helpText: "Widest a single shaft-wall stack can be." },
   { key: "SHAFT_MAX_F", label: "Shaft wall max floor height (m)", kind: "number", group: "internal", helpText: "Per-floor height limit for shaft walls." },
@@ -127,6 +135,8 @@ export const MATH_CONSTANT_FIELDS: MathConstantField[] = [
   { key: "EXT_MAX_H_VERT", label: "External max vertical height (m)", kind: "number", group: "external", helpText: "Vertical height cap for external walls." },
   { key: "EXT_MAX_W_HORIZ", label: "External max horizontal span width (m)", kind: "number", group: "external", helpText: "Ceiling used by the external horizontal span table." },
   { key: "EXT_MAX_W_HORIZ_STACK", label: "External max horizontal span width, stacked (m)", kind: "number", group: "external", helpText: "Width ceiling for stacked external walls." },
+  { key: "EXT_STOCK_WASTE_THRESHOLD", label: "External stock waste threshold", kind: "number", group: "external", helpText: "Fraction (0-1) of allowable offcut waste when bin-packing external panels onto stock lengths. Independent of the internal threshold above." },
+  { key: "HIGH_WASTE_WARNING_PCT", label: "High-waste warning threshold (%)", kind: "number", group: "internal", helpText: "Order waste percentage at or above which an estimate is flagged as high-waste. Applies to both internal and external estimates." },
 ];
 
 const STORAGE_KEY = "speedpanel:mathConstants";

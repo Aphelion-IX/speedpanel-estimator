@@ -9,12 +9,14 @@
 // HOW TO ADD A NEW PANEL TYPE (e.g. a P90)
 // -----------------------------------------------------------------------------
 // 1. Add its value to the `PanelType` union just below.
-// 2. Add one entry to the `PANELS` array with ALL fields -- TypeScript will
+// 2. Add a `cornerPost`/`horizCtrack` entry for the new type to
+//    systemTables.ts's SYSTEM_TABLES_DEFAULTS (Admin > Maths edits these
+//    live; the literal here is only the first-deploy default).
+// 3. Add one entry to the `PANELS` array with ALL fields -- TypeScript will
 //    error until every field is filled in. That single entry drives the pack
 //    size, C-track/J-track dims, max heights, the vertical & horizontal span
-//    tables, the corner-post table, the horizontal C-track bands, and the
-//    P51/P64/P78 selector buttons.
-// 3. A few per-type rules are still IMPERATIVE in App.tsx's compute engine
+//    tables, and the P51/P64/P78 selector buttons.
+// 4. A few per-type rules are still IMPERATIVE in App.tsx's compute engine
 //    (they are not pure data). Update them too if the new panel needs
 //    different behaviour:
 //      - `pickCornerPost`   (App.tsx) -- P78 tall-wall footnote special case
@@ -25,8 +27,13 @@
 // =============================================================================
 
 import { loadMathConstants } from "./mathConstants";
+import { loadSystemTables } from "./systemTables";
 
 const MATH = loadMathConstants();
+// Per-panel-type corner-post / horizontal-C-track / shaft-track decision
+// tables -- see Admin > Maths, systemTables.ts. Read once at module load,
+// same synchronous contract as MATH above.
+const TABLES = loadSystemTables();
 
 // --- Panel catalog ------------------------------------------------------------
 export type PanelType = 51 | 64 | 78;
@@ -47,10 +54,16 @@ export interface PanelSpec {
   cornerPost: { maxW: number; rows: { maxH: number; section: string; fixPerCourse?: 1 | 2 }[] }[];
   // Horizontal C-track selection (spec Table 3), consumed by pickHorizCtrack.
   // ORDERED bands: the matcher returns the first band where W <= wMax && H <= hMax,
-  // so list narrower-W / shorter-H bands first. The last band uses hMax: Infinity
-  // with outsideTable: true to cover heights beyond the table.
-  horizCtrack: { wMax: number; hMax: number; section: string; fix: 1 | 2; outsideTable?: boolean }[];
+  // so list narrower-W / shorter-H bands first. The last band uses hMax: null
+  // (unbounded -- see systemTables.ts) with outsideTable: true to cover
+  // heights beyond the table.
+  horizCtrack: { wMax: number; hMax: number | null; section: string; fix: 1 | 2; outsideTable?: boolean }[];
 }
+
+// cornerPost/horizCtrack per type, and the shaft vertical-track table below,
+// are admin-editable -- see systemTables.ts (Zod schema + defaults + Admin >
+// Maths persistence) for the single source of truth. PANELS just reads the
+// loaded/overridden values in at module load.
 
 export const PANELS: PanelSpec[] = [
   {
@@ -65,18 +78,8 @@ export const PANELS: PanelSpec[] = [
       { maxW: "4.5 m", maxH: "4.0 m", cTrack: "55 x 58 x 1.95", fix: "1/face" },
       { maxW: "4.5 m", maxH: "5.0 m", cTrack: "55 x 58 x 1.95", fix: "1/face" },
     ],
-    cornerPost: [
-      { maxW: 3.0, rows: [{ maxH: 3.0, section: "55 x 56 x 1.15" }, { maxH: 4.0, section: "55 x 57 x 1.50" }, { maxH: 5.0, section: "55 x 58 x 1.95" }] },
-      { maxW: 4.5, rows: [{ maxH: 3.0, section: "55 x 57 x 1.50" }, { maxH: 4.0, section: "55 x 58 x 1.95" }, { maxH: 5.0, section: "55 x 58 x 1.95" }] },
-    ],
-    horizCtrack: [
-      { wMax: 3.0, hMax: 3.0, section: "55 x 56 x 1.15", fix: 1 },
-      { wMax: 4.5, hMax: 3.0, section: "55 x 57 x 1.50", fix: 1 },
-      { wMax: 3.0, hMax: 4.0, section: "55 x 57 x 1.50", fix: 1 },
-      { wMax: 4.5, hMax: 4.0, section: "55 x 58 x 1.95", fix: 1 },
-      { wMax: 4.5, hMax: 5.0, section: "55 x 58 x 1.95", fix: 1 },
-      { wMax: 4.5, hMax: Infinity, section: "55 x 58 x 1.95", fix: 1, outsideTable: true },
-    ],
+    cornerPost: TABLES.cornerPost["51"],
+    horizCtrack: TABLES.horizCtrack["51"],
   },
   {
     type: 64, label: "P64", depth: "64 mm", frl: "-/90/90",
@@ -90,18 +93,8 @@ export const PANELS: PanelSpec[] = [
       { maxW: "4.5 m", maxH: "4.0 m", cTrack: "55 x 70 x 1.95", fix: "1/face" },
       { maxW: "4.5 m", maxH: "5.0 m", cTrack: "55 x 70 x 1.95", fix: "1/face" },
     ],
-    cornerPost: [
-      { maxW: 3.0, rows: [{ maxH: 3.0, section: "55 x 68 x 1.15" }, { maxH: 4.0, section: "55 x 69 x 1.50" }, { maxH: 5.0, section: "55 x 70 x 1.95" }] },
-      { maxW: 4.5, rows: [{ maxH: 3.0, section: "55 x 69 x 1.50" }, { maxH: 4.0, section: "55 x 70 x 1.95" }, { maxH: 5.0, section: "55 x 70 x 1.95" }] },
-    ],
-    horizCtrack: [
-      { wMax: 3.0, hMax: 3.0, section: "55 x 68 x 1.15", fix: 1 },
-      { wMax: 4.5, hMax: 3.0, section: "55 x 69 x 1.50", fix: 1 },
-      { wMax: 3.0, hMax: 4.0, section: "55 x 69 x 1.50", fix: 1 },
-      { wMax: 4.5, hMax: 4.0, section: "55 x 70 x 1.95", fix: 1 },
-      { wMax: 4.5, hMax: 5.0, section: "55 x 70 x 1.95", fix: 1 },
-      { wMax: 4.5, hMax: Infinity, section: "55 x 70 x 1.95", fix: 1, outsideTable: true },
-    ],
+    cornerPost: TABLES.cornerPost["64"],
+    horizCtrack: TABLES.horizCtrack["64"],
   },
   {
     type: 78, label: "P78", depth: "78 mm", frl: "-/120/120",
@@ -117,22 +110,10 @@ export const PANELS: PanelSpec[] = [
       { maxW: "4.5 m", maxH: "6.0 m", cTrack: "90 x 84 x 1.95", fix: "2/face" },
       { maxW: "5.0 m", maxH: "Unlimited", cTrack: "90 x 84 x 1.95", fix: "2/face", note: "Stacked/shaft" },
     ],
-    cornerPost: [
-      // H <= 4.5 m only -- the H > 4.5 m band (up to 6.0 m) is handled separately
-      // in pickCornerPost due to the footnote width-breakpoint shift (3.0 m -> 3.5 m at 6.0 m tall).
-      { maxW: 3.0, rows: [{ maxH: 3.0, section: "90 x 82 x 1.15" }, { maxH: 4.5, section: "90 x 83 x 1.50" }] },
-      { maxW: 4.5, rows: [{ maxH: 3.0, section: "90 x 83 x 1.50" }, { maxH: 4.5, section: "90 x 84 x 1.95" }] },
-    ],
-    horizCtrack: [
-      { wMax: 3.0, hMax: 3.0, section: "90 x 82 x 1.15", fix: 1 },
-      { wMax: 4.5, hMax: 3.0, section: "90 x 83 x 1.50", fix: 1 },
-      { wMax: 3.0, hMax: 4.5, section: "90 x 83 x 1.50", fix: 1 },
-      { wMax: 4.5, hMax: 4.5, section: "90 x 84 x 1.95", fix: 1 },
-      // P78 tall-wall band: the 1-screw width breakpoint drops to 3.5 m at 4.5-6.0 m tall.
-      { wMax: 3.5, hMax: 6.0, section: "90 x 84 x 1.95", fix: 1 },
-      { wMax: 4.5, hMax: 6.0, section: "90 x 84 x 1.95", fix: 2 },
-      { wMax: 4.5, hMax: Infinity, section: "90 x 84 x 1.95", fix: 2, outsideTable: true },
-    ],
+    // H <= 4.5 m only -- the H > 4.5 m band (up to 6.0 m) is handled separately
+    // in pickCornerPost due to the footnote width-breakpoint shift (3.0 m -> 3.5 m at 6.0 m tall).
+    cornerPost: TABLES.cornerPost["78"],
+    horizCtrack: TABLES.horizCtrack["78"],
   },
 ];
 
@@ -149,6 +130,7 @@ export const MAX_H_HORIZ: Record<number, number> = Object.fromEntries(PANELS.map
 export const SPAN_TABLE_VERT = PANELS.map(p => ({ type: p.label, maxW: p.spanVert.maxW, maxH: p.spanVert.maxH }));
 export const SPAN_TABLE_HORIZ: Record<number, PanelSpec["spanHoriz"]> = Object.fromEntries(PANELS.map(p => [p.type, p.spanHoriz]));
 export const CORNER_POST_TABLE: Record<number, PanelSpec["cornerPost"]> = Object.fromEntries(PANELS.map(p => [p.type, p.cornerPost]));
+export const HORIZ_CTRACK_TABLE: Record<number, PanelSpec["horizCtrack"]> = Object.fromEntries(PANELS.map(p => [p.type, p.horizCtrack]));
 export const TYPES = PANELS.map(p => ({ id: p.type, label: p.label, depth: p.depth, frl: p.frl }));
 
 /** Reverse-lookup: which panel type (51/64/78) a given pack size belongs to. */
@@ -175,6 +157,9 @@ export const MAX_W_HORIZ_STD_51_64 = MATH.MAX_W_HORIZ_STD_51_64;
 export const MAX_W_HORIZ_STACK_78 = MATH.MAX_W_HORIZ_STACK_78;
 export const STEEL_MAX_H_VERT = MATH.STEEL_MAX_H_VERT;
 export const CUSTOM_MAX_LENGTH = MATH.CUSTOM_MAX_LENGTH;
+// Order-waste warning threshold (%) -- shared by internal and external
+// estimates, see packPanels.ts's buildOption.
+export const HIGH_WASTE_WARNING_PCT = MATH.HIGH_WASTE_WARNING_PCT;
 // Shaft wall (see estimate_shaft_wall.md section 1): widest any single stack
 // wall can be is 5.0 m (the "wider option" primary). A linked secondary's own
 // sub-limit (2.5 m standard split / 2.0 m wider option) is shown as a note
@@ -199,6 +184,7 @@ export const EXT_CTRACK_STOCK = MATH.EXT_CTRACK_STOCK;
 export const EXT_MAX_H_VERT = MATH.EXT_MAX_H_VERT;
 export const EXT_MAX_W_HORIZ = MATH.EXT_MAX_W_HORIZ;
 export const EXT_MAX_W_HORIZ_STACK = MATH.EXT_MAX_W_HORIZ_STACK;
+export const EXT_STOCK_WASTE_THRESHOLD = MATH.EXT_STOCK_WASTE_THRESHOLD;
 export const EXT_CTRACK_DIM = "55 x 82 x 55 - 1.15 BMT";
 export const EXT_JTRACK_DIM = "J-track 1.15 BMT - weep holes @ 250 mm";
 export const EXT_ZFLASH_DIM = "Z-Flashing 78 mm - 0.7 mm BMT (Coloured)";
@@ -219,13 +205,10 @@ export const COLOUR_HEX: Record<string, string> = {
 };
 
 // --- Corner-post & shaft-track tables -----------------------------------------
-// CORNER_POST_TABLE is derived from PANELS above. SHAFT_TRACK_TABLE is not
-// per-type (P78-only, sized by floor height F), so it lives here directly.
-export const SHAFT_TRACK_TABLE: { maxF: number; section: string; fixPerCourse: 1 | 2 }[] = [
-  { maxF: 3.0, section: "90 x 82 x 1.50", fixPerCourse: 1 },
-  { maxF: 4.5, section: "90 x 84 x 1.95", fixPerCourse: 1 },
-  { maxF: 6.0, section: "90 x 84 x 1.95", fixPerCourse: 2 },
-];
+// CORNER_POST_TABLE/HORIZ_CTRACK_TABLE are derived from PANELS above.
+// SHAFT_TRACK_TABLE is not per-type (P78-only, sized by floor height F), so it
+// is sourced directly from TABLES (see systemTables.ts) instead of via PANELS.
+export const SHAFT_TRACK_TABLE = TABLES.shaftTrack;
 
 // --- SystemConfig: single source of truth for int vs ext differences ---------
 export interface SystemConfig {
@@ -244,6 +227,8 @@ export interface SystemConfig {
   sealantPerBox: number;
   ctrackDimFn: (type: number, horizProfile: string | null) => string;
   jtrackDimFn: (type: number) => string;
+  wasteThreshold: number;
+  highWastePct: number;
 }
 
 export const INT_CONFIG: SystemConfig = {
@@ -262,6 +247,8 @@ export const INT_CONFIG: SystemConfig = {
   sealantPerBox:   SEALANT_PER_BOX,
   ctrackDimFn:     (t, hp) => hp || `${CTRACK_DIM[t]} - 1.15 mm BMT`,
   jtrackDimFn:     (t) => `${JTRACK_DIM[t]} - 1.15 mm BMT`,
+  wasteThreshold:  STOCK_WASTE_THRESHOLD,
+  highWastePct:    HIGH_WASTE_WARNING_PCT,
 };
 
 export const EXT_CONFIG: SystemConfig = {
@@ -280,6 +267,8 @@ export const EXT_CONFIG: SystemConfig = {
   sealantPerBox:   EXT_SEALANT_PER_BOX,
   ctrackDimFn:     (_, hp) => hp || EXT_CTRACK_DIM,
   jtrackDimFn:     (_) => EXT_JTRACK_DIM,
+  wasteThreshold:  EXT_STOCK_WASTE_THRESHOLD,
+  highWastePct:    HIGH_WASTE_WARNING_PCT,
 };
 
 // --- Locked system data (display-only reference tables) -----------------------
