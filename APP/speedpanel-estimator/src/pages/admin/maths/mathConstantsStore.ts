@@ -49,14 +49,23 @@ export function useMathConstantsStore() {
     // (matching mathConstants.ts's original, Supabase-agnostic contract) --
     // Supabase is an additional cross-device sync layer on top, not a
     // replacement for it, so its absence/failure never blocks a local save.
+    // The sync attempt is wrapped in try/catch (not just a returned {error})
+    // since a network failure throws rather than resolving -- without this,
+    // an unreachable Supabase would skip saveMathConstants() entirely and
+    // silently discard the admin's edit instead of just failing to sync it.
+    let syncError: string | null = null;
     if (supabase) {
-      const { error } = await supabase.from("math_constants")
-        .update({ values, updated_at: new Date().toISOString() }).eq("id", SINGLETON_ID);
-      if (error) return error.message;
+      try {
+        const { error } = await supabase.from("math_constants")
+          .update({ values, updated_at: new Date().toISOString() }).eq("id", SINGLETON_ID);
+        if (error) syncError = error.message;
+      } catch (e) {
+        syncError = e instanceof Error ? e.message : "Failed to sync to the server.";
+      }
     }
     saveMathConstants(values);
     setDraft(values);
-    return null;
+    return syncError;
   };
 
   const resetToDefaults = () => save(MATH_CONSTANT_DEFAULTS);
