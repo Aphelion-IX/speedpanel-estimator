@@ -76,6 +76,22 @@ export function useCompanyMembers(companyId: string | null) {
     return null;
   };
 
+  // Admin-only shortcut (see AdminCompaniesPage.tsx's canDirectAdd) for an
+  // account that already exists (e.g. created directly in Supabase) --
+  // bypasses the invite/accept flow entirely via admin_add_company_member_by_email,
+  // which is has_staff_role(array[])-gated (super_admin) server-side, same
+  // defense-in-depth as every other admin RPC. Errors if no account exists
+  // yet for that email; the caller should fall back to inviteMember above.
+  const addExistingMember = async (input: { email: string; role: CompanyRole }): Promise<string | null> => {
+    if (!supabase || !companyId) return NOT_CONFIGURED;
+    const { error } = await supabase.rpc("admin_add_company_member_by_email", {
+      p_company_id: companyId, p_email: input.email, p_role: input.role,
+    });
+    if (error) return error.message;
+    await load();
+    return null;
+  };
+
   const resendInvitation = async (invitationId: string): Promise<string | null> => {
     if (!supabase) return NOT_CONFIGURED;
     const { error } = await supabase.functions.invoke("company-invite-member", { body: { action: "resend", invitationId } });
@@ -124,7 +140,7 @@ export function useCompanyMembers(companyId: string | null) {
     return { activeProjectsAsPm: row.active_projects_as_pm, draftOrders: row.draft_orders, openReviewsAsPm: row.open_reviews_as_pm };
   };
 
-  return { ...state, reload: load, inviteMember, resendInvitation, cancelInvitation, setRole, setStatus, removeMember, removalWarnings };
+  return { ...state, reload: load, inviteMember, addExistingMember, resendInvitation, cancelInvitation, setRole, setStatus, removeMember, removalWarnings };
 }
 
 interface MyInvitationsState { invitations: InvitationRow[]; loading: boolean; error: string | null; }

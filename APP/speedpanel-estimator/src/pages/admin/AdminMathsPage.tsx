@@ -101,10 +101,16 @@ export const AdminMathsPage = () => {
     setTables(t => ({ ...t, shaftTrack: rows }));
   };
 
+  // save()/resetToDefaults() always reload: both stores now persist locally
+  // regardless of whether the Supabase sync succeeds (see mathConstantsStore.ts/
+  // systemTablesStore.ts), so a non-null err here means only that cross-device
+  // sync failed, not that this device's edit was lost -- worth telling the
+  // admin (so they know to retry once back online), but not worth blocking
+  // the reload that actually applies their change to this session.
   const save = async () => {
     const [constErr, tablesErr] = await Promise.all([mathStore.save(constants), tablesStore.save(tables)]);
     const err = constErr || tablesErr;
-    if (err) { window.alert(err); return; }
+    if (err) window.alert(`Saved on this device, but failed to sync to the server: ${err}\n\nOther devices won't see this change until you save again while online.`);
     window.location.reload();
   };
   const cancel = () => {
@@ -114,7 +120,7 @@ export const AdminMathsPage = () => {
   const resetToDefaults = async () => {
     const [constErr, tablesErr] = await Promise.all([mathStore.save(MATH_CONSTANT_DEFAULTS), tablesStore.save(SYSTEM_TABLES_DEFAULTS)]);
     const err = constErr || tablesErr;
-    if (err) { window.alert(err); return; }
+    if (err) window.alert(`Reset on this device, but failed to sync to the server: ${err}\n\nOther devices won't see this change until you reset again while online.`);
     window.location.reload();
   };
 
