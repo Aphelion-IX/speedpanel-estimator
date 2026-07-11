@@ -10,14 +10,21 @@
 // AdminRequestsPage.tsx gives requests.project_snapshot -- a full read-only
 // render of the calculator UI against someone else's project is a much
 // bigger lift, left as a future improvement if this proves insufficient.
+//
+// For a project_manager viewer, an extra "My active projects" section below
+// the review queue shows the broader pipeline (every non-approved project
+// for their companies, not just what's awaiting a decision) -- relocated
+// from the now-deleted My Assignments page, since the review queue itself
+// is scoped to their companies too now (see adminProjectsStore.ts).
 // =============================================================================
 import { useState } from "react";
 import { cx, NAVY, MUTED } from "../../../styleTokens";
 import { AccordionCard } from "../../../ui/primitives";
 import { TextAreaField } from "../../shared/fields";
 import { StageStepper } from "../../projects/StageStepper";
-import { useAdminProjects } from "./adminProjectsStore";
-import type { ProjectRow } from "../../projects/projectTypes";
+import { useAdminProjects, useMyPmProjects } from "./adminProjectsStore";
+import { STAGE_LABELS, PROJECT_STAGE_BADGE_CLASS, type ProjectRow } from "../../projects/projectTypes";
+import type { InternalRole } from "../../company/staffTypes";
 
 const ProjectReviewRow = ({ item, onApproveInstall, onChangesInstall, onApproveTechnical, onChangesTechnical }: {
   item: ProjectRow;
@@ -93,8 +100,31 @@ const ProjectReviewRow = ({ item, onApproveInstall, onChangesInstall, onApproveT
   );
 };
 
-export const AdminProjectsPage = () => {
-  const { projects, loading, error, reload, approveInstallReview, requestInstallChanges, approveTechnicalReview, requestTechnicalChanges } = useAdminProjects();
+const MyActiveProjectsSection = ({ companyIds }: { companyIds: string[] }) => {
+  const { projects, loading } = useMyPmProjects(companyIds);
+  if (loading || projects.length === 0) return null;
+  return (
+    <div className="mt-6">
+      <div className={cx.cardHd}>My active projects ({projects.length})</div>
+      <div className="mt-2 space-y-2">
+        {projects.map(p => (
+          <div key={p.id} className={`${cx.card} flex flex-wrap items-center justify-between gap-2`}>
+            <span className="text-sm font-semibold" style={{ color: NAVY }}>{p.name}</span>
+            <span className={`${cx.badge} ${PROJECT_STAGE_BADGE_CLASS[p.stage]}`}>{STAGE_LABELS[p.stage]}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+export const AdminProjectsPage = ({ userId, staffRole, staffRoleLoading }: {
+  userId: string | null; staffRole: InternalRole | null; staffRoleLoading: boolean;
+}) => {
+  const { projects, scope, loading, error, reload, approveInstallReview, requestInstallChanges, approveTechnicalReview, requestTechnicalChanges } = useAdminProjects(userId, staffRole, staffRoleLoading);
+  const myProjectsSection = staffRole === "project_manager"
+    ? <MyActiveProjectsSection companyIds={scope.kind === "companies" ? scope.companyIds : []} />
+    : null;
 
   if (loading) return <div className={`${cx.card} mt-6 text-sm`} style={{ color: MUTED }}>Loading...</div>;
 
@@ -109,8 +139,11 @@ export const AdminProjectsPage = () => {
 
   if (projects.length === 0) {
     return (
-      <div className={`${cx.card} mt-6 text-center`}>
-        <p className={cx.footnote}>No projects awaiting review.</p>
+      <div className="mt-2">
+        <div className={`${cx.card} mt-4 text-center`}>
+          <p className={cx.footnote}>No projects awaiting review.</p>
+        </div>
+        {myProjectsSection}
       </div>
     );
   }
@@ -122,6 +155,7 @@ export const AdminProjectsPage = () => {
           onApproveInstall={approveInstallReview} onChangesInstall={requestInstallChanges}
           onApproveTechnical={approveTechnicalReview} onChangesTechnical={requestTechnicalChanges} />
       ))}
+      {myProjectsSection}
     </div>
   );
 };

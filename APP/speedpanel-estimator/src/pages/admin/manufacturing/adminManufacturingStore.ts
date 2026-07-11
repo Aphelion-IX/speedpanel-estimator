@@ -29,11 +29,18 @@
 // narrow "awaiting a decision" queue, this data IS the permanent fulfillment
 // record for every confirmed order for as long as it exists, so it only
 // ever grows.
+//
+// Scoped to the caller's assigned companies via useMyQueueScope/
+// applyQueueScope (see shared/useMyQueueScope.ts), applied inside fetchPage
+// so pagination stays scope-consistent across pages -- a super_admin (or any
+// account with no staff_role) still sees every order, unfiltered.
 // =============================================================================
 import { useCallback, useEffect, useState } from "react";
 import { z } from "zod";
 import { supabase } from "../../../lib/supabaseClient";
 import { OrderRowSchema, OrderDeliveryRowSchema, type OrderRow, type OrderDeliveryRow, type DeliveryStatus } from "../../projects/orders/orderTypes";
+import { useMyQueueScope, applyQueueScope, type QueueScope } from "../shared/useMyQueueScope";
+import type { InternalRole } from "../../company/staffTypes";
 
 const NOT_CONFIGURED = "Manufacturing & delivery aren't configured for this environment.";
 const BAD_SHAPE = "Unexpected data shape from the server.";
@@ -51,9 +58,10 @@ export interface AdminManufacturingOrder {
 
 interface ManufacturingState { rows: AdminManufacturingOrder[]; loading: boolean; loadingMore: boolean; error: string | null; hasMore: boolean; }
 
-async function fetchPage(from: number, to: number): Promise<{ rows: AdminManufacturingOrder[] } | { error: string }> {
-  const { data: orderData, error: orderError } = await supabase!.from("orders")
-    .select("*, projects(name)").eq("stage", "proforma_issued").order("proforma_issued_at", { ascending: false }).range(from, to);
+async function fetchPage(from: number, to: number, scope: QueueScope): Promise<{ rows: AdminManufacturingOrder[] } | { error: string }> {
+  const { data: orderData, error: orderError } = await applyQueueScope(
+    supabase!.from("orders").select("*, projects(name)").eq("stage", "proforma_issued"), scope,
+  ).order("proforma_issued_at", { ascending: false }).range(from, to);
   if (orderError) return { error: orderError.message };
   const parsedOrders = AdminManufacturingOrderRowSchema.array().safeParse(orderData ?? []);
   if (!parsedOrders.success) return { error: BAD_SHAPE };
@@ -75,7 +83,8 @@ async function fetchPage(from: number, to: number): Promise<{ rows: AdminManufac
   };
 }
 
-export function useAdminManufacturing() {
+export function useAdminManufacturing(userId: string | null, staffRole: InternalRole | null, staffRoleLoading: boolean) {
+  const { scope, loading: scopeLoading, error: scopeError } = useMyQueueScope(userId, staffRole, staffRoleLoading);
   const [state, setState] = useState<ManufacturingState>(() =>
     supabase
       ? { rows: [], loading: true, loadingMore: false, error: null, hasMore: false }
@@ -83,12 +92,13 @@ export function useAdminManufacturing() {
   );
 
   const load = useCallback(async () => {
-    if (!supabase) return;
+    if (!supabase || scopeLoading) return;
+    if (scopeError) { setState({ rows: [], loading: false, loadingMore: false, error: scopeError, hasMore: false }); return; }
     setState(s => ({ ...s, loading: true, error: null }));
-    const result = await fetchPage(0, PAGE_SIZE - 1);
+    const result = await fetchPage(0, PAGE_SIZE - 1, scope);
     if ("error" in result) { setState({ rows: [], loading: false, loadingMore: false, error: result.error, hasMore: false }); return; }
     setState({ rows: result.rows, loading: false, loadingMore: false, error: null, hasMore: result.rows.length === PAGE_SIZE });
-  }, []);
+  }, [scopeLoading, scopeError, scope.kind === "companies" ? scope.companyIds.join(",") : "all"]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -96,7 +106,7 @@ export function useAdminManufacturing() {
     if (!supabase) return;
     setState(s => ({ ...s, loadingMore: true }));
     const from = state.rows.length;
-    const result = await fetchPage(from, from + PAGE_SIZE - 1);
+    const result = await fetchPage(from, from + PAGE_SIZE - 1, scope);
     if ("error" in result) { setState(s => ({ ...s, loadingMore: false, error: result.error })); return; }
     setState(s => ({ ...s, rows: [...s.rows, ...result.rows], loadingMore: false, hasMore: result.rows.length === PAGE_SIZE }));
   };

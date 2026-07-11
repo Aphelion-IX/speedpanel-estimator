@@ -34,7 +34,6 @@ import { AdminOrdersPage } from "./AdminOrdersPage";
 import { AdminManufacturingPage } from "./AdminManufacturingPage";
 import { AdminCompaniesPage } from "./AdminCompaniesPage";
 import { AdminPermissionsPage } from "./AdminPermissionsPage";
-import { AdminMyAssignmentsPage } from "./myAssignments/AdminMyAssignmentsPage";
 import { useMyInternalRole } from "./useMyInternalRole";
 import { canAccessSection } from "./adminSectionAccess";
 
@@ -72,16 +71,15 @@ export const AdminRoot = ({ route, navigate, layoutMode, auth }: {
             {allowed && route.sub === "systems"   && <AdminSystemsPage layoutMode={layoutMode} />}
             {allowed && route.sub === "maths"     && <AdminMathsPage />}
             {allowed && route.sub === "documents" && <AdminDocumentsPage layoutMode={layoutMode} />}
-            {allowed && route.sub === "requests"  && <AdminRequestsPage />}
-            {allowed && route.sub === "projectReviews" && <AdminProjectsPage />}
+            {allowed && route.sub === "requests"  && <AdminRequestsPage userId={auth.user?.id ?? null} staffRole={staffRole} staffRoleLoading={roleLoading} />}
+            {allowed && route.sub === "projectReviews" && <AdminProjectsPage userId={auth.user?.id ?? null} staffRole={staffRole} staffRoleLoading={roleLoading} />}
             {allowed && route.sub === "users"     && <AdminUsersPage auth={auth} />}
             {allowed && route.sub === "analytics" && <AdminAnalyticsPage />}
             {allowed && route.sub === "auditLog"  && <AdminAuditLogPage />}
-            {allowed && route.sub === "orders"    && <AdminOrdersPage />}
-            {allowed && route.sub === "manufacturing" && <AdminManufacturingPage />}
+            {allowed && route.sub === "orders"    && <AdminOrdersPage userId={auth.user?.id ?? null} staffRole={staffRole} staffRoleLoading={roleLoading} />}
+            {allowed && route.sub === "manufacturing" && <AdminManufacturingPage userId={auth.user?.id ?? null} staffRole={staffRole} staffRoleLoading={roleLoading} />}
             {allowed && route.sub === "companies" && <AdminCompaniesPage auth={auth} />}
             {allowed && route.sub === "permissions" && <AdminPermissionsPage />}
-            {allowed && route.sub === "myAssignments" && <AdminMyAssignmentsPage auth={auth} />}
           </>
         )}
       </AdminGate>
