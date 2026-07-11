@@ -45,6 +45,7 @@
 // =============================================================================
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "../../../lib/supabaseClient";
+import { unwrapInvokeError } from "../../../lib/edgeFunctionError";
 import { AdminUserRowSchema, type AdminUserRow } from "./userTypes";
 import type { InternalRole } from "../../company/staffTypes";
 
@@ -125,24 +126,7 @@ export function useAdminUsers() {
   const inviteUser = async (email: string, staffRole: InternalRole, password?: string): Promise<{ id: string | null; error: string | null }> => {
     if (!supabase) return { id: null, error: NOT_CONFIGURED };
     const { data, error } = await supabase.functions.invoke<{ id?: string }>("admin-invite-user", { body: { email, role: "admin", staffRole, ...(password ? { password } : {}) } });
-    if (error) {
-      // A non-2xx response leaves `data` null and `error` a generic
-      // FunctionsHttpError whose `.context` is the raw Response -- our
-      // function always returns a JSON { error } body in that case, so read
-      // it instead of surfacing supabase-js's generic status-code message.
-      // context is NOT a Response for other failure modes (e.g. the
-      // function isn't deployed / a network error), so guard with
-      // `instanceof` rather than assuming the shape.
-      const context = (error as { context?: unknown }).context;
-      let message = error.message;
-      if (context instanceof Response) {
-        try {
-          const body: { error?: string } = await context.clone().json();
-          if (body?.error) message = body.error;
-        } catch { /* not JSON -- keep the generic message */ }
-      }
-      return { id: null, error: message };
-    }
+    if (error) return { id: null, error: await unwrapInvokeError(error) };
     await load();
     return { id: data?.id ?? null, error: null };
   };
