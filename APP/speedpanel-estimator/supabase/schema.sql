@@ -1536,10 +1536,16 @@ create policy "Members can read their own membership rows" on company_membership
 -- invitation-acceptance path, admin_set_user_company), each of which does
 -- its own privilege check before writing.
 
+-- email = auth.email() (JWT claim, not a table read) -- authenticated has no
+-- direct SELECT grant on auth.users, so a subquery against it here would
+-- fail with "permission denied for table users" for any caller who isn't
+-- already a company_admin/is_admin() (i.e. every plain user checking their
+-- own pending invitations, exactly the useMyPendingInvitations/
+-- PendingInvitationsBanner.tsx path -- see the original bug this replaced).
 create policy "Company admins can read their own invitations" on invitations
   for select using (
     public.is_company_admin(company_id)
-    or email = (select email from auth.users where id = auth.uid())
+    or email = auth.email()
     or public.is_admin()
   );
 
