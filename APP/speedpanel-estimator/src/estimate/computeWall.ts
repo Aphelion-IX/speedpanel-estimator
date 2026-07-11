@@ -84,9 +84,9 @@ export function computeWall(rawInp: WallInput, cfg: SystemConfig): ComputeOut {
   // Steel + standard vertical is excluded here because buildPieces pre-splits those
   // strips at the 6.0 m boundary, so all pieces are already <= 6.0 m before packPanels.
   const allowLong = profile !== "standard" || isStackedShaft;
-  const rawCut = packPanels(pieces, forced, cfg.stocks, allowLong);
+  const rawCut = packPanels(pieces, forced, cfg.stocks, allowLong, cfg.wasteThreshold);
   const packSize = cfg.packSizeFn(type);
-  const chosen = buildOption(rawCut, type);
+  const chosen = buildOption(rawCut, type, cfg.highWastePct);
   if (rawCut.exceeds) warnings.push("Panel exceeds max stock length. Contact Speedpanel.");
   else if (rawCut.tooShort) warnings.push(`Selected length ${r1(forced!)} m is shorter than the longest panel needed.`);
   if (orient === "horizontal" && profile !== "standard") notes.push("Horizontal raked/gable rows are sized to the widest point within each 250 mm row band.");

@@ -5,16 +5,16 @@
 // section for a given wall's dimensions (or, for the shaft vertical track,
 // floor height alone). See estimate_free_corner_wall.md / estimate_shaft_wall.md.
 // =============================================================================
-import { PANELS, CORNER_POST_TABLE, SHAFT_TRACK_TABLE } from "../data";
+import { HORIZ_CTRACK_TABLE, CORNER_POST_TABLE, SHAFT_TRACK_TABLE } from "../data";
 
 // --- C-track selection (spec Table 3) ----------------------------------------
-// Data-driven from PANELS[].horizCtrack: return the first ordered band whose
+// Data-driven from HORIZ_CTRACK_TABLE[type]: return the first ordered band whose
 // W/H envelope contains the wall (the band list is ordered narrower-W/shorter-H
 // first, so this reproduces the original spec-table lookup exactly). Returns
-// null when W/H is beyond every band (e.g. W > 4.5 m).
+// null when W/H is beyond every band (e.g. W > 4.5 m). hMax === null means
+// unbounded (see systemTables.ts).
 export const pickHorizCtrack = (type: number, W: number, H: number) => {
-  const panel = PANELS.find(p => p.type === type);
-  const band = panel?.horizCtrack.find(b => W <= b.wMax && H <= b.hMax);
+  const band = HORIZ_CTRACK_TABLE[type]?.find(b => W <= b.wMax && (b.hMax === null || H <= b.hMax));
   return band ? { t: band.section, fix: band.fix, outsideTable: !!band.outsideTable } : null;
 };
 
