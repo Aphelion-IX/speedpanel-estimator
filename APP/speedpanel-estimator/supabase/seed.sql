@@ -13,8 +13,20 @@
 -- itself the "protected setup script" -- it never runs client-side and
 -- never ships the service-role key anywhere).
 --
+-- The password itself is NEVER a literal in this file (a hardcoded value
+-- here would be a real, working credential to whatever project this seed
+-- is applied against, committed straight into git history) -- it's read
+-- from the E2E_SEED_PASSWORD environment variable via psql's `\set`
+-- backtick-shell-command substitution, which runs on the machine invoking
+-- psql/`supabase db reset`, not inside the SQL itself. Set it before
+-- running this file: `export E2E_SEED_PASSWORD='...'` (see e2e/README.md).
+-- Applying this via the Supabase MCP connector's execute_sql (which can't
+-- run psql meta-commands) means substituting the real value directly into
+-- that one tool call instead -- never write it back into this file.
+--
 -- See supabase/teardown-e2e.sql to remove everything this file creates.
 -- =============================================================================
+\set seed_password `printf '%s' "${E2E_SEED_PASSWORD:?Set E2E_SEED_PASSWORD before running seed.sql -- see e2e/README.md}"`
 
 -- ---------------------------------------------------------------------------
 -- 1. Auth users + identities (triggers handle_new_user(), which creates the
@@ -23,7 +35,7 @@
 -- ---------------------------------------------------------------------------
 do $$
 declare
-  v_password text := 'E2eTest!Passw0rd';
+  v_password text := :'seed_password';
   v_users jsonb := '[
     {"id": "eeeeeeee-0000-0000-0000-000000000001", "email": "admin@e2e.test"},
     {"id": "eeeeeeee-0000-0000-0000-000000000002", "email": "project-manager@e2e.test"},
