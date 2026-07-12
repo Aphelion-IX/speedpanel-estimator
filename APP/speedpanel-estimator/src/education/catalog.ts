@@ -20,6 +20,10 @@ export interface EduDocument {
   // it works both in dev and once deployed under the GitHub Pages subpath. Mock
   // entries with no real PDF yet simply omit this field.
   fileUrl?: string;
+  // Full extracted PDF text (admin_documents.search_text), used by
+  // EducationHub's search box in addition to the metadata fields below.
+  // Empty/undefined for mock entries with no PDF.
+  searchText?: string;
 }
 export const EDU_CATEGORIES = [
   "All", "Technical Guides", "Installation", "Connection Details",

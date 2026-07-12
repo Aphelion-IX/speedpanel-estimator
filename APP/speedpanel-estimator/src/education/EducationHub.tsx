@@ -23,10 +23,10 @@ import { RecentlyViewedStrip } from "./RecentlyViewedStrip";
 import { DocumentCard } from "./DocumentCard";
 import { DocumentDetailPanel, type DetailTab } from "./DocumentDetailPanel";
 
-// Metadata-only match -- see educationCatalogStore.ts's header comment for why
-// this replaced the old extracted-PDF-text MiniSearch index.
+// Matches metadata plus the document's full extracted PDF text (searchText,
+// empty for mock entries with no PDF) -- see educationCatalogStore.ts.
 const matchesQuery = (d: EduDocument, q: string): boolean =>
-  [d.title, d.category, d.description, ...d.tags].some(f => f.toLowerCase().includes(q));
+  [d.title, d.category, d.description, d.searchText ?? "", ...d.tags].some(f => f.toLowerCase().includes(q));
 
 export const EducationHub = ({ layoutMode }: { layoutMode: EffectiveLayout }) => {
   const { documents, loading, error, reload } = useEducationCatalog();

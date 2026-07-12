@@ -543,7 +543,13 @@ create table if not exists admin_documents (
   page_count int not null default 0,
   swatch text not null default '',
   sections jsonb not null default '[]'::jsonb,
-  file_url text
+  file_url text,
+  -- Full extracted PDF text, written by scripts/add-education-doc.mjs (via
+  -- pdf-parse) for real documents; empty for mock entries with no PDF. Not
+  -- exposed in the Admin > Documents edit form -- see
+  -- src/education/educationCatalogStore.ts for the read side that powers
+  -- Education Hub full-text search.
+  search_text text not null default ''
 );
 
 alter table admin_documents enable row level security;
