@@ -21,7 +21,6 @@ const SECTION_ROLES: Partial<Record<AdminSubPage, StaffRole[]>> = {
   projectReviews: ["project_manager", "technical_services"],
   orders: ["internal_sales"],
   manufacturing: ["dispatch"],
-  myAssignments: ["project_manager", "bdm", "internal_sales", "dispatch", "technical_services"],
 };
 
 // null/undefined (not yet assigned) and 'super_admin' always pass, matching

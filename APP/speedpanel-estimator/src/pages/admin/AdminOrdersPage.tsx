@@ -17,6 +17,7 @@ import { useOrderDeliveries } from "../projects/orders/orderDeliveriesStore";
 import { OrderLineItemsTable, type DraftLineItem } from "../projects/orders/OrderLineItemsTable";
 import { DeliveryBatchCard } from "../projects/orders/DeliveryBatchCard";
 import type { OrderRow } from "../projects/orders/orderTypes";
+import type { InternalRole } from "../company/staffTypes";
 
 const AdminOrderRow = ({ order, onIssue, onCancel }: {
   order: OrderRow;
@@ -82,8 +83,10 @@ const AdminOrderRow = ({ order, onIssue, onCancel }: {
   );
 };
 
-export const AdminOrdersPage = () => {
-  const { orders, loading, error, reload, issueProforma, cancelOrder } = useAdminOrders();
+export const AdminOrdersPage = ({ userId, staffRole, staffRoleLoading }: {
+  userId: string | null; staffRole: InternalRole | null; staffRoleLoading: boolean;
+}) => {
+  const { orders, loading, error, reload, issueProforma, cancelOrder } = useAdminOrders(userId, staffRole, staffRoleLoading);
 
   if (loading) return <div className={`${cx.card} mt-6 text-sm`} style={{ color: MUTED }}>Loading...</div>;
 

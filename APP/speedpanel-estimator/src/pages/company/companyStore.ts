@@ -9,11 +9,13 @@
 // useCompanyStaffTeam (read-only "Your Speedpanel Team" data). Company
 // creation itself has no store here anymore -- it's Speedpanel-admin-only,
 // see admin/companies/adminCompaniesWizardStore.ts. inviteMember's
-// error-unwrapping mirrors usersStore.ts's inviteUser -- see that file's own
-// comment for why `context instanceof Response` matters.
+// error-unwrapping uses the shared unwrapInvokeError() helper (see
+// lib/edgeFunctionError.ts) -- same FunctionsHttpError shape as every other
+// Edge Function invoke() in this app.
 // =============================================================================
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "../../lib/supabaseClient";
+import { unwrapInvokeError } from "../../lib/edgeFunctionError";
 import {
   CompanyMemberRowSchema, InvitationRowSchema, AuditLogRowSchema,
   type CompanyMemberRow, type InvitationRow, type AuditLogRow, type CompanyRole, type MembershipStatus,
@@ -58,20 +60,7 @@ export function useCompanyMembers(companyId: string | null) {
     const { error } = await supabase.functions.invoke("company-invite-member", {
       body: { companyId, email: input.email, role: input.role, name: input.name, message: input.message, projectIds: input.projectIds },
     });
-    if (error) {
-      // Same FunctionsHttpError unwrapping as usersStore.ts's inviteUser --
-      // context is only a Response for a non-2xx HTTP response from the
-      // function itself, never for network/not-deployed failures.
-      const context = (error as { context?: unknown }).context;
-      let message = error.message;
-      if (context instanceof Response) {
-        try {
-          const body: { error?: string } = await context.clone().json();
-          if (body?.error) message = body.error;
-        } catch { /* not JSON -- keep the generic message */ }
-      }
-      return message;
-    }
+    if (error) return unwrapInvokeError(error);
     await load();
     return null;
   };

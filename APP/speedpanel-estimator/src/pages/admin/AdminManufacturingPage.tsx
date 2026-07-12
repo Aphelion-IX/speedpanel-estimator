@@ -15,6 +15,7 @@ import { Field, NumField } from "../shared/fields";
 import { useAdminManufacturing, type AdminManufacturingOrder } from "./manufacturing/adminManufacturingStore";
 import { DeliveryBatchCard } from "../projects/orders/DeliveryBatchCard";
 import { totalPanelCount, type DeliveryStatus } from "../projects/orders/orderTypes";
+import type { InternalRole } from "../company/staffTypes";
 
 const ManufacturingRow = ({ row, onSaveManufacturing, onStatusChange }: {
   row: AdminManufacturingOrder;
@@ -74,8 +75,10 @@ const ManufacturingRow = ({ row, onSaveManufacturing, onStatusChange }: {
   );
 };
 
-export const AdminManufacturingPage = () => {
-  const { rows, loading, loadingMore, hasMore, error, reload, loadMore, updateManufacturing, updateDeliveryStatus } = useAdminManufacturing();
+export const AdminManufacturingPage = ({ userId, staffRole, staffRoleLoading }: {
+  userId: string | null; staffRole: InternalRole | null; staffRoleLoading: boolean;
+}) => {
+  const { rows, loading, loadingMore, hasMore, error, reload, loadMore, updateManufacturing, updateDeliveryStatus } = useAdminManufacturing(userId, staffRole, staffRoleLoading);
 
   if (loading) return <div className={`${cx.card} mt-6 text-sm`} style={{ color: MUTED }}>Loading...</div>;
 

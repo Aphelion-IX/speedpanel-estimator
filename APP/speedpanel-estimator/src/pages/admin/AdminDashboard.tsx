@@ -1,4 +1,4 @@
-import { Package, Layers, Calculator, FileText, ClipboardList, FolderCheck, Users, BarChart3, History, Truck, Factory, Building2, UserCheck, ShieldCheck } from "lucide-react";
+import { Package, Layers, Calculator, FileText, ClipboardList, FolderCheck, Users, BarChart3, History, Truck, Factory, Building2, ShieldCheck } from "lucide-react";
 import { cx, BLUE, NAVY } from "../../styleTokens";
 import { PlaceholderPage } from "../PlaceholderPage";
 import { BackendStatusCard } from "./BackendStatusCard";
@@ -20,7 +20,6 @@ const ADMIN_GROUPS: { heading: string; items: AdminSection[] }[] = [
       { key: "projectReviews", label: "Project Reviews", description: "Saved projects awaiting an install or technical review.", icon: <FolderCheck size={16} /> },
       { key: "orders",    label: "Orders",    description: "Customer orders awaiting a pro forma invoice.", icon: <Truck size={16} /> },
       { key: "manufacturing", label: "Manufacturing & Delivery", description: "Update panel manufacturing progress and delivery status for confirmed orders.", icon: <Factory size={16} /> },
-      { key: "myAssignments", label: "My Assignments", description: "Companies and work assigned to you as Speedpanel staff.", icon: <UserCheck size={16} /> },
     ],
   },
   {
@@ -28,7 +27,7 @@ const ADMIN_GROUPS: { heading: string; items: AdminSection[] }[] = [
     items: [
       { key: "users",     label: "Users",     description: "Signed-up accounts and admin role management.", icon: <Users size={16} /> },
       { key: "companies", label: "Companies", description: "Company workspace records and support visibility.", icon: <Building2 size={16} /> },
-      { key: "permissions", label: "Permissions", description: "Grant staff or company access to an existing account, without an invite.", icon: <ShieldCheck size={16} /> },
+      { key: "permissions", label: "Permissions", description: "Onboard a new external user or attach an existing account to a company.", icon: <ShieldCheck size={16} /> },
     ],
   },
   {
@@ -41,8 +40,8 @@ const ADMIN_GROUPS: { heading: string; items: AdminSection[] }[] = [
   {
     heading: "Catalog",
     items: [
-      { key: "products",  label: "Products",  description: "Panel, track and fixing product data.",   icon: <Package size={16} /> },
-      { key: "systems",   label: "Systems",   description: "Wall system definitions and spans.",       icon: <Layers size={16} /> },
+      { key: "products",  label: "Products",  description: "Panel, track, fixing, sealant and colour product data.",   icon: <Package size={16} /> },
+      { key: "systems",   label: "Systems",   description: "Locked system reference data (Internal/External).", icon: <Layers size={16} /> },
       { key: "maths",     label: "Maths",     description: "Estimate calculation constants (waste, stock lengths, spans).", icon: <Calculator size={16} /> },
       { key: "documents", label: "Documents", description: "Education Hub document library.",          icon: <FileText size={16} /> },
     ],

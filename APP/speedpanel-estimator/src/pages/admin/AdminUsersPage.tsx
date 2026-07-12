@@ -13,13 +13,18 @@
 // convention as ProjectsRouter) rather than calling useAuth() again here,
 // which would open a second independent auth subscription.
 //
-// "Invite" creates a REAL account (not just a role pre-authorization) via
-// the admin-invite-user Edge Function -- see usersStore.ts's inviteUser and
-// supabase/functions/admin-invite-user/index.ts. The invited person gets a
-// Supabase email with a link to set their own password; this app never
-// generates or displays one. Always rendered (not gated behind the list's
-// own loading/error/empty states) so a super_admin can invite the very
-// first staff account even before any exists.
+// Creates a REAL account (not just a role pre-authorization) via the
+// admin-invite-user Edge Function -- see usersStore.ts's inviteUser and
+// supabase/functions/admin-invite-user/index.ts. Two methods, one form (a
+// "Method" dropdown rather than two separate cards, since they're the same
+// action with a different last step): "Send invite email" (the original
+// flow -- Supabase emails a set-password link, this app never generates or
+// displays one) or "Set password directly" (the account is live
+// immediately with the password typed here, no email sent -- for a
+// super_admin who creates the account themselves rather than having the
+// new hire self-serve). Always rendered (not gated behind the list's own
+// loading/error/empty states) so a super_admin can create the very first
+// staff account even before any exists.
 // =============================================================================
 import { useMemo, useState } from "react";
 import { Search } from "lucide-react";
@@ -34,39 +39,59 @@ const STAFF_ROLE_OPTIONS = INTERNAL_ROLES.map(value => ({ value, label: INTERNAL
 
 const ROLE_FILTER_OPTIONS = [{ value: "all", label: "All roles" }, ...STAFF_ROLE_OPTIONS];
 
-const InviteUserForm = ({ onInvite }: { onInvite: (email: string, staffRole: InternalRole) => Promise<string | null> }) => {
+const CREATE_METHOD_OPTIONS = [
+  { value: "password", label: "Set password directly" },
+  { value: "invite", label: "Send invite email" },
+];
+type CreateMethod = "password" | "invite";
+
+const CreateStaffForm = ({ onCreate }: { onCreate: (email: string, staffRole: InternalRole, password: string | null) => Promise<string | null> }) => {
+  const [method, setMethod] = useState<CreateMethod>("password");
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [staffRole, setStaffRole] = useState<InternalRole>("project_manager");
-  const [inviting, setInviting] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
+  const [success, setSuccess] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email.trim()) return;
-    setInviting(true);
+    if (!email.trim() || (method === "password" && password.length < 8)) return;
+    setSubmitting(true);
     setError(null);
-    setSuccess(false);
-    const err = await onInvite(email.trim(), staffRole);
-    setInviting(false);
+    setSuccess(null);
+    const err = await onCreate(email.trim(), staffRole, method === "password" ? password : null);
+    setSubmitting(false);
     if (err) { setError(err); return; }
     setEmail("");
-    setSuccess(true);
+    setPassword("");
+    setSuccess(method === "password" ? "Created -- their account is live now with the password you set." : "Invited -- they'll get an email to set their password.");
   };
 
   return (
     <div className={cx.card}>
-      <h1 className="text-sm font-bold" style={{ color: NAVY }}>Invite Speedpanel staff</h1>
-      <form onSubmit={handleSubmit} className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-end">
-        <div className="flex-1"><Field label="Email" value={email} onChange={setEmail} type="email" required autoComplete="email" /></div>
-        <div className="sm:w-56"><SelectField label="Role" value={staffRole} options={STAFF_ROLE_OPTIONS} onChange={v => setStaffRole(v as InternalRole)} /></div>
-        <button type="submit" disabled={inviting || !email.trim()}
-          className="h-[46px] shrink-0 rounded-xl px-5 text-sm font-bold disabled:opacity-50" style={{ background: BLUE, color: WHITE }}>
-          {inviting ? "Inviting..." : "Invite"}
-        </button>
+      <h1 className="text-sm font-bold" style={{ color: NAVY }}>Add Speedpanel staff</h1>
+      <form onSubmit={handleSubmit} className="mt-3 space-y-2">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+          <div className="sm:w-56"><SelectField label="Method" value={method} options={CREATE_METHOD_OPTIONS} onChange={v => setMethod(v as CreateMethod)} /></div>
+          <div className="flex-1"><Field label="Email" value={email} onChange={setEmail} type="email" required autoComplete="email" /></div>
+          <div className="sm:w-56"><SelectField label="Staff role" value={staffRole} options={STAFF_ROLE_OPTIONS} onChange={v => setStaffRole(v as InternalRole)} /></div>
+        </div>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+          {method === "password" && (
+            <div className="flex-1">
+              <Field label="Password" value={password} onChange={setPassword} type="password" required autoComplete="new-password" />
+              <p className="mt-1 text-xs" style={{ color: MUTED }}>At least 8 characters. Share it with them directly -- it's never shown again.</p>
+            </div>
+          )}
+          <button type="submit" disabled={submitting || !email.trim() || (method === "password" && password.length < 8)}
+            className="h-[46px] shrink-0 rounded-xl px-5 text-sm font-bold disabled:opacity-50" style={{ background: BLUE, color: WHITE }}>
+            {submitting ? "Adding..." : method === "password" ? "Create" : "Invite"}
+          </button>
+        </div>
       </form>
       {error && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{error}</p>}
-      {success && <p className="mt-2 text-sm font-semibold" style={{ color: BLUE }}>Invited -- they'll get an email to set their password.</p>}
+      {success && <p className="mt-2 text-sm font-semibold" style={{ color: BLUE }}>{success}</p>}
     </div>
   );
 };
@@ -118,42 +143,26 @@ const PromoteUserForm = ({ onPromote }: { onPromote: (email: string, staffRole: 
 // display_name/title/phone are how this person shows up on a customer's
 // "Your Speedpanel Team" card once assigned via Admin > Companies, see
 // supabase/schema.sql's admin_set_staff_profile.
-const StaffProfileForm = ({ item, onSave }: { item: AdminUserRow; onSave: (input: { displayName: string; title: string; phone: string }) => Promise<string | null> }) => {
-  const [displayName, setDisplayName] = useState(item.display_name ?? "");
-  const [title, setTitle] = useState(item.title ?? "");
-  const [phone, setPhone] = useState(item.phone ?? "");
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+//
+// One <tr> per person, inline-editable cells -- same underlying behavior as
+// the card layout this replaced (role change auto-applies on select, the
+// three profile fields batch into one Save click), just laid out as a table
+// row so a long staff list scans/compares in one glance instead of stacking
+// tall cards. Plain styled <input>/<select> elements (not Field/SelectField,
+// which each render their own <label> and aren't meant to sit inside a
+// <td>) -- same convention as RepeatableRowEditor's editable cells
+// (src/pages/admin/shared/repeatableRowEditor.tsx).
+const cellInputCx = "w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1.5 text-sm";
 
-  const handleSave = async () => {
-    setSaving(true);
-    setError(null);
-    const err = await onSave({ displayName: displayName.trim(), title: title.trim(), phone: phone.trim() });
-    setSaving(false);
-    if (err) setError(err);
-  };
-
-  return (
-    <div className="mt-3 grid gap-2 sm:grid-cols-3">
-      <Field label="Display name" value={displayName} onChange={setDisplayName} />
-      <Field label="Title" value={title} onChange={setTitle} />
-      <div className="flex items-end gap-2">
-        <div className="flex-1"><Field label="Phone" value={phone} onChange={setPhone} /></div>
-        <button onClick={handleSave} disabled={saving}
-          className="h-[46px] shrink-0 rounded-xl border border-slate-200 dark:border-slate-700 px-4 text-sm font-bold disabled:opacity-50" style={{ color: BLUE }}>
-          {saving ? "Saving..." : "Save"}
-        </button>
-      </div>
-      {error && <p className="text-sm text-red-600 dark:text-red-400 sm:col-span-3">{error}</p>}
-    </div>
-  );
-};
-
-const UserRow = ({ item, isSelf, onSetStaffRole, onSaveStaffProfile }: {
+const UserTableRow = ({ item, isSelf, onSetStaffRole, onSaveStaffProfile }: {
   item: AdminUserRow; isSelf: boolean;
   onSetStaffRole: (item: AdminUserRow, staffRole: InternalRole) => Promise<string | null>;
   onSaveStaffProfile: (item: AdminUserRow, input: { displayName: string; title: string; phone: string }) => Promise<string | null>;
 }) => {
+  const [displayName, setDisplayName] = useState(item.display_name ?? "");
+  const [title, setTitle] = useState(item.title ?? "");
+  const [phone, setPhone] = useState(item.phone ?? "");
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleSetStaffRole = async (staffRole: InternalRole) => {
@@ -162,29 +171,67 @@ const UserRow = ({ item, isSelf, onSetStaffRole, onSaveStaffProfile }: {
     if (err) setError(err);
   };
 
+  const handleSave = async () => {
+    setSaving(true);
+    setError(null);
+    const err = await onSaveStaffProfile(item, { displayName: displayName.trim(), title: title.trim(), phone: phone.trim() });
+    setSaving(false);
+    if (err) setError(err);
+  };
+
   return (
-    <div className={`${cx.card} mt-3`}>
-      <div className="flex items-start justify-between gap-2">
-        <div>
-          <div className="text-sm font-bold" style={{ color: NAVY }}>
-            {item.display_name || item.email || "(no email)"}{isSelf && <span className={cx.footnote}> (you)</span>}
-          </div>
-          <p className={cx.footnote}>Joined {new Date(item.created_at).toLocaleDateString()}</p>
+    <tr className="border-t border-slate-100 dark:border-slate-800 align-top">
+      <td className="py-2.5 pr-3">
+        <div className="text-sm font-bold" style={{ color: NAVY }}>
+          {item.display_name || item.email || "(no email)"}{isSelf && <span className={cx.footnote}> (you)</span>}
         </div>
-        <span className={`${cx.badge} bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400`}>
-          {item.staff_role ? INTERNAL_ROLE_LABELS[item.staff_role] : "Unassigned"}
-        </span>
-      </div>
-      <div className="mt-3 w-56">
-        <SelectField label="Internal role" value={item.staff_role ?? ""}
-          options={item.staff_role ? STAFF_ROLE_OPTIONS : [{ value: "", label: "Choose a role..." }, ...STAFF_ROLE_OPTIONS]}
-          onChange={v => v && handleSetStaffRole(v as InternalRole)} />
-      </div>
-      {error && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{error}</p>}
-      <StaffProfileForm item={item} onSave={input => onSaveStaffProfile(item, input)} />
-    </div>
+        <p className={cx.footnote}>Joined {new Date(item.created_at).toLocaleDateString()}</p>
+        {error && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{error}</p>}
+      </td>
+      <td className="py-2.5 pr-3 w-48">
+        <select value={item.staff_role ?? ""} onChange={e => e.target.value && handleSetStaffRole(e.target.value as InternalRole)} className={cellInputCx} style={{ color: NAVY }}>
+          {!item.staff_role && <option value="">Choose a role...</option>}
+          {STAFF_ROLE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
+      </td>
+      <td className="py-2.5 pr-3"><input value={displayName} onChange={e => setDisplayName(e.target.value)} className={cellInputCx} style={{ color: NAVY }} /></td>
+      <td className="py-2.5 pr-3"><input value={title} onChange={e => setTitle(e.target.value)} className={cellInputCx} style={{ color: NAVY }} /></td>
+      <td className="py-2.5 pr-3"><input value={phone} onChange={e => setPhone(e.target.value)} className={cellInputCx} style={{ color: NAVY }} /></td>
+      <td className="py-2.5 text-right">
+        <button onClick={handleSave} disabled={saving}
+          className="rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-1.5 text-xs font-bold disabled:opacity-50" style={{ color: BLUE }}>
+          {saving ? "Saving..." : "Save"}
+        </button>
+      </td>
+    </tr>
   );
 };
+
+const UsersTable = ({ items, myUserId, onSetStaffRole, onSaveStaffProfile }: {
+  items: AdminUserRow[]; myUserId: string | null;
+  onSetStaffRole: (item: AdminUserRow, staffRole: InternalRole) => Promise<string | null>;
+  onSaveStaffProfile: (item: AdminUserRow, input: { displayName: string; title: string; phone: string }) => Promise<string | null>;
+}) => (
+  <div className={`${cx.card} mt-3 overflow-x-auto`}>
+    <table className="w-full text-sm">
+      <thead>
+        <tr>
+          <th className="pb-1.5 pr-3 text-left text-xs font-bold uppercase tracking-wide" style={{ color: MUTED }}>Person</th>
+          <th className="pb-1.5 pr-3 text-left text-xs font-bold uppercase tracking-wide" style={{ color: MUTED }}>Staff role</th>
+          <th className="pb-1.5 pr-3 text-left text-xs font-bold uppercase tracking-wide" style={{ color: MUTED }}>Display name</th>
+          <th className="pb-1.5 pr-3 text-left text-xs font-bold uppercase tracking-wide" style={{ color: MUTED }}>Title</th>
+          <th className="pb-1.5 pr-3 text-left text-xs font-bold uppercase tracking-wide" style={{ color: MUTED }}>Phone</th>
+          <th className="pb-1.5 w-16" />
+        </tr>
+      </thead>
+      <tbody>
+        {items.map(item => (
+          <UserTableRow key={item.id} item={item} isSelf={item.id === myUserId} onSetStaffRole={onSetStaffRole} onSaveStaffProfile={onSaveStaffProfile} />
+        ))}
+      </tbody>
+    </table>
+  </div>
+);
 
 export const AdminUsersPage = ({ auth }: { auth: UseAuth }) => {
   const { users, loading, loadingMore, hasMore, error, reload, loadMore, setStaffRole, setStaffProfile, inviteUser, promoteToStaff } = useAdminUsers();
@@ -196,8 +243,8 @@ export const AdminUsersPage = ({ auth }: { auth: UseAuth }) => {
     return users.filter(u => (roleFilter === "all" || u.staff_role === roleFilter) && (!q || (u.email ?? "").toLowerCase().includes(q)));
   }, [users, query, roleFilter]);
 
-  const handleInvite = async (email: string, staffRole: InternalRole) => {
-    const { error: err } = await inviteUser(email, staffRole);
+  const handleCreate = async (email: string, staffRole: InternalRole, password: string | null) => {
+    const { error: err } = await inviteUser(email, staffRole, password ?? undefined);
     return err;
   };
 
@@ -210,7 +257,7 @@ export const AdminUsersPage = ({ auth }: { auth: UseAuth }) => {
 
   return (
     <div className="mt-2">
-      <InviteUserForm onInvite={handleInvite} />
+      <CreateStaffForm onCreate={handleCreate} />
       <PromoteUserForm onPromote={handlePromote} />
 
       {loading && <div className={`${cx.card} mt-3 text-sm`} style={{ color: MUTED }}>Loading...</div>}
@@ -249,9 +296,7 @@ export const AdminUsersPage = ({ auth }: { auth: UseAuth }) => {
               <p className={cx.footnote}>No staff match your search.</p>
             </div>
           ) : (
-            filtered.map(item => (
-              <UserRow key={item.id} item={item} isSelf={item.id === auth.user?.id} onSetStaffRole={handleSetStaffRole} onSaveStaffProfile={handleSaveStaffProfile} />
-            ))
+            <UsersTable items={filtered} myUserId={auth.user?.id ?? null} onSetStaffRole={handleSetStaffRole} onSaveStaffProfile={handleSaveStaffProfile} />
           )}
 
           {hasMore && (

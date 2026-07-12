@@ -6,6 +6,12 @@
 // useAdminRequests. Each row's only editable field is status; the attached
 // project snapshot (if any) is shown as raw JSON in a collapsible section --
 // admin reference data, not a polished view.
+//
+// Defaults to "My companies" scope for a bdm viewer (with a toggle to "All
+// requests" -- see requestsStore.ts for why this is the one queue page that
+// keeps a toggle instead of always scoping), and shows a "My companies"
+// rollup panel above the search bar -- relocated from the now-deleted My
+// Assignments page.
 // =============================================================================
 import { useMemo, useState } from "react";
 import { Search } from "lucide-react";
@@ -13,7 +19,11 @@ import { cx, NAVY, MUTED } from "../../styleTokens";
 import { AccordionCard } from "../../ui/primitives";
 import { SelectField } from "../shared/fields";
 import { useAdminRequests } from "./requests/requestsStore";
+import { useMyBdmCompanies } from "./requests/myCompaniesStore";
 import type { AdminRequestRow, RequestStatus } from "./requests/requestTypes";
+import type { InternalRole } from "../company/staffTypes";
+
+const SCOPE_OPTIONS = [{ value: "mine", label: "My companies" }, { value: "all", label: "All requests" }];
 
 const STATUS_OPTIONS: { value: string; label: string }[] = [
   { value: "new", label: "New" },
@@ -55,8 +65,31 @@ const RequestRow = ({ item, onStatusChange }: { item: AdminRequestRow; onStatusC
   </div>
 );
 
-export const AdminRequestsPage = () => {
-  const { requests, loading, loadingMore, hasMore, error, reload, loadMore, updateStatus } = useAdminRequests();
+const BdmCompaniesPanel = ({ companyIds }: { companyIds: string[] }) => {
+  const { companies, loading } = useMyBdmCompanies(companyIds);
+  if (loading || companies.length === 0) return null;
+  return (
+    <div className="mb-3">
+      <div className={cx.cardHd}>My companies ({companies.length})</div>
+      <div className="mt-2 space-y-2">
+        {companies.map(c => (
+          <div key={c.id} className={`${cx.card} flex flex-wrap items-center justify-between gap-2`}>
+            <span className="text-sm font-semibold" style={{ color: NAVY }}>{c.name}</span>
+            <span className={cx.footnote}>
+              {c.activeProjects} project{c.activeProjects === 1 ? "" : "s"} &middot; {c.activeOrders} order{c.activeOrders === 1 ? "" : "s"}
+              {c.openRequests > 0 && <> &middot; {c.openRequests} attributed request{c.openRequests === 1 ? "" : "s"}</>}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+export const AdminRequestsPage = ({ userId, staffRole, staffRoleLoading }: {
+  userId: string | null; staffRole: InternalRole | null; staffRoleLoading: boolean;
+}) => {
+  const { requests, scope, scopeMode, setScopeMode, canToggleScope, loading, loadingMore, hasMore, error, reload, loadMore, updateStatus } = useAdminRequests(userId, staffRole, staffRoleLoading);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
 
@@ -69,6 +102,10 @@ export const AdminRequestsPage = () => {
     const err = await updateStatus(id, status);
     if (err) window.alert(err);
   };
+
+  const bdmPanel = staffRole === "bdm"
+    ? <BdmCompaniesPanel companyIds={scope.kind === "companies" ? scope.companyIds : []} />
+    : null;
 
   if (loading) {
     return <div className={`${cx.card} mt-6 text-sm`} style={{ color: MUTED }}>Loading...</div>;
@@ -85,14 +122,21 @@ export const AdminRequestsPage = () => {
 
   if (requests.length === 0) {
     return (
-      <div className={`${cx.card} mt-6 text-center`}>
-        <p className={cx.footnote}>No requests yet.</p>
+      <div className="mt-2">
+        {bdmPanel}
+        {canToggleScope && (
+          <div className="sm:w-48"><SelectField label="Scope" value={scopeMode} options={SCOPE_OPTIONS} onChange={v => setScopeMode(v as "mine" | "all")} /></div>
+        )}
+        <div className={`${cx.card} mt-3 text-center`}>
+          <p className={cx.footnote}>No requests {scopeMode === "mine" && canToggleScope ? "for your companies " : ""}yet.</p>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="mt-2">
+      {bdmPanel}
       <div className="flex flex-col gap-2 sm:flex-row">
         <div className="flex flex-1 items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 shadow-sm">
           <Search size={16} className="shrink-0" style={{ color: MUTED }} />
@@ -102,6 +146,9 @@ export const AdminRequestsPage = () => {
         <div className="sm:w-48">
           <SelectField label="Filter by status" value={statusFilter} options={STATUS_FILTER_OPTIONS} onChange={setStatusFilter} />
         </div>
+        {canToggleScope && (
+          <div className="sm:w-48"><SelectField label="Scope" value={scopeMode} options={SCOPE_OPTIONS} onChange={v => setScopeMode(v as "mine" | "all")} /></div>
+        )}
       </div>
       {hasMore && query.trim() && (
         <p className="mt-2 text-xs" style={{ color: MUTED }}>Search only covers requests loaded so far -- load more below if you can't find who you're after.</p>
