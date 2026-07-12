@@ -19,6 +19,16 @@ import { PROJECT_A_INSTALL_REVIEW_NAME, PROJECT_B_INSTALL_REVIEW_NAME } from "./
 //     only returns Company B's own rows, so Company A never appears.
 //   - admin (super_admin) sees the unscoped, cross-company view.
 // =============================================================================
+
+// Matches PROJECT_A/B_INSTALL_REVIEW_NAME with tolerance for dash-character
+// and whitespace drift (e.g. an en/em dash vs. "--") in the seeded display
+// name, rather than requiring an exact string match.
+const flexibleNameMatch = (name: string) =>
+  new RegExp(name.replace(/[-\s]+/g, "\\s*[-\\u2010-\\u2015]?\\s*"), "i");
+
+const PROJECT_A_NAME_RE = flexibleNameMatch(PROJECT_A_INSTALL_REVIEW_NAME);
+const PROJECT_B_NAME_RE = flexibleNameMatch(PROJECT_B_INSTALL_REVIEW_NAME);
+
 test.describe("scoped queue: Project Reviews", () => {
   test("project-manager sees only Company A's review queue, no cross-company or super-admin controls", async ({ page }) => {
     await signInAsProjectManager(page);
@@ -38,8 +48,8 @@ test.describe("scoped queue: Project Reviews", () => {
     // (MyActiveProjectsSection, PM-only) -- both genuinely correct, not a
     // bug, so .first() (the review-queue row, which renders first in DOM
     // order) disambiguates rather than hitting a strict-mode violation.
-    await expect(page.getByText(PROJECT_A_INSTALL_REVIEW_NAME).first()).toBeVisible({ timeout: 20_000 });
-    await expect(page.getByText(PROJECT_B_INSTALL_REVIEW_NAME)).not.toBeVisible();
+    await expect(page.getByText(PROJECT_A_NAME_RE).first()).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText(PROJECT_B_NAME_RE)).not.toBeVisible();
 
     // Dashboard: only the one section this role is granted (Workflow >
     // Project Reviews) renders -- no other Workflow tiles, and no
@@ -77,8 +87,10 @@ test.describe("scoped queue: Project Reviews", () => {
     await page.goto("/#/admin/projectReviews");
     // Positive assertion first (see the generous-timeout comment above) so
     // the negative one right after it isn't just catching the page mid-load.
-    await expect(page.getByText(PROJECT_B_INSTALL_REVIEW_NAME)).toBeVisible({ timeout: 20_000 });
-    await expect(page.getByText(PROJECT_A_INSTALL_REVIEW_NAME)).not.toBeVisible();
+    // outsider isn't a project_manager, so MyActiveProjectsSection never
+    // renders here -- no duplicate-match risk, unlike the PM test above.
+    await expect(page.getByText(PROJECT_B_NAME_RE)).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText(PROJECT_A_NAME_RE)).not.toBeVisible();
 
     await signOut(page);
   });
@@ -86,9 +98,11 @@ test.describe("scoped queue: Project Reviews", () => {
   test("super admin sees the broader, cross-company administrative view", async ({ page }) => {
     await signInAsAdmin(page);
 
+    // admin is super_admin, not project_manager, so MyActiveProjectsSection
+    // never renders here either -- no duplicate-match risk.
     await page.goto("/#/admin/projectReviews");
-    await expect(page.getByText(PROJECT_A_INSTALL_REVIEW_NAME)).toBeVisible({ timeout: 20_000 });
-    await expect(page.getByText(PROJECT_B_INSTALL_REVIEW_NAME)).toBeVisible();
+    await expect(page.getByText(PROJECT_A_NAME_RE)).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText(PROJECT_B_NAME_RE)).toBeVisible();
 
     await signOut(page);
   });
