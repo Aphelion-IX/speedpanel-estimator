@@ -1,29 +1,52 @@
 // =============================================================================
-// Delivery request form -- address + per-line-item allocation for a new batch
+// Admin -- split an order into another delivery
 // =============================================================================
-// A delivery batch is fundamentally an address form (Field/SelectField from
-// src/pages/shared/fields.tsx) plus a nested fixed-row allocation table --
-// doesn't reduce to RepeatableRowEditor's flat-row-of-scalar-cells model.
-//
-// Submitting always inserts as approval_status='pending' (see
-// orderDeliveriesStore.ts's toRow()) -- there's no separate "save as draft"
-// step for a customer; "Requested delivery date" is deliberately never
-// labelled just "Delivery date" since it isn't confirmed until Speedpanel
-// accepts it (see DELIVERY_APPROVAL_STATUSES in orderTypes.ts).
+// Same address+contact+nested-allocation-table shape as the customer-side
+// AddDeliveryForm.tsx (see that file's header comment for why this doesn't
+// reduce to RepeatableRowEditor), but submits via admin_create_delivery
+// (staff-only, starts the new row at approval_status='draft' -- not
+// customer-visible until a staff member moves it forward, see
+// supabase/schema.sql). Needs the parent order's own line_items to build the
+// allocation table, which admin_list_delivery_requests() doesn't return (it's
+// delivery-level, not order-level) -- fetched here on demand rather than
+// batched into the main list query, since splitting is a rare action, not
+// the common case every row needs to pay for.
 // =============================================================================
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { z } from "zod";
+import { supabase } from "../../../lib/supabaseClient";
 import { cx, NAVY, BLUE, WHITE } from "../../../styleTokens";
 import { Field, SelectField, TextAreaField } from "../../shared/fields";
-import type { OrderLineItem } from "../../../export/priceEstimateReportData";
-import { LineItemAllocationTable } from "./LineItemAllocationTable";
-import type { DeliveryInput } from "./orderDeliveriesStore";
+import { OrderLineItemSchema, type OrderLineItem } from "../../../export/priceEstimateReportData";
+import { LineItemAllocationTable } from "../../projects/orders/LineItemAllocationTable";
+import type { OrderDeliveryItemAllocation } from "../../projects/orders/orderTypes";
 
 const AU_STATES = ["NSW", "VIC", "QLD", "WA", "SA", "TAS", "ACT", "NT"].map(s => ({ value: s, label: s }));
 
-export const AddDeliveryForm = ({ lineItems, remaining, onAdd, onCancel }: {
-  lineItems: OrderLineItem[]; remaining: Record<string, number>;
-  onAdd: (input: DeliveryInput) => Promise<string | null>; onCancel: () => void;
+export const AdminSplitDeliveryForm = ({ orderId, existingAllocations, onCreate, onCreated, onCancel }: {
+  orderId: string;
+  existingAllocations: OrderDeliveryItemAllocation[];
+  onCreate: (input: {
+    addressLine1: string; addressLine2?: string; suburb: string; state: string; postcode: string;
+    contactName?: string; contactPhone?: string; requestedDate?: string; deliveryInstructions?: string;
+    preferredWindow?: string; siteAccessDetails?: string; itemAllocations: { lineItemId: string; qty: number }[];
+  }) => Promise<string | null>;
+  onCreated: () => void;
+  onCancel: () => void;
 }) => {
+  const [lineItems, setLineItems] = useState<OrderLineItem[] | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!supabase) { setLoadError("Not configured for this environment."); return; }
+    supabase.from("orders").select("line_items").eq("id", orderId).single().then(({ data, error }) => {
+      if (error) { setLoadError(error.message); return; }
+      const parsed = z.object({ line_items: z.array(OrderLineItemSchema) }).safeParse(data);
+      if (!parsed.success) { setLoadError("Unexpected data shape from the server."); return; }
+      setLineItems(parsed.data.line_items);
+    });
+  }, [orderId]);
+
   const [addressLine1, setAddressLine1] = useState("");
   const [addressLine2, setAddressLine2] = useState("");
   const [suburb, setSuburb] = useState("");
@@ -41,6 +64,12 @@ export const AddDeliveryForm = ({ lineItems, remaining, onAdd, onCancel }: {
 
   const setAllocation = (lineItemId: string, qty: number) => setAllocations(a => ({ ...a, [lineItemId]: qty }));
 
+  if (loadError) return <p className="text-sm text-red-600 dark:text-red-400">{loadError}</p>;
+  if (!lineItems) return <p className={cx.footnote}>Loading order items...</p>;
+
+  const remaining: Record<string, number> = Object.fromEntries(lineItems.map(i => [i.id, i.qty]));
+  for (const a of existingAllocations) remaining[a.lineItemId] = (remaining[a.lineItemId] ?? 0) - a.qty;
+
   const totalAllocated = Object.values(allocations).reduce((a, b) => a + b, 0);
 
   const handleSubmit = async () => {
@@ -51,7 +80,7 @@ export const AddDeliveryForm = ({ lineItems, remaining, onAdd, onCancel }: {
     if (totalAllocated <= 0) { setError("Allocate at least one item to this delivery."); return; }
     setSubmitting(true);
     setError(null);
-    const err = await onAdd({
+    const err = await onCreate({
       addressLine1, addressLine2: addressLine2 || undefined, suburb, state, postcode,
       requestedDate: requestedDate || undefined, contactName: contactName || undefined,
       contactPhone: contactPhone || undefined, deliveryInstructions: deliveryInstructions || undefined,
@@ -60,11 +89,13 @@ export const AddDeliveryForm = ({ lineItems, remaining, onAdd, onCancel }: {
     });
     setSubmitting(false);
     if (err) { setError(err); return; }
+    onCreated();
   };
 
   return (
-    <div className={`${cx.card} mt-3`}>
-      <div className="text-sm font-bold" style={{ color: NAVY }}>New delivery request</div>
+    <div className={`${cx.card} mt-2`}>
+      <div className="text-sm font-bold" style={{ color: NAVY }}>New delivery (split from this order)</div>
+      <p className={cx.footnote}>Starts as Draft -- not visible to the customer until you accept, propose, or decline its date.</p>
       <div className="mt-3 grid grid-cols-2 gap-3">
         <div className="col-span-2"><Field label="Address line 1" value={addressLine1} onChange={setAddressLine1} required /></div>
         <div className="col-span-2"><Field label="Address line 2 (optional)" value={addressLine2} onChange={setAddressLine2} /></div>
@@ -80,10 +111,10 @@ export const AddDeliveryForm = ({ lineItems, remaining, onAdd, onCancel }: {
         <TextAreaField label="Delivery instructions (optional)" value={deliveryInstructions} onChange={setDeliveryInstructions} />
       </div>
       <div className="mt-3">
-        <TextAreaField label="Site access details (optional) -- truck restrictions, crane requirements, unloading arrangements" value={siteAccessDetails} onChange={setSiteAccessDetails} />
+        <TextAreaField label="Site access details (optional)" value={siteAccessDetails} onChange={setSiteAccessDetails} />
       </div>
 
-      <div className={cx.cardHd + " mt-4"}>Products / order sections required</div>
+      <div className={cx.cardHd + " mt-4"}>Allocate items to this delivery</div>
       <LineItemAllocationTable items={lineItems} remaining={remaining} allocations={allocations} onChange={setAllocation} />
 
       {error && <p className="mt-3 text-sm text-red-600 dark:text-red-400">{error}</p>}
@@ -91,7 +122,7 @@ export const AddDeliveryForm = ({ lineItems, remaining, onAdd, onCancel }: {
       <div className="mt-4 flex gap-2">
         <button onClick={handleSubmit} disabled={submitting}
           className="rounded-xl px-4 py-2.5 text-sm font-bold disabled:opacity-50" style={{ background: BLUE, color: WHITE }}>
-          {submitting ? "Submitting..." : "Submit"}
+          {submitting ? "Creating..." : "Create delivery"}
         </button>
         <button onClick={onCancel} className="rounded-xl border border-slate-200 dark:border-slate-700 px-4 py-2.5 text-sm font-bold" style={{ color: NAVY }}>
           Cancel

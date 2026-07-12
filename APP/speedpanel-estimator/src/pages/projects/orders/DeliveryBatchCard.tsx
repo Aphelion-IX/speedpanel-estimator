@@ -52,7 +52,7 @@ export const DeliveryBatchCard = ({ delivery, lineItems, canRemove, onRemove, on
           <SelectField label="Status" value={delivery.status} options={DELIVERY_STATUS_OPTIONS} onChange={v => onStatusChange(delivery.id, v as DeliveryStatus)} />
         </div>
       )}
-      {delivery.notes && <p className="mt-2 text-sm" style={{ color: MUTED }}>{delivery.notes}</p>}
+      {delivery.delivery_instructions && <p className="mt-2 text-sm" style={{ color: MUTED }}>{delivery.delivery_instructions}</p>}
       <div className="mt-3">
         <AccordionCard summary={<span style={{ color: BLUE }}>Items in this delivery ({delivery.item_allocations.length})</span>}>
           <LineItemAllocationTable items={lineItems} remaining={{}} allocations={allocations} readOnly />

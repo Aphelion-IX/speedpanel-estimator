@@ -26,9 +26,11 @@ function baseDelivery(overrides: Partial<OrderDeliveryRow> = {}): OrderDeliveryR
   return {
     id: "d1", order_id: "o1", sequence_no: 1,
     address_line1: "1 Example St", address_line2: null, suburb: "Sydney", state: "NSW", postcode: "2000",
-    requested_date: "2026-02-01", contact_name: "Jane", contact_phone: "0400000000", notes: null,
+    requested_date: "2026-02-01", proposed_date: null, confirmed_date: null, actual_date: null,
+    contact_name: "Jane", contact_phone: "0400000000", delivery_instructions: null,
+    preferred_window: null, site_access_details: null, customer_note: null,
     item_allocations: [{ lineItemId: "li1", qty: 21 }],
-    status: "planned",
+    status: "planned", approval_status: "accepted",
     created_at: "2026-01-01T00:00:00.000Z", updated_at: "2026-01-01T00:00:00.000Z",
     ...overrides,
   };
