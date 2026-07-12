@@ -22,9 +22,14 @@ import { PROJECT_A_INSTALL_REVIEW_NAME, PROJECT_B_INSTALL_REVIEW_NAME } from "./
 
 // Matches PROJECT_A/B_INSTALL_REVIEW_NAME with tolerance for dash-character
 // and whitespace drift (e.g. an en/em dash vs. "--") in the seeded display
-// name, rather than requiring an exact string match.
+// name, rather than requiring an exact string match. The seeded name uses a
+// double hyphen ("--"), so each gap needs a REPEATABLE character class
+// (one-or-more), not a single optional dash slot -- an earlier version of
+// this used `\s*[-‐-―]?\s*`, which can only ever consume ONE dash
+// character and therefore never matched "--" at all (confirmed via a real
+// CI run: 100% reproducible "element(s) not found" across every retry).
 const flexibleNameMatch = (name: string) =>
-  new RegExp(name.replace(/[-\s]+/g, "\\s*[-\\u2010-\\u2015]?\\s*"), "i");
+  new RegExp(name.replace(/[-\s]+/g, "[-\\s\\u2010-\\u2015]+"), "i");
 
 const PROJECT_A_NAME_RE = flexibleNameMatch(PROJECT_A_INSTALL_REVIEW_NAME);
 const PROJECT_B_NAME_RE = flexibleNameMatch(PROJECT_B_INSTALL_REVIEW_NAME);
