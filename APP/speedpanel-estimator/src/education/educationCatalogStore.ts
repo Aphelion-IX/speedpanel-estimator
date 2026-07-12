@@ -43,7 +43,12 @@ function fromRow(row: Row): EduDocument {
     id: row.id, title: row.title, category: row.category, tags: row.tags, description: row.description,
     edition: row.edition, date: row.date, fileSize: row.file_size, fileType: row.file_type,
     pageCount: row.page_count, swatch: EDU_SWATCH_MAP[row.swatch] ?? row.swatch, sections: row.sections,
-    fileUrl: row.file_url ? `${import.meta.env.BASE_URL}${row.file_url}` : undefined,
+    // file_url is admin-typed free text (see documentTypes.ts) and may or may not carry
+    // a leading slash -- strip it before prefixing BASE_URL, otherwise a leading-slash
+    // value produces "//docs/..." here, which the browser parses as a protocol-relative
+    // URL (host "docs") instead of a same-origin path, breaking both the PDF viewer and
+    // the "Open PDF" link.
+    fileUrl: row.file_url ? `${import.meta.env.BASE_URL}${row.file_url.replace(/^\/+/, "")}` : undefined,
     searchText: row.search_text || undefined,
   };
 }
