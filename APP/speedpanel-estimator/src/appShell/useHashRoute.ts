@@ -9,7 +9,7 @@
 // =============================================================================
 import { useCallback, useEffect, useState } from "react";
 
-export type AdminSubPage = "dashboard" | "products" | "systems" | "maths" | "documents" | "requests" | "projectReviews" | "users" | "analytics" | "auditLog" | "orders" | "manufacturing" | "companies" | "permissions";
+export type AdminSubPage = "dashboard" | "products" | "priceLists" | "systems" | "maths" | "documents" | "requests" | "projectReviews" | "users" | "analytics" | "auditLog" | "orders" | "manufacturing" | "companies" | "permissions";
 // "create" removed -- self-service company creation no longer exists, see
 // CompanyRouter.tsx/NoCompanyPage.tsx. Companies are created only via the
 // Admin > Companies wizard.
@@ -35,7 +35,7 @@ export type Route =
   // shell/nav JSX, since it's a printable document, not a page in the app.
   | { tab: "proforma"; orderId: string };
 
-const ADMIN_SUBPAGES: AdminSubPage[] = ["products", "systems", "maths", "documents", "requests", "projectReviews", "users", "analytics", "auditLog", "orders", "manufacturing", "companies", "permissions"];
+const ADMIN_SUBPAGES: AdminSubPage[] = ["products", "priceLists", "systems", "maths", "documents", "requests", "projectReviews", "users", "analytics", "auditLog", "orders", "manufacturing", "companies", "permissions"];
 const COMPANY_SUBPAGES: CompanySubPage[] = ["team", "activity"];
 
 function parseHash(hash: string): Route {

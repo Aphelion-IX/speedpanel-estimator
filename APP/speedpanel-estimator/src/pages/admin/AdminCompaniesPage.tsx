@@ -22,6 +22,7 @@ import { useAdminCompanies, type AdminCompanyRow } from "./companies/companiesSt
 import { AdminCompanyWizard } from "./companies/AdminCompanyWizard";
 import { StaffTeamAssignmentPanel } from "./companies/StaffTeamAssignmentPanel";
 import { CompanyMemberList } from "../company/CompanyMemberList";
+import { CompanyPriceListCard } from "./priceLists/CompanyPriceListCard";
 
 const CompanyRow = ({ company, myUserId }: { company: AdminCompanyRow; myUserId: string | null }) => (
   <div className={`${cx.card} mt-3`}>
@@ -36,6 +37,9 @@ const CompanyRow = ({ company, myUserId }: { company: AdminCompanyRow; myUserId:
       </AccordionCard>
       <AccordionCard summary="Speedpanel Team">
         <StaffTeamAssignmentPanel companyId={company.id} />
+      </AccordionCard>
+      <AccordionCard summary="Price List">
+        <CompanyPriceListCard companyId={company.id} />
       </AccordionCard>
     </div>
   </div>

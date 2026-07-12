@@ -2713,3 +2713,277 @@ create index if not exists idx_projects_project_manager       on projects (proje
 create index if not exists idx_orders_company_id              on orders (company_id);
 create index if not exists idx_staff_assignments_company_id   on staff_assignments (company_id);
 create index if not exists idx_staff_assignments_staff_user_id on staff_assignments (staff_user_id);
+
+-- =============================================================================
+-- Pricing: Price Lists
+-- =============================================================================
+-- Replaces panels/tracks/fixings/sealants.price_per_* (still present, now
+-- deprecated as an editable field -- see AdminProductsPage.tsx) as the
+-- source of truth for what a company pays. Every company is assigned
+-- exactly one price_lists row; "PL1 - Standard" is seeded from today's
+-- price_per_* values and marked is_default so a price gap on any other
+-- list (a SKU added after a list was duplicated, say) still resolves to a
+-- real price instead of silently going unpriced -- see
+-- applyEffectivePricing() in src/export/applyEffectivePricing.ts.
+-- =============================================================================
+create table price_lists (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  is_default boolean not null default false,
+  notes text,
+  created_by uuid not null references auth.users (id),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create unique index price_lists_one_default on price_lists (is_default) where is_default;
+
+alter table price_lists enable row level security;
+create policy "Staff can read price lists" on price_lists
+  for select using (public.has_staff_role(array[]::text[]));
+-- A non-staff customer needs to be able to look up the default list's id
+-- client-side (to then read its price_list_prices rows for the fallback
+-- merge, see applyEffectivePricing()) -- they otherwise have no visibility
+-- into price_lists at all, so this can't ride on the staff policy above.
+-- Only the row where is_default is exposed, never a negotiated list's
+-- name/notes.
+create policy "Default price list is readable by any authenticated user" on price_lists
+  for select using (is_default);
+-- No insert/update/delete policy -- all writes go through the admin_*
+-- RPCs below.
+
+-- One row per (list, product) across all four priceable categories -- a
+-- single table (not four parallel ones) since admin_duplicate_price_list
+-- needs one INSERT...SELECT across every priced product regardless of
+-- category. Real per-category FKs (not one untyped polymorphic uuid) so
+-- deleting a product cascades its price rows instead of orphaning them.
+create table price_list_prices (
+  id uuid primary key default gen_random_uuid(),
+  price_list_id uuid not null references price_lists (id) on delete cascade,
+  category text not null check (category in ('panel', 'track', 'fixing', 'sealant')),
+  panel_id uuid references panels (id) on delete cascade,
+  track_id uuid references tracks (id) on delete cascade,
+  fixing_id uuid references fixings (id) on delete cascade,
+  sealant_id uuid references sealants (id) on delete cascade,
+  price numeric not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  check (
+    (category = 'panel'   and panel_id   is not null and track_id is null and fixing_id is null and sealant_id is null) or
+    (category = 'track'   and track_id   is not null and panel_id is null and fixing_id is null and sealant_id is null) or
+    (category = 'fixing'  and fixing_id  is not null and panel_id is null and track_id is null and sealant_id is null) or
+    (category = 'sealant' and sealant_id is not null and panel_id is null and track_id is null and fixing_id is null)
+  )
+);
+create unique index price_list_prices_unique on price_list_prices
+  (price_list_id, category, coalesce(panel_id, track_id, fixing_id, sealant_id));
+
+alter table price_list_prices enable row level security;
+create policy "Staff can read price list prices" on price_list_prices
+  for select using (public.has_staff_role(array[]::text[]));
+-- A customer needs to read the ONE list their own company is assigned to,
+-- to price their own order preview client-side -- never leaks another
+-- company's negotiated list. The default (PL1) list's prices are also
+-- readable by any authenticated user, not just its own assigned
+-- companies: applyEffectivePricing()'s confirmed "fall back to PL1" rule
+-- needs every customer (regardless of which list THEY'RE on) to be able to
+-- read PL1's rows client-side. This is no more permissive than before this
+-- feature existed -- panels/tracks/fixings/sealants.price_per_* (PL1's own
+-- backfill source) have always had a public `using (true)` read policy,
+-- open even to anon.
+create policy "Company members can read their assigned list's prices" on price_list_prices
+  for select using (
+    exists (
+      select 1 from companies c join company_memberships cm on cm.company_id = c.id
+      where c.price_list_id = price_list_prices.price_list_id
+        and cm.user_id = auth.uid() and cm.status = 'active'
+    )
+    or exists (select 1 from price_lists pl where pl.id = price_list_prices.price_list_id and pl.is_default)
+  );
+-- No insert/update/delete policy -- admin_* RPCs only.
+
+alter table companies add column price_list_id uuid references price_lists (id);
+
+-- Seed PL1 - Standard, backfill it from today's price_per_* columns, then
+-- assign every existing company to it -- keeps every company priced
+-- exactly as before this migration until an admin creates/assigns a
+-- different list. created_by attributes the seed row to the earliest admin
+-- account rather than leaving it null (the column is not-null, and no real
+-- "actor" performed this one-time migration).
+insert into price_lists (name, is_default, created_by)
+  select 'PL1 - Standard', true, (select id from profiles where role = 'admin' order by created_at asc limit 1)
+  where not exists (select 1 from price_lists where is_default);
+
+insert into price_list_prices (price_list_id, category, panel_id, price)
+  select (select id from price_lists where is_default), 'panel', id, price_per_panel
+  from panels where price_per_panel is not null;
+insert into price_list_prices (price_list_id, category, track_id, price)
+  select (select id from price_lists where is_default), 'track', id, price_per_metre
+  from tracks where price_per_metre is not null;
+insert into price_list_prices (price_list_id, category, fixing_id, price)
+  select (select id from price_lists where is_default), 'fixing', id, price_per_box
+  from fixings where price_per_box is not null;
+insert into price_list_prices (price_list_id, category, sealant_id, price)
+  select (select id from price_lists where is_default), 'sealant', id, price_per_box
+  from sealants where price_per_box is not null;
+
+update companies set price_list_id = (select id from price_lists where is_default) where price_list_id is null;
+alter table companies alter column price_list_id set not null;
+
+-- Closes a real gap: "Owner or admin can update their own company" RLS
+-- (is_company_admin()) passes for a customer's own company owner/admin,
+-- not just staff -- a plain price_list_id column would let a customer
+-- reassign their own price list. RLS can't express column-level checks;
+-- a BEFORE UPDATE trigger can. auth.uid() still resolves to the real
+-- calling user inside a security definer trigger (it reads the request
+-- JWT, not the function owner), so has_staff_role() here correctly reflects
+-- who actually issued the UPDATE, including from inside
+-- admin_set_company_price_list() below.
+create or replace function public.guard_company_price_list_id() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  if new.price_list_id is distinct from old.price_list_id and not public.has_staff_role(array[]::text[]) then
+    raise exception 'Not authorized to change price list assignment';
+  end if;
+  return new;
+end;
+$$;
+create trigger guard_company_price_list_id before update on companies
+  for each row execute function public.guard_company_price_list_id();
+
+-- =============================================================================
+-- Pricing: Price List RPCs (super_admin-gated, matching where Companies and
+-- Products management already sit today -- both omitted from
+-- adminSectionAccess.ts's SECTION_ROLES)
+-- =============================================================================
+create or replace function public.admin_list_price_lists()
+returns table (id uuid, name text, is_default boolean, notes text, product_count bigint, company_count bigint, created_at timestamptz, updated_at timestamptz)
+language sql security definer stable
+set search_path = public
+as $$
+  select pl.id, pl.name, pl.is_default, pl.notes,
+    (select count(*) from price_list_prices plp where plp.price_list_id = pl.id),
+    (select count(*) from companies c where c.price_list_id = pl.id),
+    pl.created_at, pl.updated_at
+  from price_lists pl
+  where public.has_staff_role(array[]::text[])
+  order by pl.is_default desc, pl.name;
+$$;
+revoke execute on function public.admin_list_price_lists() from public, anon;
+grant execute on function public.admin_list_price_lists() to authenticated;
+
+create or replace function public.admin_create_price_list(p_name text, p_notes text default null) returns uuid
+language plpgsql security definer set search_path = public as $$
+declare v_id uuid;
+begin
+  if not public.has_staff_role(array[]::text[]) then raise exception 'Not authorized'; end if;
+  insert into price_lists (name, notes, created_by) values (p_name, p_notes, auth.uid()) returning id into v_id;
+  return v_id;
+end;
+$$;
+revoke execute on function public.admin_create_price_list(text, text) from public, anon;
+grant execute on function public.admin_create_price_list(text, text) to authenticated;
+
+create or replace function public.admin_rename_price_list(p_price_list_id uuid, p_name text) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if not public.has_staff_role(array[]::text[]) then raise exception 'Not authorized'; end if;
+  update price_lists set name = p_name, updated_at = now() where id = p_price_list_id;
+  if not found then raise exception 'Price list not found'; end if;
+end;
+$$;
+revoke execute on function public.admin_rename_price_list(uuid, text) from public, anon;
+grant execute on function public.admin_rename_price_list(uuid, text) to authenticated;
+
+-- The entire "Duplicate Price List" backend -- one new price_lists row plus
+-- one INSERT...SELECT across every priced product on the source list, no
+-- loop.
+create or replace function public.admin_duplicate_price_list(p_source_price_list_id uuid, p_new_name text) returns uuid
+language plpgsql security definer set search_path = public as $$
+declare v_id uuid;
+begin
+  if not public.has_staff_role(array[]::text[]) then raise exception 'Not authorized'; end if;
+  insert into price_lists (name, notes, created_by)
+    select p_new_name, notes, auth.uid() from price_lists where id = p_source_price_list_id
+    returning id into v_id;
+  if v_id is null then raise exception 'Price list not found'; end if;
+  insert into price_list_prices (price_list_id, category, panel_id, track_id, fixing_id, sealant_id, price)
+    select v_id, category, panel_id, track_id, fixing_id, sealant_id, price
+    from price_list_prices where price_list_id = p_source_price_list_id;
+  return v_id;
+end;
+$$;
+revoke execute on function public.admin_duplicate_price_list(uuid, text) from public, anon;
+grant execute on function public.admin_duplicate_price_list(uuid, text) to authenticated;
+
+create or replace function public.admin_set_price_list_price(p_price_list_id uuid, p_category text, p_product_id uuid, p_price numeric) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if not public.has_staff_role(array[]::text[]) then raise exception 'Not authorized'; end if;
+  if p_category not in ('panel', 'track', 'fixing', 'sealant') then raise exception 'Invalid category'; end if;
+  insert into price_list_prices (price_list_id, category, panel_id, track_id, fixing_id, sealant_id, price)
+  values (
+    p_price_list_id, p_category,
+    case when p_category = 'panel' then p_product_id end,
+    case when p_category = 'track' then p_product_id end,
+    case when p_category = 'fixing' then p_product_id end,
+    case when p_category = 'sealant' then p_product_id end,
+    p_price
+  )
+  on conflict (price_list_id, category, coalesce(panel_id, track_id, fixing_id, sealant_id))
+  do update set price = excluded.price, updated_at = now();
+end;
+$$;
+revoke execute on function public.admin_set_price_list_price(uuid, text, uuid, numeric) from public, anon;
+grant execute on function public.admin_set_price_list_price(uuid, text, uuid, numeric) to authenticated;
+
+create or replace function public.admin_delete_price_list_price(p_id uuid) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if not public.has_staff_role(array[]::text[]) then raise exception 'Not authorized'; end if;
+  delete from price_list_prices where id = p_id;
+end;
+$$;
+revoke execute on function public.admin_delete_price_list_price(uuid) from public, anon;
+grant execute on function public.admin_delete_price_list_price(uuid) to authenticated;
+
+-- Pre-checks against deleting the default list or a list still assigned to
+-- a company with a friendly message -- the FK on companies.price_list_id
+-- would already block the latter with a raw constraint-violation, this
+-- just keeps that error readable in the UI.
+create or replace function public.admin_delete_price_list(p_price_list_id uuid) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if not public.has_staff_role(array[]::text[]) then raise exception 'Not authorized'; end if;
+  if exists (select 1 from price_lists where id = p_price_list_id and is_default) then
+    raise exception 'Cannot delete the default price list';
+  end if;
+  if exists (select 1 from companies where price_list_id = p_price_list_id) then
+    raise exception 'Cannot delete a price list that is still assigned to a company';
+  end if;
+  delete from price_lists where id = p_price_list_id;
+  if not found then raise exception 'Price list not found'; end if;
+end;
+$$;
+revoke execute on function public.admin_delete_price_list(uuid) from public, anon;
+grant execute on function public.admin_delete_price_list(uuid) to authenticated;
+
+create or replace function public.admin_set_company_price_list(p_company_id uuid, p_price_list_id uuid) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if not public.has_staff_role(array[]::text[]) then raise exception 'Not authorized'; end if;
+  update companies set price_list_id = p_price_list_id, updated_at = now() where id = p_company_id;
+  if not found then raise exception 'Company not found'; end if;
+end;
+$$;
+revoke execute on function public.admin_set_company_price_list(uuid, uuid) from public, anon;
+grant execute on function public.admin_set_company_price_list(uuid, uuid) to authenticated;
+
+-- =============================================================================
+-- Foreign key indexes -- pricing tables
+-- =============================================================================
+create index if not exists idx_price_list_prices_price_list_id on price_list_prices (price_list_id);
+create index if not exists idx_price_list_prices_panel_id      on price_list_prices (panel_id);
+create index if not exists idx_price_list_prices_track_id      on price_list_prices (track_id);
+create index if not exists idx_price_list_prices_fixing_id     on price_list_prices (fixing_id);
+create index if not exists idx_price_list_prices_sealant_id    on price_list_prices (sealant_id);
+create index if not exists idx_companies_price_list_id         on companies (price_list_id);
