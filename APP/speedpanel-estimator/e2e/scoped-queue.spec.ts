@@ -25,7 +25,13 @@ test.describe("scoped queue: Project Reviews", () => {
 
     await page.goto("/#/admin/projectReviews");
     await expect(page.getByText("Not part of your role")).not.toBeVisible();
-    await expect(page.getByText(PROJECT_A_INSTALL_REVIEW_NAME)).toBeVisible();
+    // Two sequential Supabase round trips gate this queue (staff_assignments
+    // scope resolution, then the scoped projects fetch -- see
+    // useMyQueueScope/adminProjectsStore.ts) -- give the FIRST (positive)
+    // assertion more room than the 5s default on a cold CI connection, so
+    // the page has genuinely finished loading before the negative assertion
+    // right after it.
+    await expect(page.getByText(PROJECT_A_INSTALL_REVIEW_NAME)).toBeVisible({ timeout: 20_000 });
     await expect(page.getByText(PROJECT_B_INSTALL_REVIEW_NAME)).not.toBeVisible();
 
     // Dashboard: only the one section this role is granted (Workflow >
@@ -62,8 +68,10 @@ test.describe("scoped queue: Project Reviews", () => {
     // 03_project_and_order_access.test.sql's "outsider: sees zero Company A
     // projects" assertion for the server-side half of this same guarantee.
     await page.goto("/#/admin/projectReviews");
+    // Positive assertion first (see the generous-timeout comment above) so
+    // the negative one right after it isn't just catching the page mid-load.
+    await expect(page.getByText(PROJECT_B_INSTALL_REVIEW_NAME)).toBeVisible({ timeout: 20_000 });
     await expect(page.getByText(PROJECT_A_INSTALL_REVIEW_NAME)).not.toBeVisible();
-    await expect(page.getByText(PROJECT_B_INSTALL_REVIEW_NAME)).toBeVisible();
 
     await signOut(page);
   });
@@ -72,7 +80,7 @@ test.describe("scoped queue: Project Reviews", () => {
     await signInAsAdmin(page);
 
     await page.goto("/#/admin/projectReviews");
-    await expect(page.getByText(PROJECT_A_INSTALL_REVIEW_NAME)).toBeVisible();
+    await expect(page.getByText(PROJECT_A_INSTALL_REVIEW_NAME)).toBeVisible({ timeout: 20_000 });
     await expect(page.getByText(PROJECT_B_INSTALL_REVIEW_NAME)).toBeVisible();
 
     await signOut(page);

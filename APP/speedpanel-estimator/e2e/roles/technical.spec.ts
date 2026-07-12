@@ -17,7 +17,11 @@ test.describe("technical (staff)", () => {
 
   test("4. Approve technical review action is visible", async ({ page }) => {
     await page.goto("/#/admin/projectReviews");
-    await expect(page.getByRole("button", { name: /Approve technical review/i })).toBeVisible();
+    // Two sequential Supabase round trips gate this queue (staff_assignments
+    // scope resolution, then the scoped projects fetch -- see
+    // useMyQueueScope/adminProjectsStore.ts) -- give it more room than the
+    // 5s default on a cold CI connection.
+    await expect(page.getByRole("button", { name: /Approve technical review/i })).toBeVisible({ timeout: 20_000 });
   });
 
   test("9. direct-fetch bypass: admin_create_company (super_admin-only) is denied", async ({ page }) => {

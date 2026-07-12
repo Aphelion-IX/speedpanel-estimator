@@ -17,7 +17,12 @@ test.describe("dispatch (staff)", () => {
 
   test("4. Panels-manufactured field is editable on Manufacturing & Delivery", async ({ page }) => {
     await page.goto("/#/admin/manufacturing");
-    await expect(page.getByLabel(/Panels manufactured/i).first()).toBeEditable();
+    // NumField (shared/fields.tsx) has no htmlFor, so getByLabel() doesn't
+    // resolve -- same constraint as the sign-in form (see fixtures/auth.ts).
+    // The <label> and <input> are rendered as siblings, so walk from the
+    // label text to its adjacent input instead.
+    const numberInput = page.locator("label", { hasText: /Panels manufactured/i }).locator("xpath=following-sibling::input").first();
+    await expect(numberInput).toBeEditable();
   });
 
   test("9. direct-fetch bypass: issue_proforma_invoice (internal_sales-only) is denied", async ({ page }) => {

@@ -16,7 +16,11 @@ test.describe("bdm (staff)", () => {
 
   test("5. bdm's assigned company's request pipeline is visible by default (My companies scope)", async ({ page }) => {
     await page.goto("/#/admin/requests");
-    await expect(page.getByText("My companies")).toBeVisible();
+    // "My companies" also appears as a hidden <option> in the scope-toggle
+    // <select> (SCOPE_OPTIONS in AdminRequestsPage.tsx) -- match the visible
+    // section heading's "(N)" suffix specifically to avoid a strict-mode
+    // violation across the two matches.
+    await expect(page.getByText(/^My companies \(\d+\)$/)).toBeVisible();
   });
 
   test("9. direct-fetch bypass: admin_set_staff_role (super_admin-only) is denied", async ({ page }) => {

@@ -18,7 +18,16 @@ test.describe("unassigned (authenticated, no role, no company)", () => {
 
   test("2/9. RLS backstop: despite the UI shell being reachable, the actual admin RPC is denied", async ({ page }) => {
     const result = await directRpc(page, "admin_list_users", { p_limit: 10, p_offset: 0 });
-    expect(result.status).toBeGreaterThanOrEqual(400);
+    // admin_list_users (schema.sql) is a `select ... where
+    // has_staff_role(array[])` function -- an unauthorized caller gets HTTP
+    // 200 with an empty result set (the WHERE clause filters every row),
+    // not an HTTP error. The security property under test is "no staff
+    // roster data reaches a non-staff caller", not a specific status code.
+    if (result.status === 200) {
+      expect(JSON.parse(result.body)).toEqual([]);
+    } else {
+      expect(result.status).toBeGreaterThanOrEqual(400);
+    }
   });
 
   test("5. sees zero companies and zero memberships anywhere", async ({ page }) => {
