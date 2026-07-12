@@ -2987,3 +2987,93 @@ create index if not exists idx_price_list_prices_track_id      on price_list_pri
 create index if not exists idx_price_list_prices_fixing_id     on price_list_prices (fixing_id);
 create index if not exists idx_price_list_prices_sealant_id    on price_list_prices (sealant_id);
 create index if not exists idx_companies_price_list_id         on companies (price_list_id);
+
+-- =============================================================================
+-- Pricing: Customer Overrides
+-- =============================================================================
+-- The second of the three pricing concepts (see "Pricing: Price Lists"
+-- above for the first): a direct, no-formula price override for one
+-- specific product on one specific company, sitting above that company's
+-- assigned price list in applyEffectivePricing()'s resolution order
+-- (override -> assigned list -> PL1 -> unpriced). Same per-category-FK +
+-- check-constraint + coalesce-unique-index shape as price_list_prices,
+-- company_id in place of price_list_id.
+-- =============================================================================
+create table company_product_overrides (
+  id uuid primary key default gen_random_uuid(),
+  company_id uuid not null references companies (id) on delete cascade,
+  category text not null check (category in ('panel', 'track', 'fixing', 'sealant')),
+  panel_id uuid references panels (id) on delete cascade,
+  track_id uuid references tracks (id) on delete cascade,
+  fixing_id uuid references fixings (id) on delete cascade,
+  sealant_id uuid references sealants (id) on delete cascade,
+  price numeric not null,
+  created_by uuid not null references auth.users (id),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  check ( -- identical shape to price_list_prices' check
+    (category = 'panel'   and panel_id   is not null and track_id is null and fixing_id is null and sealant_id is null) or
+    (category = 'track'   and track_id   is not null and panel_id is null and fixing_id is null and sealant_id is null) or
+    (category = 'fixing'  and fixing_id  is not null and panel_id is null and track_id is null and sealant_id is null) or
+    (category = 'sealant' and sealant_id is not null and panel_id is null and track_id is null and fixing_id is null)
+  )
+);
+create unique index company_product_overrides_unique on company_product_overrides
+  (company_id, category, coalesce(panel_id, track_id, fixing_id, sealant_id));
+
+alter table company_product_overrides enable row level security;
+create policy "Staff can read company overrides" on company_product_overrides
+  for select using (public.has_staff_role(array[]::text[]));
+create policy "Company members can read their own overrides" on company_product_overrides
+  for select using (
+    exists (select 1 from company_memberships cm where cm.company_id = company_product_overrides.company_id and cm.user_id = auth.uid() and cm.status = 'active')
+  );
+-- No insert/update/delete policy -- admin_* RPCs only, same convention as
+-- price_lists/price_list_prices. Unlike price_list_prices, there's no
+-- "readable by any authenticated user" clause needed here -- that clause
+-- exists only because every customer needs PL1 as a fallback; an override
+-- has no equivalent "everyone needs to read someone else's row" case.
+
+-- =============================================================================
+-- Pricing: Customer Override RPCs (super_admin-gated, same as every
+-- Price List RPC above)
+-- =============================================================================
+create or replace function public.admin_set_company_override(p_company_id uuid, p_category text, p_product_id uuid, p_price numeric) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if not public.has_staff_role(array[]::text[]) then raise exception 'Not authorized'; end if;
+  if p_category not in ('panel', 'track', 'fixing', 'sealant') then raise exception 'Invalid category'; end if;
+  insert into company_product_overrides (company_id, category, panel_id, track_id, fixing_id, sealant_id, price, created_by)
+  values (
+    p_company_id, p_category,
+    case when p_category = 'panel' then p_product_id end,
+    case when p_category = 'track' then p_product_id end,
+    case when p_category = 'fixing' then p_product_id end,
+    case when p_category = 'sealant' then p_product_id end,
+    p_price, auth.uid()
+  )
+  on conflict (company_id, category, coalesce(panel_id, track_id, fixing_id, sealant_id))
+  do update set price = excluded.price, updated_at = now();
+end;
+$$;
+revoke execute on function public.admin_set_company_override(uuid, text, uuid, numeric) from public, anon;
+grant execute on function public.admin_set_company_override(uuid, text, uuid, numeric) to authenticated;
+
+create or replace function public.admin_clear_company_override(p_id uuid) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if not public.has_staff_role(array[]::text[]) then raise exception 'Not authorized'; end if;
+  delete from company_product_overrides where id = p_id;
+end;
+$$;
+revoke execute on function public.admin_clear_company_override(uuid) from public, anon;
+grant execute on function public.admin_clear_company_override(uuid) to authenticated;
+
+-- =============================================================================
+-- Foreign key indexes -- customer override table
+-- =============================================================================
+create index if not exists idx_company_product_overrides_company_id on company_product_overrides (company_id);
+create index if not exists idx_company_product_overrides_panel_id   on company_product_overrides (panel_id);
+create index if not exists idx_company_product_overrides_track_id   on company_product_overrides (track_id);
+create index if not exists idx_company_product_overrides_fixing_id  on company_product_overrides (fixing_id);
+create index if not exists idx_company_product_overrides_sealant_id on company_product_overrides (sealant_id);

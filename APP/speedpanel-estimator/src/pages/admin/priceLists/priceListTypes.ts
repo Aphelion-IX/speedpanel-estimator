@@ -45,9 +45,24 @@ export const PriceListPriceRowSchema = z.object({
 });
 export type PriceListPriceRow = z.infer<typeof PriceListPriceRowSchema>;
 
-// The one product id a given price row applies to, regardless of category --
-// mirrors the coalesce(panel_id, track_id, fixing_id, sealant_id) unique
-// index price_list_prices itself is keyed on.
-export function priceRowProductId(row: PriceListPriceRow): string {
+// The minimal shape applyEffectivePricing()'s buildPriceMap() actually
+// needs -- both PriceListPriceRow (price_list_prices) and
+// CompanyOverrideRow (company_product_overrides, see
+// admin/overrides/overrideTypes.ts) satisfy this structurally, so the same
+// merge logic works over either without a runtime adapter.
+export interface PriceableProductRow {
+  category: PriceableCategory;
+  panel_id: string | null;
+  track_id: string | null;
+  fixing_id: string | null;
+  sealant_id: string | null;
+  price: number;
+}
+
+// The one product id a given price/override row applies to, regardless of
+// category -- mirrors the coalesce(panel_id, track_id, fixing_id,
+// sealant_id) unique index both price_list_prices and
+// company_product_overrides are keyed on.
+export function priceRowProductId(row: PriceableProductRow): string {
   return (row.panel_id ?? row.track_id ?? row.fixing_id ?? row.sealant_id)!;
 }
