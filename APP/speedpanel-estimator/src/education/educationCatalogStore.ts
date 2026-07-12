@@ -9,13 +9,11 @@
 // shared, same "duplicated, not reused" call as documentMappers.ts's own
 // category enum.
 //
-// Trade-off: admin_documents has no extracted-PDF-text column, so the
-// previous MiniSearch full-text index (built offline by
-// scripts/add-education-doc.mjs from each PDF's actual content, see
-// catalog.ts's eduSearchIndex) is gone -- search here is metadata-only
-// (title/tags/category/description), same as every other admin list's
-// search box. A guide is only findable by what an editor has typed into its
-// metadata now, not by a phrase buried on page 40.
+// admin_documents.search_text carries each real document's full extracted
+// PDF text (written by scripts/add-education-doc.mjs via pdf-parse; empty
+// for mock entries with no PDF), so EducationHub's search box can match a
+// phrase buried on page 40, not just title/tags/category/description. Not
+// surfaced in the Admin > Documents edit form -- see documentTypes.ts.
 // =============================================================================
 import { useCallback, useEffect, useState } from "react";
 import { z } from "zod";
@@ -36,6 +34,7 @@ const rowSchema = z.object({
   id: z.string(), title: z.string(), category: eduDocCategorySchema, tags: z.array(z.string()),
   description: z.string(), edition: z.string(), date: z.string(), file_size: z.string(), file_type: z.string(),
   page_count: z.number(), swatch: z.string(), sections: z.array(sectionSchema), file_url: z.string().nullable(),
+  search_text: z.string(),
 });
 type Row = z.infer<typeof rowSchema>;
 
@@ -45,6 +44,7 @@ function fromRow(row: Row): EduDocument {
     edition: row.edition, date: row.date, fileSize: row.file_size, fileType: row.file_type,
     pageCount: row.page_count, swatch: EDU_SWATCH_MAP[row.swatch] ?? row.swatch, sections: row.sections,
     fileUrl: row.file_url ? `${import.meta.env.BASE_URL}${row.file_url}` : undefined,
+    searchText: row.search_text || undefined,
   };
 }
 
