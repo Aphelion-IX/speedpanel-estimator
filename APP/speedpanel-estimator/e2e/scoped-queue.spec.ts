@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { signInAsProjectManager, signInAsOutsider, signInAsAdmin, signOut } from "./fixtures/auth";
-import { PROJECT_A_INSTALL_REVIEW_NAME, PROJECT_B_INSTALL_REVIEW_NAME } from "./fixtures/seedIds";
+import { PROJECT_A_INSTALL_REVIEW, PROJECT_B_INSTALL_REVIEW } from "./fixtures/seedIds";
+import { expectTextVisibleWithSnapshot } from "./test-utils";
 
 // =============================================================================
 // Automated replacement for the manual "staff smoke test" -- the Project
@@ -26,16 +27,13 @@ test.describe("scoped queue: Project Reviews", () => {
 
     await page.goto("/#/admin/projectReviews");
     await expect(page.getByText("Not part of your role")).not.toBeVisible();
-    // Two sequential Supabase round trips gate this queue (staff_assignments
-    // scope resolution, then the scoped projects fetch -- see
-    // useMyQueueScope/adminProjectsStore.ts) -- give the FIRST (positive)
-    // assertion more room than the 5s default on a cold CI connection, so
-    // the page has genuinely finished loading before the negative assertion
-    // right after it.
-    // Use a flexible regex to tolerate small formatting changes (different
-    // dash characters, extra whitespace) in the seeded project display name.
-    await expect(page.getByText(new RegExp("E2E\\s*Co\\s*A.*Install Review Project", "i"))).toBeVisible({ timeout: 20_000 });
-    await expect(page.getByText(new RegExp("E2E\\s*Co\\s*B.*Install Review Project", "i"))).not.toBeVisible();
+
+    // wait for seeded project A row and assert it's visible
+    await page.waitForSelector(`[data-testid="project-row-${PROJECT_A_INSTALL_REVIEW}"]`, { timeout: 20_000 });
+    await expect(page.locator(`[data-testid="project-name-${PROJECT_A_INSTALL_REVIEW}"]`)).toBeVisible();
+
+    // ensure B not visible
+    await expect(page.locator(`[data-testid="project-row-${PROJECT_B_INSTALL_REVIEW}"]`)).not.toBeVisible();
 
     // Dashboard: only the one section this role is granted (Workflow >
     // Project Reviews) renders -- no other Workflow tiles, and no
@@ -65,16 +63,10 @@ test.describe("scoped queue: Project Reviews", () => {
   test("outsider (non-staff, Company B) never sees Company A's queue items", async ({ page }) => {
     await signInAsOutsider(page);
 
-    // adminSectionAccess.ts's grandfather rule (staff_role === null passes)
-    // lets a non-staff account reach this page client-side -- RLS is the
-    // real backstop here, not the nav gate. See can_view_project() /
-    // 03_project_and_order_access.test.sql's "outsider: sees zero Company A
-    // projects" assertion for the server-side half of this same guarantee.
     await page.goto("/#/admin/projectReviews");
-    // Positive assertion first (see the generous-timeout comment above) so
-    // the negative one right after it isn't just catching the page mid-load.
-    await expect(page.getByText(new RegExp("E2E\\s*Co\\s*B.*Install Review Project", "i"))).toBeVisible({ timeout: 20_000 });
-    await expect(page.getByText(new RegExp("E2E\\s*Co\\s*A.*Install Review Project", "i"))).not.toBeVisible();
+    await page.waitForSelector(`[data-testid="project-row-${PROJECT_B_INSTALL_REVIEW}"]`, { timeout: 20_000 });
+    await expect(page.locator(`[data-testid="project-name-${PROJECT_B_INSTALL_REVIEW}"]`)).toBeVisible();
+    await expect(page.locator(`[data-testid="project-row-${PROJECT_A_INSTALL_REVIEW}"]`)).not.toBeVisible();
 
     await signOut(page);
   });
@@ -83,8 +75,9 @@ test.describe("scoped queue: Project Reviews", () => {
     await signInAsAdmin(page);
 
     await page.goto("/#/admin/projectReviews");
-    await expect(page.getByText(new RegExp("E2E\\s*Co\\s*A.*Install Review Project", "i"))).toBeVisible({ timeout: 20_000 });
-    await expect(page.getByText(new RegExp("E2E\\s*Co\\s*B.*Install Review Project", "i"))).toBeVisible();
+    await page.waitForSelector(`[data-testid="project-row-${PROJECT_A_INSTALL_REVIEW}"]`, { timeout: 20_000 });
+    await expect(page.locator(`[data-testid="project-name-${PROJECT_A_INSTALL_REVIEW}"]`)).toBeVisible();
+    await expect(page.locator(`[data-testid="project-name-${PROJECT_B_INSTALL_REVIEW}"]`)).toBeVisible();
 
     await signOut(page);
   });
