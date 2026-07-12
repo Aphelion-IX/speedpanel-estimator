@@ -31,7 +31,14 @@ test.describe("scoped queue: Project Reviews", () => {
     // assertion more room than the 5s default on a cold CI connection, so
     // the page has genuinely finished loading before the negative assertion
     // right after it.
-    await expect(page.getByText(PROJECT_A_INSTALL_REVIEW_NAME)).toBeVisible({ timeout: 20_000 });
+    //
+    // For a project_manager viewer specifically, AdminProjectsPage.tsx
+    // renders this same project name TWICE -- once as a review-queue row,
+    // once again in the "My active projects" section below it
+    // (MyActiveProjectsSection, PM-only) -- both genuinely correct, not a
+    // bug, so .first() (the review-queue row, which renders first in DOM
+    // order) disambiguates rather than hitting a strict-mode violation.
+    await expect(page.getByText(PROJECT_A_INSTALL_REVIEW_NAME).first()).toBeVisible({ timeout: 20_000 });
     await expect(page.getByText(PROJECT_B_INSTALL_REVIEW_NAME)).not.toBeVisible();
 
     // Dashboard: only the one section this role is granted (Workflow >
