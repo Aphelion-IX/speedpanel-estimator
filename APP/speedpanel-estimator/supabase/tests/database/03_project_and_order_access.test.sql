@@ -48,7 +48,7 @@ select is( (select count(*)::int from projects where company_id = 'eeeeeeee-0000
 -- is_admin() -- documented finding, not a bug: staff RLS read access is
 -- intentionally broad, narrowed only at the UI/RPC layer.
 select set_config('request.jwt.claims', json_build_object('sub', 'eeeeeeee-0000-0000-0000-000000000005')::text, true);
-select is( (select count(*)::int from projects where id::text like 'eeeeeeee-%'), 4, 'dispatch (staff): sees all 4 seeded projects across both companies via is_admin()' );
+select is( (select count(*)::int from projects where id::text like 'eeeeeeee-%'), 5, 'dispatch (staff): sees all 5 seeded projects across both companies via is_admin()' );
 
 select * from finish();
 rollback;

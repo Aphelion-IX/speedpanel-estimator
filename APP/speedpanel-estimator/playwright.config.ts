@@ -14,20 +14,25 @@ export default defineConfig({
   testDir: "./e2e",
   fullyParallel: false, // shared seeded accounts -- avoid concurrent-session interference
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 1 : 0,
+  retries: process.env.CI ? 2 : 0,
   workers: 1,
-  reporter: "list",
+  reporter: [["list"], ["html", { open: "never" }]],
   use: {
-    baseURL: process.env.PLAYWRIGHT_TEST_BASE_URL ?? "http://localhost:5183",
-    trace: "on-first-retry",
+    baseURL: process.env.E2E_BASE_URL ?? "http://127.0.0.1:4173",
+    trace: "retain-on-failure",
+    screenshot: "only-on-failure",
+    video: "retain-on-failure",
   },
   projects: [
     { name: "chromium", use: { ...devices["Desktop Chrome"] } },
   ],
   webServer: {
-    command: "npm run dev -- --port 5183",
-    url: "http://localhost:5183",
+    // Against the production build (not `npm run dev`) -- matches what
+    // actually ships, and what the GitHub Actions workflow runs after its
+    // own `npm run build` step (see .github/workflows/e2e.yml).
+    command: "npm run preview -- --host 127.0.0.1 --port 4173",
+    url: "http://127.0.0.1:4173",
     reuseExistingServer: !process.env.CI,
-    timeout: 30_000,
+    timeout: 120_000,
   },
 });

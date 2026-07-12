@@ -124,16 +124,20 @@ values
 on conflict (id) do nothing;
 
 -- ---------------------------------------------------------------------------
--- 5. Projects -- 3 in Company A across different stages, 1 in Company B.
---    on_project_created() auto-adds an 'editor' project_memberships row for
---    each owner_id via trigger -- no manual insert needed for that part.
+-- 5. Projects -- 3 in Company A across different stages, 2 in Company B
+--    (including one ALSO in install_review, so the Project Reviews queue
+--    has a genuine cross-company negative case to scope out -- see
+--    e2e/scoped-queue.spec.ts). on_project_created() auto-adds an 'editor'
+--    project_memberships row for each owner_id via trigger -- no manual
+--    insert needed for that part.
 -- ---------------------------------------------------------------------------
 insert into projects (id, owner_id, company_id, name, data, stage, created_at, updated_at)
 values
   ('eeeeeeee-0000-0000-0002-000000000001', 'eeeeeeee-0000-0000-0000-000000000008', 'eeeeeeee-0000-0000-0001-000000000001', 'E2E Co A -- Draft Project',            '{}'::jsonb, 'draft',            now(), now()),
   ('eeeeeeee-0000-0000-0002-000000000002', 'eeeeeeee-0000-0000-0000-000000000007', 'eeeeeeee-0000-0000-0001-000000000001', 'E2E Co A -- Install Review Project',   '{}'::jsonb, 'install_review',   now(), now()),
   ('eeeeeeee-0000-0000-0002-000000000003', 'eeeeeeee-0000-0000-0000-000000000007', 'eeeeeeee-0000-0000-0001-000000000001', 'E2E Co A -- Technical Review Project', '{}'::jsonb, 'technical_review', now(), now()),
-  ('eeeeeeee-0000-0000-0002-000000000004', 'eeeeeeee-0000-0000-0000-000000000009', 'eeeeeeee-0000-0000-0001-000000000002', 'E2E Co B -- Draft Project',            '{}'::jsonb, 'draft',            now(), now())
+  ('eeeeeeee-0000-0000-0002-000000000004', 'eeeeeeee-0000-0000-0000-000000000009', 'eeeeeeee-0000-0000-0001-000000000002', 'E2E Co B -- Draft Project',            '{}'::jsonb, 'draft',            now(), now()),
+  ('eeeeeeee-0000-0000-0002-000000000005', 'eeeeeeee-0000-0000-0000-000000000009', 'eeeeeeee-0000-0000-0001-000000000002', 'E2E Co B -- Install Review Project',   '{}'::jsonb, 'install_review',   now(), now())
 on conflict (id) do nothing;
 
 -- member@e2e.test additionally has an explicit viewer row on the Install
