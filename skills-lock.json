@@ -1,17 +1,59 @@
 {
   "version": 1,
   "skills": {
+    "deploy-to-vercel": {
+      "source": "Aphelion-IX/Aphelion-IX",
+      "sourceType": "github",
+      "skillPath": "skills/deploy-to-vercel/SKILL.md",
+      "computedHash": "0a800bb0babc2d52e809f8f9f03bd43b48c029182f799afbdd9776239461d5a6"
+    },
     "supabase": {
-      "source": "supabase/agent-skills",
+      "source": "Aphelion-IX/Aphelion-IX",
       "sourceType": "github",
       "skillPath": "skills/supabase/SKILL.md",
-      "computedHash": "d414d598b9428b3e851c4ce61898649906b19e55aa7415bb42a286bd9ca2ab32"
+      "computedHash": "17a437f3de2371ec43ad8a17d3e858337695efb46ed4af5dd6426f330bb6d032"
     },
     "supabase-postgres-best-practices": {
-      "source": "supabase/agent-skills",
+      "source": "Aphelion-IX/Aphelion-IX",
       "sourceType": "github",
       "skillPath": "skills/supabase-postgres-best-practices/SKILL.md",
-      "computedHash": "0d2c4857a7d6fdcd3fbc46e458fa4c497f029cab89a01548b3defce203003932"
+      "computedHash": "ec56a54fba0e97bee52c7f244ba603bb284bf8d1b739c66a5cc84ec3df709d9d"
+    },
+    "template-skill": {
+      "source": "Aphelion-IX/Aphelion-IX",
+      "sourceType": "github",
+      "skillPath": "skills/_template/SKILL.md",
+      "computedHash": "5b100510ea8fccaf0406eec941094c4d2acafd5c5bf259ffaf2a04be18bc7301"
+    },
+    "vercel-cli-with-tokens": {
+      "source": "Aphelion-IX/Aphelion-IX",
+      "sourceType": "github",
+      "skillPath": "skills/vercel-cli-with-tokens/SKILL.md",
+      "computedHash": "a2f596ac516fe8986386f9562f4c94604af9fb6a0fc417d263cbe6dc05117b72"
+    },
+    "vercel-composition-patterns": {
+      "source": "Aphelion-IX/Aphelion-IX",
+      "sourceType": "github",
+      "skillPath": "skills/vercel-composition-patterns/SKILL.md",
+      "computedHash": "94614590eb8d755279d38baf53f9fb48df06cb260e77e8fb626d24090f2a8c77"
+    },
+    "vercel-optimize": {
+      "source": "Aphelion-IX/Aphelion-IX",
+      "sourceType": "github",
+      "skillPath": "skills/vercel-optimize/SKILL.md",
+      "computedHash": "d948c7bf67ef2979cb5b2551070cecdeb8cb1a3503036101731ef9a238bc2106"
+    },
+    "vercel-react-best-practices": {
+      "source": "Aphelion-IX/Aphelion-IX",
+      "sourceType": "github",
+      "skillPath": "skills/vercel-react-best-practices/SKILL.md",
+      "computedHash": "451c3cb0e335a2a9a6a1beaa54c22decbdb942f4104ae3d7b6d1979114986d79"
+    },
+    "zod": {
+      "source": "Aphelion-IX/Aphelion-IX",
+      "sourceType": "github",
+      "skillPath": "skills/zod/SKILL.md",
+      "computedHash": "52884654fb37b70b1d63ef831224634c6b7c13ffff205469b7b81bfecb93bf2d"
     }
   }
 }
