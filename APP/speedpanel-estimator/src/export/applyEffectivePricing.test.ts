@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { applyEffectivePricing } from "./applyEffectivePricing";
 import type { ProductCatalog } from "../pages/admin/products/productTypes";
-import type { PriceListPriceRow } from "../pages/admin/priceLists/priceListTypes";
+import type { PriceableProductRow } from "../pages/admin/priceLists/priceListTypes";
 
 function baseCatalog(): ProductCatalog {
   return {
@@ -13,34 +13,43 @@ function baseCatalog(): ProductCatalog {
   };
 }
 
-function priceRow(overrides: Partial<PriceListPriceRow>): PriceListPriceRow {
+function priceRow(overrides: Partial<PriceableProductRow>): PriceableProductRow {
   return {
-    id: "row-1", price_list_id: "pl-1", category: "panel",
+    category: "panel",
     panel_id: null, track_id: null, fixing_id: null, sealant_id: null,
-    price: 0, created_at: "", updated_at: "",
+    price: 0,
     ...overrides,
   };
 }
 
 describe("applyEffectivePricing", () => {
+  it("prefers a customer override over the assigned list, PL1, and the deprecated column", () => {
+    const catalog = baseCatalog();
+    const overrides = [priceRow({ category: "panel", panel_id: "panel-1", price: 60 })];
+    const assigned = [priceRow({ category: "panel", panel_id: "panel-1", price: 55 })];
+    const defaultList = [priceRow({ category: "panel", panel_id: "panel-1", price: 45 })];
+    const result = applyEffectivePricing(catalog, overrides, assigned, defaultList);
+    expect(result.panels[0].pricePerPanel).toBe(60);
+  });
+
   it("prefers the company's assigned list over PL1 and the deprecated column", () => {
     const catalog = baseCatalog();
-    const assigned = [priceRow({ id: "a1", category: "panel", panel_id: "panel-1", price: 55 })];
-    const defaultList = [priceRow({ id: "d1", category: "panel", panel_id: "panel-1", price: 45 })];
-    const result = applyEffectivePricing(catalog, assigned, defaultList);
+    const assigned = [priceRow({ category: "panel", panel_id: "panel-1", price: 55 })];
+    const defaultList = [priceRow({ category: "panel", panel_id: "panel-1", price: 45 })];
+    const result = applyEffectivePricing(catalog, [], assigned, defaultList);
     expect(result.panels[0].pricePerPanel).toBe(55);
   });
 
-  it("falls back to PL1 when the assigned list has no row for a product", () => {
+  it("falls back to PL1 when there's no override and the assigned list has no row for a product", () => {
     const catalog = baseCatalog();
-    const defaultList = [priceRow({ id: "d1", category: "track", track_id: "track-1", price: 12 })];
-    const result = applyEffectivePricing(catalog, [], defaultList);
+    const defaultList = [priceRow({ category: "track", track_id: "track-1", price: 12 })];
+    const result = applyEffectivePricing(catalog, [], [], defaultList);
     expect(result.tracks[0].pricePerMetre).toBe(12);
   });
 
-  it("falls back to the deprecated price_per_* column when neither list has a row", () => {
+  it("falls back to the deprecated price_per_* column when nothing else has a row", () => {
     const catalog = baseCatalog();
-    const result = applyEffectivePricing(catalog, [], []);
+    const result = applyEffectivePricing(catalog, [], [], []);
     expect(result.fixings[0].pricePerBox).toBe(5);
     expect(result.sealants[0].pricePerBox).toBe(8);
   });
@@ -49,8 +58,8 @@ describe("applyEffectivePricing", () => {
     const catalog = baseCatalog();
     // A row with the SAME id as panel-1 but tagged as a different category
     // must not leak into panels' resolution.
-    const assigned = [priceRow({ id: "a1", category: "track", track_id: "panel-1", price: 999 })];
-    const result = applyEffectivePricing(catalog, assigned, []);
+    const overrides = [priceRow({ category: "track", track_id: "panel-1", price: 999 })];
+    const result = applyEffectivePricing(catalog, overrides, [], []);
     expect(result.panels[0].pricePerPanel).toBe(40);
   });
 });

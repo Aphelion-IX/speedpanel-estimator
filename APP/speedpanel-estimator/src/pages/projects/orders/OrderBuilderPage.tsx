@@ -15,6 +15,7 @@ import type { UseAuth } from "../../../lib/useAuth";
 import { useProject } from "../projectDetailStore";
 import { useProductStore } from "../../admin/products/productStore";
 import { useEffectivePriceListPrices } from "../../admin/priceLists/priceListsStore";
+import { useCompanyOverrides } from "../../admin/overrides/overridesStore";
 import { applyEffectivePricing } from "../../../export/applyEffectivePricing";
 import { computeProjectReportData } from "../../../estimate/computeProjectReportData";
 import { priceReportData, round2, GST_RATE } from "../../../export/priceEstimateReportData";
@@ -27,6 +28,7 @@ export const OrderBuilderPage = ({ projectId, auth, onBack, onCreated }: {
   const { project, loading: projectLoading, error: projectError } = useProject(projectId);
   const { catalog, loading: catalogLoading, error: catalogError } = useProductStore();
   const { assigned, defaultList, loading: pricingLoading, error: pricingError } = useEffectivePriceListPrices(project?.company_id ?? null);
+  const { overrides, loading: overridesLoading, error: overridesError } = useCompanyOverrides(project?.company_id ?? null);
   const { createOrder } = useProjectOrders(projectId);
 
   const [items, setItems] = useState<DraftLineItem[] | null>(null);
@@ -35,20 +37,20 @@ export const OrderBuilderPage = ({ projectId, auth, onBack, onCreated }: {
   const [createError, setCreateError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!project || catalogLoading || pricingLoading) return;
+    if (!project || catalogLoading || pricingLoading || overridesLoading) return;
     try {
       const report = computeProjectReportData(project.data);
-      const effectiveCatalog = applyEffectivePricing(catalog, assigned, defaultList);
+      const effectiveCatalog = applyEffectivePricing(catalog, overrides, assigned, defaultList);
       const priced = priceReportData(report, effectiveCatalog);
       setItems(priced.items.map(i => ({ ...i, included: true })));
     } catch (err) {
       setComputeError(err instanceof Error ? err.message : "This project's estimate couldn't be priced.");
     }
-    // Re-price only when the project, catalog, or price lists actually
-    // change -- not on every keystroke while the customer is adjusting
-    // quantities below.
+    // Re-price only when the project, catalog, price lists, or overrides
+    // actually change -- not on every keystroke while the customer is
+    // adjusting quantities below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [project?.id, project?.data, catalog, assigned, defaultList, pricingLoading]);
+  }, [project?.id, project?.data, catalog, overrides, assigned, defaultList, pricingLoading, overridesLoading]);
 
   const totals = useMemo(() => {
     if (!items) return null;
@@ -75,7 +77,7 @@ export const OrderBuilderPage = ({ projectId, auth, onBack, onCreated }: {
     if (id) onCreated(id);
   };
 
-  if (projectLoading || catalogLoading || pricingLoading) {
+  if (projectLoading || catalogLoading || pricingLoading || overridesLoading) {
     return <div className={`${cx.card} mt-6 text-sm`} style={{ color: MUTED }}>Loading...</div>;
   }
 
@@ -88,10 +90,10 @@ export const OrderBuilderPage = ({ projectId, auth, onBack, onCreated }: {
     );
   }
 
-  if (computeError || catalogError || pricingError) {
+  if (computeError || catalogError || pricingError || overridesError) {
     return (
       <div className={`${cx.card} mt-6`}>
-        <p className="text-sm text-red-600 dark:text-red-400">{computeError || catalogError || pricingError}</p>
+        <p className="text-sm text-red-600 dark:text-red-400">{computeError || catalogError || pricingError || overridesError}</p>
         <button onClick={onBack} className="mt-2 text-sm font-bold" style={{ color: BLUE }}>Back to project</button>
       </div>
     );
