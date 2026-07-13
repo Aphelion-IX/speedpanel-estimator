@@ -11,6 +11,7 @@
 // =============================================================================
 import type * as XLSXType from "xlsx";
 import type { OrderRow, OrderDeliveryRow } from "../pages/projects/orders/orderTypes";
+import { ORDER_ADJUSTMENT_KIND_LABELS, type OrderAdjustmentRow } from "../pages/projects/orders/orderAdjustmentTypes";
 
 function autoWidth(rows: (string | number)[][]): { wch: number }[] {
   const widths: number[] = [];
@@ -34,7 +35,9 @@ function sheetFromRows(XLSX: typeof XLSXType, header: string[], rows: (string | 
 const formatAddress = (d: OrderDeliveryRow): string =>
   [d.address_line1, d.address_line2, `${d.suburb} ${d.state} ${d.postcode}`].filter(Boolean).join(", ");
 
-export async function buildOrderWorkbook(order: OrderRow, deliveries: OrderDeliveryRow[], projectName: string): Promise<XLSXType.WorkBook> {
+export async function buildOrderWorkbook(
+  order: OrderRow, deliveries: OrderDeliveryRow[], projectName: string, adjustments: OrderAdjustmentRow[] = [],
+): Promise<XLSXType.WorkBook> {
   const XLSX = await import("xlsx");
   const wb = XLSX.utils.book_new();
   const orderRef = order.id.slice(0, 8).toUpperCase();
@@ -47,9 +50,19 @@ export async function buildOrderWorkbook(order: OrderRow, deliveries: OrderDeliv
     ["Issued", order.proforma_issued_at ? new Date(order.proforma_issued_at).toLocaleString() : ""],
     ["", ""],
     ["Subtotal (ex GST)", order.subtotal_ex_gst],
+  ];
+  // Informational only -- order.subtotal_ex_gst above already includes this
+  // (recompute_order_totals sums line items + adjustments server-side), so
+  // this row just breaks out how much of that subtotal came from
+  // adjustments rather than changing any total.
+  if (adjustments.length > 0) {
+    const adjustmentsTotal = Math.round(adjustments.reduce((sum, a) => sum + (a.amount_ex_gst ?? 0), 0) * 100) / 100;
+    summaryRows.push(["Adjustments (ex GST)", adjustmentsTotal]);
+  }
+  summaryRows.push(
     [`GST (${(order.gst_rate * 100).toFixed(0)}%)`, order.gst_amount],
     ["Total (inc GST)", order.total_inc_gst],
-  ];
+  );
   if (order.unpriced_item_count > 0) {
     summaryRows.push(["", ""], ["Note", `${order.unpriced_item_count} item(s) couldn't be priced automatically -- see Line Items`]);
   }
@@ -68,6 +81,17 @@ export async function buildOrderWorkbook(order: OrderRow, deliveries: OrderDeliv
   ]);
   if (itemRows.length === 0) itemRows.push(["No line items", 0, "", "", 0, ""]);
   XLSX.utils.book_append_sheet(wb, sheetFromRows(XLSX, itemHeader, itemRows), "Line Items");
+
+  // --- Adjustments -----------------------------------------------------------------
+  // Own sheet (not appended into Line Items), matching this file's own
+  // existing convention -- Line Items and Delivery Schedule are already
+  // separate sheets, not sections within one sheet.
+  const adjHeader = ["Kind", "Item", "Amount (ex GST)"];
+  const adjRows: (string | number)[][] = adjustments.map(a => [
+    ORDER_ADJUSTMENT_KIND_LABELS[a.kind], a.label, a.amount_ex_gst ?? "",
+  ]);
+  if (adjRows.length === 0) adjRows.push(["--", "No adjustments", ""]);
+  XLSX.utils.book_append_sheet(wb, sheetFromRows(XLSX, adjHeader, adjRows), "Adjustments");
 
   // --- Delivery Schedule -----------------------------------------------------------
   // Flat, one row per (delivery, allocated item) pair -- same "flatten a

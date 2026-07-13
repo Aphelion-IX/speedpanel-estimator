@@ -23,6 +23,7 @@ import { AdminGate } from "../../appShell/AdminGate";
 import { AdminDashboard } from "./AdminDashboard";
 import { AdminProductsPage } from "./AdminProductsPage";
 import { AdminPriceListsPage } from "./AdminPriceListsPage";
+import { AdminSavedFeesPage } from "./AdminSavedFeesPage";
 import { AdminSystemsPage } from "./AdminSystemsPage";
 import { AdminMathsPage } from "./AdminMathsPage";
 import { AdminDocumentsPage } from "./AdminDocumentsPage";
@@ -70,6 +71,7 @@ export const AdminRoot = ({ route, navigate, layoutMode, auth }: {
             )}
             {allowed && route.sub === "products"  && <AdminProductsPage layoutMode={layoutMode} />}
             {allowed && route.sub === "priceLists" && <AdminPriceListsPage layoutMode={layoutMode} />}
+            {allowed && route.sub === "savedFees" && <AdminSavedFeesPage />}
             {allowed && route.sub === "systems"   && <AdminSystemsPage layoutMode={layoutMode} />}
             {allowed && route.sub === "maths"     && <AdminMathsPage />}
             {allowed && route.sub === "documents" && <AdminDocumentsPage layoutMode={layoutMode} />}

@@ -8,13 +8,19 @@
 // or change what something costs), only quantity and include/exclude are
 // editable, and there's no "add" action at all.
 // =============================================================================
-import { NAVY, MUTED, GOLD } from "../../../styleTokens";
+import { Pencil } from "lucide-react";
+import { NAVY, MUTED, GOLD, BLUE } from "../../../styleTokens";
 import { round2, type OrderLineItem } from "../../../export/priceEstimateReportData";
 
 export interface DraftLineItem extends OrderLineItem { included: boolean; }
 
-export const OrderLineItemsTable = ({ items, onChange, readOnly }: {
+// onEditPrice is a no-op unless passed, same convention as onChange/
+// readOnly -- Internal Sales' "Edit Line Price" affordance (AdminOrderRow)
+// opens a small inline price-entry form wired to it; OrderDetailPage.tsx
+// never passes it, staying fully read-only for customers.
+export const OrderLineItemsTable = ({ items, onChange, readOnly, onEditPrice }: {
   items: DraftLineItem[]; onChange?: (items: DraftLineItem[]) => void; readOnly?: boolean;
+  onEditPrice?: (id: string) => void;
 }) => {
   const setQty = (id: string, qty: number) => {
     onChange?.(items.map(i => i.id === id
@@ -63,7 +69,14 @@ export const OrderLineItemsTable = ({ items, onChange, readOnly }: {
               </td>
               <td className="py-1.5 pr-2" style={{ color: MUTED }}>{item.unit}</td>
               <td className="py-1.5 pr-2 text-right" style={{ color: MUTED }}>
-                {item.unitPriceExGst != null ? `$${item.unitPriceExGst.toFixed(2)}` : "--"}
+                <span className="inline-flex items-center gap-1.5">
+                  {item.unitPriceExGst != null ? `$${item.unitPriceExGst.toFixed(2)}` : "--"}
+                  {onEditPrice && (
+                    <button onClick={() => onEditPrice(item.id)} className="grid h-5 w-5 place-items-center rounded" style={{ color: BLUE }}>
+                      <Pencil size={11} />
+                    </button>
+                  )}
+                </span>
               </td>
               <td className="py-1.5 text-right font-semibold" style={{ color: NAVY }}>
                 {item.included ? `$${item.lineTotalExGst.toFixed(2)}` : "--"}
