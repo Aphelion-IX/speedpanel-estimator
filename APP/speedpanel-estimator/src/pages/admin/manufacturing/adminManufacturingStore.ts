@@ -39,6 +39,7 @@ import { useCallback, useEffect, useState } from "react";
 import { z } from "zod";
 import { supabase } from "../../../lib/supabaseClient";
 import { OrderRowSchema, OrderDeliveryRowSchema, type OrderRow, type OrderDeliveryRow, type DeliveryStatus } from "../../projects/orders/orderTypes";
+import { DELIVERY_COLUMNS } from "../../projects/orders/orderDeliveriesStore";
 import { useMyQueueScope, applyQueueScope, type QueueScope } from "../shared/useMyQueueScope";
 import type { InternalRole } from "../../company/staffTypes";
 
@@ -69,7 +70,7 @@ async function fetchPage(from: number, to: number, scope: QueueScope): Promise<{
   const orderIds = parsedOrders.data.map(o => o.id);
   const { data: deliveryData, error: deliveryError } = orderIds.length === 0
     ? { data: [], error: null }
-    : await supabase!.from("order_deliveries").select("*").in("order_id", orderIds).order("sequence_no", { ascending: true });
+    : await supabase!.from("order_deliveries").select(DELIVERY_COLUMNS).in("order_id", orderIds).order("sequence_no", { ascending: true });
   if (deliveryError) return { error: deliveryError.message };
   const parsedDeliveries = OrderDeliveryRowSchema.array().safeParse(deliveryData ?? []);
   if (!parsedDeliveries.success) return { error: BAD_SHAPE };

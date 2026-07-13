@@ -26,7 +26,7 @@ import { OrderDeliveryRowSchema, type OrderDeliveryRow, type OrderDeliveryItemAl
 const NOT_CONFIGURED = "Deliveries aren't configured for this environment.";
 const BAD_SHAPE = "Unexpected data shape from the server.";
 
-const DELIVERY_COLUMNS = [
+export const DELIVERY_COLUMNS = [
   "id", "order_id", "sequence_no", "address_line1", "address_line2", "suburb", "state", "postcode",
   "requested_date", "proposed_date", "confirmed_date", "actual_date", "contact_name", "contact_phone",
   "delivery_instructions", "preferred_window", "site_access_details", "customer_note", "item_allocations",
