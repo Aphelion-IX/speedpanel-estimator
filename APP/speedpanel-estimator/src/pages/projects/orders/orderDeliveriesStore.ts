@@ -120,3 +120,36 @@ export function useOrderDeliveries(orderId: string) {
 
   return { ...state, reload: load, addDelivery, removeDelivery, requestDateChange, acceptProposedDate };
 }
+
+// Batched read-only variant for callers that need deliveries across several
+// orders at once (ProjectDetailPage.tsx/projectsJourneyStore.ts's journey-
+// stage computation) rather than one order's own detail page -- same
+// DELIVERY_COLUMNS/schema as useOrderDeliveries above, just `.in(...)`
+// instead of `.eq(...)`, grouped by order_id. Read-only: no
+// add/remove/requestDateChange here, those stay scoped to a single order's
+// own OrderDetailPage.tsx via useOrderDeliveries.
+export function useOrderDeliveriesForOrders(orderIds: string[]) {
+  const [state, setState] = useState<{ deliveriesByOrder: Map<string, OrderDeliveryRow[]>; loading: boolean; error: string | null }>(() =>
+    supabase
+      ? { deliveriesByOrder: new Map(), loading: orderIds.length > 0, error: null }
+      : { deliveriesByOrder: new Map(), loading: false, error: NOT_CONFIGURED },
+  );
+
+  const load = useCallback(async () => {
+    if (!supabase) return;
+    if (orderIds.length === 0) { setState({ deliveriesByOrder: new Map(), loading: false, error: null }); return; }
+    setState(s => ({ ...s, loading: true, error: null }));
+    const { data, error } = await supabase.from("order_deliveries").select(DELIVERY_COLUMNS)
+      .in("order_id", orderIds).order("sequence_no", { ascending: true });
+    if (error) { setState({ deliveriesByOrder: new Map(), loading: false, error: error.message }); return; }
+    const parsed = OrderDeliveryRowSchema.array().safeParse(data ?? []);
+    if (!parsed.success) { setState({ deliveriesByOrder: new Map(), loading: false, error: BAD_SHAPE }); return; }
+    const byOrder = new Map<string, OrderDeliveryRow[]>();
+    for (const row of parsed.data) byOrder.set(row.order_id, [...(byOrder.get(row.order_id) ?? []), row]);
+    setState({ deliveriesByOrder: byOrder, loading: false, error: null });
+  }, [orderIds.join(",")]);
+
+  useEffect(() => { load(); }, [load]);
+
+  return { ...state, reload: load };
+}

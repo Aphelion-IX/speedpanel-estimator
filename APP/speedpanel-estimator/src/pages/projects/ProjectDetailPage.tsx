@@ -1,0 +1,339 @@
+// =============================================================================
+// Project detail -- the expanded per-project view
+// =============================================================================
+// Replaces ProjectDashboard.tsx (deleted) -- was embedded directly beneath
+// ProjectsListPage.tsx's carousel; now its own full view reached at
+// #/projects/:id with an explicit back link (see ProjectsRouter.tsx). Modeled
+// on the supplied ProjectOverviewPage.tsx mockup: hero, an 8-step journey
+// timeline, What's Next/Quick Order cards, Quick Actions, Orders, Recent
+// Activity, Project Services, Documents, Project Team.
+//
+// Journey stage (the mockup's 8-step Estimating..Completed pipeline) is
+// DISPLAY-ONLY, computed here from this project's real orders/manufacturing/
+// delivery data via journeyStage.ts -- see that file's header comment for
+// why it's never persisted. "Project Services" further down still shows the
+// real project.stage (draft/install_review/technical_review/approved) via
+// the unchanged StageStepper/ReviewActionPanel -- the two pipelines stay
+// visually distinct, not conflated into one number.
+// =============================================================================
+import { useMemo, useState } from "react";
+import {
+  Building2, Activity as ActivityIcon,
+  Send, CheckCircle2, AlertCircle, ChevronLeft, ChevronRight,
+  CalendarDays, ShoppingCart, FileText, Box, UserRound, ClipboardCheck, Wrench,
+} from "lucide-react";
+import { cx, NAVY, BLUE, WHITE, MUTED } from "../../styleTokens";
+import { Field } from "../shared/fields";
+import { Card } from "../../ui/primitives";
+import type { EffectiveLayout } from "../../useLayoutMode";
+import { useProject } from "./projectDetailStore";
+import { useProjectCompanyNames } from "./projectsStore";
+import { ReviewActionPanel, canRequestInstallReview, canRequestTechnicalReview } from "./ReviewActionPanel";
+import { StageStepper } from "./StageStepper";
+import { ProjectJourneyTimeline } from "./ProjectJourneyTimeline";
+import { useProjectOrders } from "./orders/ordersStore";
+import { useOrderDeliveriesForOrders } from "./orders/orderDeliveriesStore";
+import { journeyStageForProject, journeyStageForOrder, journeyProgressPercent, JOURNEY_STAGE_LABELS, JOURNEY_STAGE_BADGE_CLASS } from "./journeyStage";
+import { journeyMilestone, nextDeliveryDate } from "./journeyCopy";
+import { ORDER_STAGE_LABELS, ORDER_STAGE_BADGE_CLASS, totalPanelCount } from "./orders/orderTypes";
+import {
+  useProjectActivity, STAGE_EVENT_LABELS, STAGE_EVENT_DESCRIPTIONS, relativeTime,
+  type StageEventType,
+} from "./projectActivityStore";
+import { ProjectDocumentsCard } from "./documents/ProjectDocumentsCard";
+import { ProjectMembersCard } from "./ProjectMembersCard";
+import { ProjectSpeedpanelTeamCard } from "./ProjectSpeedpanelTeamCard";
+import type { ProjectRow } from "./projectTypes";
+
+const EVENT_ICON: Record<StageEventType, { Icon: typeof Send; className: string }> = {
+  install_review_requested: { Icon: Send, className: "bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400" },
+  technical_review_requested: { Icon: Send, className: "bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400" },
+  install_review_approved: { Icon: CheckCircle2, className: "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400" },
+  technical_review_approved: { Icon: CheckCircle2, className: "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400" },
+  install_review_changes_requested: { Icon: AlertCircle, className: "bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400" },
+  technical_review_changes_requested: { Icon: AlertCircle, className: "bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400" },
+};
+
+const QuickAction = ({ icon: Icon, label, onClick, disabled, tone = "blue" }: {
+  icon: React.ElementType; label: string; onClick: () => void; disabled?: boolean;
+  tone?: "blue" | "green" | "purple" | "orange" | "cyan";
+}) => {
+  const tones: Record<string, string> = {
+    blue: "text-blue-600 dark:text-blue-400", green: "text-emerald-600 dark:text-emerald-400",
+    purple: "text-violet-600 dark:text-violet-400", orange: "text-orange-500 dark:text-orange-400",
+    cyan: "text-cyan-600 dark:text-cyan-400",
+  };
+  return (
+    <button onClick={onClick} disabled={disabled}
+      className="flex min-h-16 items-center gap-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-blue-200 dark:hover:border-blue-800 hover:shadow-md disabled:opacity-40 disabled:hover:translate-y-0">
+      <Icon className={`h-6 w-6 shrink-0 ${tones[tone]}`} />
+      <span className="text-sm font-semibold" style={{ color: NAVY }}>{label}</span>
+    </button>
+  );
+};
+
+export const ProjectDetailPage = ({ id, userId, onBack, onOpenEstimator, onRequestQuote, onCreateOrder, onOpenOrder, layoutMode }: {
+  id: string; userId: string | null; onBack: () => void; onOpenEstimator: (project: ProjectRow) => void; onRequestQuote: (id: string) => void;
+  onCreateOrder: (id: string) => void; onOpenOrder: (id: string, orderId: string) => void;
+  layoutMode: EffectiveLayout;
+}) => {
+  const { orders } = useProjectOrders(id);
+  const orderIds = useMemo(() => orders.filter(o => o.stage !== "cancelled").map(o => o.id), [orders]);
+  const { deliveriesByOrder } = useOrderDeliveriesForOrders(orderIds);
+  const { events, loading: activityLoading, error: activityError } = useProjectActivity(id);
+  const { project, loading, error, reload, rename, deleteProject, requestInstallReview, requestTechnicalReview } = useProject(id);
+  const companyNames = useProjectCompanyNames(useMemo(() => (project?.company_id ? [project.company_id] : []), [project?.company_id]));
+  const [name, setName] = useState("");
+  const [editingName, setEditingName] = useState(false);
+  const [renaming, setRenaming] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [quickActionBusy, setQuickActionBusy] = useState(false);
+
+  const journey = useMemo(() => {
+    if (!project) return null;
+    const nonCancelled = orders.filter(o => o.stage !== "cancelled");
+    return journeyStageForProject(project, nonCancelled.map(order => ({ order, deliveries: deliveriesByOrder.get(order.id) ?? [] })));
+  }, [project, orders, deliveriesByOrder]);
+
+  const representativeOrder = orders.find(o => o.id === journey?.representativeOrderId);
+  const representativeDeliveries = representativeOrder ? (deliveriesByOrder.get(representativeOrder.id) ?? []) : [];
+
+  if (loading) return <div className={`${cx.card} mt-5 text-sm`} style={{ color: MUTED }}>Loading...</div>;
+
+  if (error || !project || !journey) {
+    return (
+      <div className={`${cx.card} mt-5`}>
+        <p className="text-sm text-red-600 dark:text-red-400">{error || "Project not found."}</p>
+        <button onClick={() => reload()} className="mt-2 mr-4 text-sm font-bold" style={{ color: NAVY }}>Retry</button>
+        <button onClick={onBack} className="mt-2 text-sm font-bold" style={{ color: BLUE }}>All projects</button>
+      </div>
+    );
+  }
+
+  const startRename = () => { setName(project.name); setEditingName(true); };
+  const submitRename = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setRenaming(true);
+    setActionError(null);
+    const err = await rename(name.trim() || project.name);
+    setRenaming(false);
+    if (err) { setActionError(err); return; }
+    setEditingName(false);
+  };
+
+  const handleDelete = async () => {
+    if (!window.confirm(`Delete "${project.name}"? This can't be undone.`)) return;
+    setDeleting(true);
+    const err = await deleteProject();
+    setDeleting(false);
+    if (err) setActionError(err);
+  };
+
+  const runQuickAction = async (action: () => Promise<string | null>) => {
+    setQuickActionBusy(true);
+    setActionError(null);
+    const err = await action();
+    setQuickActionBusy(false);
+    if (err) setActionError(err);
+  };
+
+  const companyName = project.company_id ? companyNames.get(project.company_id) : undefined;
+  const milestone = journeyMilestone(journey.stage, {
+    estimatingNote: journey.estimatingNote,
+    estCompletion: representativeOrder?.manufacturing_est_completion,
+    nextDeliveryDate: nextDeliveryDate(representativeDeliveries),
+  });
+
+  return (
+    <div className="mt-2">
+      <button onClick={onBack} className="flex items-center gap-2 text-sm font-semibold hover:underline" style={{ color: BLUE }}>
+        <ChevronLeft className="h-4 w-4" />All projects
+      </button>
+
+      <div className={`${cx.card} mt-3`}>
+        {editingName ? (
+          <form onSubmit={submitRename} className="flex items-end gap-2">
+            <div className="flex-1"><Field label="Project name" value={name} onChange={setName} required /></div>
+            <button type="submit" disabled={renaming} className="h-[46px] shrink-0 rounded-xl px-4 text-sm font-bold disabled:opacity-50" style={{ background: BLUE, color: WHITE }}>
+              Save
+            </button>
+            <button type="button" onClick={() => setEditingName(false)} className="h-[46px] shrink-0 rounded-xl px-3 text-sm font-semibold" style={{ color: MUTED }}>
+              Cancel
+            </button>
+          </form>
+        ) : (
+          <div className="flex flex-col gap-4 sm:flex-row">
+            <div className="grid h-24 w-full shrink-0 place-items-center rounded-xl bg-blue-50 dark:bg-blue-950/40 sm:w-24">
+              <Building2 size={36} style={{ color: BLUE }} />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <h1 className="text-lg font-bold" style={{ color: NAVY }}>{project.name}</h1>
+                  <p className="mt-1 text-xs" style={{ color: MUTED }}>
+                    Ref: {project.id.slice(0, 8).toUpperCase()}{companyName ? ` · ${companyName}` : ""}
+                  </p>
+                  <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
+                    <span className={`${cx.badge} ${JOURNEY_STAGE_BADGE_CLASS[journey.stage]}`}>{JOURNEY_STAGE_LABELS[journey.stage]}</span>
+                    {representativeOrder?.manufacturing_est_completion && (
+                      <span style={{ color: MUTED }}>Expected completion: {new Date(representativeOrder.manufacturing_est_completion).toLocaleDateString()}</span>
+                    )}
+                    <span style={{ color: MUTED }}>Last updated: {relativeTime(project.updated_at)}</span>
+                  </div>
+                </div>
+                <button onClick={startRename} className="shrink-0 text-sm font-semibold hover:underline" style={{ color: BLUE }}>Rename</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {actionError && <p className="mt-3 text-sm text-red-600 dark:text-red-400">{actionError}</p>}
+
+        <div className="mt-4 flex flex-wrap gap-2">
+          <button onClick={() => onOpenEstimator(project)} className="rounded-xl px-4 py-2.5 text-sm font-bold" style={{ background: BLUE, color: WHITE }}>
+            Open in Estimator
+          </button>
+          <button onClick={handleDelete} disabled={deleting} className="rounded-xl px-4 py-2.5 text-sm font-bold text-red-500 disabled:opacity-50">
+            {deleting ? "Deleting..." : "Delete project"}
+          </button>
+        </div>
+      </div>
+
+      <div className="mt-4 overflow-x-auto">
+        <ProjectJourneyTimeline stage={journey.stage} layoutMode={layoutMode} />
+      </div>
+
+      <div className="mt-4 grid gap-4 xl:grid-cols-[2fr_1fr]">
+        <section className="flex min-h-32 items-center justify-between overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 shadow-sm">
+          <div className="flex items-start gap-5">
+            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full" style={{ background: BLUE, color: WHITE }}>
+              <CalendarDays className="h-6 w-6" />
+            </span>
+            <div>
+              <h2 className="text-lg font-bold" style={{ color: NAVY }}>What&apos;s Next?</h2>
+              <p className="mt-1 font-semibold" style={{ color: NAVY }}>{milestone.label}</p>
+              <p className="mt-2 text-sm" style={{ color: MUTED }}>{milestone.note}</p>
+            </div>
+          </div>
+          <Building2 className="hidden h-20 w-20 text-blue-100 dark:text-blue-950 sm:block" />
+        </section>
+
+        {/* Repurposed from the mockup's "quick order without the estimator" copy --
+            this app has no manual/quick order-entry mode; OrderBuilderPage.tsx
+            always derives line items from the project's own estimate. */}
+        <section className="flex items-center gap-5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 shadow-sm">
+          <span className="grid h-12 w-12 place-items-center rounded-full bg-violet-600 text-white">
+            <ShoppingCart className="h-6 w-6" />
+          </span>
+          <div>
+            <h2 className="text-lg font-bold" style={{ color: NAVY }}>New Order</h2>
+            <p className="mt-1 text-sm" style={{ color: MUTED }}>Create a new order from this project's saved estimate.</p>
+            <button onClick={() => onCreateOrder(project.id)} className="mt-3 rounded-lg border border-violet-300 dark:border-violet-700 px-5 py-2 text-sm font-semibold text-violet-700 dark:text-violet-400">
+              Create order &rarr;
+            </button>
+          </div>
+        </section>
+      </div>
+
+      <section className={`${cx.card} mt-4`}>
+        <h2 className="font-bold" style={{ color: NAVY }}>Quick Actions</h2>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <QuickAction icon={FileText} label="Open Estimate" onClick={() => onOpenEstimator(project)} />
+          <QuickAction icon={Box} label="Create Order" tone="green" onClick={() => onCreateOrder(project.id)} />
+          <QuickAction icon={UserRound} label="Request Install Review" tone="orange"
+            disabled={!canRequestInstallReview(project) || quickActionBusy}
+            onClick={() => runQuickAction(requestInstallReview)} />
+          <QuickAction icon={ClipboardCheck} label="Request Technical Consult" tone="cyan"
+            disabled={!canRequestTechnicalReview(project) || quickActionBusy}
+            onClick={() => runQuickAction(requestTechnicalReview)} />
+        </div>
+      </section>
+
+      <div className="mt-4 grid gap-4 xl:grid-cols-[1.65fr_1fr]">
+        <div className="space-y-4">
+          <section className="overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm">
+            <div className="flex items-center justify-between px-5 py-4">
+              <h2 className="font-bold" style={{ color: NAVY }}>Orders</h2>
+            </div>
+            {orders.length === 0 ? (
+              <p className={cx.footnote} style={{ padding: "0 20px 20px" }}>No orders yet.</p>
+            ) : (
+              orders.map(o => {
+                const orderStage = journeyStageForOrder(o, deliveriesByOrder.get(o.id) ?? []);
+                const progress = o.stage === "cancelled" ? 0 : journeyProgressPercent(orderStage, o);
+                return (
+                  <button key={o.id} onClick={() => onOpenOrder(project.id, o.id)}
+                    className="grid w-full gap-3 border-b border-slate-100 dark:border-slate-800 px-5 py-4 text-left last:border-b-0 lg:grid-cols-[1.1fr_1.3fr_24px] lg:items-center">
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-sm font-bold" style={{ color: NAVY }}>Order {o.id.slice(0, 8).toUpperCase()}</span>
+                        <span className={`${cx.badge} ${ORDER_STAGE_BADGE_CLASS[o.stage]}`}>{ORDER_STAGE_LABELS[o.stage]}</span>
+                      </div>
+                      <p className="mt-1 text-xs" style={{ color: MUTED }}>{totalPanelCount(o.line_items)} panels &middot; ${o.total_inc_gst.toFixed(2)}</p>
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-3">
+                        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-700">
+                          <div className="h-full rounded-full" style={{ width: `${progress}%`, background: BLUE }} />
+                        </div>
+                        <span className="text-sm font-bold" style={{ color: NAVY }}>{progress}%</span>
+                      </div>
+                      <p className="mt-2 text-xs" style={{ color: MUTED }}>{new Date(o.created_at).toLocaleDateString()}</p>
+                    </div>
+                    <ChevronRight className="h-5 w-5 justify-self-end" style={{ color: MUTED }} />
+                  </button>
+                );
+              })
+            )}
+            <button onClick={() => onCreateOrder(project.id)}
+              className="m-4 flex w-[calc(100%-2rem)] items-center justify-center gap-2 rounded-lg border border-dashed border-blue-300 dark:border-blue-700 py-3 text-sm font-semibold" style={{ color: BLUE }}>
+              + Create New Order
+            </button>
+          </section>
+
+          <Card title="Recent Activity" icon={<ActivityIcon size={14} />}>
+            {activityLoading ? (
+              <p className={cx.footnote} style={{ paddingTop: 0 }}>Loading...</p>
+            ) : activityError ? (
+              <p className="text-sm text-red-600 dark:text-red-400">{activityError}</p>
+            ) : events.length === 0 ? (
+              <p className={cx.footnote} style={{ paddingTop: 0 }}>No activity yet.</p>
+            ) : (
+              <div className="space-y-3">
+                {events.map(e => {
+                  const { Icon, className } = EVENT_ICON[e.event_type];
+                  return (
+                    <div key={e.id} className={`flex gap-3 ${cx.rowBorder}`}>
+                      <div className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg ${className}`}>
+                        <Icon size={15} />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-baseline justify-between gap-2">
+                          <span className="text-sm font-semibold" style={{ color: NAVY }}>{STAGE_EVENT_LABELS[e.event_type]}</span>
+                          <span className={cx.footnote} style={{ paddingTop: 0 }}>{relativeTime(e.created_at)}</span>
+                        </div>
+                        <p className={cx.footnote}>{e.note || STAGE_EVENT_DESCRIPTIONS[e.event_type]}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </Card>
+        </div>
+
+        <div className="space-y-4">
+          <Card title="Project Services" icon={<Wrench size={14} />}>
+            <StageStepper stage={project.stage} />
+          </Card>
+          <ReviewActionPanel project={project} onChanged={reload} onRequestQuote={() => onRequestQuote(project.id)}
+            onRequestInstallReview={requestInstallReview} onRequestTechnicalReview={requestTechnicalReview} />
+          <ProjectDocumentsCard projectId={project.id} userId={userId} />
+          {project.company_id && <ProjectMembersCard projectId={project.id} companyId={project.company_id} />}
+          {project.company_id && <ProjectSpeedpanelTeamCard companyId={project.company_id} />}
+        </div>
+      </div>
+    </div>
+  );
+};
