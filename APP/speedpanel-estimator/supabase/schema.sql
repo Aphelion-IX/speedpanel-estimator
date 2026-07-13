@@ -315,6 +315,222 @@ $$;
 revoke execute on function public.has_staff_role(text[]) from public, anon;
 grant execute on function public.has_staff_role(text[]) to authenticated;
 
+-- =============================================================================
+-- Dynamic RBAC: permission catalog + role grants
+-- =============================================================================
+-- Every has_staff_role(array['x','y']) call site below (RPC bodies AND
+-- inline RLS policy clauses) is being migrated to has_permission('some.key')
+-- instead, so a super_admin can change which internal StaffRole can do what
+-- from Admin > Roles (AdminRolesPage.tsx) without a code deploy. Defined
+-- here (immediately after has_staff_role()) rather than at the end of the
+-- file so every rewritten call site below -- the very first is 20 lines down
+-- -- has its dependency already in place, same as every other
+-- "defined once, used everywhere after" function in this file.
+create table public.permissions (
+  key text primary key,
+  description text not null,
+  category text not null,
+  created_at timestamptz not null default now()
+);
+
+-- super_admin is structurally excluded (check constraint) -- has_staff_role()'s
+-- grandfather clause above already gives super_admin/null-staff_role
+-- unconditional access to everything has_permission() gates, so a row here
+-- for 'super_admin' would be both meaningless (has_permission() below never
+-- reaches the role_permissions lookup for that account) and misleading if
+-- ever exposed as an editable checkbox in the Roles UI.
+create table public.role_permissions (
+  role text not null check (role in ('project_manager', 'bdm', 'internal_sales', 'dispatch', 'technical_services')),
+  permission_key text not null references public.permissions (key) on delete cascade,
+  granted_by uuid references auth.users (id),
+  granted_at timestamptz not null default now(),
+  primary key (role, permission_key)
+);
+create index idx_role_permissions_permission_key on public.role_permissions (permission_key);
+
+alter table public.permissions enable row level security;
+alter table public.role_permissions enable row level security;
+
+create policy "Staff-role-manage can read permission catalog" on public.permissions
+  for select using (public.has_staff_role(array[]::text[]));
+-- No insert/update/delete policy -- catalog rows are seeded/extended only via
+-- schema.sql migrations, never from the client; only role_permissions (the
+-- grants) are client-editable, exclusively through admin_set_role_permission()
+-- below.
+
+create policy "Staff-role-manage can read all role grants" on public.role_permissions
+  for select using (public.has_staff_role(array[]::text[]));
+-- A staff member (bdm/dispatch/etc.) can also read grants for THEIR OWN role
+-- -- this is what adminSectionAccess.ts's client-side nav gating reads
+-- directly (a plain table select, same "own row" pattern
+-- useMyInternalRole.ts already uses for staff_role itself), no RPC needed
+-- for that path.
+create policy "Staff can read grants for their own role" on public.role_permissions
+  for select using (
+    exists (
+      select 1 from public.profiles p
+      where p.id = auth.uid() and p.role = 'admin' and p.staff_role = role_permissions.role
+    )
+  );
+-- No insert/update/delete policy -- all writes go through
+-- admin_set_role_permission() below.
+
+-- Finer-grained than has_staff_role() -- checks a specific permission_key
+-- against role_permissions instead of a hardcoded array literal at the call
+-- site. Reuses has_staff_role(array[]::text[]) for EXACTLY its grandfather
+-- semantics (is_admin() required; staff_role IS NULL or 'super_admin' always
+-- passes, regardless of p_permission_key) -- never reimplemented, so the two
+-- functions can never drift apart on that clause.
+create or replace function public.has_permission(p_permission_key text) returns boolean
+language sql security definer stable
+set search_path = public
+as $$
+  select public.has_staff_role(array[]::text[]) or exists (
+    select 1 from public.profiles p
+    join public.role_permissions rp on rp.role = p.staff_role
+    where p.id = auth.uid() and p.role = 'admin' and rp.permission_key = p_permission_key
+  );
+$$;
+revoke execute on function public.has_permission(text) from public, anon;
+grant execute on function public.has_permission(text) to authenticated;
+
+-- admin_list_permission_matrix()/admin_set_role_permission() below (the RPCs
+-- that read/write the matrix) are DELIBERATELY gated by has_staff_role()
+-- directly, never has_permission() -- if "who can edit RBAC" were itself a
+-- row in role_permissions, a role holding it could self-escalate, and a bad
+-- edit could lock out the only page that fixes RBAC mistakes. Same reasoning
+-- applies to the admin-invite-user Edge Function's own super_admin gate,
+-- which stays has_staff_role()-based too.
+create or replace function public.admin_list_permission_matrix()
+returns table (permission_key text, description text, category text, role text, granted boolean)
+language sql security definer stable
+set search_path = public
+as $$
+  select p.key, p.description, p.category, r.role,
+    exists (select 1 from public.role_permissions rp where rp.role = r.role and rp.permission_key = p.key)
+  from public.permissions p
+  cross join (values ('project_manager'), ('bdm'), ('internal_sales'), ('dispatch'), ('technical_services')) as r(role)
+  where public.has_staff_role(array[]::text[])
+  order by p.category, p.key, r.role;
+$$;
+revoke execute on function public.admin_list_permission_matrix() from public, anon;
+grant execute on function public.admin_list_permission_matrix() to authenticated;
+
+create or replace function public.admin_set_role_permission(p_role text, p_permission_key text, p_granted boolean) returns void
+language plpgsql security definer
+set search_path = public
+as $$
+begin
+  if not public.has_staff_role(array[]::text[]) then raise exception 'Not authorized'; end if;
+  if p_role not in ('project_manager', 'bdm', 'internal_sales', 'dispatch', 'technical_services') then
+    raise exception 'Invalid role';
+  end if;
+  if not exists (select 1 from public.permissions where key = p_permission_key) then
+    raise exception 'Unknown permission key';
+  end if;
+  if p_granted then
+    insert into public.role_permissions (role, permission_key, granted_by) values (p_role, p_permission_key, auth.uid())
+      on conflict (role, permission_key) do nothing;
+  else
+    delete from public.role_permissions where role = p_role and permission_key = p_permission_key;
+  end if;
+end;
+$$;
+revoke execute on function public.admin_set_role_permission(text, text, boolean) from public, anon;
+grant execute on function public.admin_set_role_permission(text, text, boolean) to authenticated;
+
+-- Permission catalog seed -- one row per has_staff_role(...) call site being
+-- migrated below (both RPC-body and RLS-policy sites), plus one
+-- admin.section.* row per non-dashboard AdminSubPage (nav-visibility layer,
+-- read by adminSectionAccess.ts via useMyInternalRole.ts), plus the two
+-- admin-invite-user Edge Function sites (users.invite_staff /
+-- companies.create_company_user). See each call site's own comment below
+-- for why it maps to the key it does.
+insert into public.permissions (key, description, category) values
+  ('requests.triage_update', 'Triage (accept/decline/assign) incoming requests', 'requests'),
+  ('users.list', 'List the Speedpanel staff directory', 'users'),
+  ('users.count', 'Read staff/user counts (Analytics)', 'users'),
+  ('users.set_role', 'Promote/demote an account between user and admin', 'users'),
+  ('users.set_staff_profile', 'Edit a staff member''s display name/title/phone', 'users'),
+  ('users.set_staff_role', 'Change a staff member''s internal job function', 'users'),
+  ('users.promote_to_staff', 'Promote an existing account to staff by email', 'users'),
+  ('users.invite_staff', 'Create a brand-new Speedpanel staff account', 'users'),
+  ('admin.stage_events.list', 'Read the install/technical review history feed', 'audit'),
+  ('orders.issue_proforma_invoice', 'Issue a pro forma invoice for a submitted order', 'orders'),
+  ('manufacturing.update_progress', 'Update panels-manufactured / est. completion', 'manufacturing'),
+  ('manufacturing.update_delivery_status', 'Update a delivery''s manufacturing status', 'manufacturing'),
+  ('companies.manage_all', 'Manage any company as Speedpanel staff (bypasses membership)', 'companies'),
+  ('companies.create', 'Create a new company workspace', 'companies'),
+  ('companies.list', 'List all company workspaces', 'companies'),
+  ('companies.set_user_company', 'Move/detach a user to/from a company', 'companies'),
+  ('companies.add_member_by_email', 'Grant an existing account access to a company', 'companies'),
+  ('companies.create_company_user', 'Create a brand-new external company user', 'companies'),
+  ('companies.set_staff_assignment', 'Assign a staff member to a company''s Speedpanel Team', 'companies'),
+  ('companies.remove_staff_assignment', 'Remove a Speedpanel Team assignment', 'companies'),
+  ('companies.list_staff_candidates', 'List staff eligible for Speedpanel Team assignment', 'companies'),
+  ('project_reviews.review_install', 'Approve/request changes on an install review', 'project_reviews'),
+  ('project_reviews.review_technical', 'Approve/request changes on a technical review', 'project_reviews'),
+  ('price_lists.read', 'Read the price list catalog', 'price_lists'),
+  ('price_list_prices.read', 'Read price list line items', 'price_lists'),
+  ('price_lists.list', 'List price lists with usage counts', 'price_lists'),
+  ('price_lists.create', 'Create a new price list', 'price_lists'),
+  ('price_lists.rename', 'Rename a price list', 'price_lists'),
+  ('price_lists.duplicate', 'Duplicate a price list', 'price_lists'),
+  ('price_lists.set_price', 'Set/update a product''s price on a list', 'price_lists'),
+  ('price_lists.delete_price', 'Remove a product''s price from a list', 'price_lists'),
+  ('price_lists.delete', 'Delete a price list', 'price_lists'),
+  ('price_lists.assign_to_company', 'Assign a price list to a company', 'price_lists'),
+  ('delivery.accept_date', 'Accept a customer''s requested delivery date', 'delivery'),
+  ('delivery.propose_date', 'Propose an alternative delivery date', 'delivery'),
+  ('delivery.decline_request', 'Decline a delivery request', 'delivery'),
+  ('delivery.set_internal_note', 'Set a delivery''s internal note', 'delivery'),
+  ('delivery.set_customer_note', 'Set a delivery''s customer-visible note', 'delivery'),
+  ('delivery.create', 'Split/create an additional delivery', 'delivery'),
+  ('delivery.update', 'Edit an existing delivery''s content fields', 'delivery'),
+  ('delivery.list', 'List all delivery requests', 'delivery'),
+  ('admin.section.requests', 'See the Requests admin section', 'nav'),
+  ('admin.section.projectReviews', 'See the Project Reviews admin section', 'nav'),
+  ('admin.section.orders', 'See the Orders admin section', 'nav'),
+  ('admin.section.deliveryRequests', 'See the Delivery Requests admin section', 'nav'),
+  ('admin.section.manufacturing', 'See the Manufacturing & Delivery admin section', 'nav'),
+  ('admin.section.users', 'See the Users admin section', 'nav'),
+  ('admin.section.companies', 'See the Companies admin section', 'nav'),
+  ('admin.section.permissions', 'See the Roles admin section', 'nav'),
+  ('admin.section.analytics', 'See the Analytics admin section', 'nav'),
+  ('admin.section.auditLog', 'See the Audit Log admin section', 'nav'),
+  ('admin.section.products', 'See the Products admin section', 'nav'),
+  ('admin.section.priceLists', 'See the Price Lists admin section', 'nav'),
+  ('admin.section.systems', 'See the Systems admin section', 'nav'),
+  ('admin.section.maths', 'See the Maths admin section', 'nav'),
+  ('admin.section.documents', 'See the Documents admin section', 'nav')
+on conflict (key) do nothing;
+
+-- Role grants seed -- reproduces today's SECTION_ROLES/has_staff_role(...)
+-- call-site behavior EXACTLY. Only the mechanism becomes dynamic here; no
+-- role gains or loses access as of this migration. Every permission_key NOT
+-- listed here (users.*, companies.* except none above, price_lists.*,
+-- admin.section.{users,companies,permissions,analytics,auditLog,products,
+-- priceLists,systems,maths,documents}) intentionally gets ZERO rows,
+-- matching today's super_admin/null-staff_role-only fallthrough exactly.
+insert into public.role_permissions (role, permission_key) values
+  ('bdm', 'requests.triage_update'), ('bdm', 'admin.section.requests'),
+  ('internal_sales', 'orders.issue_proforma_invoice'), ('internal_sales', 'admin.section.orders'),
+  ('dispatch', 'manufacturing.update_progress'), ('dispatch', 'manufacturing.update_delivery_status'),
+  ('dispatch', 'admin.section.manufacturing'),
+  ('project_manager', 'project_reviews.review_install'), ('technical_services', 'project_reviews.review_install'),
+  ('project_manager', 'project_reviews.review_technical'), ('technical_services', 'project_reviews.review_technical'),
+  ('project_manager', 'admin.section.projectReviews'), ('technical_services', 'admin.section.projectReviews'),
+  ('internal_sales', 'delivery.accept_date'),   ('dispatch', 'delivery.accept_date'),
+  ('internal_sales', 'delivery.propose_date'),  ('dispatch', 'delivery.propose_date'),
+  ('internal_sales', 'delivery.decline_request'), ('dispatch', 'delivery.decline_request'),
+  ('internal_sales', 'delivery.set_internal_note'), ('dispatch', 'delivery.set_internal_note'),
+  ('internal_sales', 'delivery.set_customer_note'), ('dispatch', 'delivery.set_customer_note'),
+  ('internal_sales', 'delivery.create'), ('dispatch', 'delivery.create'),
+  ('internal_sales', 'delivery.update'), ('dispatch', 'delivery.update'),
+  ('internal_sales', 'delivery.list'),  ('dispatch', 'delivery.list'),
+  ('internal_sales', 'admin.section.deliveryRequests'), ('dispatch', 'admin.section.deliveryRequests')
+on conflict (role, permission_key) do nothing;
+
 -- Narrowed from a plain role='admin' check to has_staff_role() -- Requests
 -- triage is a BDM function, per "Internal staff roles". Redefined here
 -- (rather than at the table's original "Admins can update requests" policy
@@ -324,8 +540,8 @@ grant execute on function public.has_staff_role(text[]) to authenticated;
 -- redefined after can_edit_project).
 drop policy "Admins can update requests" on requests;
 create policy "Admins can update requests" on requests
-  for update using (public.has_staff_role(array['bdm']))
-  with check (public.has_staff_role(array['bdm']));
+  for update using (public.has_permission('requests.triage_update'))
+  with check (public.has_permission('requests.triage_update'));
 
 create policy "Owners and admins can read projects" on projects
   for select using (auth.uid() = owner_id or public.is_admin());
@@ -721,7 +937,7 @@ drop function if exists public.admin_list_users(int, int);
 
 -- Staff directory only (role = 'admin') -- external/customer accounts are
 -- managed exclusively via each company's own roster on Admin > Companies
--- now, never listed here. has_staff_role(array[]) (super_admin) rather than
+-- now, never listed here. has_permission('users.list') (dynamic RBAC) rather than
 -- plain is_admin() -- see "Internal staff roles" section below.
 create or replace function public.admin_list_users(p_limit int default 50, p_offset int default 0)
 returns table (id uuid, email text, role text, created_at timestamptz, display_name text, title text, phone text, staff_role text)
@@ -731,7 +947,7 @@ as $$
   select p.id, u.email, p.role, p.created_at, p.display_name, p.title, p.phone, p.staff_role
   from public.profiles p
   join auth.users u on u.id = p.id
-  where p.role = 'admin' and public.has_staff_role(array[]::text[])
+  where p.role = 'admin' and public.has_permission('users.list')
   order by p.created_at desc
   limit p_limit offset p_offset;
 $$;
@@ -745,7 +961,7 @@ set search_path = public
 as $$
   select count(*), count(*) filter (where role = 'admin')
   from public.profiles
-  where public.has_staff_role(array[]::text[]);
+  where public.has_permission('users.count');
 $$;
 revoke execute on function public.admin_count_users() from public, anon;
 grant execute on function public.admin_count_users() to authenticated;
@@ -758,7 +974,7 @@ as $$
 declare
   v_admin_count int;
 begin
-  if not public.has_staff_role(array[]::text[]) then raise exception 'Not authorized'; end if;
+  if not public.has_permission('users.set_role') then raise exception 'Not authorized'; end if;
   if coalesce(p_role, '') not in ('user', 'admin') then raise exception 'Invalid role'; end if;
 
   -- Refuse to demote the only remaining admin -- would otherwise lock every
@@ -780,9 +996,10 @@ grant execute on function public.admin_set_role(uuid, text) to authenticated;
 
 -- Sets another admin's (or their own) display_name/title/phone, shown as
 -- their "Your Speedpanel Team" contact details once assigned to a company.
--- Users area is super_admin-only from here on (has_staff_role(array[]) --
--- Admin > Users is a staff directory, not a general account list, so only
--- a super_admin manages it, same reasoning as admin_set_role/
+-- Users area is has_permission()-gated from here on (dynamic RBAC) --
+-- Admin > Users is a staff directory, not a general account list, so by
+-- default (no role_permissions grants seeded for these keys) only a
+-- super_admin manages it, same reasoning as admin_set_role/
 -- admin_set_staff_role below).
 create or replace function public.admin_set_staff_profile(p_user_id uuid, p_display_name text, p_title text, p_phone text)
 returns void
@@ -790,7 +1007,7 @@ language plpgsql security definer
 set search_path = public
 as $$
 begin
-  if not public.has_staff_role(array[]::text[]) then raise exception 'Not authorized'; end if;
+  if not public.has_permission('users.set_staff_profile') then raise exception 'Not authorized'; end if;
   update profiles set display_name = nullif(trim(p_display_name), ''), title = nullif(trim(p_title), ''),
     phone = nullif(trim(p_phone), ''), updated_at = now()
     where id = p_user_id;
@@ -805,7 +1022,7 @@ language plpgsql security definer
 set search_path = public
 as $$
 begin
-  if not public.has_staff_role(array[]::text[]) then raise exception 'Not authorized'; end if;
+  if not public.has_permission('users.set_staff_role') then raise exception 'Not authorized'; end if;
   if coalesce(p_staff_role, '') not in ('super_admin', 'project_manager', 'bdm', 'internal_sales', 'dispatch', 'technical_services') then
     raise exception 'Invalid staff role';
   end if;
@@ -831,7 +1048,7 @@ as $$
 declare
   v_user_id uuid;
 begin
-  if not public.has_staff_role(array[]::text[]) then raise exception 'Not authorized'; end if;
+  if not public.has_permission('users.promote_to_staff') then raise exception 'Not authorized'; end if;
   if coalesce(p_staff_role, '') not in ('super_admin', 'project_manager', 'bdm', 'internal_sales', 'dispatch', 'technical_services') then
     raise exception 'Invalid staff role';
   end if;
@@ -867,7 +1084,7 @@ as $$
   from public.project_stage_events e
   join public.projects pr on pr.id = e.project_id
   left join auth.users u on u.id = e.actor_id
-  where public.has_staff_role(array[]::text[])
+  where public.has_permission('admin.stage_events.list')
   order by e.created_at desc
   limit p_limit offset p_offset;
 $$;
@@ -1085,7 +1302,7 @@ declare
 begin
   -- Standalone admin-decision RPC, no customer-facing path shares this
   -- check -- narrowed to Internal Sales, who own order approvals.
-  if not public.has_staff_role(array['internal_sales']) then raise exception 'Not authorized'; end if;
+  if not public.has_permission('orders.issue_proforma_invoice') then raise exception 'Not authorized'; end if;
 
   select stage into v_stage from orders where id = p_order_id for update;
   if v_stage is null then raise exception 'Order not found'; end if;
@@ -1155,9 +1372,10 @@ alter table orders add column manufacturing_est_completion date;
 alter table order_deliveries add column status text not null default 'planned'
   check (status in ('planned', 'scheduled', 'in_transit', 'delivered'));
 
--- Dispatch-only writes (has_staff_role(array['dispatch'])), via dedicated
--- RPCs rather than narrowing the "Owners, company, and admins can update
--- orders"/"...manage deliveries..." RLS policies further down this file:
+-- Dispatch-only writes (has_permission('manufacturing.update_progress'/
+-- 'manufacturing.update_delivery_status')), via dedicated RPCs rather than
+-- narrowing the "Owners, company, and admins can update orders"/"...manage
+-- deliveries..." RLS policies further down this file:
 -- those are shared with customer self-service order edits via
 -- can_edit_project, so narrowing their is_admin() clause would break that
 -- shared path. These two replace AdminManufacturingPage.tsx's previous
@@ -1169,7 +1387,7 @@ language plpgsql security definer
 set search_path = public
 as $$
 begin
-  if not public.has_staff_role(array['dispatch']) then raise exception 'Not authorized'; end if;
+  if not public.has_permission('manufacturing.update_progress') then raise exception 'Not authorized'; end if;
   update orders set panels_manufactured = p_panels_manufactured,
     manufacturing_est_completion = p_manufacturing_est_completion, updated_at = now()
     where id = p_order_id and stage = 'proforma_issued';
@@ -1184,7 +1402,7 @@ language plpgsql security definer
 set search_path = public
 as $$
 begin
-  if not public.has_staff_role(array['dispatch']) then raise exception 'Not authorized'; end if;
+  if not public.has_permission('manufacturing.update_delivery_status') then raise exception 'Not authorized'; end if;
   if coalesce(p_status, '') not in ('planned', 'scheduled', 'in_transit', 'delivered') then raise exception 'Invalid status'; end if;
   update order_deliveries set status = p_status where id = p_delivery_id;
   if not found then raise exception 'Delivery not found'; end if;
@@ -1430,7 +1648,7 @@ alter table orders   add column company_id uuid references companies (id) on del
 
 -- owner OR admin -- the general "can manage this company" gate (invite,
 -- remove/role-change anyone below Owner, edit company details, view all).
--- has_staff_role(array[]) (super_admin) rather than plain is_admin():
+-- has_permission('companies.manage_all') (dynamic RBAC) rather than plain is_admin():
 -- Speedpanel staff manage every company via this bypass, not by joining it
 -- as a member (see "Company-creation cutover" -- admin_create_company never
 -- adds the calling admin to company_memberships), and per "Internal staff
@@ -1443,7 +1661,7 @@ create or replace function public.is_company_admin(p_company_id uuid) returns bo
 language sql security definer stable
 set search_path = public
 as $$
-  select public.has_staff_role(array[]::text[]) or exists (
+  select public.has_permission('companies.manage_all') or exists (
     select 1 from company_memberships
     where company_id = p_company_id and user_id = auth.uid() and status = 'active' and role in ('owner', 'admin')
   );
@@ -1458,7 +1676,7 @@ create or replace function public.is_company_owner(p_company_id uuid) returns bo
 language sql security definer stable
 set search_path = public
 as $$
-  select public.has_staff_role(array[]::text[]) or exists (
+  select public.has_permission('companies.manage_all') or exists (
     select 1 from company_memberships
     where company_id = p_company_id and user_id = auth.uid() and status = 'active' and role = 'owner'
   );
@@ -1864,7 +2082,7 @@ declare
 begin
   -- Standalone admin-decision RPC, no customer-facing path shares this
   -- check -- narrowed to the two internal roles who actually do reviews.
-  if not public.has_staff_role(array['project_manager', 'technical_services']) then raise exception 'Not authorized'; end if;
+  if not public.has_permission('project_reviews.review_install') then raise exception 'Not authorized'; end if;
   if coalesce(p_decision, '') not in ('approved', 'changes_requested') then raise exception 'Invalid decision'; end if;
 
   select stage, company_id into v_stage, v_company from projects where id = p_project_id for update;
@@ -1922,7 +2140,7 @@ declare
   v_stage text;
   v_company uuid;
 begin
-  if not public.has_staff_role(array['project_manager', 'technical_services']) then raise exception 'Not authorized'; end if;
+  if not public.has_permission('project_reviews.review_technical') then raise exception 'Not authorized'; end if;
   if coalesce(p_decision, '') not in ('approved', 'changes_requested') then raise exception 'Invalid decision'; end if;
 
   select stage, company_id into v_stage, v_company from projects where id = p_project_id for update;
@@ -2047,11 +2265,17 @@ as $$
 declare
   v_company_id uuid;
 begin
-  if not public.has_staff_role(array[]::text[]) then raise exception 'Not authorized'; end if;
+  if not public.has_permission('companies.create') then raise exception 'Not authorized'; end if;
   if coalesce(trim(p_legal_name), '') = '' then raise exception 'Company name is required'; end if;
 
-  insert into companies (legal_name, trading_name, abn, customer_account_number, billing_email, phone, address, created_by)
-    values (p_legal_name, p_trading_name, p_abn, p_customer_account_number, p_billing_email, p_phone, p_address, auth.uid())
+  -- companies.price_list_id is not null (see the price_lists migration's
+  -- backfill) but this function predates that column and was never updated
+  -- when it was added -- every new company defaults to PL1 - Standard, same
+  -- as every pre-existing company was backfilled to, until an admin assigns
+  -- a different list via admin_set_company_price_list().
+  insert into companies (legal_name, trading_name, abn, customer_account_number, billing_email, phone, address, created_by, price_list_id)
+    values (p_legal_name, p_trading_name, p_abn, p_customer_account_number, p_billing_email, p_phone, p_address, auth.uid(),
+      (select id from price_lists where is_default))
     returning id into v_company_id;
   perform public.log_audit(v_company_id, auth.uid(), 'company_created');
   return v_company_id;
@@ -2479,7 +2703,7 @@ as $$
   select c.id, coalesce(c.trading_name, c.legal_name), count(cm.id) filter (where cm.status = 'active'), c.created_at
   from companies c
   left join company_memberships cm on cm.company_id = c.id
-  where public.has_staff_role(array[]::text[])
+  where public.has_permission('companies.list')
   group by c.id, c.trading_name, c.legal_name, c.created_at
   order by c.created_at desc;
 $$;
@@ -2494,7 +2718,7 @@ language plpgsql security definer
 set search_path = public
 as $$
 begin
-  if not public.has_staff_role(array[]::text[]) then raise exception 'Not authorized'; end if;
+  if not public.has_permission('companies.set_user_company') then raise exception 'Not authorized'; end if;
 
   if p_company_id is null then
     update company_memberships set status = 'removed' where user_id = p_user_id and status = 'active';
@@ -2531,7 +2755,7 @@ as $$
 declare
   v_user_id uuid;
 begin
-  if not public.has_staff_role(array[]::text[]) then raise exception 'Not authorized'; end if;
+  if not public.has_permission('companies.add_member_by_email') then raise exception 'Not authorized'; end if;
   if coalesce(p_role, '') not in ('owner', 'admin', 'project_manager', 'estimator', 'site_user', 'viewer') then
     raise exception 'Invalid role';
   end if;
@@ -2610,7 +2834,7 @@ as $$
 declare
   v_is_single boolean;
 begin
-  if not public.has_staff_role(array[]::text[]) then raise exception 'Not authorized'; end if;
+  if not public.has_permission('companies.set_staff_assignment') then raise exception 'Not authorized'; end if;
   if coalesce(p_role, '') not in ('project_manager', 'bdm', 'internal_sales', 'dispatch', 'technical_services') then
     raise exception 'Invalid role';
   end if;
@@ -2638,7 +2862,7 @@ language plpgsql security definer
 set search_path = public
 as $$
 begin
-  if not public.has_staff_role(array[]::text[]) then raise exception 'Not authorized'; end if;
+  if not public.has_permission('companies.remove_staff_assignment') then raise exception 'Not authorized'; end if;
   update staff_assignments set active = false
     where company_id = p_company_id and staff_user_id = p_staff_user_id and role = p_role and active;
   if not found then raise exception 'Assignment not found'; end if;
@@ -2669,7 +2893,7 @@ $$;
 revoke execute on function public.company_list_staff_team(uuid) from public, anon;
 grant execute on function public.company_list_staff_team(uuid) to authenticated;
 
--- super_admin-gated (has_staff_role(array[])) -- the picker source for the
+-- has_permission('companies.list_staff_candidates')-gated (dynamic RBAC) -- the picker source for the
 -- assignment UI (wizard step 3 and the Admin > Companies per-company
 -- editor). Returns staff_role so the frontend can filter each role
 -- section's candidate list to people whose own job function matches (or
@@ -2684,7 +2908,7 @@ as $$
   select p.id, u.email, p.display_name, p.title, p.staff_role
   from profiles p
   join auth.users u on u.id = p.id
-  where p.role = 'admin' and public.has_staff_role(array[]::text[])
+  where p.role = 'admin' and public.has_permission('companies.list_staff_candidates')
   order by coalesce(p.display_name, u.email);
 $$;
 revoke execute on function public.admin_list_staff_candidates() from public, anon;
@@ -2735,8 +2959,12 @@ create table price_lists (
 create unique index price_lists_one_default on price_lists (is_default) where is_default;
 
 alter table price_lists enable row level security;
+-- "if exists" so this stays a no-op on a fresh `supabase db reset` (the
+-- table doesn't exist yet at that point) while still being safe to
+-- re-apply incrementally against an already-live project.
+drop policy if exists "Staff can read price lists" on price_lists;
 create policy "Staff can read price lists" on price_lists
-  for select using (public.has_staff_role(array[]::text[]));
+  for select using (public.has_permission('price_lists.read'));
 -- A non-staff customer needs to be able to look up the default list's id
 -- client-side (to then read its price_list_prices rows for the fallback
 -- merge, see applyEffectivePricing()) -- they otherwise have no visibility
@@ -2775,8 +3003,9 @@ create unique index price_list_prices_unique on price_list_prices
   (price_list_id, category, coalesce(panel_id, track_id, fixing_id, sealant_id));
 
 alter table price_list_prices enable row level security;
+drop policy if exists "Staff can read price list prices" on price_list_prices;
 create policy "Staff can read price list prices" on price_list_prices
-  for select using (public.has_staff_role(array[]::text[]));
+  for select using (public.has_permission('price_list_prices.read'));
 -- No insert/update/delete policy -- admin_* RPCs only.
 
 -- Must exist before the "Company members can read their assigned list's
@@ -2844,7 +3073,7 @@ alter table companies alter column price_list_id set not null;
 create or replace function public.guard_company_price_list_id() returns trigger
 language plpgsql security definer set search_path = public as $$
 begin
-  if new.price_list_id is distinct from old.price_list_id and not public.has_staff_role(array[]::text[]) then
+  if new.price_list_id is distinct from old.price_list_id and not public.has_permission('price_lists.assign_to_company') then
     raise exception 'Not authorized to change price list assignment';
   end if;
   return new;
@@ -2868,7 +3097,7 @@ as $$
     (select count(*) from companies c where c.price_list_id = pl.id),
     pl.created_at, pl.updated_at
   from price_lists pl
-  where public.has_staff_role(array[]::text[])
+  where public.has_permission('price_lists.list')
   order by pl.is_default desc, pl.name;
 $$;
 revoke execute on function public.admin_list_price_lists() from public, anon;
@@ -2878,7 +3107,7 @@ create or replace function public.admin_create_price_list(p_name text, p_notes t
 language plpgsql security definer set search_path = public as $$
 declare v_id uuid;
 begin
-  if not public.has_staff_role(array[]::text[]) then raise exception 'Not authorized'; end if;
+  if not public.has_permission('price_lists.create') then raise exception 'Not authorized'; end if;
   insert into price_lists (name, notes, created_by) values (p_name, p_notes, auth.uid()) returning id into v_id;
   return v_id;
 end;
@@ -2889,7 +3118,7 @@ grant execute on function public.admin_create_price_list(text, text) to authenti
 create or replace function public.admin_rename_price_list(p_price_list_id uuid, p_name text) returns void
 language plpgsql security definer set search_path = public as $$
 begin
-  if not public.has_staff_role(array[]::text[]) then raise exception 'Not authorized'; end if;
+  if not public.has_permission('price_lists.rename') then raise exception 'Not authorized'; end if;
   update price_lists set name = p_name, updated_at = now() where id = p_price_list_id;
   if not found then raise exception 'Price list not found'; end if;
 end;
@@ -2904,7 +3133,7 @@ create or replace function public.admin_duplicate_price_list(p_source_price_list
 language plpgsql security definer set search_path = public as $$
 declare v_id uuid;
 begin
-  if not public.has_staff_role(array[]::text[]) then raise exception 'Not authorized'; end if;
+  if not public.has_permission('price_lists.duplicate') then raise exception 'Not authorized'; end if;
   insert into price_lists (name, notes, created_by)
     select p_new_name, notes, auth.uid() from price_lists where id = p_source_price_list_id
     returning id into v_id;
@@ -2921,7 +3150,7 @@ grant execute on function public.admin_duplicate_price_list(uuid, text) to authe
 create or replace function public.admin_set_price_list_price(p_price_list_id uuid, p_category text, p_product_id uuid, p_price numeric) returns void
 language plpgsql security definer set search_path = public as $$
 begin
-  if not public.has_staff_role(array[]::text[]) then raise exception 'Not authorized'; end if;
+  if not public.has_permission('price_lists.set_price') then raise exception 'Not authorized'; end if;
   if p_category not in ('panel', 'track', 'fixing', 'sealant') then raise exception 'Invalid category'; end if;
   insert into price_list_prices (price_list_id, category, panel_id, track_id, fixing_id, sealant_id, price)
   values (
@@ -2942,7 +3171,7 @@ grant execute on function public.admin_set_price_list_price(uuid, text, uuid, nu
 create or replace function public.admin_delete_price_list_price(p_id uuid) returns void
 language plpgsql security definer set search_path = public as $$
 begin
-  if not public.has_staff_role(array[]::text[]) then raise exception 'Not authorized'; end if;
+  if not public.has_permission('price_lists.delete_price') then raise exception 'Not authorized'; end if;
   delete from price_list_prices where id = p_id;
 end;
 $$;
@@ -2956,7 +3185,7 @@ grant execute on function public.admin_delete_price_list_price(uuid) to authenti
 create or replace function public.admin_delete_price_list(p_price_list_id uuid) returns void
 language plpgsql security definer set search_path = public as $$
 begin
-  if not public.has_staff_role(array[]::text[]) then raise exception 'Not authorized'; end if;
+  if not public.has_permission('price_lists.delete') then raise exception 'Not authorized'; end if;
   if exists (select 1 from price_lists where id = p_price_list_id and is_default) then
     raise exception 'Cannot delete the default price list';
   end if;
@@ -2973,7 +3202,7 @@ grant execute on function public.admin_delete_price_list(uuid) to authenticated;
 create or replace function public.admin_set_company_price_list(p_company_id uuid, p_price_list_id uuid) returns void
 language plpgsql security definer set search_path = public as $$
 begin
-  if not public.has_staff_role(array[]::text[]) then raise exception 'Not authorized'; end if;
+  if not public.has_permission('price_lists.assign_to_company') then raise exception 'Not authorized'; end if;
   update companies set price_list_id = p_price_list_id, updated_at = now() where id = p_company_id;
   if not found then raise exception 'Company not found'; end if;
 end;
@@ -3120,7 +3349,7 @@ create policy "Editors can delete pending delivery requests, admins anytime" on 
   );
 
 -- Staff review actions below are gated to Internal Sales or Dispatch
--- specifically (has_staff_role(array['internal_sales','dispatch'])), same
+-- specifically (has_permission(), per-RPC delivery.* keys), same
 -- narrowing pattern already used by admin_update_manufacturing/
 -- admin_update_delivery_status above: RLS stays admin-broad (the blanket
 -- public.is_admin() clause on every policy above already lets any admin
@@ -3139,7 +3368,7 @@ declare
   v_status text;
   v_requested date;
 begin
-  if not public.has_staff_role(array['internal_sales', 'dispatch']) then raise exception 'Not authorized'; end if;
+  if not public.has_permission('delivery.accept_date') then raise exception 'Not authorized'; end if;
   select approval_status, requested_date into v_status, v_requested from order_deliveries where id = p_delivery_id for update;
   if v_status is null then raise exception 'Delivery not found'; end if;
   if v_status not in ('pending', 'date_proposed', 'draft') then raise exception 'Delivery is not awaiting a date decision'; end if;
@@ -3159,7 +3388,7 @@ as $$
 declare
   v_status text;
 begin
-  if not public.has_staff_role(array['internal_sales', 'dispatch']) then raise exception 'Not authorized'; end if;
+  if not public.has_permission('delivery.propose_date') then raise exception 'Not authorized'; end if;
   if p_proposed_date is null then raise exception 'A proposed date is required'; end if;
   select approval_status into v_status from order_deliveries where id = p_delivery_id for update;
   if v_status is null then raise exception 'Delivery not found'; end if;
@@ -3203,7 +3432,7 @@ as $$
 declare
   v_status text;
 begin
-  if not public.has_staff_role(array['internal_sales', 'dispatch']) then raise exception 'Not authorized'; end if;
+  if not public.has_permission('delivery.decline_request') then raise exception 'Not authorized'; end if;
   select approval_status into v_status from order_deliveries where id = p_delivery_id for update;
   if v_status is null then raise exception 'Delivery not found'; end if;
   if v_status not in ('pending', 'date_proposed', 'draft') then raise exception 'Delivery is not awaiting a decision'; end if;
@@ -3249,7 +3478,7 @@ language plpgsql security definer
 set search_path = public
 as $$
 begin
-  if not public.has_staff_role(array['internal_sales', 'dispatch']) then raise exception 'Not authorized'; end if;
+  if not public.has_permission('delivery.set_internal_note') then raise exception 'Not authorized'; end if;
   update order_deliveries set internal_note = p_note, updated_at = now() where id = p_delivery_id;
   if not found then raise exception 'Delivery not found'; end if;
 end;
@@ -3262,7 +3491,7 @@ language plpgsql security definer
 set search_path = public
 as $$
 begin
-  if not public.has_staff_role(array['internal_sales', 'dispatch']) then raise exception 'Not authorized'; end if;
+  if not public.has_permission('delivery.set_customer_note') then raise exception 'Not authorized'; end if;
   update order_deliveries set customer_note = p_note, updated_at = now() where id = p_delivery_id;
   if not found then raise exception 'Delivery not found'; end if;
 end;
@@ -3291,7 +3520,7 @@ declare
   v_id uuid;
   v_seq int;
 begin
-  if not public.has_staff_role(array['internal_sales', 'dispatch']) then raise exception 'Not authorized'; end if;
+  if not public.has_permission('delivery.create') then raise exception 'Not authorized'; end if;
   select coalesce(max(sequence_no), 0) + 1 into v_seq from order_deliveries where order_id = p_order_id;
   insert into order_deliveries (order_id, sequence_no, address_line1, address_line2, suburb, state, postcode,
     contact_name, contact_phone, requested_date, delivery_instructions, preferred_window, site_access_details,
@@ -3319,7 +3548,7 @@ language plpgsql security definer
 set search_path = public
 as $$
 begin
-  if not public.has_staff_role(array['internal_sales', 'dispatch']) then raise exception 'Not authorized'; end if;
+  if not public.has_permission('delivery.update') then raise exception 'Not authorized'; end if;
   update order_deliveries set address_line1 = p_address_line1, address_line2 = p_address_line2, suburb = p_suburb,
     state = p_state, postcode = p_postcode, contact_name = p_contact_name, contact_phone = p_contact_phone,
     delivery_instructions = p_delivery_instructions, preferred_window = p_preferred_window,
@@ -3356,7 +3585,7 @@ as $$
     od.requested_date, od.proposed_date, od.confirmed_date, od.actual_date, od.approval_status, od.internal_note,
     od.customer_note, od.item_allocations, od.status, o.company_id, o.stage, p.name, od.created_at, od.updated_at
   from order_deliveries od join orders o on o.id = od.order_id join projects p on p.id = o.project_id
-  where public.has_staff_role(array['internal_sales', 'dispatch'])
+  where public.has_permission('delivery.list')
   order by od.updated_at desc;
 $$;
 revoke execute on function public.admin_list_delivery_requests() from public, anon;

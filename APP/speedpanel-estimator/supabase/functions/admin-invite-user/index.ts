@@ -11,13 +11,17 @@
 // Two Supabase clients, two purposes:
 // - `callerClient` (anon key + the caller's own Authorization header,
 //   forwarded automatically by supabase.functions.invoke()) is used ONLY to
-//   check has_staff_role(array[]) (super_admin) -- the exact same
-//   security-definer RPC admin_list_users()/admin_set_staff_role() already
-//   gate on (see supabase/schema.sql), reused here rather than
-//   reimplemented. Every account created through this function is
-//   inherently a new Speedpanel hire (Admin > Users is a staff directory
-//   now, not a general account list), so this is stricter than plain
-//   is_admin() on purpose.
+//   check has_permission() -- the same dynamic-RBAC RPC every admin_*
+//   function in supabase/schema.sql now gates on. This function serves two
+//   distinct callers behind one payload shape, so it checks two DIFFERENT
+//   permission_keys depending on which: 'users.invite_staff' for a brand-new
+//   Speedpanel staff account (role="admin"/staffRole set, from Admin >
+//   Users), 'companies.create_company_user' for a brand-new external
+//   account (role="user", from Admin > Companies' per-company "Create
+//   user" form). Deliberately NOT has_permission()-gated on a THIRD
+//   "who can invite at all" key -- see the note below on why this stays
+//   split exactly like that, mirroring the role==="admin"||staffRole
+//   condition already used further down for the profile update.
 // - `serviceClient` (service-role key) is used ONLY after that check passes,
 //   to actually create the account and set its role/staff_role.
 //
@@ -28,8 +32,9 @@
 // Optional companyId/companyRole body fields let Admin > Companies bootstrap
 // a company's first Owner/Admin from a brand-new account in one step,
 // reusing this same audited invite pipeline rather than duplicating it --
-// still has_staff_role(array[])-gated, still service-role-only inside this
-// function. staffRole is separate from companyRole: staffRole is this
+// still has_permission('companies.create_company_user')-gated, still
+// service-role-only inside this function. staffRole is separate from
+// companyRole: staffRole is this
 // person's own internal job function (only meaningful when role='admin'),
 // companyRole is the customer-side role they'd hold in an external company.
 //
@@ -88,8 +93,13 @@ Deno.serve(async req => {
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
   const callerClient = createClient(supabaseUrl, anonKey, { global: { headers: { Authorization: authHeader } } });
-  const { data: isSuperAdmin, error: authError } = await callerClient.rpc("has_staff_role", { p_roles: [] });
-  if (authError || !isSuperAdmin) return json({ error: "Not authorized" }, 403);
+  // Same split as the profile-update condition below: an internal-staff
+  // invite (role="admin" or staffRole set) and an external-company invite
+  // (plain role="user") are gated by two different dynamic permission_keys,
+  // not one blanket check -- see the header comment above.
+  const permissionKey = role === "admin" || staffRole ? "users.invite_staff" : "companies.create_company_user";
+  const { data: isAuthorized, error: authError } = await callerClient.rpc("has_permission", { p_permission_key: permissionKey });
+  if (authError || !isAuthorized) return json({ error: "Not authorized" }, 403);
 
   const { data: callerData } = await callerClient.auth.getUser();
   const callerId = callerData.user?.id ?? null;
