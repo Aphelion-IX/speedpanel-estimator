@@ -13,13 +13,16 @@
 // =============================================================================
 import { useOrder } from "./orderDetailStore";
 import { useOrderDeliveries } from "./orderDeliveriesStore";
+import { useOrderAdjustments } from "./useOrderAdjustments";
 import { useProject } from "../projectDetailStore";
 import { exportOrderToExcel } from "../../../export/exportOrderToExcel";
+import { ORDER_ADJUSTMENT_KIND_LABELS } from "./orderAdjustmentTypes";
 import { NAVY, BLUE, MUTED } from "../../../styleTokens";
 
 export const ProformaInvoicePage = ({ orderId, onBack }: { orderId: string; onBack: () => void }) => {
   const { order, loading: orderLoading, error: orderError } = useOrder(orderId);
   const { deliveries, loading: deliveriesLoading } = useOrderDeliveries(orderId);
+  const { adjustments } = useOrderAdjustments(orderId);
   const { project } = useProject(order?.project_id ?? "");
 
   if (orderLoading || deliveriesLoading) {
@@ -48,7 +51,7 @@ export const ProformaInvoicePage = ({ orderId, onBack }: { orderId: string; onBa
     <div className="mx-auto max-w-3xl p-6 sm:p-10" style={{ color: NAVY }}>
       <div className="mb-6 flex items-center justify-between">
         <button onClick={onBack} className="text-sm font-semibold hover:underline" style={{ color: BLUE }}>&larr; Back</button>
-        <button onClick={() => exportOrderToExcel(order, deliveries, project?.name ?? "Project")}
+        <button onClick={() => exportOrderToExcel(order, deliveries, project?.name ?? "Project", adjustments)}
           className="rounded-xl px-4 py-2 text-sm font-bold text-white" style={{ background: BLUE }}>
           Save as Excel
         </button>
@@ -90,6 +93,23 @@ export const ProformaInvoicePage = ({ orderId, onBack }: { orderId: string; onBa
             ))}
           </tbody>
         </table>
+
+        {adjustments.length > 0 && (
+          <div className="mt-6">
+            <div className="text-xs font-bold uppercase tracking-wide" style={{ color: MUTED }}>Adjustments</div>
+            <table className="mt-2 w-full text-sm">
+              <tbody>
+                {adjustments.map(a => (
+                  <tr key={a.id} className="border-b border-slate-100">
+                    <td className="py-1.5" style={{ color: MUTED }}>{ORDER_ADJUSTMENT_KIND_LABELS[a.kind]}</td>
+                    <td className="py-1.5">{a.label}</td>
+                    <td className="py-1.5 text-right">{a.amount_ex_gst != null ? `$${a.amount_ex_gst.toFixed(2)}` : ""}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
 
         <div className="mt-4 ml-auto max-w-xs space-y-1 text-sm">
           <div className="flex justify-between"><span style={{ color: MUTED }}>Subtotal (ex GST)</span><span>${order.subtotal_ex_gst.toFixed(2)}</span></div>

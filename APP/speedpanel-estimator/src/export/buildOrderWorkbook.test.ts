@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import * as XLSX from "xlsx";
 import { buildOrderWorkbook } from "./buildOrderWorkbook";
 import type { OrderRow, OrderDeliveryRow } from "../pages/projects/orders/orderTypes";
+import type { OrderAdjustmentRow } from "../pages/projects/orders/orderAdjustmentTypes";
 
 function baseOrder(overrides: Partial<OrderRow> = {}): OrderRow {
   return {
@@ -34,10 +35,39 @@ function baseDelivery(overrides: Partial<OrderDeliveryRow> = {}): OrderDeliveryR
   };
 }
 
+function baseAdjustment(overrides: Partial<OrderAdjustmentRow> = {}): OrderAdjustmentRow {
+  return {
+    id: "adj1", order_id: "11111111-2222-3333-4444-555555555555", kind: "delivery", label: "Metro Delivery",
+    amount_ex_gst: 120, saved_fee_id: null, created_by: "u1",
+    created_at: "2026-01-02T00:00:00.000Z", updated_at: "2026-01-02T00:00:00.000Z",
+    ...overrides,
+  };
+}
+
 describe("buildOrderWorkbook", () => {
-  it("builds all three sheets with the expected names", async () => {
+  it("builds all four sheets with the expected names", async () => {
     const wb = await buildOrderWorkbook(baseOrder(), [baseDelivery()], "Test Project");
-    expect(wb.SheetNames).toEqual(["Pro Forma Invoice", "Line Items", "Delivery Schedule"]);
+    expect(wb.SheetNames).toEqual(["Pro Forma Invoice", "Line Items", "Adjustments", "Delivery Schedule"]);
+  });
+
+  it("includes adjustment rows and their net total in the summary sheet", async () => {
+    const adjustments = [baseAdjustment(), baseAdjustment({ id: "adj2", kind: "discount", label: "Loyalty discount", amount_ex_gst: -50 })];
+    const wb = await buildOrderWorkbook(baseOrder(), [baseDelivery()], "Test Project", adjustments);
+    const adjRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(wb.Sheets["Adjustments"]);
+    expect(adjRows).toHaveLength(2);
+    expect(adjRows.find(r => r["Item"] === "Metro Delivery")?.["Amount (ex GST)"]).toBe(120);
+    expect(adjRows.find(r => r["Item"] === "Loyalty discount")?.["Amount (ex GST)"]).toBe(-50);
+
+    const summaryRows = XLSX.utils.sheet_to_json<(string | number)[]>(wb.Sheets["Pro Forma Invoice"], { header: 1 });
+    const flat = summaryRows.map(r => r.join("|")).join("\n");
+    expect(flat).toContain("Adjustments (ex GST)|70");
+  });
+
+  it("placeholders an empty Adjustments sheet when there are none", async () => {
+    const wb = await buildOrderWorkbook(baseOrder(), [baseDelivery()], "Test Project");
+    const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(wb.Sheets["Adjustments"]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]["Item"]).toBe("No adjustments");
   });
 
   it("includes order totals and project name in the Pro Forma Invoice sheet", async () => {

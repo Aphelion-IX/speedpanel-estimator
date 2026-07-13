@@ -3077,3 +3077,207 @@ create index if not exists idx_company_product_overrides_panel_id   on company_p
 create index if not exists idx_company_product_overrides_track_id   on company_product_overrides (track_id);
 create index if not exists idx_company_product_overrides_fixing_id  on company_product_overrides (fixing_id);
 create index if not exists idx_company_product_overrides_sealant_id on company_product_overrides (sealant_id);
+
+-- =============================================================================
+-- Quote Adjustments: Saved Fees
+-- =============================================================================
+-- The third pricing concept: a flat pick-list Internal Sales draws from
+-- when adding a Delivery/Fee adjustment to an order under review (Metro
+-- Delivery, Crane Truck, ...). Plain role-gated RLS (has_staff_role()
+-- directly in each policy, not RPC-only like price_lists/
+-- company_product_overrides) so useSupabaseCatalog's direct
+-- .insert()/.update()/.delete() calls just work -- this is the one
+-- pricing-adjacent table that genuinely reuses that hook as-is, no
+-- compound-key upsert or cross-row invariant here.
+-- =============================================================================
+create table saved_fees (
+  id uuid primary key default gen_random_uuid(),
+  label text not null,                            -- "Metro Delivery", "Crane Truck", "Urgent Processing", ...
+  kind text not null check (kind in ('delivery', 'fee')),
+  default_amount_ex_gst numeric,                   -- nullable: "no default, staff types it fresh"
+  active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+alter table saved_fees enable row level security;
+create policy "Internal Sales can read saved fees" on saved_fees
+  for select using (public.has_staff_role(array['internal_sales']));
+create policy "Super admins insert saved fees" on saved_fees
+  for insert with check (public.has_staff_role(array[]::text[]));
+create policy "Super admins update saved fees" on saved_fees
+  for update using (public.has_staff_role(array[]::text[])) with check (public.has_staff_role(array[]::text[]));
+create policy "Super admins delete saved fees" on saved_fees
+  for delete using (public.has_staff_role(array[]::text[]));
+
+-- =============================================================================
+-- Quote Adjustments: Order Adjustments
+-- =============================================================================
+-- A SEPARATE table, not crammed into orders.line_items: line_items is a
+-- frozen one-time-computed estimate snapshot (every consumer --
+-- OrderLineItemsTable readOnly, buildOrderWorkbook, totalPanelCount --
+-- treats it that way); ORDER_LINE_ITEM_CATEGORIES/UNITS are closed enums
+-- totalPanelCount() filters on, which extending risks silently breaking;
+-- and a real table gets per-row identity/audit (created_by/created_at) a
+-- jsonb append loses -- Sales will want to know who applied a $500
+-- discount and when (this row IS that audit trail -- no separate
+-- order_stage_events insert needed for adjustments).
+-- =============================================================================
+create table order_adjustments (
+  id uuid primary key default gen_random_uuid(),
+  order_id uuid not null references orders (id) on delete cascade,
+  kind text not null check (kind in ('delivery', 'fee', 'discount', 'credit', 'note')),
+  label text not null,
+  -- Discount/credit stored NEGATIVE (see add_order_adjustment) so
+  -- recompute_order_totals is a plain sum, no per-kind branching. Null
+  -- only for kind='note'.
+  amount_ex_gst numeric,
+  saved_fee_id uuid references saved_fees (id) on delete set null,
+  created_by uuid not null references auth.users (id),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  check ((kind = 'note' and amount_ex_gst is null) or (kind <> 'note' and amount_ex_gst is not null))
+);
+alter table order_adjustments enable row level security;
+-- Exact child-table idiom order_stage_events/order_deliveries already use.
+create policy "Owners, company, and admins can read order adjustments" on order_adjustments
+  for select using (
+    exists (select 1 from orders o where o.id = order_id and public.can_view_project(o.owner_id, o.company_id, o.project_id))
+  );
+-- No insert/update/delete policy -- RPCs only, same "no direct write
+-- policy" convention as order_stage_events.
+
+-- Closes the latent gap this feature is the first to actually need: no
+-- code anywhere does a plain .update() on orders today (verified live), so
+-- this is a zero-risk lockdown, not a breaking change. Every future write
+-- to orders' post-creation columns goes through a validating, stage-checked
+-- RPC (the existing 4 + the 3 new ones below) instead of "frontend
+-- discipline only."
+revoke update on orders from authenticated;
+
+-- =============================================================================
+-- Quote Adjustments: RPCs (has_staff_role(array['internal_sales'])-gated,
+-- matching AdminOrdersPage's existing section gate -- narrower than PR1/
+-- PR2's has_staff_role(array[]::text[]) admin RPCs, since this is
+-- specifically an Internal Sales action)
+-- =============================================================================
+-- Internal helper, never exposed to authenticated.
+create or replace function public.recompute_order_totals(p_order_id uuid) returns void
+language plpgsql security definer set search_path = public as $$
+declare v_line_subtotal numeric; v_adj_subtotal numeric; v_subtotal numeric; v_gst_rate numeric; v_unpriced int;
+begin
+  select gst_rate into v_gst_rate from orders where id = p_order_id;
+  select coalesce(sum((elem->>'lineTotalExGst')::numeric), 0),
+         coalesce(sum(case when (elem->>'matched')::boolean then 0 else 1 end), 0)
+    into v_line_subtotal, v_unpriced
+    from orders, jsonb_array_elements(line_items) elem where orders.id = p_order_id;
+  select coalesce(sum(amount_ex_gst), 0) into v_adj_subtotal from order_adjustments where order_id = p_order_id;
+  v_subtotal := round(v_line_subtotal + v_adj_subtotal, 2);
+  update orders set subtotal_ex_gst = v_subtotal, gst_amount = round(v_subtotal * v_gst_rate, 2),
+    total_inc_gst = round(v_subtotal + round(v_subtotal * v_gst_rate, 2), 2),
+    unpriced_item_count = v_unpriced, updated_at = now()
+  where id = p_order_id;
+end;
+$$;
+revoke execute on function public.recompute_order_totals(uuid) from public, anon, authenticated;
+
+-- Stage-gated to 'proforma_requested' -- the only stage AdminOrdersPage's
+-- Internal Sales queue (useAdminOrders) ever shows an order in; same
+-- has_staff_role -> row-lock -> stage-guard -> mutate shape as
+-- issue_proforma_invoice above. Negates the amount server-side for
+-- discount/credit so the client never sends a signed number.
+create or replace function public.add_order_adjustment(
+  p_order_id uuid, p_kind text, p_label text, p_amount_ex_gst numeric default null, p_saved_fee_id uuid default null
+) returns uuid
+language plpgsql security definer set search_path = public as $$
+declare v_stage text; v_id uuid; v_amount numeric;
+begin
+  if not public.has_staff_role(array['internal_sales']) then raise exception 'Not authorized'; end if;
+  if p_kind not in ('delivery', 'fee', 'discount', 'credit', 'note') then raise exception 'Invalid kind'; end if;
+
+  select stage into v_stage from orders where id = p_order_id for update;
+  if v_stage is null then raise exception 'Order not found'; end if;
+  if v_stage <> 'proforma_requested' then raise exception 'Order is not awaiting review'; end if;
+
+  v_amount := case
+    when p_kind = 'note' then null
+    when p_kind in ('discount', 'credit') then -abs(p_amount_ex_gst)
+    else p_amount_ex_gst
+  end;
+
+  insert into order_adjustments (order_id, kind, label, amount_ex_gst, saved_fee_id, created_by)
+    values (p_order_id, p_kind, p_label, v_amount, p_saved_fee_id, auth.uid())
+    returning id into v_id;
+
+  perform public.recompute_order_totals(p_order_id);
+  return v_id;
+end;
+$$;
+revoke execute on function public.add_order_adjustment(uuid, text, text, numeric, uuid) from public, anon;
+grant execute on function public.add_order_adjustment(uuid, text, text, numeric, uuid) to authenticated;
+
+create or replace function public.remove_order_adjustment(p_order_id uuid, p_adjustment_id uuid) returns void
+language plpgsql security definer set search_path = public as $$
+declare v_stage text;
+begin
+  if not public.has_staff_role(array['internal_sales']) then raise exception 'Not authorized'; end if;
+
+  select stage into v_stage from orders where id = p_order_id for update;
+  if v_stage is null then raise exception 'Order not found'; end if;
+  if v_stage <> 'proforma_requested' then raise exception 'Order is not awaiting review'; end if;
+
+  delete from order_adjustments where id = p_adjustment_id and order_id = p_order_id;
+  if not found then raise exception 'Adjustment not found'; end if;
+
+  perform public.recompute_order_totals(p_order_id);
+end;
+$$;
+revoke execute on function public.remove_order_adjustment(uuid, uuid) from public, anon;
+grant execute on function public.remove_order_adjustment(uuid, uuid) to authenticated;
+
+-- "Edit Line Price" -- corrects an existing frozen line_items element in
+-- place, distinct from Discount (a new order_adjustments row). Rewrites
+-- the matching element's unitPriceExGst/lineTotalExGst/matched via
+-- jsonb_agg over every element (Postgres has no "update this one array
+-- element" primitive), then recomputes totals the same way
+-- add_order_adjustment does.
+create or replace function public.admin_set_order_line_price(p_order_id uuid, p_line_item_id text, p_unit_price_ex_gst numeric) returns void
+language plpgsql security definer set search_path = public as $$
+declare v_stage text; v_found boolean;
+begin
+  if not public.has_staff_role(array['internal_sales']) then raise exception 'Not authorized'; end if;
+
+  select stage into v_stage from orders where id = p_order_id for update;
+  if v_stage is null then raise exception 'Order not found'; end if;
+  if v_stage <> 'proforma_requested' then raise exception 'Order is not awaiting review'; end if;
+
+  select exists (
+    select 1 from orders, jsonb_array_elements(line_items) elem
+    where orders.id = p_order_id and elem->>'id' = p_line_item_id
+  ) into v_found;
+  if not v_found then raise exception 'Line item not found'; end if;
+
+  update orders set line_items = (
+    select jsonb_agg(
+      case when elem->>'id' = p_line_item_id
+        then elem || jsonb_build_object(
+          'unitPriceExGst', p_unit_price_ex_gst,
+          'lineTotalExGst', round(p_unit_price_ex_gst * (elem->>'qty')::numeric, 2),
+          'matched', true
+        )
+        else elem
+      end
+    )
+    from jsonb_array_elements(line_items) elem
+  ) where id = p_order_id;
+
+  perform public.recompute_order_totals(p_order_id);
+end;
+$$;
+revoke execute on function public.admin_set_order_line_price(uuid, text, numeric) from public, anon;
+grant execute on function public.admin_set_order_line_price(uuid, text, numeric) to authenticated;
+
+-- =============================================================================
+-- Foreign key indexes -- quote adjustment tables
+-- =============================================================================
+create index if not exists idx_order_adjustments_order_id     on order_adjustments (order_id);
+create index if not exists idx_order_adjustments_saved_fee_id on order_adjustments (saved_fee_id);

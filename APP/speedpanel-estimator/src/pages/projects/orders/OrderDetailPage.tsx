@@ -11,7 +11,9 @@ import { cx, NAVY, BLUE, WHITE, MUTED } from "../../../styleTokens";
 import { Row } from "../../../ui/primitives";
 import { useOrder } from "./orderDetailStore";
 import { useOrderDeliveries } from "./orderDeliveriesStore";
+import { useOrderAdjustments } from "./useOrderAdjustments";
 import { OrderLineItemsTable, type DraftLineItem } from "./OrderLineItemsTable";
+import { OrderAdjustmentsList } from "./OrderAdjustmentsList";
 import { DeliveryBatchCard } from "./DeliveryBatchCard";
 import { AddDeliveryForm } from "./AddDeliveryForm";
 import { ManufacturingProgress } from "./ManufacturingProgress";
@@ -22,6 +24,7 @@ export const OrderDetailPage = ({ orderId, onBack, onViewProforma }: {
 }) => {
   const { order, loading, error, reload, submitOrder, requestProformaInvoice, cancelOrder } = useOrder(orderId);
   const { deliveries, loading: deliveriesLoading, error: deliveriesError, addDelivery, removeDelivery } = useOrderDeliveries(orderId);
+  const { adjustments } = useOrderAdjustments(orderId);
   const [addingDelivery, setAddingDelivery] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -70,6 +73,13 @@ export const OrderDetailPage = ({ orderId, onBack, onViewProforma }: {
         <div className="mt-4">
           <OrderLineItemsTable items={items} readOnly />
         </div>
+
+        {adjustments.length > 0 && (
+          <div className="mt-4">
+            <div className={cx.cardHd}>Adjustments</div>
+            <OrderAdjustmentsList adjustments={adjustments} />
+          </div>
+        )}
 
         <div className="mt-4 max-w-xs ml-auto space-y-1">
           <Row k="Subtotal (ex GST)" v={`$${order.subtotal_ex_gst.toFixed(2)}`} dim />
