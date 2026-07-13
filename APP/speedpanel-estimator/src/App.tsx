@@ -23,6 +23,7 @@ import { useHashRoute } from "./appShell/useHashRoute";
 import { ProjectsRouter } from "./pages/projects/ProjectsRouter";
 import { saveProjectSnapshot } from "./pages/projects/saveProjectSnapshot";
 import { insertProject, seedSnapshotForSystem } from "./pages/projects/projectsStore";
+import { SaveDraftBanner } from "./pages/projects/SaveDraftBanner";
 import type { ProjectRow, SavedProjectData } from "./pages/projects/projectTypes";
 import { ProformaInvoicePage } from "./pages/projects/orders/ProformaInvoicePage";
 import { CompanyRouter } from "./pages/company/CompanyRouter";
@@ -118,14 +119,15 @@ export default function SpeedpanelEstimator() {
     if (err) setSaveProjectError(err);
   };
 
-  // System Selector's "Select System" -- creates a new saved project pre-set
-  // to the chosen system/wallSystem (see projectsStore.ts's
-  // seedSnapshotForSystem) and opens it in the Estimator, same as opening any
-  // other existing project. Signed-out visitors get redirected to sign in
-  // first; pendingSystemSelection remembers their choice (name + system)
-  // across that redirect so it auto-resumes the moment they're signed in,
-  // rather than making them re-pick the system afterwards.
-  const [pendingSystemSelection, setPendingSystemSelection] = useState<{ option: WallSystemOption; name: string } | null>(null);
+  // Two ways to create a saved project from a device-local state: System
+  // Selector's "Select System" (seeds a fresh snapshot for the chosen system/
+  // wallSystem) and the Estimator tab's "Save as Project" (saves whatever's
+  // already in the shared wall store). Both redirect a signed-out visitor to
+  // sign in first; pendingProjectCreation remembers which one they asked for
+  // (plus its name) across that redirect so it auto-resumes the moment
+  // they're signed in, rather than making them repeat the action afterwards.
+  type PendingProjectCreation = { kind: "system"; option: WallSystemOption; name: string } | { kind: "draft"; name: string };
+  const [pendingProjectCreation, setPendingProjectCreation] = useState<PendingProjectCreation | null>(null);
 
   const doCreateProjectFromSystem = async (option: WallSystemOption, name: string): Promise<string | null> => {
     const data = seedSnapshotForSystem(option.system!, option.wallSystem);
@@ -136,15 +138,32 @@ export default function SpeedpanelEstimator() {
   };
 
   const createProjectFromSystem = async (option: WallSystemOption, name: string): Promise<string | null> => {
-    if (!auth.session) { setPendingSystemSelection({ option, name }); navigate({ tab: "projects" }); return null; }
+    if (!auth.session) { setPendingProjectCreation({ kind: "system", option, name }); navigate({ tab: "projects" }); return null; }
     return doCreateProjectFromSystem(option, name);
   };
 
+  // Estimator tab's "Save as Project" -- same insertProject() call
+  // saveOpenProject already builds a snapshot for on update, just routed
+  // through a fresh insert instead.
+  const doSaveDraftAsProject = async (name: string): Promise<string | null> => {
+    const snapshot: SavedProjectData = { ...exportSnapshot(), system, mode, dimUnit };
+    const { project, error } = await insertProject(auth.user!.id, name, snapshot, company.activeCompanyId);
+    if (error || !project) return error;
+    openProjectInEstimator(project);
+    return null;
+  };
+
+  const saveDraftAsProject = async (name: string): Promise<string | null> => {
+    if (!auth.session) { setPendingProjectCreation({ kind: "draft", name }); navigate({ tab: "projects" }); return null; }
+    return doSaveDraftAsProject(name);
+  };
+
   useEffect(() => {
-    if (!auth.session || !pendingSystemSelection) return;
-    const { option, name } = pendingSystemSelection;
-    setPendingSystemSelection(null);
-    doCreateProjectFromSystem(option, name).then(err => { if (err) window.alert(err); });
+    if (!auth.session || !pendingProjectCreation) return;
+    const pending = pendingProjectCreation;
+    setPendingProjectCreation(null);
+    const run = pending.kind === "system" ? doCreateProjectFromSystem(pending.option, pending.name) : doSaveDraftAsProject(pending.name);
+    run.then(err => { if (err) window.alert(err); });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [auth.session]);
 
@@ -190,7 +209,7 @@ export default function SpeedpanelEstimator() {
           <ProjectsRouter
             route={route} navigate={navigate} auth={auth} company={company}
             onOpenEstimator={openProjectInEstimator}
-            pendingNote={pendingSystemSelection ? `Sign in to create "${pendingSystemSelection.name}"` : undefined}
+            pendingNote={pendingProjectCreation ? `Sign in to create "${pendingProjectCreation.name}"` : undefined}
             layoutMode={layoutMode}
           />
         )}
@@ -217,6 +236,11 @@ export default function SpeedpanelEstimator() {
               </button>
             </div>
           </div>
+        )}
+
+        {/* Save-as-project banner -- only shown while there's no saved project open */}
+        {route.tab === "estimator" && !openProject && (
+          <SaveDraftBanner onSave={saveDraftAsProject} />
         )}
 
         {/* System configuration + calculator body */}
