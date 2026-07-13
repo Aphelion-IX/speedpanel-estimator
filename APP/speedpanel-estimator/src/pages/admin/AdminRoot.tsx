@@ -35,6 +35,7 @@ import { AdminOrdersPage } from "./AdminOrdersPage";
 import { AdminManufacturingPage } from "./AdminManufacturingPage";
 import { AdminCompaniesPage } from "./AdminCompaniesPage";
 import { AdminPermissionsPage } from "./AdminPermissionsPage";
+import { AdminDeliveryRequestsPage } from "./deliveryRequests/AdminDeliveryRequestsPage";
 import { useMyInternalRole } from "./useMyInternalRole";
 import { canAccessSection } from "./adminSectionAccess";
 
@@ -82,6 +83,7 @@ export const AdminRoot = ({ route, navigate, layoutMode, auth }: {
             {allowed && route.sub === "manufacturing" && <AdminManufacturingPage userId={auth.user?.id ?? null} staffRole={staffRole} staffRoleLoading={roleLoading} />}
             {allowed && route.sub === "companies" && <AdminCompaniesPage auth={auth} />}
             {allowed && route.sub === "permissions" && <AdminPermissionsPage />}
+            {allowed && route.sub === "deliveryRequests" && <AdminDeliveryRequestsPage userId={auth.user?.id ?? null} staffRole={staffRole} staffRoleLoading={roleLoading} />}
           </>
         )}
       </AdminGate>

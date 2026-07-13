@@ -96,6 +96,39 @@ export const DELIVERY_STATUS_BADGE_CLASS: Record<DeliveryStatus, string> = {
   delivered: "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400",
 };
 
+// Approval status governs the delivery request/negotiation phase (customer
+// requests a date, staff accept/propose/decline it) -- independent of and
+// coexisting with the fulfillment `status` above (planned/scheduled/
+// in_transit/delivered, dispatch-set once a delivery is actually confirmed).
+// Neither column constrains the other server-side -- see supabase/schema.sql's
+// "Delivery request/approval workflow" section.
+export const DELIVERY_APPROVAL_STATUSES = ["draft", "pending", "accepted", "date_proposed", "declined"] as const;
+export type DeliveryApprovalStatus = typeof DELIVERY_APPROVAL_STATUSES[number];
+
+export const DELIVERY_APPROVAL_STATUS_LABELS: Record<DeliveryApprovalStatus, string> = {
+  draft: "Draft",
+  pending: "Pending approval",
+  accepted: "Accepted",
+  date_proposed: "Date change proposed",
+  declined: "Declined",
+};
+
+// Reuses ORDER_STAGE_BADGE_CLASS's exact palette -- date_proposed is blue,
+// not red, since red means an actual rejection (declined), not just an
+// alternative date being offered.
+export const DELIVERY_APPROVAL_STATUS_BADGE_CLASS: Record<DeliveryApprovalStatus, string> = {
+  draft: "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400",
+  pending: "bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400",
+  accepted: "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400",
+  date_proposed: "bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400",
+  declined: "bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400",
+};
+
+// Deliberately excludes internal_note -- that column is revoked from
+// `authenticated`'s SELECT grant at the DB level (see schema.sql), so it
+// never comes back on a plain `.select(...)` and has no place in this row
+// shape; the only place it appears is admin_list_delivery_requests()'s own
+// richer row shape (see adminDeliveryRequestsStore.ts).
 export const OrderDeliveryRowSchema = z.object({
   id: z.string(),
   order_id: z.string(),
@@ -106,11 +139,18 @@ export const OrderDeliveryRowSchema = z.object({
   state: z.string(),
   postcode: z.string(),
   requested_date: z.string().nullable(),
+  proposed_date: z.string().nullable(),
+  confirmed_date: z.string().nullable(),
+  actual_date: z.string().nullable(),
   contact_name: z.string().nullable(),
   contact_phone: z.string().nullable(),
-  notes: z.string().nullable(),
+  delivery_instructions: z.string().nullable(),
+  preferred_window: z.string().nullable(),
+  site_access_details: z.string().nullable(),
+  customer_note: z.string().nullable(),
   item_allocations: z.array(OrderDeliveryItemAllocationSchema),
   status: z.enum(DELIVERY_STATUSES),
+  approval_status: z.enum(DELIVERY_APPROVAL_STATUSES),
   created_at: z.string(),
   updated_at: z.string(),
 });

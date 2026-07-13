@@ -21,6 +21,10 @@ const SECTION_ROLES: Partial<Record<AdminSubPage, StaffRole[]>> = {
   projectReviews: ["project_manager", "technical_services"],
   orders: ["internal_sales"],
   manufacturing: ["dispatch"],
+  // The one section reachable by two roles at once -- see
+  // admin_list_delivery_requests()/the delivery review RPCs in
+  // supabase/schema.sql, all gated has_staff_role(['internal_sales','dispatch']).
+  deliveryRequests: ["internal_sales", "dispatch"],
 };
 
 // null/undefined (not yet assigned) and 'super_admin' always pass, matching

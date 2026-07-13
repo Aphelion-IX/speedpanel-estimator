@@ -1964,9 +1964,6 @@ begin
   -- submit regardless of project assignment.
   if not public.can_submit_orders(v_owner, v_company, v_project) then raise exception 'Not authorized'; end if;
   if v_stage <> 'draft' then raise exception 'Order can only be submitted from Draft'; end if;
-  if not exists (select 1 from order_deliveries where order_id = p_order_id) then
-    raise exception 'Add at least one delivery before submitting';
-  end if;
 
   update orders set stage = 'submitted', submitted_at = now(), updated_at = now() where id = p_order_id;
   insert into order_stage_events (order_id, actor_id, event_type) values (p_order_id, auth.uid(), 'submitted');
@@ -2993,3 +2990,374 @@ create index if not exists idx_price_list_prices_track_id      on price_list_pri
 create index if not exists idx_price_list_prices_fixing_id     on price_list_prices (fixing_id);
 create index if not exists idx_price_list_prices_sealant_id    on price_list_prices (sealant_id);
 create index if not exists idx_companies_price_list_id         on companies (price_list_id);
+
+-- =============================================================================
+-- Delivery request/approval workflow
+-- =============================================================================
+-- Replaces order_deliveries' original "committed on insert, draft-only"
+-- model with a request/negotiation workflow: a customer submits a delivery
+-- request against an already-submitted order, and Internal Sales or Dispatch
+-- accept the requested date, propose an alternative, decline it, or split
+-- the order into additional delivery batches. approval_status governs this
+-- request/negotiation phase; the existing fulfillment `status` column
+-- (planned/scheduled/in_transit/delivered, set via
+-- admin_update_delivery_status above) continues to govern post-confirmation
+-- dispatch tracking -- the two columns are independent and neither
+-- constrains the other server-side.
+-- =============================================================================
+
+-- Pure rename -- this column has always meant "client-authored delivery
+-- instructions"; the new columns below just make that explicit alongside it.
+alter table order_deliveries rename column notes to delivery_instructions;
+
+-- New client-submitted free-text fields, one column each (not normalized --
+-- matches this schema's existing posture for business free text, e.g.
+-- orders.customer_note).
+alter table order_deliveries add column preferred_window text;
+alter table order_deliveries add column site_access_details text;
+
+-- Staff-authored notes: internal_note is never customer-readable (see the
+-- column-privilege revoke below); customer_note is staff-written but
+-- customer-visible, the same internal-vs-customer split orders.customer_note
+-- already establishes at the order level.
+alter table order_deliveries add column internal_note text;
+alter table order_deliveries add column customer_note text;
+
+-- New date columns -- requested_date (existing) stays client-authored.
+-- actual_date has no writer yet (a future admin_update_delivery_status
+-- extension); the column exists now so it's available without a further
+-- migration once that's built.
+alter table order_deliveries add column proposed_date date;
+alter table order_deliveries add column confirmed_date date;
+alter table order_deliveries add column actual_date date;
+
+-- Approval-status enum -- see header comment above for why this is separate
+-- from `status`.
+alter table order_deliveries add column approval_status text not null default 'draft'
+  check (approval_status in ('draft', 'pending', 'accepted', 'date_proposed', 'declined'));
+
+-- Backfill: every pre-existing row was fully committed on insert under the
+-- old model -- map it onto the new enum's terminal "already agreed" state
+-- instead of leaving it stuck at the new default 'draft'.
+update order_deliveries set approval_status = 'accepted', confirmed_date = requested_date;
+
+-- Hardening: sequence_no had no uniqueness constraint under the old
+-- single-delivery-per-order-in-practice model; staff-side splitting
+-- concurrently with customer inserts makes a genuine duplicate possible now
+-- that multiple deliveries per order is an actively-used path.
+alter table order_deliveries add constraint order_deliveries_order_id_sequence_no_key unique (order_id, sequence_no);
+
+-- Column-level protection for internal_note -- RLS is row-level only, can't
+-- discriminate columns within a row. A column-specific "revoke select
+-- (internal_note) ... from authenticated" alone does NOT work here: Supabase
+-- grants authenticated a blanket TABLE-level SELECT on every table by
+-- default, and a table-level grant implies SELECT on all columns regardless
+-- of a column-specific revoke (confirmed against the live project -- the
+-- column stayed readable until the table-level grant itself was revoked).
+-- So the table-level SELECT grant must be revoked and replaced with an
+-- explicit column-level SELECT grant naming every column except
+-- internal_note. Composes with the existing security-definer-bypasses-
+-- grants pattern admin_list_stage_events already uses to read auth.users (a
+-- table `authenticated` has zero grants on at all) -- same mechanism here:
+-- no session can read internal_note through a plain
+-- `.from("order_deliveries").select(...)` call after this; the only read
+-- path is admin_list_delivery_requests() below.
+revoke select on order_deliveries from authenticated;
+grant select (
+  id, order_id, sequence_no, address_line1, address_line2, suburb, state, postcode, requested_date,
+  contact_name, contact_phone, delivery_instructions, item_allocations, created_at, updated_at, status,
+  preferred_window, site_access_details, customer_note, proposed_date, confirmed_date, actual_date, approval_status
+) on order_deliveries to authenticated;
+
+-- Replaces the single "draft-only" blanket policy with three, split by
+-- operation so each can express a different rule.
+drop policy "Editors can manage deliveries while draft, admins anytime" on order_deliveries;
+
+-- INSERT: a customer creates a delivery REQUEST once the order has left
+-- draft (nothing to request delivery of before submission) and hasn't been
+-- cancelled. Always inserted as 'pending' -- WITH CHECK blocks a customer
+-- from insert-forging 'accepted'/'date_proposed'/'declined' directly.
+create policy "Editors can create delivery requests on submitted orders, admins anytime" on order_deliveries
+  for insert with check (
+    (
+      exists (
+        select 1 from orders o where o.id = order_id
+          and o.stage in ('submitted', 'proforma_requested', 'proforma_issued')
+          and public.can_edit_project(o.owner_id, o.company_id, o.project_id)
+      )
+      and approval_status = 'pending'
+    )
+    or public.is_admin()
+  );
+
+-- UPDATE: a customer can edit their own request's fields while it's still
+-- open for negotiation (pending, or date_proposed -- they can revise
+-- address/contact/instructions while considering a proposed date). Once
+-- approval_status = 'accepted' the row is locked from direct customer
+-- writes -- the only path from there is request_delivery_date_change()
+-- below, not a raw UPDATE. WITH CHECK re-asserts approval_status stays in
+-- {'pending','date_proposed'}, so this can't be used to self-approve or
+-- self-decline.
+create policy "Editors can edit pending delivery requests, admins anytime" on order_deliveries
+  for update using (
+    (approval_status in ('pending', 'date_proposed')
+      and exists (select 1 from orders o where o.id = order_id and public.can_edit_project(o.owner_id, o.company_id, o.project_id)))
+    or public.is_admin()
+  )
+  with check (
+    (approval_status in ('pending', 'date_proposed')
+      and exists (select 1 from orders o where o.id = order_id and public.can_edit_project(o.owner_id, o.company_id, o.project_id)))
+    or public.is_admin()
+  );
+
+-- DELETE: a customer can withdraw their own not-yet-reviewed request;
+-- admin anytime.
+create policy "Editors can delete pending delivery requests, admins anytime" on order_deliveries
+  for delete using (
+    (approval_status = 'pending'
+      and exists (select 1 from orders o where o.id = order_id and public.can_edit_project(o.owner_id, o.company_id, o.project_id)))
+    or public.is_admin()
+  );
+
+-- Staff review actions below are gated to Internal Sales or Dispatch
+-- specifically (has_staff_role(array['internal_sales','dispatch'])), same
+-- narrowing pattern already used by admin_update_manufacturing/
+-- admin_update_delivery_status above: RLS stays admin-broad (the blanket
+-- public.is_admin() clause on every policy above already lets any admin
+-- write any column), these RPCs are what actually restrict it to the two
+-- intended roles.
+
+-- Accepts whatever date the customer most recently requested. Valid from
+-- 'pending'/'date_proposed' (staff can accept the original ask even after
+-- having proposed an alternative) or 'draft' (a staff-created split row can
+-- be accepted directly without a separate propose step).
+create or replace function public.accept_delivery_date(p_delivery_id uuid) returns void
+language plpgsql security definer
+set search_path = public
+as $$
+declare
+  v_status text;
+  v_requested date;
+begin
+  if not public.has_staff_role(array['internal_sales', 'dispatch']) then raise exception 'Not authorized'; end if;
+  select approval_status, requested_date into v_status, v_requested from order_deliveries where id = p_delivery_id for update;
+  if v_status is null then raise exception 'Delivery not found'; end if;
+  if v_status not in ('pending', 'date_proposed', 'draft') then raise exception 'Delivery is not awaiting a date decision'; end if;
+  update order_deliveries set approval_status = 'accepted', confirmed_date = v_requested, updated_at = now() where id = p_delivery_id;
+end;
+$$;
+revoke execute on function public.accept_delivery_date(uuid) from public, anon;
+grant execute on function public.accept_delivery_date(uuid) to authenticated;
+
+-- Offers an alternative date -- confirmed_date is NOT set here; it's only
+-- set once accept_delivery_date() or the customer's own
+-- accept_proposed_delivery_date() runs.
+create or replace function public.propose_delivery_date(p_delivery_id uuid, p_proposed_date date) returns void
+language plpgsql security definer
+set search_path = public
+as $$
+declare
+  v_status text;
+begin
+  if not public.has_staff_role(array['internal_sales', 'dispatch']) then raise exception 'Not authorized'; end if;
+  if p_proposed_date is null then raise exception 'A proposed date is required'; end if;
+  select approval_status into v_status from order_deliveries where id = p_delivery_id for update;
+  if v_status is null then raise exception 'Delivery not found'; end if;
+  if v_status not in ('pending', 'date_proposed', 'draft') then raise exception 'Delivery is not awaiting a date decision'; end if;
+  update order_deliveries set approval_status = 'date_proposed', proposed_date = p_proposed_date, updated_at = now() where id = p_delivery_id;
+end;
+$$;
+revoke execute on function public.propose_delivery_date(uuid, date) from public, anon;
+grant execute on function public.propose_delivery_date(uuid, date) to authenticated;
+
+-- Customer-facing -- accepts staff's proposed alternative date.
+create or replace function public.accept_proposed_delivery_date(p_delivery_id uuid) returns void
+language plpgsql security definer
+set search_path = public
+as $$
+declare
+  v_status text;
+  v_proposed date;
+  v_owner uuid;
+  v_company uuid;
+  v_project uuid;
+begin
+  select od.approval_status, od.proposed_date, o.owner_id, o.company_id, o.project_id
+    into v_status, v_proposed, v_owner, v_company, v_project
+    from order_deliveries od join orders o on o.id = od.order_id where od.id = p_delivery_id for update;
+  if v_status is null then raise exception 'Delivery not found'; end if;
+  if not public.can_edit_project(v_owner, v_company, v_project) then raise exception 'Not authorized'; end if;
+  if v_status <> 'date_proposed' then raise exception 'No proposed date to accept'; end if;
+  update order_deliveries set approval_status = 'accepted', confirmed_date = v_proposed, requested_date = v_proposed, updated_at = now() where id = p_delivery_id;
+end;
+$$;
+revoke execute on function public.accept_proposed_delivery_date(uuid) from public, anon;
+grant execute on function public.accept_proposed_delivery_date(uuid) to authenticated;
+
+-- p_customer_note (optional) lands in customer_note so a red "Declined"
+-- badge isn't left unexplained.
+create or replace function public.decline_delivery_request(p_delivery_id uuid, p_customer_note text default null) returns void
+language plpgsql security definer
+set search_path = public
+as $$
+declare
+  v_status text;
+begin
+  if not public.has_staff_role(array['internal_sales', 'dispatch']) then raise exception 'Not authorized'; end if;
+  select approval_status into v_status from order_deliveries where id = p_delivery_id for update;
+  if v_status is null then raise exception 'Delivery not found'; end if;
+  if v_status not in ('pending', 'date_proposed', 'draft') then raise exception 'Delivery is not awaiting a decision'; end if;
+  update order_deliveries set approval_status = 'declined', customer_note = coalesce(p_customer_note, customer_note), updated_at = now() where id = p_delivery_id;
+end;
+$$;
+revoke execute on function public.decline_delivery_request(uuid, text) from public, anon;
+grant execute on function public.decline_delivery_request(uuid, text) to authenticated;
+
+-- Customer-facing -- the only write path once approval_status = 'accepted'
+-- (the UPDATE RLS policy above locks direct edits at that point). Reopens
+-- the delivery for staff review; confirmed_date is left in place for
+-- history, the UI just stops treating it as current while pending.
+create or replace function public.request_delivery_date_change(p_delivery_id uuid, p_new_requested_date date) returns void
+language plpgsql security definer
+set search_path = public
+as $$
+declare
+  v_status text;
+  v_owner uuid;
+  v_company uuid;
+  v_project uuid;
+begin
+  if p_new_requested_date is null then raise exception 'A new requested date is required'; end if;
+  select od.approval_status, o.owner_id, o.company_id, o.project_id
+    into v_status, v_owner, v_company, v_project
+    from order_deliveries od join orders o on o.id = od.order_id where od.id = p_delivery_id for update;
+  if v_status is null then raise exception 'Delivery not found'; end if;
+  if not public.can_edit_project(v_owner, v_company, v_project) then raise exception 'Not authorized'; end if;
+  if v_status <> 'accepted' then raise exception 'Only an accepted delivery can have a date change requested'; end if;
+  update order_deliveries set approval_status = 'pending', requested_date = p_new_requested_date, updated_at = now() where id = p_delivery_id;
+end;
+$$;
+revoke execute on function public.request_delivery_date_change(uuid, date) from public, anon;
+grant execute on function public.request_delivery_date_change(uuid, date) to authenticated;
+
+-- Two dedicated note RPCs (not one with a p_kind flag) -- keeps the
+-- internal_note write path trivially auditable/greppable on its own, same
+-- "one small dedicated RPC per concern" posture as
+-- admin_update_manufacturing vs admin_update_delivery_status above.
+create or replace function public.set_delivery_internal_note(p_delivery_id uuid, p_note text) returns void
+language plpgsql security definer
+set search_path = public
+as $$
+begin
+  if not public.has_staff_role(array['internal_sales', 'dispatch']) then raise exception 'Not authorized'; end if;
+  update order_deliveries set internal_note = p_note, updated_at = now() where id = p_delivery_id;
+  if not found then raise exception 'Delivery not found'; end if;
+end;
+$$;
+revoke execute on function public.set_delivery_internal_note(uuid, text) from public, anon;
+grant execute on function public.set_delivery_internal_note(uuid, text) to authenticated;
+
+create or replace function public.set_delivery_customer_note(p_delivery_id uuid, p_note text) returns void
+language plpgsql security definer
+set search_path = public
+as $$
+begin
+  if not public.has_staff_role(array['internal_sales', 'dispatch']) then raise exception 'Not authorized'; end if;
+  update order_deliveries set customer_note = p_note, updated_at = now() where id = p_delivery_id;
+  if not found then raise exception 'Delivery not found'; end if;
+end;
+$$;
+revoke execute on function public.set_delivery_customer_note(uuid, text) from public, anon;
+grant execute on function public.set_delivery_customer_note(uuid, text) to authenticated;
+
+-- Staff splits an order: inserts an ADDITIONAL delivery row, starting at
+-- approval_status = 'draft' (not customer-visible until moved forward via
+-- propose_delivery_date/accept_delivery_date/decline_delivery_request,
+-- which all also accept 'draft' as a starting state above). Address/contact
+-- defaulting from delivery #1 is a client-side UX concern, not enforced
+-- here -- this RPC just inserts whatever full row content it's given.
+-- sequence_no is server-assigned (max+1), closing the client-computed-
+-- sequence gap the old insert-only store had.
+create or replace function public.admin_create_delivery(
+  p_order_id uuid, p_address_line1 text, p_address_line2 text, p_suburb text, p_state text, p_postcode text,
+  p_contact_name text, p_contact_phone text, p_requested_date date, p_delivery_instructions text,
+  p_preferred_window text default null, p_site_access_details text default null,
+  p_item_allocations jsonb default '[]'::jsonb
+) returns uuid
+language plpgsql security definer
+set search_path = public
+as $$
+declare
+  v_id uuid;
+  v_seq int;
+begin
+  if not public.has_staff_role(array['internal_sales', 'dispatch']) then raise exception 'Not authorized'; end if;
+  select coalesce(max(sequence_no), 0) + 1 into v_seq from order_deliveries where order_id = p_order_id;
+  insert into order_deliveries (order_id, sequence_no, address_line1, address_line2, suburb, state, postcode,
+    contact_name, contact_phone, requested_date, delivery_instructions, preferred_window, site_access_details,
+    item_allocations, approval_status)
+    values (p_order_id, v_seq, p_address_line1, p_address_line2, p_suburb, p_state, p_postcode,
+      p_contact_name, p_contact_phone, p_requested_date, p_delivery_instructions, p_preferred_window,
+      p_site_access_details, p_item_allocations, 'draft')
+    returning id into v_id;
+  return v_id;
+end;
+$$;
+revoke execute on function public.admin_create_delivery(uuid, text, text, text, text, text, text, text, date, text, text, text, jsonb) from public, anon;
+grant execute on function public.admin_create_delivery(uuid, text, text, text, text, text, text, text, date, text, text, text, jsonb) to authenticated;
+
+-- Staff edits an existing delivery's content fields -- deliberately does
+-- NOT touch approval_status or any date column, which only ever move
+-- through the dedicated transition RPCs above, keeping the state machine
+-- centralized in one place per transition.
+create or replace function public.admin_update_delivery(
+  p_delivery_id uuid, p_address_line1 text, p_address_line2 text, p_suburb text, p_state text, p_postcode text,
+  p_contact_name text, p_contact_phone text, p_delivery_instructions text, p_preferred_window text,
+  p_site_access_details text, p_item_allocations jsonb
+) returns void
+language plpgsql security definer
+set search_path = public
+as $$
+begin
+  if not public.has_staff_role(array['internal_sales', 'dispatch']) then raise exception 'Not authorized'; end if;
+  update order_deliveries set address_line1 = p_address_line1, address_line2 = p_address_line2, suburb = p_suburb,
+    state = p_state, postcode = p_postcode, contact_name = p_contact_name, contact_phone = p_contact_phone,
+    delivery_instructions = p_delivery_instructions, preferred_window = p_preferred_window,
+    site_access_details = p_site_access_details, item_allocations = p_item_allocations, updated_at = now()
+    where id = p_delivery_id;
+  if not found then raise exception 'Delivery not found'; end if;
+end;
+$$;
+revoke execute on function public.admin_update_delivery(uuid, text, text, text, text, text, text, text, text, text, text, jsonb) from public, anon;
+grant execute on function public.admin_update_delivery(uuid, text, text, text, text, text, text, text, text, text, text, jsonb) to authenticated;
+
+-- The only read path for internal_note -- security-definer table function,
+-- staff-role-gated via a WHERE clause (returns an empty set for anyone else,
+-- matching admin_list_stage_events's own gating style above) so it composes
+-- with useMyQueueScope/applyQueueScope's filter-chaining client-side the
+-- same way adminOrdersStore.ts already chains filters onto a plain table
+-- select. company_id/order_stage/project_name are joined in for display and
+-- so applyQueueScope can filter on company_id exactly like every other
+-- admin queue. Includes 'draft' rows (unlike the customer-facing read path,
+-- which filters those out client-side) since staff need to see their own
+-- in-progress splits.
+create or replace function public.admin_list_delivery_requests() returns table (
+  id uuid, order_id uuid, sequence_no int, address_line1 text, address_line2 text, suburb text, state text,
+  postcode text, contact_name text, contact_phone text, delivery_instructions text, preferred_window text,
+  site_access_details text, requested_date date, proposed_date date, confirmed_date date, actual_date date,
+  approval_status text, internal_note text, customer_note text, item_allocations jsonb, status text,
+  company_id uuid, order_stage text, project_name text, created_at timestamptz, updated_at timestamptz
+)
+language sql security definer stable
+set search_path = public
+as $$
+  select od.id, od.order_id, od.sequence_no, od.address_line1, od.address_line2, od.suburb, od.state, od.postcode,
+    od.contact_name, od.contact_phone, od.delivery_instructions, od.preferred_window, od.site_access_details,
+    od.requested_date, od.proposed_date, od.confirmed_date, od.actual_date, od.approval_status, od.internal_note,
+    od.customer_note, od.item_allocations, od.status, o.company_id, o.stage, p.name, od.created_at, od.updated_at
+  from order_deliveries od join orders o on o.id = od.order_id join projects p on p.id = o.project_id
+  where public.has_staff_role(array['internal_sales', 'dispatch'])
+  order by od.updated_at desc;
+$$;
+revoke execute on function public.admin_list_delivery_requests() from public, anon;
+grant execute on function public.admin_list_delivery_requests() to authenticated;

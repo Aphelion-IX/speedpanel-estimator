@@ -1,4 +1,4 @@
-import { Package, Layers, Calculator, FileText, ClipboardList, FolderCheck, Users, BarChart3, History, Truck, Factory, Building2, ShieldCheck, Tag } from "lucide-react";
+import { Package, Layers, Calculator, FileText, ClipboardList, FolderCheck, Users, BarChart3, History, Truck, Factory, Building2, ShieldCheck, Tag, CalendarClock } from "lucide-react";
 import { cx, BLUE, NAVY } from "../../styleTokens";
 import { PlaceholderPage } from "../PlaceholderPage";
 import { BackendStatusCard } from "./BackendStatusCard";
@@ -19,6 +19,7 @@ const ADMIN_GROUPS: { heading: string; items: AdminSection[] }[] = [
       { key: "requests",  label: "Requests",  description: "Incoming quote and project requests.",     icon: <ClipboardList size={16} /> },
       { key: "projectReviews", label: "Project Reviews", description: "Saved projects awaiting an install or technical review.", icon: <FolderCheck size={16} /> },
       { key: "orders",    label: "Orders",    description: "Customer orders awaiting a pro forma invoice.", icon: <Truck size={16} /> },
+      { key: "deliveryRequests", label: "Delivery Requests", description: "Accept, propose a date for, decline, or split customer delivery requests.", icon: <CalendarClock size={16} /> },
       { key: "manufacturing", label: "Manufacturing & Delivery", description: "Update panel manufacturing progress and delivery status for confirmed orders.", icon: <Factory size={16} /> },
     ],
   },

@@ -12,7 +12,7 @@ import { Row } from "../../../ui/primitives";
 import { useOrder } from "./orderDetailStore";
 import { useOrderDeliveries } from "./orderDeliveriesStore";
 import { OrderLineItemsTable, type DraftLineItem } from "./OrderLineItemsTable";
-import { DeliveryBatchCard } from "./DeliveryBatchCard";
+import { DeliveryRequestCard } from "./DeliveryRequestCard";
 import { AddDeliveryForm } from "./AddDeliveryForm";
 import { ManufacturingProgress } from "./ManufacturingProgress";
 import { ORDER_STAGE_LABELS, ORDER_STAGE_BADGE_CLASS } from "./orderTypes";
@@ -21,7 +21,7 @@ export const OrderDetailPage = ({ orderId, onBack, onViewProforma }: {
   orderId: string; onBack: () => void; onViewProforma: (orderId: string) => void;
 }) => {
   const { order, loading, error, reload, submitOrder, requestProformaInvoice, cancelOrder } = useOrder(orderId);
-  const { deliveries, loading: deliveriesLoading, error: deliveriesError, addDelivery, removeDelivery } = useOrderDeliveries(orderId);
+  const { deliveries, loading: deliveriesLoading, error: deliveriesError, addDelivery, removeDelivery, requestDateChange, acceptProposedDate } = useOrderDeliveries(orderId);
   const [addingDelivery, setAddingDelivery] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -41,6 +41,11 @@ export const OrderDetailPage = ({ orderId, onBack, onViewProforma }: {
   const items: DraftLineItem[] = order.line_items.map(i => ({ ...i, included: true }));
   const remaining: Record<string, number> = Object.fromEntries(order.line_items.map(i => [i.id, i.qty]));
   for (const d of deliveries) for (const a of d.item_allocations) remaining[a.lineItemId] = (remaining[a.lineItemId] ?? 0) - a.qty;
+  // Staff-created split rows (approval_status='draft') aren't customer-
+  // visible yet -- see DeliveryRequestCard's header comment -- but their
+  // allocations still count against `remaining` above so a customer can't
+  // double-allocate quantity a staff split already claimed.
+  const visibleDeliveries = deliveries.filter(d => d.approval_status !== "draft");
 
   const run = async (action: () => Promise<string | null>) => {
     setBusy(true);
@@ -81,7 +86,7 @@ export const OrderDetailPage = ({ orderId, onBack, onViewProforma }: {
 
         <div className="mt-4 flex flex-wrap gap-2">
           {order.stage === "draft" && (
-            <button onClick={() => run(submitOrder)} disabled={busy || deliveries.length === 0}
+            <button onClick={() => run(submitOrder)} disabled={busy}
               className="rounded-xl px-4 py-2.5 text-sm font-bold disabled:opacity-50" style={{ background: BLUE, color: WHITE }}>
               Submit order
             </button>
@@ -118,33 +123,39 @@ export const OrderDetailPage = ({ orderId, onBack, onViewProforma }: {
         </div>
       )}
 
-      <div className="mt-5">
-        <div className={cx.cardHd}>Deliveries</div>
-        {deliveriesLoading ? (
-          <div className={`${cx.card} mt-2 text-sm`} style={{ color: MUTED }}>Loading...</div>
-        ) : deliveriesError ? (
-          <p className="mt-2 text-sm text-red-600 dark:text-red-400">{deliveriesError}</p>
-        ) : (
-          deliveries.map(d => (
-            <DeliveryBatchCard key={d.id} delivery={d} lineItems={order.line_items}
-              canRemove={order.stage === "draft"} onRemove={id => run(() => removeDelivery(id))} />
-          ))
-        )}
-
-        {order.stage === "draft" && (
-          addingDelivery ? (
-            <AddDeliveryForm
-              lineItems={order.line_items} remaining={remaining}
-              onAdd={async input => { const err = await addDelivery(input); if (!err) setAddingDelivery(false); return err; }}
-              onCancel={() => setAddingDelivery(false)}
-            />
+      {order.stage !== "draft" && (
+        <div className="mt-5">
+          <div className={cx.cardHd}>Delivery Schedule</div>
+          <p className={cx.footnote}>Request and manage deliveries for this order. Requested dates remain subject to confirmation by Speedpanel.</p>
+          {deliveriesLoading ? (
+            <div className={`${cx.card} mt-2 text-sm`} style={{ color: MUTED }}>Loading...</div>
+          ) : deliveriesError ? (
+            <p className="mt-2 text-sm text-red-600 dark:text-red-400">{deliveriesError}</p>
           ) : (
-            <button onClick={() => setAddingDelivery(true)} className="mt-3 text-sm font-bold" style={{ color: BLUE }}>
-              + Add delivery
-            </button>
-          )
-        )}
-      </div>
+            visibleDeliveries.map(d => (
+              <DeliveryRequestCard key={d.id} delivery={d} lineItems={order.line_items}
+                onRemove={id => run(() => removeDelivery(id))}
+                onAcceptProposedDate={id => run(() => acceptProposedDate(id))}
+                onRequestDateChange={(id, newDate) => run(() => requestDateChange(id, newDate))}
+              />
+            ))
+          )}
+
+          {order.stage !== "cancelled" && (
+            addingDelivery ? (
+              <AddDeliveryForm
+                lineItems={order.line_items} remaining={remaining}
+                onAdd={async input => { const err = await addDelivery(input); if (!err) setAddingDelivery(false); return err; }}
+                onCancel={() => setAddingDelivery(false)}
+              />
+            ) : (
+              <button onClick={() => setAddingDelivery(true)} className="mt-3 text-sm font-bold" style={{ color: BLUE }}>
+                + Request a delivery
+              </button>
+            )
+          )}
+        </div>
+      )}
     </div>
   );
 };
