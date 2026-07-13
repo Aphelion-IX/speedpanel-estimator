@@ -2780,6 +2780,15 @@ create unique index price_list_prices_unique on price_list_prices
 alter table price_list_prices enable row level security;
 create policy "Staff can read price list prices" on price_list_prices
   for select using (public.has_staff_role(array[]::text[]));
+-- No insert/update/delete policy -- admin_* RPCs only.
+
+-- Must exist before the "Company members can read their assigned list's
+-- prices" policy below, which references companies.price_list_id --
+-- creating a policy that reads a not-yet-existing column fails outright
+-- (confirmed live: "column c.price_list_id does not exist"), it isn't
+-- deferred/validated lazily like a foreign key constraint would be.
+alter table companies add column price_list_id uuid references price_lists (id);
+
 -- A customer needs to read the ONE list their own company is assigned to,
 -- to price their own order preview client-side -- never leaks another
 -- company's negotiated list. The default (PL1) list's prices are also
@@ -2799,9 +2808,6 @@ create policy "Company members can read their assigned list's prices" on price_l
     )
     or exists (select 1 from price_lists pl where pl.id = price_list_prices.price_list_id and pl.is_default)
   );
--- No insert/update/delete policy -- admin_* RPCs only.
-
-alter table companies add column price_list_id uuid references price_lists (id);
 
 -- Seed PL1 - Standard, backfill it from today's price_per_* columns, then
 -- assign every existing company to it -- keeps every company priced
