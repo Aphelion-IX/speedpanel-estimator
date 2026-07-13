@@ -132,3 +132,24 @@ export function useProjects(user: User | null, activeCompanyId?: string | null) 
 
   return { ...state, reload: load, createProject, renameProject, saveSnapshot, deleteProject };
 }
+
+// Small, separate lookup for the "client" (company) name shown on
+// ProjectsListPage.tsx's rows/cards -- kept as its own parallel query rather
+// than a nested `projects.select("*, companies(...))")` so ProjectRowSchema
+// (shared by projectDetailStore.ts/adminProjectsStore.ts/insertProject's own
+// plain `select("*")` calls) doesn't have to grow a field only this page
+// needs. Same "batched .in() lookup, keyed map" convention as
+// myCompaniesStore.ts.
+export function useProjectCompanyNames(companyIds: string[]) {
+  const [names, setNames] = useState<Map<string, string>>(new Map());
+
+  const load = useCallback(async () => {
+    if (!supabase || companyIds.length === 0) { setNames(new Map()); return; }
+    const { data } = await supabase.from("companies").select("id, legal_name, trading_name").in("id", companyIds);
+    setNames(new Map((data ?? []).map((c: { id: string; legal_name: string; trading_name: string | null }) => [c.id, c.trading_name || c.legal_name])));
+  }, [companyIds.join(",")]);
+
+  useEffect(() => { load(); }, [load]);
+
+  return names;
+}

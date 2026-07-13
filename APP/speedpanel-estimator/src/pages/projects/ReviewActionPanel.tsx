@@ -31,6 +31,15 @@ const ServiceRow = ({ label, icon, onClick, disabled }: { label: string; icon: R
   </button>
 );
 
+// Exported so ProjectDetailPage.tsx's Quick Actions grid can gate its own
+// "Request Install Review"/"Request Technical Consult" tiles identically --
+// a single source of truth for when these actions are actually available,
+// rather than a second copy of the same condition drifting out of sync.
+export const canRequestInstallReview = (project: Pick<ProjectRow, "stage" | "install_review_status">): boolean =>
+  project.stage === "draft" && project.install_review_status !== "approved";
+export const canRequestTechnicalReview = (project: Pick<ProjectRow, "stage" | "install_review_status">): boolean =>
+  project.stage === "draft" && project.install_review_status === "approved";
+
 export const ReviewActionPanel = ({ project, onRequestQuote, onRequestInstallReview, onRequestTechnicalReview, onChanged }: {
   project: ProjectRow;
   onRequestQuote: () => void;
@@ -50,8 +59,8 @@ export const ReviewActionPanel = ({ project, onRequestQuote, onRequestInstallRev
     else onChanged();
   };
 
-  const canRequestInstall = project.stage === "draft" && project.install_review_status !== "approved";
-  const canRequestTechnical = project.stage === "draft" && project.install_review_status === "approved";
+  const canRequestInstall = canRequestInstallReview(project);
+  const canRequestTechnical = canRequestTechnicalReview(project);
 
   return (
     <Card title="Request Services" icon={<Wrench size={14} />}>

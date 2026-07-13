@@ -1,14 +1,12 @@
 // =============================================================================
 // Projects router
 // =============================================================================
-// Dispatches the "projects" tab: no session -> SignInGate; otherwise ->
-// ProjectsListPage, which handles both "no id" (shows the most recently
-// updated project's dashboard) and "id present" (that project's dashboard)
-// itself -- there's no separate list-page/detail-page split anymore, just
-// one page with an optional selected id, so route.id flows straight into
-// ProjectsListPage's selectedId prop. Kept as its own small component
-// (rather than inlined in App.tsx) so App.tsx's per-route JSX block stays a
-// one-liner, same as every other tab.
+// Dispatches the "projects" tab: no session -> SignInGate; otherwise "no id"
+// -> ProjectsListPage (the table/overview), "id present" -> ProjectDetailPage
+// (that project's own expanded view, with a back link to the list) -- two
+// distinct views/routes, not one page with an embedded dashboard. Kept as
+// its own small component (rather than inlined in App.tsx) so App.tsx's
+// per-route JSX block stays a one-liner, same as every other tab.
 //
 // The anonymous "request" (Request a Quote) branch is checked BEFORE the
 // session check -- it's the one sub-feature here that deliberately works
@@ -23,6 +21,7 @@ import type { UseCompanyMemberships } from "../../lib/useCompanyMemberships";
 import type { Route } from "../../appShell/useHashRoute";
 import { SignInGate } from "./SignInGate";
 import { ProjectsListPage } from "./ProjectsListPage";
+import { ProjectDetailPage } from "./ProjectDetailPage";
 import { QuoteRequestPage } from "./QuoteRequestPage";
 import { OrderBuilderPage } from "./orders/OrderBuilderPage";
 import { OrderDetailPage } from "./orders/OrderDetailPage";
@@ -61,12 +60,20 @@ export const ProjectsRouter = ({ route, navigate, auth, company, onOpenEstimator
   if (route.id && route.request) {
     return <QuoteRequestPage projectId={route.id} onBack={() => navigate({ tab: "projects", id: route.id })} />;
   }
+  if (route.id) {
+    return (
+      <ProjectDetailPage id={route.id} userId={auth.user?.id ?? null}
+        onBack={() => navigate({ tab: "projects" })}
+        onOpenEstimator={onOpenEstimator}
+        onRequestQuote={id => navigate({ tab: "projects", id, request: true })}
+        onCreateOrder={id => navigate({ tab: "projects", id, newOrder: true })}
+        onOpenOrder={(id, orderId) => navigate({ tab: "projects", id, orderId })}
+        layoutMode={layoutMode}
+      />
+    );
+  }
   return (
-    <ProjectsListPage user={auth.user} selectedId={route.id} onSelect={id => navigate({ tab: "projects", id })}
-      onOpenEstimator={onOpenEstimator}
-      onRequestQuote={id => navigate({ tab: "projects", id, request: true })}
-      onCreateOrder={id => navigate({ tab: "projects", id, newOrder: true })}
-      onOpenOrder={(id, orderId) => navigate({ tab: "projects", id, orderId })}
+    <ProjectsListPage user={auth.user} onOpenProject={id => navigate({ tab: "projects", id })}
       layoutMode={layoutMode}
       hasCompany={company.memberships.length > 0}
       activeCompanyId={company.activeCompanyId}
