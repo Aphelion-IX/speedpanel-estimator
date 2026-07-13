@@ -9,11 +9,25 @@
 // to get real, company-correct prices, then builds OrderLineItem rows
 // directly from whatever the customer picks. createOrder() is unchanged --
 // it's a plain insert, agnostic to how lineItems/totals were computed.
+//
+// Panels are a special case: they're physical units, only sellable in whole
+// packs (AdminPanel.pack), and their length matters (a piece length gets
+// classified Stocked/Near stock/Custom against STOCK_LENGTHS, same as the
+// real Estimator). So panel line items are DERIVED from a separate
+// {panelType, lengthM} -> raw pieces map (panelGroups), re-packed via
+// packInfo() on every change -- the billed qty is always the pack-rounded
+// `ordered` count, never the raw pieces a customer typed in. Track is NOT
+// pack-rounded (confirmed against priceEstimateReportData.ts: track bills
+// raw linear metres x price/metre, "how many stock lengths that cuts into"
+// is display-only there too) -- its picker stays a plain qty field. Fixing/
+// sealant are already whole-box units by convention (unit: "box"), just
+// clamped to a whole number here.
 // =============================================================================
 import { useMemo, useState } from "react";
 import { Trash2 } from "lucide-react";
 import { cx, NAVY, BLUE, WHITE, MUTED, GOLD } from "../../../styleTokens";
 import { Row } from "../../../ui/primitives";
+import { StockBadge, PackNote } from "../../../ui/scheduleCards";
 import { SelectField, NumField } from "../../shared/fields";
 import type { UseAuth } from "../../../lib/useAuth";
 import { useProject } from "../projectDetailStore";
@@ -23,6 +37,10 @@ import { PRICEABLE_CATEGORIES, type PriceableCategory } from "../../admin/priceL
 import { applyEffectivePricing } from "../../../export/applyEffectivePricing";
 import { round2, GST_RATE, type OrderLineItem, type OrderLineItemUnit } from "../../../export/priceEstimateReportData";
 import type { ProductCatalog } from "../../admin/products/productTypes";
+import { packInfo } from "../../../estimate/packPanels";
+import { stockStatus } from "../../../estimate/computeUtils";
+import { r1 } from "../../../estimate/mathUtils";
+import { PACK, STOCK_LENGTHS } from "../../../data";
 import { useProjectOrders } from "./ordersStore";
 
 const CATEGORY_LABELS: Record<PriceableCategory, string> = { panel: "Panel", track: "Track", fixing: "Fixing", sealant: "Sealant" };
@@ -46,12 +64,18 @@ function makeLineItem(category: PriceableCategory, label: string, qty: number, u
   };
 }
 
-const QuickOrderItemsTable = ({ items, onChange }: { items: OrderLineItem[]; onChange: (items: OrderLineItem[]) => void }) => {
-  const setQty = (id: string, qty: number) => {
-    onChange(items.map(i => i.id === id ? { ...i, qty, lineTotalExGst: i.matched ? round2((i.unitPriceExGst ?? 0) * qty) : 0 } : i));
-  };
-  const remove = (id: string) => onChange(items.filter(i => i.id !== id));
+// One (panel type, length) group -- the raw pieces a customer has asked
+// for at that length, kept separate from the derived, pack-rounded
+// OrderLineItem so repeat "add 5 more" clicks can be re-packed from the
+// true cumulative requirement instead of compounding an already-rounded
+// quantity.
+interface PanelGroup { panelType: number; label: string; price: number | null; lengthM: number; pieces: number; }
 
+const panelGroupKey = (panelType: number, lengthM: number) => `panel:${panelType}:${lengthM}`;
+
+const QuickOrderItemsTable = ({ items, onQtyChange, onRemove }: {
+  items: OrderLineItem[]; onQtyChange: (id: string, qty: number) => void; onRemove: (item: OrderLineItem) => void;
+}) => {
   if (items.length === 0) return <p className={cx.footnote} style={{ paddingTop: 0 }}>No items added yet -- use the picker above to add products.</p>;
 
   return (
@@ -68,28 +92,38 @@ const QuickOrderItemsTable = ({ items, onChange }: { items: OrderLineItem[]; onC
           </tr>
         </thead>
         <tbody>
-          {items.map(item => (
-            <tr key={item.id} className="border-t border-slate-100 dark:border-slate-800">
-              <td className="py-1.5 pr-2" style={{ color: NAVY }}>
-                {item.label}
-                {!item.matched && (
-                  <span className="ml-2 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase" style={{ background: GOLD, color: NAVY }}>Not priced</span>
-                )}
-              </td>
-              <td className="py-1.5 pr-2 text-right">
-                <input type="number" min={1} value={item.qty} onChange={e => setQty(item.id, Math.max(1, Number(e.target.value)))}
-                  className="w-20 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1 text-right text-xs" style={{ color: NAVY }} />
-              </td>
-              <td className="py-1.5 pr-2" style={{ color: MUTED }}>{item.unit}</td>
-              <td className="py-1.5 pr-2 text-right" style={{ color: MUTED }}>{item.unitPriceExGst != null ? `$${item.unitPriceExGst.toFixed(2)}` : "--"}</td>
-              <td className="py-1.5 pr-2 text-right font-semibold" style={{ color: NAVY }}>${item.lineTotalExGst.toFixed(2)}</td>
-              <td className="py-1.5 text-right">
-                <button onClick={() => remove(item.id)} title="Remove" className="text-red-500">
-                  <Trash2 size={14} />
-                </button>
-              </td>
-            </tr>
-          ))}
+          {items.map(item => {
+            // Panel qty is derived (pack-rounded from panelGroups) -- edit
+            // via "+ Add" at the same length, not by hand-editing the
+            // already-rounded billed count.
+            const editableQty = item.category !== "panel";
+            return (
+              <tr key={item.id} className="border-t border-slate-100 dark:border-slate-800">
+                <td className="py-1.5 pr-2" style={{ color: NAVY }}>
+                  {item.label}
+                  {!item.matched && (
+                    <span className="ml-2 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase" style={{ background: GOLD, color: NAVY }}>Not priced</span>
+                  )}
+                </td>
+                <td className="py-1.5 pr-2 text-right">
+                  {editableQty ? (
+                    <input type="number" min={1} value={item.qty} onChange={e => onQtyChange(item.id, Math.max(1, Number(e.target.value)))}
+                      className="w-20 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1 text-right text-xs" style={{ color: NAVY }} />
+                  ) : (
+                    <span style={{ color: NAVY }}>{item.qty}</span>
+                  )}
+                </td>
+                <td className="py-1.5 pr-2" style={{ color: MUTED }}>{item.unit}</td>
+                <td className="py-1.5 pr-2 text-right" style={{ color: MUTED }}>{item.unitPriceExGst != null ? `$${item.unitPriceExGst.toFixed(2)}` : "--"}</td>
+                <td className="py-1.5 pr-2 text-right font-semibold" style={{ color: NAVY }}>${item.lineTotalExGst.toFixed(2)}</td>
+                <td className="py-1.5 text-right">
+                  <button onClick={() => onRemove(item)} title="Remove" className="text-red-500">
+                    <Trash2 size={14} />
+                  </button>
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
@@ -109,18 +143,63 @@ export const QuickOrderPage = ({ projectId, auth, onBack, onCreated }: {
   const [category, setCategory] = useState<PriceableCategory>("panel");
   const [productId, setProductId] = useState("");
   const [qty, setQty] = useState(1);
-  const [items, setItems] = useState<OrderLineItem[]>([]);
+  const [lengthM, setLengthM] = useState(STOCK_LENGTHS[0]);
+  const [panelGroups, setPanelGroups] = useState<Record<string, PanelGroup>>({});
+  const [manualItems, setManualItems] = useState<OrderLineItem[]>([]);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
 
   const products = CATEGORY_CONFIG[category].products(effectiveCatalog);
+  const selectedPanel = category === "panel" ? effectiveCatalog.panels.find(p => p.id === productId) : undefined;
+
+  const panelPreview = useMemo(() => {
+    if (!selectedPanel || lengthM <= 0 || qty <= 0) return null;
+    return { status: stockStatus(lengthM * 1000, STOCK_LENGTHS), pack: packInfo(qty, selectedPanel.type) };
+  }, [selectedPanel, lengthM, qty]);
+
+  const panelLineItems: OrderLineItem[] = useMemo(() => Object.entries(panelGroups).map(([key, g]) => {
+    const pack = packInfo(g.pieces, g.panelType);
+    return {
+      id: key, category: "panel" as const, label: `${g.label} - ${r1(g.lengthM)} m`, qty: pack.ordered, unit: "panel" as const,
+      unitPriceExGst: g.price, lineTotalExGst: g.price != null ? round2(g.price * pack.ordered) : 0, matched: g.price != null,
+    };
+  }), [panelGroups]);
+
+  const items = useMemo(() => [...panelLineItems, ...manualItems], [panelLineItems, manualItems]);
 
   const addItem = () => {
+    if (category === "panel") {
+      if (!selectedPanel || lengthM <= 0 || qty <= 0) return;
+      const key = panelGroupKey(selectedPanel.type, lengthM);
+      setPanelGroups(prev => ({
+        ...prev,
+        [key]: {
+          panelType: selectedPanel.type, label: selectedPanel.label, price: selectedPanel.pricePerPanel ?? null,
+          lengthM, pieces: (prev[key]?.pieces ?? 0) + qty,
+        },
+      }));
+      setQty(1);
+      return;
+    }
     const product = products.find(p => p.id === productId);
     if (!product || qty <= 0) return;
-    setItems(prev => [...prev, makeLineItem(category, product.label, qty, product.price ?? null)]);
+    // Fixing/sealant are whole-box units -- clamp to a whole number
+    // (track stays fractional -- it's genuinely billed by raw metres).
+    const finalQty = category === "fixing" || category === "sealant" ? Math.max(1, Math.round(qty)) : qty;
+    setManualItems(prev => [...prev, makeLineItem(category, product.label, finalQty, product.price ?? null)]);
     setProductId("");
     setQty(1);
+  };
+
+  const handleQtyChange = (id: string, newQty: number) => {
+    setManualItems(prev => prev.map(i => i.id === id ? { ...i, qty: newQty, lineTotalExGst: i.matched ? round2((i.unitPriceExGst ?? 0) * newQty) : 0 } : i));
+  };
+  const handleRemove = (item: OrderLineItem) => {
+    if (item.category === "panel") {
+      setPanelGroups(prev => { const next = { ...prev }; delete next[item.id]; return next; });
+    } else {
+      setManualItems(prev => prev.filter(i => i.id !== item.id));
+    }
   };
 
   const totals = useMemo(() => {
@@ -173,21 +252,33 @@ export const QuickOrderPage = ({ projectId, auth, onBack, onCreated }: {
         <h1 className="text-lg font-bold" style={{ color: NAVY }}>Quick Order -- {project.name}</h1>
         <p className={cx.footnote}>Add products directly, without using the Estimator.</p>
 
-        <div className="mt-4 grid gap-2 sm:grid-cols-[1fr_1fr_100px_auto] sm:items-end">
+        <div className={`mt-4 grid gap-2 sm:items-end ${category === "panel" ? "sm:grid-cols-[1fr_1fr_90px_90px_auto]" : "sm:grid-cols-[1fr_1fr_100px_auto]"}`}>
           <SelectField label="Category" value={category}
             options={PRICEABLE_CATEGORIES.map(c => ({ value: c, label: CATEGORY_LABELS[c] }))}
-            onChange={v => { setCategory(v as PriceableCategory); setProductId(""); }} />
+            onChange={v => { setCategory(v as PriceableCategory); setProductId(""); setQty(1); }} />
           <SelectField label="Product" value={productId}
             options={[{ value: "", label: "Choose a product..." }, ...products.map(p => ({
               value: p.id, label: p.price != null ? `${p.label} -- $${p.price.toFixed(2)}/${CATEGORY_CONFIG[category].unit}` : `${p.label} -- not priced`,
             }))]}
             onChange={setProductId} />
-          <NumField label="Qty" value={qty} onChange={setQty} />
-          <button onClick={addItem} disabled={!productId || qty <= 0}
+          {category === "panel" && <NumField label="Length (m)" value={lengthM} onChange={setLengthM} />}
+          <NumField label={category === "panel" ? "Pieces" : "Qty"} value={qty} onChange={setQty} />
+          <button onClick={addItem} disabled={!productId || qty <= 0 || (category === "panel" && lengthM <= 0)}
             className="h-[46px] shrink-0 rounded-xl px-4 text-sm font-bold disabled:opacity-50" style={{ background: BLUE, color: WHITE }}>
             + Add
           </button>
         </div>
+
+        {category === "panel" && panelPreview && (
+          <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 px-4 py-3 text-sm">
+            <StockBadge status={panelPreview.status} />
+            <span style={{ color: NAVY }}>
+              {qty} piece{qty !== 1 ? "s" : ""} needed &rarr; {panelPreview.pack.ordered} ordered
+              ({panelPreview.pack.packs} pack{panelPreview.pack.packs !== 1 ? "s" : ""} of {PACK[selectedPanel!.type]}, {panelPreview.pack.spare} spare)
+            </span>
+            {panelPreview.pack.underPack && <div className="w-full"><PackNote type={selectedPanel!.type} spare={panelPreview.pack.spare} /></div>}
+          </div>
+        )}
 
         {totals.unpricedItemCount > 0 && (
           <div className="mt-3 rounded-xl border border-amber-200 dark:border-amber-800/60 bg-amber-50/80 dark:bg-amber-950/30 px-4 py-3 text-sm text-amber-800 dark:text-amber-300">
@@ -196,7 +287,7 @@ export const QuickOrderPage = ({ projectId, auth, onBack, onCreated }: {
         )}
 
         <div className="mt-4">
-          <QuickOrderItemsTable items={items} onChange={setItems} />
+          <QuickOrderItemsTable items={items} onQtyChange={handleQtyChange} onRemove={handleRemove} />
         </div>
 
         <div className="mt-4 max-w-xs ml-auto space-y-1">
