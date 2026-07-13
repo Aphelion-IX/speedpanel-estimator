@@ -24,7 +24,7 @@ export type Route =
   // own detail page, never standalone. "request" ("Request a Quote") is the
   // only sub-feature that also works WITHOUT an id -- anonymous visitors
   // have no saved project to attach to, see ProjectsRouter.tsx.
-  | { tab: "projects"; id?: string; orderId?: string; newOrder?: boolean; request?: boolean }
+  | { tab: "projects"; id?: string; orderId?: string; newOrder?: boolean; quickOrder?: boolean; request?: boolean }
   | { tab: "admin"; sub: AdminSubPage }
   // Top-level (not nested under "projects") since it's about the signed-in
   // user's account/company membership, not any one project -- same reasoning
@@ -53,6 +53,7 @@ function parseHash(hash: string): Route {
     if (second === "request" && !third) return { tab: "projects", request: true };
     if (second && third === "orders") {
       if (fourth === "new") return { tab: "projects", id: second, newOrder: true };
+      if (fourth === "quick") return { tab: "projects", id: second, quickOrder: true };
       if (fourth) return { tab: "projects", id: second, orderId: fourth };
     }
     if (second && third === "request") return { tab: "projects", id: second, request: true };
@@ -75,6 +76,7 @@ function routeToHash(route: Route): string {
   if (route.tab === "projects") {
     if (!route.id) return route.request ? "#/projects/request" : "#/projects";
     if (route.newOrder) return `#/projects/${route.id}/orders/new`;
+    if (route.quickOrder) return `#/projects/${route.id}/orders/quick`;
     if (route.orderId) return `#/projects/${route.id}/orders/${route.orderId}`;
     if (route.request) return `#/projects/${route.id}/request`;
     return `#/projects/${route.id}`;

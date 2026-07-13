@@ -72,9 +72,9 @@ const QuickAction = ({ icon: Icon, label, onClick, disabled, tone = "blue" }: {
   );
 };
 
-export const ProjectDetailPage = ({ id, userId, onBack, onOpenEstimator, onRequestQuote, onCreateOrder, onOpenOrder, layoutMode }: {
+export const ProjectDetailPage = ({ id, userId, onBack, onOpenEstimator, onRequestQuote, onCreateOrder, onCreateQuickOrder, onOpenOrder, layoutMode }: {
   id: string; userId: string | null; onBack: () => void; onOpenEstimator: (project: ProjectRow) => void; onRequestQuote: (id: string) => void;
-  onCreateOrder: (id: string) => void; onOpenOrder: (id: string, orderId: string) => void;
+  onCreateOrder: (id: string) => void; onCreateQuickOrder: (id: string) => void; onOpenOrder: (id: string, orderId: string) => void;
   layoutMode: EffectiveLayout;
 }) => {
   const { orders } = useProjectOrders(id);
@@ -219,18 +219,15 @@ export const ProjectDetailPage = ({ id, userId, onBack, onOpenEstimator, onReque
           <Building2 className="hidden h-20 w-20 text-blue-100 dark:text-blue-950 sm:block" />
         </section>
 
-        {/* Repurposed from the mockup's "quick order without the estimator" copy --
-            this app has no manual/quick order-entry mode; OrderBuilderPage.tsx
-            always derives line items from the project's own estimate. */}
         <section className="flex items-center gap-5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 shadow-sm">
           <span className="grid h-12 w-12 place-items-center rounded-full bg-violet-600 text-white">
             <ShoppingCart className="h-6 w-6" />
           </span>
           <div>
-            <h2 className="text-lg font-bold" style={{ color: NAVY }}>New Order</h2>
-            <p className="mt-1 text-sm" style={{ color: MUTED }}>Create a new order from this project's saved estimate.</p>
-            <button onClick={() => onCreateOrder(project.id)} className="mt-3 rounded-lg border border-violet-300 dark:border-violet-700 px-5 py-2 text-sm font-semibold text-violet-700 dark:text-violet-400">
-              Create order &rarr;
+            <h2 className="text-lg font-bold" style={{ color: NAVY }}>Quick Order</h2>
+            <p className="mt-1 text-sm" style={{ color: MUTED }}>Place an order without using the Estimator.</p>
+            <button onClick={() => onCreateQuickOrder(project.id)} className="mt-3 rounded-lg border border-violet-300 dark:border-violet-700 px-5 py-2 text-sm font-semibold text-violet-700 dark:text-violet-400">
+              Start Quick Order &rarr;
             </button>
           </div>
         </section>

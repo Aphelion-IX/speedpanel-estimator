@@ -11,8 +11,11 @@
 // The anonymous "request" (Request a Quote) branch is checked BEFORE the
 // session check -- it's the one sub-feature here that deliberately works
 // without signing in (see SignInGate.tsx's CTA into it). The newOrder/
-// orderId/project-scoped-request branches all still short-circuit to their
-// own full-page views before the ProjectsListPage fallback, unchanged.
+// quickOrder/orderId/project-scoped-request branches all still short-circuit
+// to their own full-page views before the ProjectsListPage fallback,
+// unchanged. newOrder (OrderBuilderPage, Estimator-derived line items) and
+// quickOrder (QuickOrderPage, manual product picker) are two independent
+// order-creation entry points reachable from the same project.
 // =============================================================================
 import { cx, MUTED } from "../../styleTokens";
 import type { EffectiveLayout } from "../../useLayoutMode";
@@ -24,6 +27,7 @@ import { ProjectsListPage } from "./ProjectsListPage";
 import { ProjectDetailPage } from "./ProjectDetailPage";
 import { QuoteRequestPage } from "./QuoteRequestPage";
 import { OrderBuilderPage } from "./orders/OrderBuilderPage";
+import { QuickOrderPage } from "./orders/QuickOrderPage";
 import { OrderDetailPage } from "./orders/OrderDetailPage";
 import type { ProjectRow } from "./projectTypes";
 
@@ -49,6 +53,14 @@ export const ProjectsRouter = ({ route, navigate, auth, company, onOpenEstimator
       />
     );
   }
+  if (route.id && route.quickOrder) {
+    return (
+      <QuickOrderPage projectId={route.id} auth={auth}
+        onBack={() => navigate({ tab: "projects", id: route.id })}
+        onCreated={orderId => navigate({ tab: "projects", id: route.id, orderId })}
+      />
+    );
+  }
   if (route.id && route.orderId) {
     return (
       <OrderDetailPage orderId={route.orderId}
@@ -67,6 +79,7 @@ export const ProjectsRouter = ({ route, navigate, auth, company, onOpenEstimator
         onOpenEstimator={onOpenEstimator}
         onRequestQuote={id => navigate({ tab: "projects", id, request: true })}
         onCreateOrder={id => navigate({ tab: "projects", id, newOrder: true })}
+        onCreateQuickOrder={id => navigate({ tab: "projects", id, quickOrder: true })}
         onOpenOrder={(id, orderId) => navigate({ tab: "projects", id, orderId })}
         layoutMode={layoutMode}
       />
