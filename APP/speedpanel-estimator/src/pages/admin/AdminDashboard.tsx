@@ -1,4 +1,4 @@
-import { Package, Layers, Calculator, FileText, ClipboardList, FolderCheck, Users, BarChart3, History, Truck, Factory, Building2, ShieldCheck } from "lucide-react";
+import { Package, Layers, Calculator, FileText, ClipboardList, FolderCheck, Users, BarChart3, History, Truck, Factory, Building2, ShieldCheck, Tag } from "lucide-react";
 import { cx, BLUE, NAVY } from "../../styleTokens";
 import { PlaceholderPage } from "../PlaceholderPage";
 import { BackendStatusCard } from "./BackendStatusCard";
@@ -41,6 +41,7 @@ const ADMIN_GROUPS: { heading: string; items: AdminSection[] }[] = [
     heading: "Catalog",
     items: [
       { key: "products",  label: "Products",  description: "Panel, track, fixing, sealant and colour product data.",   icon: <Package size={16} /> },
+      { key: "priceLists", label: "Price Lists", description: "Manage PL1 - Standard and any customer-specific price lists.", icon: <Tag size={16} /> },
       { key: "systems",   label: "Systems",   description: "Locked system reference data (Internal/External).", icon: <Layers size={16} /> },
       { key: "maths",     label: "Maths",     description: "Estimate calculation constants (waste, stock lengths, spans).", icon: <Calculator size={16} /> },
       { key: "documents", label: "Documents", description: "Education Hub document library.",          icon: <FileText size={16} /> },
