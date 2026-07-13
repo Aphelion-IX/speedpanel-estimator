@@ -75,28 +75,16 @@ export function useAdminCreateCompany() {
   return { submitting, createCompany };
 }
 
-// One-shot wrapper around admin_add_company_member_by_email, for the
-// AdminPermissionsPage.tsx company picker -- unlike useCompanyMembers'
-// addExistingMember (bound to one companyId for the lifetime of that hook
-// instance), this takes companyId per call, since the caller here picks a
-// different company each time via a select field rather than already being
-// scoped to one company's own Members panel.
-export async function adminGrantCompanyAccess(input: { companyId: string; email: string; role: CompanyRole }): Promise<string | null> {
-  if (!supabase) return NOT_CONFIGURED;
-  const { error } = await supabase.rpc("admin_add_company_member_by_email", {
-    p_company_id: input.companyId, p_email: input.email, p_role: input.role,
-  });
-  return error ? error.message : null;
-}
-
-// For a brand-new external/customer account -- unlike adminGrantCompanyAccess
-// above (which requires the account to already exist), this goes through the
-// admin-invite-user Edge Function to create it, same as AdminUsersPage.tsx's
-// staff card. Passing companyId/companyRole attaches them to that company in
-// the same request (see supabase/functions/admin-invite-user/index.ts);
-// password is optional -- present, the account is live immediately with that
-// password (no email); absent, they get an invite email instead. role is
-// always "user" here (never "admin"/staff) -- an external user, not a hire.
+// For a brand-new external/customer account -- unlike useCompanyMembers'
+// addExistingMember (company/companyStore.ts, requires the account to
+// already exist), this goes through the admin-invite-user Edge Function to
+// create it, same as AdminUsersPage.tsx's staff card. Passing
+// companyId/companyRole attaches them to that company in the same request
+// (see supabase/functions/admin-invite-user/index.ts); password is
+// optional -- present, the account is live immediately with that password
+// (no email); absent, they get an invite email instead. role is always
+// "user" here (never "admin"/staff) -- an external user, not a hire. Called
+// from CreateCompanyUserForm.tsx, one per company row on AdminCompaniesPage.tsx.
 export async function adminCreateCompanyUser(input: {
   companyId: string; email: string; role: CompanyRole; password?: string;
 }): Promise<string | null> {

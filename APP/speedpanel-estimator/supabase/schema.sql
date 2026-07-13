@@ -2268,8 +2268,14 @@ begin
   if not public.has_permission('companies.create') then raise exception 'Not authorized'; end if;
   if coalesce(trim(p_legal_name), '') = '' then raise exception 'Company name is required'; end if;
 
-  insert into companies (legal_name, trading_name, abn, customer_account_number, billing_email, phone, address, created_by)
-    values (p_legal_name, p_trading_name, p_abn, p_customer_account_number, p_billing_email, p_phone, p_address, auth.uid())
+  -- companies.price_list_id is not null (see the price_lists migration's
+  -- backfill) but this function predates that column and was never updated
+  -- when it was added -- every new company defaults to PL1 - Standard, same
+  -- as every pre-existing company was backfilled to, until an admin assigns
+  -- a different list via admin_set_company_price_list().
+  insert into companies (legal_name, trading_name, abn, customer_account_number, billing_email, phone, address, created_by, price_list_id)
+    values (p_legal_name, p_trading_name, p_abn, p_customer_account_number, p_billing_email, p_phone, p_address, auth.uid(),
+      (select id from price_lists where is_default))
     returning id into v_company_id;
   perform public.log_audit(v_company_id, auth.uid(), 'company_created');
   return v_company_id;

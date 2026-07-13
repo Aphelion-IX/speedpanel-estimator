@@ -9,9 +9,11 @@ import { canAccessSection } from "./adminSectionAccess";
 
 type AdminSection = { key: AdminSubPage; label: string; description: string; icon: React.ReactNode };
 
-// Catalog is listed last: those sections aren't in adminSectionAccess.ts's
-// SECTION_ROLES, so they're super_admin/null-only -- least relevant to the
-// day-to-day staff roles who see this page.
+// Catalog is listed last: those sections have no admin.section.* grants
+// seeded in role_permissions (see supabase/schema.sql's Dynamic RBAC
+// section), so they're super_admin/null-only by default -- least relevant
+// to the day-to-day staff roles who see this page. A super_admin can grant
+// any role any section from Admin > Roles without a code deploy.
 const ADMIN_GROUPS: { heading: string; items: AdminSection[] }[] = [
   {
     heading: "Workflow",
@@ -28,7 +30,7 @@ const ADMIN_GROUPS: { heading: string; items: AdminSection[] }[] = [
     items: [
       { key: "users",     label: "Users",     description: "Signed-up accounts and admin role management.", icon: <Users size={16} /> },
       { key: "companies", label: "Companies", description: "Company workspace records and support visibility.", icon: <Building2 size={16} /> },
-      { key: "permissions", label: "Permissions", description: "Onboard a new external user or attach an existing account to a company.", icon: <ShieldCheck size={16} /> },
+      { key: "permissions", label: "Roles", description: "Control which internal roles can access each admin section and action.", icon: <ShieldCheck size={16} /> },
     ],
   },
   {
@@ -51,9 +53,9 @@ const ADMIN_GROUPS: { heading: string; items: AdminSection[] }[] = [
 ];
 
 export const AdminDashboard = ({ onNavigate, auth }: { onNavigate: (sub: AdminSubPage) => void; auth: UseAuth }) => {
-  const { staffRole } = useMyInternalRole(auth.user?.id ?? null);
+  const { staffRole, myPermissions } = useMyInternalRole(auth.user?.id ?? null);
   const visibleGroups = ADMIN_GROUPS
-    .map(group => ({ ...group, items: group.items.filter(item => canAccessSection(staffRole, item.key)) }))
+    .map(group => ({ ...group, items: group.items.filter(item => canAccessSection(staffRole, myPermissions, item.key)) }))
     .filter(group => group.items.length > 0);
 
   return (

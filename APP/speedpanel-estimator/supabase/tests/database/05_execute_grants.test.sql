@@ -24,10 +24,13 @@
 -- and add the corresponding `ok(...)` line below (bump plan() to match).
 -- =============================================================================
 begin;
-select plan(65);
+select plan(68);
 
 select ok(has_function_privilege('authenticated', 'public.is_admin()'::regprocedure, 'EXECUTE'), 'is_admin(): authenticated has EXECUTE');
 select ok(has_function_privilege('authenticated', 'public.has_staff_role(text[])'::regprocedure, 'EXECUTE'), 'has_staff_role(text[]): authenticated has EXECUTE');
+select ok(has_function_privilege('authenticated', 'public.has_permission(text)'::regprocedure, 'EXECUTE'), 'has_permission(text): authenticated has EXECUTE');
+select ok(has_function_privilege('authenticated', 'public.admin_list_permission_matrix()'::regprocedure, 'EXECUTE'), 'admin_list_permission_matrix(): authenticated has EXECUTE');
+select ok(has_function_privilege('authenticated', 'public.admin_set_role_permission(text, text, boolean)'::regprocedure, 'EXECUTE'), 'admin_set_role_permission(text, text, boolean): authenticated has EXECUTE');
 select ok(has_function_privilege('authenticated', 'public.request_install_review(uuid)'::regprocedure, 'EXECUTE'), 'request_install_review(uuid): authenticated has EXECUTE');
 select ok(has_function_privilege('authenticated', 'public.review_install(uuid, text, text)'::regprocedure, 'EXECUTE'), 'review_install(uuid, text, text): authenticated has EXECUTE');
 select ok(has_function_privilege('authenticated', 'public.request_technical_review(uuid)'::regprocedure, 'EXECUTE'), 'request_technical_review(uuid): authenticated has EXECUTE');

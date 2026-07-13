@@ -11,14 +11,20 @@
 // this company", on the Admin side it's always true (is_admin() is the real
 // gate either way).
 //
-// Admin-only "add an existing account" / "create a brand-new account"
-// shortcuts deliberately do NOT live here (they used to, as
-// AddExistingMemberForm behind a canDirectAdd prop) -- Admin > Permissions
-// is now the one canonical place for those, with its own company picker,
-// so this component doesn't need a second admin-only surface duplicating
-// the same admin_add_company_member_by_email RPC. InviteMemberForm below
-// stays here since it's genuinely different in kind (self-service, used by
-// customers too via CompanyTeamPage.tsx, not admin-only).
+// isSpeedpanelAdmin (default false, so CompanyTeamPage.tsx's customer-facing
+// call site needs no change) surfaces AddExistingAccountForm below --
+// admin_add_company_member_by_email is has_permission('companies.add_member_by_email')
+// -gated server-side (Speedpanel staff only by default seed, see
+// supabase/schema.sql's Dynamic RBAC section), so this is deliberately a
+// SEPARATE flag from canManage: canManage on the customer side means "I'm
+// this company's own Owner/Admin", a different, RLS-narrower permission
+// that would never actually pass that RPC's check. Only
+// AdminCompaniesPage.tsx's CompanyRow passes isSpeedpanelAdmin={true}.
+// Brand-new-account creation (as opposed to granting an existing one) lives
+// in CreateCompanyUserForm.tsx instead, alongside this accordion on that
+// same page. InviteMemberForm below stays here unconditionally since it's
+// genuinely different in kind (self-service, used by customers too via
+// CompanyTeamPage.tsx, not admin-only).
 // =============================================================================
 import { useState } from "react";
 import { UserPlus, Mail } from "lucide-react";
@@ -114,6 +120,48 @@ const InviteMemberForm = ({ companyId, onInvited }: {
   );
 };
 
+// Speedpanel-admin-only counterpart to InviteMemberForm above -- for an
+// account that ALREADY exists (a former customer signup, or one created
+// directly in Supabase). No email is sent; their existing login already
+// works. Brand-new-account creation is CreateCompanyUserForm.tsx instead.
+const AddExistingAccountForm = ({ onAdded }: { onAdded: (input: { email: string; role: CompanyRole }) => Promise<string | null> }) => {
+  const [email, setEmail] = useState("");
+  const [role, setRole] = useState<CompanyRole>("owner");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email.trim()) return;
+    setSubmitting(true);
+    setError(null);
+    setSuccess(false);
+    const err = await onAdded({ email: email.trim(), role });
+    setSubmitting(false);
+    if (err) { setError(err); return; }
+    setEmail("");
+    setSuccess(true);
+  };
+
+  return (
+    <div className={cx.card}>
+      <div className="text-sm font-bold" style={{ color: NAVY }}>Add existing account</div>
+      <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Grant an existing account access to this company. No email is sent -- their existing login already works.</p>
+      <form onSubmit={handleSubmit} className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-end">
+        <div className="flex-1"><Field label="Email" value={email} onChange={setEmail} type="email" required autoComplete="email" /></div>
+        <div className="sm:w-56"><SelectField label="Role" value={role} options={ROLE_OPTIONS} onChange={v => setRole(v as CompanyRole)} /></div>
+        <button type="submit" disabled={submitting || !email.trim()}
+          className="h-[46px] shrink-0 rounded-xl px-5 text-sm font-bold disabled:opacity-50" style={{ background: BLUE, color: WHITE }}>
+          {submitting ? "Adding..." : "Add"}
+        </button>
+      </form>
+      {error && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{error}</p>}
+      {success && <p className="mt-2 text-sm font-semibold" style={{ color: BLUE }}>Added -- they now have access to this company.</p>}
+    </div>
+  );
+};
+
 const MemberRow = ({ member, isSelf, canManage, onSetRole, onSetStatus, onRemove }: {
   member: CompanyMemberRow; isSelf: boolean; canManage: boolean;
   onSetRole: (role: CompanyRole) => void;
@@ -176,10 +224,10 @@ const PendingInvitationRow = ({ invitation, canManage, onResend, onCancel }: {
   </div>
 );
 
-export const CompanyMemberList = ({ companyId, myUserId, canManage }: {
-  companyId: string; myUserId: string | null; canManage: boolean;
+export const CompanyMemberList = ({ companyId, myUserId, canManage, isSpeedpanelAdmin = false }: {
+  companyId: string; myUserId: string | null; canManage: boolean; isSpeedpanelAdmin?: boolean;
 }) => {
-  const { members, invitations, loading, error, inviteMember, resendInvitation, cancelInvitation, setRole, setStatus, removeMember, removalWarnings } = useCompanyMembers(companyId);
+  const { members, invitations, loading, error, inviteMember, addExistingMember, resendInvitation, cancelInvitation, setRole, setStatus, removeMember, removalWarnings } = useCompanyMembers(companyId);
   const [actionError, setActionError] = useState<string | null>(null);
 
   const run = async (action: () => Promise<string | null>) => {
@@ -207,6 +255,12 @@ export const CompanyMemberList = ({ companyId, myUserId, canManage }: {
     <div>
       {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
       {actionError && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{actionError}</p>}
+
+      {isSpeedpanelAdmin && (
+        <div className="mt-3">
+          <AddExistingAccountForm onAdded={addExistingMember} />
+        </div>
+      )}
 
       {canManage && (
         <div className="mt-3">

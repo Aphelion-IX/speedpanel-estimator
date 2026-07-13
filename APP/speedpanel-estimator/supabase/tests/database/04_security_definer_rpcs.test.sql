@@ -4,7 +4,7 @@
 -- allowed)
 -- =============================================================================
 begin;
-select plan(8);
+select plan(7);
 
 set local role authenticated;
 

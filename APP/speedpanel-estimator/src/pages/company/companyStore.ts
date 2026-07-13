@@ -65,12 +65,14 @@ export function useCompanyMembers(companyId: string | null) {
     return null;
   };
 
-  // Admin-only shortcut (see AdminCompaniesPage.tsx's canDirectAdd) for an
-  // account that already exists (e.g. created directly in Supabase) --
-  // bypasses the invite/accept flow entirely via admin_add_company_member_by_email,
-  // which is has_staff_role(array[])-gated (super_admin) server-side, same
-  // defense-in-depth as every other admin RPC. Errors if no account exists
-  // yet for that email; the caller should fall back to inviteMember above.
+  // Speedpanel-admin-only shortcut (see CompanyMemberList.tsx's
+  // isSpeedpanelAdmin prop) for an account that already exists (e.g. created
+  // directly in Supabase) -- bypasses the invite/accept flow entirely via
+  // admin_add_company_member_by_email, which is
+  // has_permission('companies.add_member_by_email')-gated server-side (see
+  // supabase/schema.sql's Dynamic RBAC section), same defense-in-depth as
+  // every other admin RPC. Errors if no account exists yet for that email;
+  // the caller should fall back to inviteMember above.
   const addExistingMember = async (input: { email: string; role: CompanyRole }): Promise<string | null> => {
     if (!supabase || !companyId) return NOT_CONFIGURED;
     const { error } = await supabase.rpc("admin_add_company_member_by_email", {

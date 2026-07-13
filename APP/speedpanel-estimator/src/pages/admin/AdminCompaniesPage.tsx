@@ -4,14 +4,17 @@
 // "+ New company" launches AdminCompanyWizard.tsx -- the only way a company
 // gets created now (self-service create_company() was removed, see
 // supabase/schema.sql's "Company-creation cutover"). Each existing company
-// expands into two accordion sections: "Members" (CompanyMemberList.tsx,
+// expands into four accordion sections: "Members" (CompanyMemberList.tsx,
 // the same roster+invite/role/suspend/remove controls the customer-facing
 // Team page uses, now reachable here thanks to is_company_admin's
-// is_admin() bypass) and "Speedpanel Team" (StaffTeamAssignmentPanel.tsx --
-// the actual new feature this page exists to support). Adding an existing
-// account or creating a brand-new one lives on Admin > Permissions instead
-// (its own company picker covers every company, not just this one) --
-// intentionally not duplicated here.
+// is_admin() bypass -- isSpeedpanelAdmin={true} also surfaces its
+// "add an existing account" form, staff-only), "Speedpanel Team"
+// (StaffTeamAssignmentPanel.tsx), "Price List" (CompanyPriceListCard.tsx),
+// and "Create user" (CreateCompanyUserForm.tsx -- brand-new external
+// account creation, scoped to this one company; was a page-level form with
+// its own company picker on the old Admin > Permissions page, moved here
+// per the People-section reorg so external-user management lives entirely
+// under Companies).
 // =============================================================================
 import { useState } from "react";
 import { Plus } from "lucide-react";
@@ -21,6 +24,7 @@ import type { UseAuth } from "../../lib/useAuth";
 import { useAdminCompanies, type AdminCompanyRow } from "./companies/companiesStore";
 import { AdminCompanyWizard } from "./companies/AdminCompanyWizard";
 import { StaffTeamAssignmentPanel } from "./companies/StaffTeamAssignmentPanel";
+import { CreateCompanyUserForm } from "./companies/CreateCompanyUserForm";
 import { CompanyMemberList } from "../company/CompanyMemberList";
 import { CompanyPriceListCard } from "./priceLists/CompanyPriceListCard";
 
@@ -33,13 +37,16 @@ const CompanyRow = ({ company, myUserId }: { company: AdminCompanyRow; myUserId:
     <p className={cx.footnote}>Created {new Date(company.created_at).toLocaleDateString()}</p>
     <div className="mt-3 space-y-2">
       <AccordionCard summary="Members">
-        <CompanyMemberList companyId={company.id} myUserId={myUserId} canManage={true} />
+        <CompanyMemberList companyId={company.id} myUserId={myUserId} canManage={true} isSpeedpanelAdmin={true} />
       </AccordionCard>
       <AccordionCard summary="Speedpanel Team">
         <StaffTeamAssignmentPanel companyId={company.id} />
       </AccordionCard>
       <AccordionCard summary="Price List">
         <CompanyPriceListCard companyId={company.id} />
+      </AccordionCard>
+      <AccordionCard summary="Create user">
+        <CreateCompanyUserForm companyId={company.id} />
       </AccordionCard>
     </div>
   </div>
