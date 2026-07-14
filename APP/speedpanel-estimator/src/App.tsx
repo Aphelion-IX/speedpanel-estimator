@@ -14,9 +14,10 @@ import { InternalCalculator } from "./internalCalculator/InternalCalculator";
 import { SYSTEMS } from "./appShell/systems";
 import { loadSession, saveSession } from "./appShell/session";
 import { TopNav, type TopNavTab } from "./appShell/topNav";
-import { LayoutModeToggle, ThemeToggle } from "./appShell/headerToggles";
+import { LayoutModeToggle, ThemeToggle, NotificationBell } from "./appShell/headerToggles";
 import { AuthStatus } from "./appShell/AuthStatus";
 import { CompanySwitcher } from "./appShell/CompanySwitcher";
+import { useMyInternalRole } from "./pages/admin/useMyInternalRole";
 import { SystemRows } from "./appShell/systemRows";
 import { useCornerShaftLinking } from "./appShell/useCornerShaftLinking";
 import { useHashRoute } from "./appShell/useHashRoute";
@@ -55,6 +56,7 @@ export default function SpeedpanelEstimator() {
   const { effective: themeMode, toggleTheme } = useThemeMode();
   const auth = useAuth();
   const company = useCompanyMemberships(auth);
+  const { isInternalStaff, staffRole } = useMyInternalRole(auth.user?.id ?? null);
 
   // Which saved (Supabase) project, if any, is currently open in the
   // Estimator tab -- see wallStore.ts's persistLocally/loadFrom/exportSnapshot.
@@ -186,23 +188,31 @@ export default function SpeedpanelEstimator() {
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans dark:bg-slate-950" style={{ color: NAVY }}>
-      <div className={layoutMode === "web" ? "mx-auto w-full max-w-[1400px] px-6 pb-16 pt-6" : "mx-auto w-full max-w-md px-3 sm:px-4 pb-24 pt-5"}>
+      {/* Full-width header bar -- pulled out of the padded content column
+          below so it spans edge to edge, with the brand gradient line as
+          its own bottom edge rather than a separate divider. */}
+      <header className="bg-white/95 backdrop-blur dark:bg-slate-950/95">
+        <div className={layoutMode === "web" ? "mx-auto w-full max-w-[1400px] px-6 py-3" : "mx-auto w-full max-w-md px-3 sm:px-4 py-3"}>
+          <TopNav
+            activeTab={route.tab}
+            onTabChange={switchTab}
+            right={<>
+              <NotificationBell />
+              <CompanySwitcher company={company} />
+              <AuthStatus auth={auth} onSignInClick={() => navigate({ tab: "home" })}
+                isInternalStaff={isInternalStaff} staffRole={staffRole} navigate={navigate} />
+              <ThemeToggle effective={themeMode} onToggle={toggleTheme} />
+              <LayoutModeToggle effective={layoutMode} onToggle={toggleLayout} />
+              <button onClick={resetAll} className="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-400 dark:text-slate-500 shadow-sm active:scale-95 transition-all">
+                <RotateCcw size={16} />
+              </button>
+            </>}
+          />
+        </div>
+        <div className="h-[2px] w-full" style={{ background: `linear-gradient(90deg, ${NAVY} 0%, ${BLUE} 55%, ${GOLD} 100%)` }} />
+      </header>
 
-        {/* Top nav */}
-        <TopNav
-          activeTab={route.tab}
-          onTabChange={switchTab}
-          right={<>
-            <CompanySwitcher company={company} />
-            <AuthStatus auth={auth} onSignInClick={() => navigate({ tab: "home" })} />
-            <ThemeToggle effective={themeMode} onToggle={toggleTheme} />
-            <LayoutModeToggle effective={layoutMode} onToggle={toggleLayout} />
-            <button onClick={resetAll} className="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-400 dark:text-slate-500 shadow-sm active:scale-95 transition-all">
-              <RotateCcw size={16} />
-            </button>
-          </>}
-        />
-        <div className="mt-4 h-[2px] w-full rounded-full" style={{ background: `linear-gradient(90deg, ${NAVY} 0%, ${BLUE} 55%, ${GOLD} 100%)` }} />
+      <div className={layoutMode === "web" ? "mx-auto w-full max-w-[1400px] px-6 pb-16 pt-6" : "mx-auto w-full max-w-md px-3 sm:px-4 pb-24 pt-5"}>
 
         {/* Renders nothing when there's no pending invitation -- safe to
             mount unconditionally on every tab, not just Projects, since it's

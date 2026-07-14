@@ -1,78 +1,132 @@
 // =============================================================================
-// Overview dashboard -- signed-in front door
+// Overview dashboard -- signed-in front door ("SpeedHub Workspace" design)
 // =============================================================================
 // Shown at "/" (the home route, see useHashRoute.ts) whenever there's a
-// session. Genuinely different content per audience, not just a filtered
-// nav mirror: internal staff (profiles.role = 'admin', see
-// useMyInternalRole.ts's isInternalStaff) lead with their permission-
-// filtered operational work queue (the same "Workflow" tiles/gating
-// AdminDashboard.tsx already uses, reused via adminSections.ts rather than
-// reimplemented); external customers get a plain tools grid with no admin
-// surface area at all.
+// session. One identical page for every signed-in user -- staff and
+// customers alike see the same four workspace cards; Admin stays reachable
+// via the top nav tab and the account-menu shortcut (AuthStatus.tsx), not a
+// card here. Ported from an uploaded SpeedHubWorkspacePage.tsx mockup
+// (dark-only) with light-mode equivalents added throughout, same approach
+// used for the SpeedHub login page.
 // =============================================================================
-import { Calculator, LayoutGrid, BookOpen, FolderKanban, ArrowRight } from "lucide-react";
-import { cx, BLUE, NAVY } from "../../styleTokens";
-import { PlaceholderPage } from "../PlaceholderPage";
-import { useMyInternalRole } from "../admin/useMyInternalRole";
-import { canAccessSection } from "../admin/adminSectionAccess";
-import { ADMIN_GROUPS } from "../admin/adminSections";
+import { Calculator, LayoutGrid, BookOpen, FolderKanban, CheckCircle2, ChevronRight, Search, Headphones } from "lucide-react";
+import { NAVY, BLUE } from "../../styleTokens";
 import type { Route } from "../../appShell/useHashRoute";
 import type { UseAuth } from "../../lib/useAuth";
 
-const TOOLS: { label: string; description: string; icon: React.ReactNode; route: Route }[] = [
-  { label: "System Estimator", description: "Build and price a wall system.", icon: <Calculator size={16} />, route: { tab: "estimator" } },
-  { label: "System Selector",  description: "Find the right system for your project.", icon: <LayoutGrid size={16} />, route: { tab: "selector" } },
-  { label: "Projects",         description: "View and manage your saved projects, quotes and orders.", icon: <FolderKanban size={16} />, route: { tab: "projects" } },
-  { label: "Education Hub",    description: "Product documentation and guides.", icon: <BookOpen size={16} />, route: { tab: "education" } },
+type Accent = "blue" | "cyan" | "purple";
+
+const ACCENTS: Record<Accent, { icon: string; iconWrap: string; check: string; hover: string }> = {
+  blue: {
+    icon: "text-blue-600 dark:text-blue-400",
+    iconWrap: "border-blue-200 bg-blue-50 dark:border-blue-500/40 dark:bg-blue-500/10",
+    check: "text-blue-600 dark:text-blue-400",
+    hover: "hover:border-blue-300 dark:hover:border-blue-500/50",
+  },
+  cyan: {
+    icon: "text-cyan-600 dark:text-cyan-400",
+    iconWrap: "border-cyan-200 bg-cyan-50 dark:border-cyan-400/40 dark:bg-cyan-400/10",
+    check: "text-cyan-600 dark:text-cyan-400",
+    hover: "hover:border-cyan-300 dark:hover:border-cyan-400/50",
+  },
+  purple: {
+    icon: "text-violet-600 dark:text-violet-400",
+    iconWrap: "border-violet-200 bg-violet-50 dark:border-violet-400/40 dark:bg-violet-400/10",
+    check: "text-violet-600 dark:text-violet-400",
+    hover: "hover:border-violet-300 dark:hover:border-violet-400/50",
+  },
+};
+
+const WORKSPACES: { title: string; description: string; features: string[]; accent: Accent; icon: React.ElementType; route: Route }[] = [
+  { title: "Projects", description: "Plan, manage and track projects from estimate to delivery.", features: ["Project Planning", "Task Tracking", "Progress Monitoring"], accent: "blue", icon: FolderKanban, route: { tab: "projects" } },
+  { title: "System Selector", description: "Choose the correct SPEEDPANEL system for the application.", features: ["System Finder", "Compatibility", "Specifications"], accent: "cyan", icon: LayoutGrid, route: { tab: "selector" } },
+  { title: "System Estimator", description: "Create quantities, schedules and project estimates.", features: ["Accurate Estimates", "BOM Generation", "Export Reports"], accent: "purple", icon: Calculator, route: { tab: "estimator" } },
+  { title: "Education Hub", description: "Access technical documents, guides and training.", features: ["Technical Guides", "Training Videos", "Product Knowledge"], accent: "blue", icon: BookOpen, route: { tab: "education" } },
 ];
 
-const Tile = ({ label, description, icon, onClick }: { label: string; description: string; icon: React.ReactNode; onClick: () => void }) => (
-  <button onClick={onClick} className={`${cx.card} text-left transition-shadow hover:shadow-md`}>
-    <div className="flex items-center gap-2 text-sm font-bold" style={{ color: NAVY }}>
-      <span style={{ color: BLUE }}>{icon}</span>{label}
-    </div>
-    <p className="mt-1.5 text-sm text-slate-500 dark:text-slate-400">{description}</p>
-  </button>
-);
+// No display-name field exists anywhere in this app -- same pragmatic
+// email-derived fallback AuthStatus.tsx's avatar initials use.
+function nameFromEmail(email: string): string {
+  const local = email.split("@")[0] ?? "";
+  const words = local.split(/[._-]+/).filter(Boolean);
+  return words.length ? words.map(w => w[0].toUpperCase() + w.slice(1)).join(" ") : "there";
+}
+
+function WorkspaceCard({ title, description, features, accent, icon: Icon, onClick }: {
+  title: string; description: string; features: string[]; accent: Accent; icon: React.ElementType; onClick: () => void;
+}) {
+  const styles = ACCENTS[accent];
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`group rounded-2xl border border-slate-200 bg-white p-6 text-left shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md dark:border-slate-700/80 dark:bg-slate-900/75 dark:shadow-[0_18px_60px_rgba(0,0,0,0.22)] dark:backdrop-blur dark:hover:bg-slate-900 ${styles.hover}`}
+    >
+      <div className={`grid h-14 w-14 shrink-0 place-items-center rounded-2xl border ${styles.iconWrap}`}>
+        <Icon className={`h-7 w-7 ${styles.icon}`} strokeWidth={1.8} />
+      </div>
+      <h2 className="mt-4 text-xl font-bold tracking-tight text-slate-900 dark:text-white">{title}</h2>
+      <p className="mt-2 text-sm leading-6 text-slate-500 dark:text-slate-400">{description}</p>
+
+      <div className="mt-5 flex flex-col gap-2 border-t border-slate-100 pt-4 dark:border-slate-800">
+        {features.map(feature => (
+          <span key={feature} className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
+            <CheckCircle2 className={`h-4 w-4 shrink-0 ${styles.check}`} />
+            {feature}
+          </span>
+        ))}
+      </div>
+
+      <div className="mt-5 flex items-center justify-between border-t border-slate-100 pt-4 dark:border-slate-800">
+        <span className="text-sm font-semibold" style={{ color: BLUE }}>Open workspace</span>
+        <ChevronRight className="h-4 w-4 transition group-hover:translate-x-1" style={{ color: BLUE }} />
+      </div>
+    </button>
+  );
+}
 
 export const OverviewDashboardPage = ({ auth, navigate }: { auth: UseAuth; navigate: (route: Route) => void }) => {
-  const { isInternalStaff, staffRole, myPermissions } = useMyInternalRole(auth.user?.id ?? null);
-  const workflowItems = ADMIN_GROUPS.find(g => g.heading === "Workflow")!.items
-    .filter(item => canAccessSection(staffRole, myPermissions, item.key));
+  const name = auth.user?.email ? nameFromEmail(auth.user.email) : "there";
 
   return (
-    <PlaceholderPage
-      title="Home"
-      description={isInternalStaff ? "Your work queue and quick access to the rest of the app." : "Quick access to the rest of the app."}
-    >
-      {isInternalStaff && workflowItems.length > 0 && (
+    <div className="mt-6">
+      <section>
+        <h1 className="text-4xl font-extrabold tracking-tight text-slate-900 dark:text-white sm:text-5xl">
+          Welcome back, {name} <span aria-hidden>👋</span>
+        </h1>
+        <p className="mt-3 text-lg text-slate-500 dark:text-slate-400">Select a workspace to get started.</p>
+      </section>
+
+      <section className="mt-8 grid gap-6 lg:grid-cols-4">
+        {WORKSPACES.map(w => (
+          <WorkspaceCard key={w.title} title={w.title} description={w.description} features={w.features}
+            accent={w.accent} icon={w.icon} onClick={() => navigate(w.route)} />
+        ))}
+      </section>
+
+      <section className="mt-6 grid gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700/80 dark:bg-slate-900/75 dark:shadow-[0_18px_60px_rgba(0,0,0,0.2)] md:grid-cols-[1fr_1.5fr_auto] md:items-center">
         <div>
-          <div className={cx.sectionLbl}>Staff workflow</div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {workflowItems.map(item => (
-              <Tile key={item.key} label={item.label} description={item.description} icon={item.icon}
-                onClick={() => navigate({ tab: "admin", sub: item.key })} />
-            ))}
-          </div>
+          <p className="font-semibold" style={{ color: NAVY }}>Can&rsquo;t find what you need?</p>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Search help, documents or support.</p>
         </div>
-      )}
 
-      {isInternalStaff && (
-        <button onClick={() => navigate({ tab: "admin", sub: "dashboard" })}
-          className="mt-3 flex items-center gap-1.5 text-sm font-semibold hover:underline" style={{ color: BLUE }}>
-          More in Admin <ArrowRight size={14} />
+        <label className="flex h-12 items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 focus-within:border-blue-400 dark:border-slate-700 dark:bg-slate-950/70 dark:focus-within:border-blue-500">
+          <Search className="h-5 w-5 text-slate-400" />
+          <input
+            type="search" placeholder="Search help, documents or support..."
+            className="w-full bg-transparent text-sm outline-none placeholder:text-slate-400 dark:text-white dark:placeholder:text-slate-500"
+            style={{ color: NAVY }}
+          />
+        </label>
+
+        <button
+          type="button"
+          className="inline-flex h-12 items-center justify-center gap-2 rounded-xl border px-5 text-sm font-semibold transition hover:bg-blue-50 dark:hover:bg-blue-500/10"
+          style={{ borderColor: BLUE, color: BLUE }}
+        >
+          <Headphones className="h-5 w-5" /> Contact Support
         </button>
-      )}
-
-      <div>
-        <div className={cx.sectionLbl}>{isInternalStaff ? "Tools" : "Your tools"}</div>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          {TOOLS.map(tool => (
-            <Tile key={tool.label} label={tool.label} description={tool.description} icon={tool.icon}
-              onClick={() => navigate(tool.route)} />
-          ))}
-        </div>
-      </div>
-    </PlaceholderPage>
+      </section>
+    </div>
   );
 };
