@@ -12,6 +12,7 @@
 import { useState } from "react";
 import { Menu, X } from "lucide-react";
 import { BLUE, WHITE, NAVY } from "../styleTokens";
+import { IconButton } from "../ui/primitives";
 
 // "company" is intentionally not in TOP_NAV_ITEMS below -- Company Team/
 // Activity/Create pages are reached via a header control near AuthStatus.tsx
@@ -65,12 +66,9 @@ export const TopNav = ({ activeTab, onTabChange, right }: { activeTab: TopNavTab
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
           {right}
-          <button
-            onClick={() => setMobileOpen(v => !v)}
-            className="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-400 dark:text-slate-500 shadow-sm active:scale-95 transition-all md:hidden"
-          >
+          <IconButton onClick={() => setMobileOpen(v => !v)} className="md:hidden">
             {mobileOpen ? <X size={16} /> : <Menu size={16} />}
-          </button>
+          </IconButton>
         </div>
       </div>
       {mobileOpen && (

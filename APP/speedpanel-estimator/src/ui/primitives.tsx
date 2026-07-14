@@ -14,6 +14,22 @@ import { cx, BLUE, GOLD, WHITE, NAVY } from "../styleTokens";
 import type { EffectiveLayout } from "../useLayoutMode";
 import { AlertTriangle, ChevronDown } from "lucide-react";
 
+// --- IconButton -------------------------------------------------------------
+// The header's square icon-only button shape (bell/theme/layout/reset/
+// hamburger/sign-in) -- was a repeated literal className in each of those
+// components; shared here so they can't drift out of sync with each other.
+export const IconButton = ({ onClick, title, className = "", children }: {
+  onClick?: () => void; title?: string; className?: string; children: React.ReactNode;
+}) => (
+  <button
+    onClick={onClick}
+    title={title}
+    className={`grid h-10 w-10 place-items-center rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-400 dark:text-slate-500 shadow-sm active:scale-95 transition-all ${className}`}
+  >
+    {children}
+  </button>
+);
+
 // --- CardGrid -------------------------------------------------------------
 // On web layout, arranges its children (cards) side by side in a responsive
 // grid instead of one full-width stacked column -- fixes cards stretching to

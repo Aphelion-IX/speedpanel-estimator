@@ -6,7 +6,7 @@ import { useAuth } from "./lib/useAuth";
 import { useCompanyMemberships } from "./lib/useCompanyMemberships";
 import { useWallStore } from "./wallStore";
 import { NAVY, BLUE, GOLD, MUTED } from "./styleTokens";
-import { SectionLabel } from "./ui/primitives";
+import { SectionLabel, IconButton } from "./ui/primitives";
 import { EducationHub } from "./education/EducationHub";
 import { SystemSelector } from "./systemSelector/SystemSelector";
 import { ExternalCalculator } from "./externalCalculator/ExternalCalculator";
@@ -201,9 +201,9 @@ export default function SpeedpanelEstimator() {
               <CompanySwitcher company={company} />
               <ThemeToggle effective={themeMode} onToggle={toggleTheme} />
               <LayoutModeToggle effective={layoutMode} onToggle={toggleLayout} />
-              <button onClick={resetAll} className="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-400 dark:text-slate-500 shadow-sm active:scale-95 transition-all">
+              <IconButton onClick={resetAll}>
                 <RotateCcw size={16} />
-              </button>
+              </IconButton>
               <AuthStatus auth={auth} onSignInClick={() => navigate({ tab: "home" })}
                 isInternalStaff={isInternalStaff} staffRole={staffRole} navigate={navigate} />
             </>}

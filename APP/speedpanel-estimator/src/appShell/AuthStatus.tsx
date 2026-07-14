@@ -13,6 +13,7 @@
 import { useEffect, useRef, useState } from "react";
 import { LogIn, LogOut, ChevronDown, ShieldCheck } from "lucide-react";
 import { BLUE, WHITE, NAVY } from "../styleTokens";
+import { IconButton } from "../ui/primitives";
 import type { UseAuth } from "../lib/useAuth";
 import { nameFromEmail, initialsFromEmail } from "../lib/emailDisplay";
 import type { InternalRole } from "../pages/company/staffTypes";
@@ -45,13 +46,9 @@ export const AuthStatus = ({ auth, onSignInClick, isInternalStaff, staffRole, na
   // generic call-to-action.
   if (!auth.session) {
     return (
-      <button
-        onClick={onSignInClick}
-        title="Log in"
-        className="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 shadow-sm active:scale-95 transition-all"
-      >
+      <IconButton onClick={onSignInClick} title="Log in">
         <LogIn size={16} />
-      </button>
+      </IconButton>
     );
   }
 
