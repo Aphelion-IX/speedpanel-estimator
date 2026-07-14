@@ -11,7 +11,6 @@ import { z } from "zod";
 import { INTERNAL_ROLES } from "../../company/staffTypes";
 
 export const USER_ROLES = ["user", "admin"] as const;
-export type UserRole = typeof USER_ROLES[number];
 
 export const AdminUserRowSchema = z.object({
   id: z.string(),
