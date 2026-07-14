@@ -13,6 +13,7 @@ import { Calculator, LayoutGrid, BookOpen, FolderKanban, CheckCircle2, ChevronRi
 import { NAVY, BLUE } from "../../styleTokens";
 import type { Route } from "../../appShell/useHashRoute";
 import type { UseAuth } from "../../lib/useAuth";
+import { nameFromEmail } from "../../lib/emailDisplay";
 
 type Accent = "blue" | "cyan" | "purple";
 
@@ -43,14 +44,6 @@ const WORKSPACES: { title: string; description: string; features: string[]; acce
   { title: "System Estimator", description: "Create quantities, schedules and project estimates.", features: ["Accurate Estimates", "BOM Generation", "Export Reports"], accent: "purple", icon: Calculator, route: { tab: "estimator" } },
   { title: "Education Hub", description: "Access technical documents, guides and training.", features: ["Technical Guides", "Training Videos", "Product Knowledge"], accent: "blue", icon: BookOpen, route: { tab: "education" } },
 ];
-
-// No display-name field exists anywhere in this app -- same pragmatic
-// email-derived fallback AuthStatus.tsx's avatar initials use.
-function nameFromEmail(email: string): string {
-  const local = email.split("@")[0] ?? "";
-  const words = local.split(/[._-]+/).filter(Boolean);
-  return words.length ? words.map(w => w[0].toUpperCase() + w.slice(1)).join(" ") : "there";
-}
 
 function WorkspaceCard({ title, description, features, accent, icon: Icon, onClick }: {
   title: string; description: string; features: string[]; accent: Accent; icon: React.ElementType; onClick: () => void;

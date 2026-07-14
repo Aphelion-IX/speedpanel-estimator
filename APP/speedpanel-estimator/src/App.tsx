@@ -199,13 +199,13 @@ export default function SpeedpanelEstimator() {
             right={<>
               <NotificationBell />
               <CompanySwitcher company={company} />
-              <AuthStatus auth={auth} onSignInClick={() => navigate({ tab: "home" })}
-                isInternalStaff={isInternalStaff} staffRole={staffRole} navigate={navigate} />
               <ThemeToggle effective={themeMode} onToggle={toggleTheme} />
               <LayoutModeToggle effective={layoutMode} onToggle={toggleLayout} />
               <button onClick={resetAll} className="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-400 dark:text-slate-500 shadow-sm active:scale-95 transition-all">
                 <RotateCcw size={16} />
               </button>
+              <AuthStatus auth={auth} onSignInClick={() => navigate({ tab: "home" })}
+                isInternalStaff={isInternalStaff} staffRole={staffRole} navigate={navigate} />
             </>}
           />
         </div>
