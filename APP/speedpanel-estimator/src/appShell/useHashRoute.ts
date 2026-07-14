@@ -16,6 +16,10 @@ export type AdminSubPage = "dashboard" | "products" | "priceLists" | "systems" |
 export type CompanySubPage = "team" | "activity";
 
 export type Route =
+  // Signed-out front door (sign-in) or signed-in overview dashboard --
+  // see src/pages/home/. The default/fallback route (parseHash below),
+  // replacing "estimator" in that role.
+  | { tab: "home" }
   | { tab: "estimator" }
   | { tab: "selector" }
   | { tab: "education" }
@@ -63,16 +67,17 @@ function parseHash(hash: string): Route {
   // shared #/quote links still land somewhere useful now that it's nested
   // under Projects (see ProjectsRouter.tsx).
   if (first === "quote")     return { tab: "projects", request: true };
+  if (first === "estimator") return { tab: "estimator" };
   if (first === "selector")  return { tab: "selector" };
   if (first === "education") return { tab: "education" };
   if (first === "proforma" && second) return { tab: "proforma", orderId: second };
-  return { tab: "estimator" };
+  return { tab: "home" };
 }
 
 function routeToHash(route: Route): string {
   if (route.tab === "admin") return route.sub === "dashboard" ? "#/admin" : `#/admin/${route.sub}`;
   if (route.tab === "company") return `#/company/${route.sub}`;
-  if (route.tab === "estimator") return "#/";
+  if (route.tab === "home") return "#/";
   if (route.tab === "projects") {
     if (!route.id) return route.request ? "#/projects/request" : "#/projects";
     if (route.newOrder) return `#/projects/${route.id}/orders/new`;

@@ -19,9 +19,10 @@ import { BLUE, WHITE, NAVY } from "../styleTokens";
 // still part of this union purely so route.tab (which includes it) type-checks
 // as an activeTab value -- it just never matches any TOP_NAV_ITEMS key, so no
 // button ever highlights for it.
-export type TopNavTab = "estimator" | "selector" | "education" | "projects" | "admin" | "company";
+export type TopNavTab = "home" | "estimator" | "selector" | "education" | "projects" | "admin" | "company";
 
 const TOP_NAV_ITEMS: { key: TopNavTab; label: string }[] = [
+  { key: "home",      label: "Home" },
   { key: "projects",  label: "Projects" },
   { key: "selector",  label: "System Selector" },
   { key: "estimator", label: "System Estimator" },
