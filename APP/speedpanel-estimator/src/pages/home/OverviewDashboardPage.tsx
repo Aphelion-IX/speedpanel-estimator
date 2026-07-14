@@ -62,28 +62,24 @@ function WorkspaceCard({ title, description, features, accent, icon: Icon, onCli
       onClick={onClick}
       className={`group rounded-2xl border border-slate-200 bg-white p-6 text-left shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md dark:border-slate-700/80 dark:bg-slate-900/75 dark:shadow-[0_18px_60px_rgba(0,0,0,0.22)] dark:backdrop-blur dark:hover:bg-slate-900 ${styles.hover}`}
     >
-      <div className="flex items-start gap-5">
-        <div className={`grid h-20 w-20 shrink-0 place-items-center rounded-2xl border ${styles.iconWrap}`}>
-          <Icon className={`h-10 w-10 ${styles.icon}`} strokeWidth={1.8} />
-        </div>
-        <div className="min-w-0">
-          <h2 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">{title}</h2>
-          <p className="mt-2 max-w-md text-base leading-7 text-slate-500 dark:text-slate-400">{description}</p>
-        </div>
+      <div className={`grid h-14 w-14 shrink-0 place-items-center rounded-2xl border ${styles.iconWrap}`}>
+        <Icon className={`h-7 w-7 ${styles.icon}`} strokeWidth={1.8} />
       </div>
+      <h2 className="mt-4 text-xl font-bold tracking-tight text-slate-900 dark:text-white">{title}</h2>
+      <p className="mt-2 text-sm leading-6 text-slate-500 dark:text-slate-400">{description}</p>
 
-      <div className="mt-7 grid gap-3 border-t border-slate-100 pt-5 dark:border-slate-800 sm:grid-cols-3">
+      <div className="mt-5 flex flex-col gap-2 border-t border-slate-100 pt-4 dark:border-slate-800">
         {features.map(feature => (
           <span key={feature} className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
-            <CheckCircle2 className={`h-4 w-4 ${styles.check}`} />
+            <CheckCircle2 className={`h-4 w-4 shrink-0 ${styles.check}`} />
             {feature}
           </span>
         ))}
       </div>
 
-      <div className="mt-6 flex items-center justify-between border-t border-slate-100 pt-5 dark:border-slate-800">
-        <span className="text-base font-semibold" style={{ color: BLUE }}>Open workspace</span>
-        <ChevronRight className="h-5 w-5 transition group-hover:translate-x-1" style={{ color: BLUE }} />
+      <div className="mt-5 flex items-center justify-between border-t border-slate-100 pt-4 dark:border-slate-800">
+        <span className="text-sm font-semibold" style={{ color: BLUE }}>Open workspace</span>
+        <ChevronRight className="h-4 w-4 transition group-hover:translate-x-1" style={{ color: BLUE }} />
       </div>
     </button>
   );
@@ -101,7 +97,7 @@ export const OverviewDashboardPage = ({ auth, navigate }: { auth: UseAuth; navig
         <p className="mt-3 text-lg text-slate-500 dark:text-slate-400">Select a workspace to get started.</p>
       </section>
 
-      <section className="mt-8 grid gap-6 lg:grid-cols-2">
+      <section className="mt-8 grid gap-6 lg:grid-cols-4">
         {WORKSPACES.map(w => (
           <WorkspaceCard key={w.title} title={w.title} description={w.description} features={w.features}
             accent={w.accent} icon={w.icon} onClick={() => navigate(w.route)} />
