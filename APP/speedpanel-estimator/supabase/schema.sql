@@ -3560,6 +3560,59 @@ $$;
 revoke execute on function public.admin_update_delivery(uuid, text, text, text, text, text, text, text, text, text, text, jsonb) from public, anon;
 grant execute on function public.admin_update_delivery(uuid, text, text, text, text, text, text, text, text, text, text, jsonb) to authenticated;
 
+-- Server-side guarantee that a delivery split never allocates more of a
+-- line item than the order actually contains. This is the single
+-- enforcement point for all four write paths into item_allocations
+-- (customer direct insert/update, admin_create_delivery, admin_update_delivery)
+-- -- see guard_company_price_list_id above for the same cross-cutting-
+-- invariant-via-trigger pattern. No DELETE trigger: removing a delivery can
+-- only reduce total allocation, never cause an over-allocation.
+create or replace function public.guard_order_delivery_allocation() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare
+  v_line_items jsonb;
+  v_ordered numeric;
+  v_allocated numeric;
+  v_item record;
+begin
+  select line_items into v_line_items from orders where id = new.order_id;
+  if v_line_items is null then
+    raise exception 'Order % not found', new.order_id;
+  end if;
+
+  for v_item in
+    select (alloc->>'lineItemId') as line_item_id, sum((alloc->>'qty')::numeric) as qty
+    from jsonb_array_elements(new.item_allocations) as alloc
+    group by 1
+  loop
+    select (li->>'qty')::numeric into v_ordered
+    from jsonb_array_elements(v_line_items) as li
+    where (li->>'id') = v_item.line_item_id;
+    if v_ordered is null then
+      raise exception 'Line item % is not part of order %', v_item.line_item_id, new.order_id;
+    end if;
+
+    -- new.id excludes nothing extra on INSERT and excludes this row itself
+    -- on UPDATE -- BEFORE ROW triggers see gen_random_uuid()'s default
+    -- already applied, so new.id is always valid here.
+    select coalesce(sum((alloc2->>'qty')::numeric), 0) into v_allocated
+    from order_deliveries od, jsonb_array_elements(od.item_allocations) as alloc2
+    where od.order_id = new.order_id and od.id <> new.id
+      and (alloc2->>'lineItemId') = v_item.line_item_id;
+
+    if v_allocated + v_item.qty > v_ordered then
+      raise exception 'Over-allocated: line item % requests % but only % remain (of % ordered)',
+        v_item.line_item_id, v_item.qty, greatest(v_ordered - v_allocated, 0), v_ordered;
+    end if;
+  end loop;
+  return new;
+end;
+$$;
+
+create trigger order_deliveries_guard_allocation
+  before insert or update of item_allocations on order_deliveries
+  for each row execute function public.guard_order_delivery_allocation();
+
 -- The only read path for internal_note -- security-definer table function,
 -- staff-role-gated via a WHERE clause (returns an empty set for anyone else,
 -- matching admin_list_stage_events's own gating style above) so it composes

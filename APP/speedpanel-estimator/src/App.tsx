@@ -21,6 +21,8 @@ import { SystemRows } from "./appShell/systemRows";
 import { useCornerShaftLinking } from "./appShell/useCornerShaftLinking";
 import { useHashRoute } from "./appShell/useHashRoute";
 import { ProjectsRouter } from "./pages/projects/ProjectsRouter";
+import { LandingPage } from "./pages/home/LandingPage";
+import { OverviewDashboardPage } from "./pages/home/OverviewDashboardPage";
 import { saveProjectSnapshot } from "./pages/projects/saveProjectSnapshot";
 import { insertProject, seedSnapshotForSystem } from "./pages/projects/projectsStore";
 import { SaveDraftBanner } from "./pages/projects/SaveDraftBanner";
@@ -175,6 +177,13 @@ export default function SpeedpanelEstimator() {
     return <ProformaInvoicePage orderId={route.orderId} onBack={() => navigate({ tab: "estimator" })} />;
   }
 
+  // Signed-out front door -- also standalone/full-bleed, same reasoning as
+  // proforma above (its own hero/background, no TopNav). The signed-in
+  // case (OverviewDashboardPage) stays inside the normal shell below.
+  if (route.tab === "home" && !auth.session) {
+    return <LandingPage auth={auth} pendingNote={pendingProjectCreation ? `Sign in to create "${pendingProjectCreation.name}"` : undefined} />;
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 font-sans dark:bg-slate-950" style={{ color: NAVY }}>
       <div className={layoutMode === "web" ? "mx-auto w-full max-w-[1400px] px-6 pb-16 pt-6" : "mx-auto w-full max-w-md px-3 sm:px-4 pb-24 pt-5"}>
@@ -185,7 +194,7 @@ export default function SpeedpanelEstimator() {
           onTabChange={switchTab}
           right={<>
             <CompanySwitcher company={company} />
-            <AuthStatus auth={auth} onSignInClick={() => navigate({ tab: "projects" })} />
+            <AuthStatus auth={auth} onSignInClick={() => navigate({ tab: "home" })} />
             <ThemeToggle effective={themeMode} onToggle={toggleTheme} />
             <LayoutModeToggle effective={layoutMode} onToggle={toggleLayout} />
             <button onClick={resetAll} className="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-400 dark:text-slate-500 shadow-sm active:scale-95 transition-all">
@@ -199,6 +208,8 @@ export default function SpeedpanelEstimator() {
             mount unconditionally on every tab, not just Projects, since it's
             about the account, not any one page. */}
         {auth.session && <PendingInvitationsBanner userEmail={auth.user?.email} onAccepted={company.reload} />}
+
+        {route.tab === "home" && <OverviewDashboardPage auth={auth} navigate={navigate} />}
 
         {route.tab === "selector"  && (
           <SystemSelector layoutMode={layoutMode} system={system} activeWallSystem={active.wallSystem}
