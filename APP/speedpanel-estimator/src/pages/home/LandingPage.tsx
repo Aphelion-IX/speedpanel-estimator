@@ -17,7 +17,6 @@
 import { useState } from "react";
 import { Eye, EyeOff, LockKeyhole, ShieldCheck, UserRound, Zap, BarChart3, FileText } from "lucide-react";
 import { BLUE, MUTED } from "../../styleTokens";
-import { SPEEDPANEL_LOGO_DATA_URI } from "../../appShell/logo";
 import type { UseAuth } from "../../lib/useAuth";
 
 const FEATURES = [
@@ -69,15 +68,12 @@ export const LandingPage = ({ auth, pendingNote }: { auth: UseAuth; pendingNote?
         {/* Brand panel */}
         <section className="flex items-center px-6 py-12 sm:px-10 lg:px-16 xl:px-20">
           <div className="max-w-2xl">
-            <div className="flex items-center gap-4">
-              <img src={SPEEDPANEL_LOGO_DATA_URI} alt="Speedpanel" className="h-14 w-auto object-contain sm:h-16" />
-              <div>
-                <div className="flex items-baseline gap-1">
-                  <span className="text-4xl font-black tracking-[-0.04em] text-slate-950 dark:text-white sm:text-5xl">SPEED</span>
-                  <span className="text-4xl font-black tracking-[-0.04em] sm:text-5xl" style={{ color: BLUE }}>HUB</span>
-                </div>
-                <p className="mt-1 text-lg font-semibold tracking-wide text-slate-500 dark:text-slate-400">by SPEEDPANEL</p>
+            <div>
+              <div className="flex items-baseline gap-1">
+                <span className="text-4xl font-black tracking-[-0.04em] text-slate-950 dark:text-white sm:text-5xl">SPEED</span>
+                <span className="text-4xl font-black tracking-[-0.04em] sm:text-5xl" style={{ color: BLUE }}>HUB</span>
               </div>
+              <p className="mt-1 text-lg font-semibold tracking-wide text-slate-500 dark:text-slate-400">by SPEEDPANEL</p>
             </div>
 
             <h1 className="mt-12 max-w-xl text-3xl font-bold leading-tight tracking-tight text-slate-950 dark:text-white sm:text-4xl">
