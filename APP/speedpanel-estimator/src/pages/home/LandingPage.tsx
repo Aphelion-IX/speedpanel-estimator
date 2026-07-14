@@ -15,7 +15,7 @@
 // session persistence, there's no wiring behind it yet.
 // =============================================================================
 import { useState } from "react";
-import { Eye, EyeOff, LockKeyhole, ShieldCheck, UserRound, Zap, BarChart3, FileText } from "lucide-react";
+import { Eye, EyeOff, LockKeyhole, UserRound, Zap, BarChart3, FileText } from "lucide-react";
 import { BLUE, MUTED } from "../../styleTokens";
 import type { UseAuth } from "../../lib/useAuth";
 
@@ -76,7 +76,7 @@ export const LandingPage = ({ auth, pendingNote }: { auth: UseAuth; pendingNote?
         {/* Login panel */}
         <section className="flex items-center justify-center px-6 py-12 sm:px-10 lg:px-12">
           <div className="w-full max-w-xl">
-            <div className="rounded-[28px] border border-white/80 bg-white/95 p-7 shadow-[0_24px_80px_rgba(15,23,42,0.12)] backdrop-blur-xl dark:border-slate-800 dark:bg-slate-900/95 sm:p-10">
+            <div className="rounded-[28px] border border-white/80 bg-white/95 p-7 pb-9 shadow-[0_24px_80px_rgba(15,23,42,0.12)] backdrop-blur-xl dark:border-slate-800 dark:bg-slate-900/95 sm:p-10 sm:pb-12">
               <div>
                 <p className="text-sm font-bold uppercase tracking-[0.18em]" style={{ color: BLUE }}>Welcome back</p>
                 <h2 className="mt-2 text-3xl font-extrabold tracking-tight text-slate-950 dark:text-white">Log in to SPEEDHUB</h2>
@@ -149,7 +149,7 @@ export const LandingPage = ({ auth, pendingNote }: { auth: UseAuth; pendingNote?
                 </button>
               </form>
 
-              <div className="my-7 flex items-center gap-4">
+              <div className="mt-8 mb-5 flex items-center gap-4">
                 <div className="h-px flex-1 bg-slate-200 dark:bg-slate-700" />
                 <span className="text-xs font-medium uppercase tracking-wider text-slate-400 dark:text-slate-500">Need access?</span>
                 <div className="h-px flex-1 bg-slate-200 dark:bg-slate-700" />
@@ -158,18 +158,6 @@ export const LandingPage = ({ auth, pendingNote }: { auth: UseAuth; pendingNote?
               <p className="w-full text-center text-sm text-slate-500 dark:text-slate-400">
                 Contact your <span className="font-semibold" style={{ color: BLUE }}>SPEEDPANEL representative</span>
               </p>
-
-              <div className="mt-8 flex items-start gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800/60">
-                <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-blue-50 dark:bg-blue-950/40" style={{ color: BLUE }}>
-                  <ShieldCheck className="h-6 w-6" />
-                </span>
-                <div>
-                  <p className="text-sm font-bold text-slate-900 dark:text-slate-100">Secure access</p>
-                  <p className="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">
-                    Your account and project data are protected with secure authentication.
-                  </p>
-                </div>
-              </div>
             </div>
 
             <footer className="mt-6 flex flex-col items-center justify-between gap-3 px-2 text-xs text-slate-500 dark:text-slate-500 sm:flex-row">
