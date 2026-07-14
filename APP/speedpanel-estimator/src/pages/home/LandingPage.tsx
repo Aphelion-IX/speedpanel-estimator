@@ -51,13 +51,6 @@ export const LandingPage = ({ auth, pendingNote }: { auth: UseAuth; pendingNote?
         <div className="absolute inset-0 bg-[linear-gradient(rgba(0,117,204,0.025)_1px,transparent_1px),linear-gradient(90deg,rgba(0,117,204,0.025)_1px,transparent_1px)] bg-[size:12px_12px] dark:bg-[linear-gradient(rgba(59,130,246,0.04)_1px,transparent_1px),linear-gradient(90deg,rgba(59,130,246,0.04)_1px,transparent_1px)]" />
       </div>
 
-      {/* Blueprint floor-plan drawing -- a real technical drawing (walls,
-          a door swing, chained dimension lines, a north arrow, drafting
-          registration marks), not a decorative shape. */}
-      <div className="pointer-events-none absolute bottom-[4%] left-[26%] hidden h-[42%] w-[48%] rotate-[-1.5deg] lg:block">
-        <BlueprintFloorPlan />
-      </div>
-
       <div className="relative mx-auto grid min-h-screen max-w-[1600px] lg:grid-cols-[1.25fr_0.75fr]">
         {/* Brand panel */}
         <section className="flex items-center px-6 py-12 sm:px-10 lg:px-16 xl:px-20">
@@ -204,92 +197,5 @@ function Feature({ icon: Icon, title, description }: { icon: React.ElementType; 
         <p className="mt-1 max-w-md text-sm leading-6 text-slate-500 dark:text-slate-400">{description}</p>
       </div>
     </div>
-  );
-}
-
-// A technical drawing, not a decorative shape: a simple two-room floor plan
-// (outer walls, an interior partition with a door swing), two chained
-// dimension lines with tick marks and numeric labels, a north arrow, a
-// scale bar, and a few drafting-sheet registration crosshairs. All linework
-// -- no fill, no blur -- so it reads as an actual blueprint rather than a
-// generic gradient blob.
-const LINE = "stroke-blue-700/45 dark:stroke-blue-400/40";
-const DIM_LINE = "stroke-blue-700/30 dark:stroke-blue-400/28";
-const FAINT = "stroke-blue-600/20 dark:stroke-blue-400/18";
-const LABEL = "fill-blue-700/40 dark:fill-blue-400/38 font-mono text-[11px] tracking-wide";
-
-function DimensionLine({ x1, y1, x2, y2, label, labelX, labelY, labelRotate }: {
-  x1: number; y1: number; x2: number; y2: number; label: string; labelX: number; labelY: number; labelRotate?: number;
-}) {
-  const vertical = x1 === x2;
-  const tick = 5;
-  return (
-    <g>
-      <line x1={x1} y1={y1} x2={x2} y2={y2} strokeWidth={1} className={DIM_LINE} />
-      {vertical ? (
-        <>
-          <line x1={x1 - tick} y1={y1} x2={x1 + tick} y2={y1} strokeWidth={1} className={DIM_LINE} />
-          <line x1={x2 - tick} y1={y2} x2={x2 + tick} y2={y2} strokeWidth={1} className={DIM_LINE} />
-        </>
-      ) : (
-        <>
-          <line x1={x1} y1={y1 - tick} x2={x1} y2={y1 + tick} strokeWidth={1} className={DIM_LINE} />
-          <line x1={x2} y1={y2 - tick} x2={x2} y2={y2 + tick} strokeWidth={1} className={DIM_LINE} />
-        </>
-      )}
-      <text x={labelX} y={labelY} textAnchor="middle" className={LABEL}
-        transform={labelRotate ? `rotate(${labelRotate} ${labelX} ${labelY})` : undefined}>
-        {label}
-      </text>
-    </g>
-  );
-}
-
-function BlueprintFloorPlan() {
-  return (
-    <svg viewBox="0 0 640 480" preserveAspectRatio="xMidYMid meet" className="h-full w-full" fill="none">
-      {/* Outer walls */}
-      <rect x={140} y={140} width={380} height={260} strokeWidth={2.5} className={LINE} />
-
-      {/* Interior partition, split for a door opening */}
-      <line x1={340} y1={140} x2={340} y2={280} strokeWidth={2.5} className={LINE} />
-      <line x1={340} y1={340} x2={340} y2={400} strokeWidth={2.5} className={LINE} />
-      {/* Door leaf + swing arc */}
-      <line x1={340} y1={280} x2={400} y2={340} strokeWidth={1} className={FAINT} />
-      <path d="M 340 280 A 60 60 0 0 1 400 340" strokeWidth={1} strokeDasharray="4 3" className={FAINT} />
-
-      {/* Centerline of the larger room */}
-      <line x1={230} y1={140} x2={230} y2={400} strokeWidth={1} strokeDasharray="10 4 2 4" className={FAINT} />
-
-      {/* Chained + overall dimension lines */}
-      <DimensionLine x1={140} y1={125} x2={340} y2={125} label="4200" labelX={240} labelY={118} />
-      <DimensionLine x1={340} y1={125} x2={520} y2={125} label="5300" labelX={430} labelY={118} />
-      <DimensionLine x1={140} y1={100} x2={520} y2={100} label="9500" labelX={330} labelY={92} />
-      <DimensionLine x1={110} y1={140} x2={110} y2={400} label="6400" labelX={92} labelY={274} labelRotate={-90} />
-
-      {/* North arrow */}
-      <g transform="translate(566 66)">
-        <circle r={22} strokeWidth={1} className={FAINT} />
-        <path d="M 0 -13 L 6 8 L 0 3 L -6 8 Z" strokeWidth={1} className={`${LINE} fill-blue-700/20 dark:fill-blue-400/18`} />
-        <text x={0} y={-27} textAnchor="middle" className={LABEL}>N</text>
-      </g>
-
-      {/* Scale bar */}
-      <g transform="translate(150 448)">
-        <line x1={0} y1={0} x2={80} y2={0} strokeWidth={1} className={FAINT} />
-        <line x1={0} y1={-4} x2={0} y2={4} strokeWidth={1} className={FAINT} />
-        <line x1={40} y1={-4} x2={40} y2={4} strokeWidth={1} className={FAINT} />
-        <line x1={80} y1={-4} x2={80} y2={4} strokeWidth={1} className={FAINT} />
-        <text x={40} y={16} textAnchor="middle" className={LABEL}>1:100</text>
-      </g>
-
-      {/* Drafting-sheet registration marks */}
-      {[[40, 40], [600, 40], [40, 440], [600, 440]].map(([cx, cy]) => (
-        <g key={`${cx}-${cy}`} transform={`translate(${cx} ${cy})`}>
-          <line x1={-8} y1={0} x2={8} y2={0} strokeWidth={1} className={FAINT} />
-          <line x1={0} y1={-8} x2={0} y2={8} strokeWidth={1} className={FAINT} />
-        </g>
-      ))}
-    </svg>
   );
 }
