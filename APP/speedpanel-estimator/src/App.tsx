@@ -177,6 +177,13 @@ export default function SpeedpanelEstimator() {
     return <ProformaInvoicePage orderId={route.orderId} onBack={() => navigate({ tab: "estimator" })} />;
   }
 
+  // Signed-out front door -- also standalone/full-bleed, same reasoning as
+  // proforma above (its own hero/background, no TopNav). The signed-in
+  // case (OverviewDashboardPage) stays inside the normal shell below.
+  if (route.tab === "home" && !auth.session) {
+    return <LandingPage auth={auth} pendingNote={pendingProjectCreation ? `Sign in to create "${pendingProjectCreation.name}"` : undefined} />;
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 font-sans dark:bg-slate-950" style={{ color: NAVY }}>
       <div className={layoutMode === "web" ? "mx-auto w-full max-w-[1400px] px-6 pb-16 pt-6" : "mx-auto w-full max-w-md px-3 sm:px-4 pb-24 pt-5"}>
@@ -202,13 +209,7 @@ export default function SpeedpanelEstimator() {
             about the account, not any one page. */}
         {auth.session && <PendingInvitationsBanner userEmail={auth.user?.email} onAccepted={company.reload} />}
 
-        {route.tab === "home" && (
-          auth.session
-            ? <OverviewDashboardPage auth={auth} navigate={navigate} />
-            : <LandingPage auth={auth}
-                onRequestQuote={() => navigate({ tab: "projects", request: true })}
-                pendingNote={pendingProjectCreation ? `Sign in to create "${pendingProjectCreation.name}"` : undefined} />
-        )}
+        {route.tab === "home" && <OverviewDashboardPage auth={auth} navigate={navigate} />}
 
         {route.tab === "selector"  && (
           <SystemSelector layoutMode={layoutMode} system={system} activeWallSystem={active.wallSystem}
