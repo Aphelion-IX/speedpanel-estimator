@@ -56,11 +56,11 @@ export const LandingPage = ({ auth, pendingNote }: { auth: UseAuth; pendingNote?
         <section className="flex items-center px-6 py-12 sm:px-10 lg:px-16 xl:px-20">
           <div className="max-w-2xl">
             <div>
-              <div className="flex items-baseline gap-1">
-                <span className="text-4xl font-black tracking-[-0.04em] text-slate-950 dark:text-white sm:text-5xl">SPEED</span>
-                <span className="text-4xl font-black tracking-[-0.04em] sm:text-5xl" style={{ color: BLUE }}>HUB</span>
+              <div className="flex items-baseline gap-1.5">
+                <span className="text-6xl font-black tracking-[-0.04em] text-slate-950 dark:text-white sm:text-7xl">SPEED</span>
+                <span className="text-6xl font-black tracking-[-0.04em] sm:text-7xl" style={{ color: BLUE }}>HUB</span>
               </div>
-              <p className="mt-1 text-lg font-semibold tracking-wide text-slate-500 dark:text-slate-400">by SPEEDPANEL</p>
+              <p className="mt-2 text-xl font-semibold tracking-wide text-slate-500 dark:text-slate-400 sm:text-2xl">by SPEEDPANEL</p>
             </div>
 
             <h1 className="mt-12 max-w-xl text-3xl font-bold leading-tight tracking-tight text-slate-950 dark:text-white sm:text-4xl">
