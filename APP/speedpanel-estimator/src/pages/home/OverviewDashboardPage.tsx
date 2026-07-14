@@ -85,7 +85,7 @@ export const OverviewDashboardPage = ({ auth, navigate }: { auth: UseAuth; navig
     <div className="mt-6">
       <section>
         <h1 className="text-4xl font-extrabold tracking-tight text-slate-900 dark:text-white sm:text-5xl">
-          Welcome back, {name} <span aria-hidden>👋</span>
+          Welcome back, {name}
         </h1>
         <p className="mt-3 text-lg text-slate-500 dark:text-slate-400">Select a workspace to get started.</p>
       </section>
