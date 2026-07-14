@@ -1,18 +1,17 @@
 // =============================================================================
 // Top navigation
 // =============================================================================
-// Logo + the app's top-level feature tabs, wired up to the hash router so
-// their URLs are deep-linkable on GitHub Pages -- see App.tsx. `right`
-// renders the theme/layout/reset controls passed down from the root
-// component, plus a hamburger menu that only appears below the sm
-// breakpoint. No notification bell / profile dropdown -- sign-in state is
-// surfaced inside the Projects tab itself (see pages/projects/SignInGate.tsx),
-// not up here.
+// Wordmark + the app's top-level feature tabs, wired up to the hash router
+// so their URLs are deep-linkable on GitHub Pages -- see App.tsx. `right`
+// renders the notification bell/theme/layout/reset/account controls passed
+// down from the root component, plus a hamburger menu that only appears
+// below the sm breakpoint. App.tsx wraps this in its own full-width header
+// bar (background + the brand gradient line as its bottom border) -- this
+// component itself just renders the row's contents, same as before.
 // =============================================================================
 import { useState } from "react";
 import { Menu, X } from "lucide-react";
 import { BLUE, WHITE, NAVY } from "../styleTokens";
-import { SPEEDPANEL_LOGO_DATA_URI } from "./logo";
 
 // "company" is intentionally not in TOP_NAV_ITEMS below -- Company Team/
 // Activity/Create pages are reached via a header control near AuthStatus.tsx
@@ -38,7 +37,7 @@ const TOP_NAV_ITEMS: { key: TopNavTab; label: string }[] = [
 const TopNavTabButton = ({ label, active, onClick, className = "" }: { label: string; active: boolean; onClick: () => void; className?: string }) => (
   <button
     onClick={onClick}
-    className={`rounded-xl px-3.5 py-2 text-sm font-bold uppercase tracking-wide whitespace-nowrap transition-all ${active ? "" : "hover:bg-slate-100 dark:hover:bg-slate-800"} ${className}`}
+    className={`rounded-xl px-2.5 py-2 text-sm font-bold uppercase tracking-wide whitespace-nowrap transition-all ${active ? "" : "hover:bg-slate-100 dark:hover:bg-slate-800"} ${className}`}
     style={active ? { background: BLUE, color: WHITE } : { color: NAVY }}
   >
     {label}
@@ -49,20 +48,22 @@ export const TopNav = ({ activeTab, onTabChange, right }: { activeTab: TopNavTab
   const [mobileOpen, setMobileOpen] = useState(false);
   return (
     <div>
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-4">
-          <img
-            src={SPEEDPANEL_LOGO_DATA_URI}
-            alt="Speedpanel"
-            className="h-10 w-auto object-contain shrink-0"
-          />
-          <div className="hidden md:flex items-center gap-1 overflow-x-auto">
+          <div className="shrink-0 leading-none">
+            <div className="flex items-baseline gap-1">
+              <span className="text-xl font-black tracking-[-0.04em] text-slate-950 dark:text-white">SPEED</span>
+              <span className="text-xl font-black tracking-[-0.04em]" style={{ color: BLUE }}>HUB</span>
+            </div>
+            <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">by Speedpanel</p>
+          </div>
+          <div className="hidden md:flex items-center gap-0.5 overflow-x-auto">
             {TOP_NAV_ITEMS.map(item => (
               <TopNavTabButton key={item.key} label={item.label} active={activeTab === item.key} onClick={() => onTabChange(item.key)} />
             ))}
           </div>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-1.5 shrink-0">
           {right}
           <button
             onClick={() => setMobileOpen(v => !v)}
