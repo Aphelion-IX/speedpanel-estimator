@@ -76,6 +76,20 @@ export function totalPanelCount(lineItems: OrderLineItem[]): number {
     .reduce((sum, li) => sum + li.qty, 0);
 }
 
+// Scoped, local mirror of dashboardStore.ts's useOrdersSummary aggregation
+// (same "exclude cancelled from totalValue" rule), but over an already-
+// in-hand orders array instead of its own fetch -- for ProjectDetailPage's
+// summary, which already has `orders` loaded.
+export function summarizeOrders(orders: Pick<OrderRow, "stage" | "total_inc_gst" | "unpriced_item_count">[]):
+  { count: number; totalValue: number; unpricedCount: number } {
+  const live = orders.filter(o => o.stage !== "cancelled");
+  return {
+    count: live.length,
+    totalValue: live.reduce((sum, o) => sum + o.total_inc_gst, 0),
+    unpricedCount: live.reduce((sum, o) => sum + o.unpriced_item_count, 0),
+  };
+}
+
 export const OrderDeliveryItemAllocationSchema = z.object({ lineItemId: z.string(), qty: z.number() });
 export type OrderDeliveryItemAllocation = z.infer<typeof OrderDeliveryItemAllocationSchema>;
 

@@ -8,7 +8,7 @@
 // =============================================================================
 import { useState } from "react";
 import { cx, NAVY, BLUE, WHITE, MUTED } from "../../../styleTokens";
-import { Row } from "../../../ui/primitives";
+import { Row, WarningsList, Stat } from "../../../ui/primitives";
 import { useOrder } from "./orderDetailStore";
 import { useOrderDeliveries } from "./orderDeliveriesStore";
 import { OrderLineItemsTable, type DraftLineItem } from "./OrderLineItemsTable";
@@ -16,6 +16,7 @@ import { DeliveryRequestCard } from "./DeliveryRequestCard";
 import { AddDeliveryForm } from "./AddDeliveryForm";
 import { ManufacturingProgress } from "./ManufacturingProgress";
 import { ORDER_STAGE_LABELS, ORDER_STAGE_BADGE_CLASS } from "./orderTypes";
+import { nextDeliveryDate } from "../journeyCopy";
 
 export const OrderDetailPage = ({ orderId, onBack, onViewProforma }: {
   orderId: string; onBack: () => void; onViewProforma: (orderId: string) => void;
@@ -46,6 +47,8 @@ export const OrderDetailPage = ({ orderId, onBack, onViewProforma }: {
   // allocations still count against `remaining` above so a customer can't
   // double-allocate quantity a staff split already claimed.
   const visibleDeliveries = deliveries.filter(d => d.approval_status !== "draft");
+  const pendingDeliveryCount = visibleDeliveries.filter(d => d.approval_status === "pending" || d.approval_status === "date_proposed").length;
+  const nextDelivery = nextDeliveryDate(visibleDeliveries);
 
   const run = async (action: () => Promise<string | null>) => {
     setBusy(true);
@@ -66,11 +69,9 @@ export const OrderDetailPage = ({ orderId, onBack, onViewProforma }: {
         </div>
         <p className={cx.footnote}>Created {new Date(order.created_at).toLocaleString()}</p>
 
-        {order.unpriced_item_count > 0 && (
-          <div className="mt-3 rounded-xl border border-amber-200 dark:border-amber-800/60 bg-amber-50/80 dark:bg-amber-950/30 px-4 py-3 text-sm text-amber-800 dark:text-amber-300">
-            {order.unpriced_item_count} item{order.unpriced_item_count !== 1 ? "s" : ""} in this order couldn't be priced automatically.
-          </div>
-        )}
+        <WarningsList warnings={order.unpriced_item_count > 0
+          ? [`${order.unpriced_item_count} item${order.unpriced_item_count !== 1 ? "s" : ""} in this order couldn't be priced automatically.`]
+          : null} />
 
         <div className="mt-4">
           <OrderLineItemsTable items={items} readOnly />
@@ -127,6 +128,11 @@ export const OrderDetailPage = ({ orderId, onBack, onViewProforma }: {
         <div className="mt-5">
           <div className={cx.cardHd}>Delivery Schedule</div>
           <p className={cx.footnote}>Request and manage deliveries for this order. Requested dates remain subject to confirmation by Speedpanel.</p>
+          <div className="mt-2 grid grid-cols-3 gap-2">
+            <Stat value={visibleDeliveries.length} label="Deliveries" />
+            <Stat value={pendingDeliveryCount} label="Pending" />
+            <Stat value={nextDelivery ? new Date(nextDelivery).toLocaleDateString() : "—"} label="Next delivery" />
+          </div>
           {deliveriesLoading ? (
             <div className={`${cx.card} mt-2 text-sm`} style={{ color: MUTED }}>Loading...</div>
           ) : deliveriesError ? (

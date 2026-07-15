@@ -24,7 +24,7 @@ import {
 } from "lucide-react";
 import { cx, NAVY, BLUE, WHITE, MUTED } from "../../styleTokens";
 import { Field } from "../shared/fields";
-import { Card } from "../../ui/primitives";
+import { Card, WarningsList, Stat } from "../../ui/primitives";
 import type { EffectiveLayout } from "../../useLayoutMode";
 import { useProject } from "./projectDetailStore";
 import { useProjectCompanyNames } from "./projectsStore";
@@ -35,7 +35,7 @@ import { useProjectOrders } from "./orders/ordersStore";
 import { useOrderDeliveriesForOrders } from "./orders/orderDeliveriesStore";
 import { journeyStageForProject, journeyStageForOrder, journeyProgressPercent, JOURNEY_STAGE_LABELS, JOURNEY_STAGE_BADGE_CLASS } from "./journeyStage";
 import { journeyMilestone, nextDeliveryDate } from "./journeyCopy";
-import { ORDER_STAGE_LABELS, ORDER_STAGE_BADGE_CLASS, totalPanelCount } from "./orders/orderTypes";
+import { ORDER_STAGE_LABELS, ORDER_STAGE_BADGE_CLASS, totalPanelCount, summarizeOrders } from "./orders/orderTypes";
 import {
   useProjectActivity, STAGE_EVENT_LABELS, STAGE_EVENT_DESCRIPTIONS, relativeTime,
   type StageEventType,
@@ -96,6 +96,12 @@ export const ProjectDetailPage = ({ id, userId, onBack, onOpenEstimator, onReque
     return journeyStageForProject(project, nonCancelled.map(order => ({ order, deliveries: deliveriesByOrder.get(order.id) ?? [] })));
   }, [project, orders, deliveriesByOrder]);
 
+  // "At a glance" summary data -- scoped to this project's own already-
+  // fetched orders/deliveries, no new fetch. allDeliveries doesn't need
+  // re-filtering for cancelled orders -- orderIds (above) already excluded
+  // them before deliveriesByOrder was built.
+  const allDeliveries = useMemo(() => [...deliveriesByOrder.values()].flat(), [deliveriesByOrder]);
+
   const representativeOrder = orders.find(o => o.id === journey?.representativeOrderId);
   const representativeDeliveries = representativeOrder ? (deliveriesByOrder.get(representativeOrder.id) ?? []) : [];
 
@@ -144,6 +150,19 @@ export const ProjectDetailPage = ({ id, userId, onBack, onOpenEstimator, onReque
     estCompletion: representativeOrder?.manufacturing_est_completion,
     nextDeliveryDate: nextDeliveryDate(representativeDeliveries),
   });
+
+  const summary = summarizeOrders(orders);
+  const nextDelivery = nextDeliveryDate(allDeliveries);
+  const summaryWarnings: string[] = [];
+  if (summary.unpricedCount > 0) {
+    summaryWarnings.push(`${summary.unpricedCount} item${summary.unpricedCount !== 1 ? "s" : ""} across your orders couldn't be priced automatically.`);
+  }
+  if (project.install_review_status === "changes_requested") {
+    summaryWarnings.push("Install review needs changes — see Project Services below.");
+  }
+  if (project.technical_review_status === "changes_requested") {
+    summaryWarnings.push("Technical review needs changes — see Project Services below.");
+  }
 
   return (
     <div className="mt-2">
@@ -202,6 +221,14 @@ export const ProjectDetailPage = ({ id, userId, onBack, onOpenEstimator, onReque
 
       <div className="mt-4 overflow-x-auto">
         <ProjectJourneyTimeline stage={journey.stage} layoutMode={layoutMode} />
+      </div>
+
+      <WarningsList warnings={summaryWarnings} />
+
+      <div className="mt-4 grid grid-cols-3 gap-2">
+        <Stat value={summary.count} label="Orders" />
+        <Stat value={`$${summary.totalValue.toFixed(0)}`} label="Total value" />
+        <Stat value={nextDelivery ? new Date(nextDelivery).toLocaleDateString() : "—"} label="Next delivery" />
       </div>
 
       <div className="mt-4 grid gap-4 xl:grid-cols-[2fr_1fr]">
