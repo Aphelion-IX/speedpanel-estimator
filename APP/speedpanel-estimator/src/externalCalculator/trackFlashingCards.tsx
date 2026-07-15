@@ -62,8 +62,11 @@ export const TrackFlashingCardExt = ({ out, orient, headFlashActive }: { out: Co
 );
 
 // --- TrackFlashingCardExtProj -------------------------------------------------
-export const TrackFlashingCardExtProj = ({ agg, connectionLM = 0, connectionPieces = 0 }: {
-  agg: ReturnType<typeof buildExtProjAgg>; connectionLM?: number; connectionPieces?: number;
+// Per-wall C/J/Z-track + head flashing only -- junction-link "extra track"
+// lives in ConnectionMaterialsCardExt below (split for the Order tab's
+// bucket grouping: Tracks and flashings vs. Connection materials).
+export const TrackFlashingCardExtProj = ({ agg }: {
+  agg: ReturnType<typeof buildExtProjAgg>;
 }) => (
   <Card title="Track and flashing" icon={<Frame size={14} />}>
     {agg.cLM > 0 && (
@@ -86,11 +89,23 @@ export const TrackFlashingCardExtProj = ({ agg, connectionLM = 0, connectionPiec
         label="Head track flashing 0.7 mm BMT x 130 mm GAL"
         pieces={agg.flashPieces} lm={agg.flashLM} stockLabel={`@ ${r1(FLASH_STOCK)} m`} />
     )}
-    {connectionPieces > 0 && (
+    {agg.cLM === 0 && agg.jLM === 0 && agg.zLM === 0 && <Row k="No track yet" v="--" dim />}
+  </Card>
+);
+
+// --- ConnectionMaterialsCardExt ------------------------------------------------
+// External has no Corner/Shaft kit concept -- this only ever carries the
+// junction-link "extra track" between differently-oriented linked walls.
+export const ConnectionMaterialsCardExt = ({ connectionLM = 0, connectionPieces = 0 }: {
+  connectionLM?: number; connectionPieces?: number;
+}) => (
+  <Card title="Connection materials" icon={<Frame size={14} />}>
+    {connectionPieces > 0 ? (
       <LMLineItem
         label="Extra C/J track (combined wall junctions)"
-        pieces={connectionPieces} lm={connectionLM} stockLabel={`stocked @ ${r1(HORIZ_CTRACK_STOCK)} m`} />
+        pieces={connectionPieces} lm={connectionLM} stockLabel={`stocked @ ${r1(HORIZ_CTRACK_STOCK)} m`} bordered={false} />
+    ) : (
+      <Row k="No connection materials yet" v="--" dim />
     )}
-    {agg.cLM === 0 && agg.jLM === 0 && agg.zLM === 0 && connectionPieces === 0 && <Row k="No track yet" v="--" dim />}
   </Card>
 );

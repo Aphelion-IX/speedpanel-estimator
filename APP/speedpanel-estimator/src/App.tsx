@@ -1,12 +1,12 @@
 import { useState, useEffect, lazy, Suspense } from "react";
-import { RotateCcw, AlertTriangle, Settings } from "lucide-react";
+import { RotateCcw, AlertTriangle } from "lucide-react";
 import { useLayoutMode } from "./useLayoutMode";
 import { useThemeMode } from "./useThemeMode";
 import { useAuth } from "./lib/useAuth";
 import { useCompanyMemberships } from "./lib/useCompanyMemberships";
 import { useWallStore } from "./wallStore";
 import { NAVY, BLUE, GOLD } from "./styleTokens";
-import { SectionLabel, IconButton } from "./ui/primitives";
+import { IconButton } from "./ui/primitives";
 import { Button } from "./ui/button";
 import { ConfirmDialog, ErrorDialog } from "./ui/confirmDialog";
 import { LoadingState } from "./ui/states";
@@ -303,14 +303,11 @@ export default function SpeedpanelEstimator() {
         {/* System configuration + calculator body */}
         {route.tab === "estimator" && (
           isExt ? (
-            <>
-              <SectionLabel icon={<Settings size={13} />}>System configuration</SectionLabel>
-              <div className="mt-1">
-                <ExternalCalculator store={store} orient={orient} dimUnit={dimUnit} setDimUnit={switchDimUnit}
-                  systemSelector={<SystemRows orient={orient} switchOrient={switchOrient} isExt={isExt} switchSystem={switchSystem} findSys={findSys} />}
-                  layoutMode={layoutMode} />
-              </div>
-            </>
+            <ExternalCalculator store={store} orient={orient} dimUnit={dimUnit} setDimUnit={switchDimUnit}
+              systemSelector={<SystemRows orient={orient} switchOrient={switchOrient} isExt={isExt} switchSystem={switchSystem} findSys={findSys} />}
+              layoutMode={layoutMode}
+              mode={mode} setMode={setMode}
+            />
           ) : (
             <InternalCalculator
               store={store} orient={orient} dimUnit={dimUnit} setDimUnit={switchDimUnit}

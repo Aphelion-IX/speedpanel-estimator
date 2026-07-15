@@ -1,0 +1,102 @@
+// =============================================================================
+// Estimate Results card (External)
+// =============================================================================
+// Replaces project mode's old SectionNav + four stacked full-width sections
+// with one card, tabbed Overview / Selected Wall / Connections / Order --
+// mirrors internalCalculator/estimateResultsCard.tsx, minus anything
+// Corner/Shaft-kit-shaped (External has no wallSystem concept at all): no
+// kit count/cards in Overview/Connections. "System breakdown" (every wall's
+// own card, stacked) isn't ported here either -- superseded by the Estimate
+// Structure nav + Selected Wall tab.
+// =============================================================================
+import { useState } from "react";
+import { NAVY } from "../styleTokens";
+import { Row, StatsGrid, WarningsList } from "../ui/primitives";
+import { Button } from "../ui/button";
+import { Tabs, TabPanel } from "../ui/tabs";
+import { WallsSummaryTable } from "../ui/wallsCard";
+import { ConnectionBreakdownCard, type PanelScheduleCard } from "../ui/scheduleCards";
+import { buildExtProjAgg } from "../estimate/aggregate";
+import type { CombinedEstimate } from "../estimate/calculateCombinedEstimate";
+import type { ComputeOut, Wall, WallResult } from "../estimate/wall.types";
+import type { EffectiveLayout } from "../useLayoutMode";
+import { WallEstimateCardsExt } from "./mainSections";
+import { OrderContent } from "./orderContent";
+
+function collectProjectWarnings(results: WallResult[], combinedEstimate: CombinedEstimate): string[] {
+  return [
+    ...results.flatMap(r => r.out.warnings ?? []),
+    ...combinedEstimate.connectionWarnings,
+  ];
+}
+
+export const EstimateResultsCard = ({
+  layoutMode, results, activeId, onSelectWall, warnById, toDisp, dimUnit,
+  projAgg, combinedEstimate,
+  active, out, orient, ScheduleComp,
+  onReviewOrder, orderLineItemCount,
+}: {
+  layoutMode: EffectiveLayout;
+  results: WallResult[];
+  activeId: number; onSelectWall: (id: number) => void;
+  warnById: Record<number, boolean>; toDisp: (m: string) => string; dimUnit: string;
+  projAgg: ReturnType<typeof buildExtProjAgg>; combinedEstimate: CombinedEstimate;
+  active: Wall; out: ComputeOut; orient: "vertical" | "horizontal";
+  ScheduleComp: typeof PanelScheduleCard;
+  // Opens the Order Review drawer -- rendered next to the tab pills so it's
+  // reachable from every tab, not just the Order one.
+  onReviewOrder: () => void; orderLineItemCount: number;
+}) => {
+  const [activeTab, setActiveTab] = useState("overview");
+  const projectWarnings = collectProjectWarnings(results, combinedEstimate);
+
+  return (
+    <div className="mt-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <Tabs
+          tabs={[
+            { id: "overview", label: "Overview" },
+            { id: "wall", label: "Selected Wall" },
+            { id: "connections", label: "Connections" },
+            { id: "order", label: "Order" },
+          ]}
+          activeId={activeTab}
+          onChange={setActiveTab}
+        />
+        <Button variant="secondary" onClick={onReviewOrder}>
+          Review order · {orderLineItemCount} item{orderLineItemCount === 1 ? "" : "s"}
+        </Button>
+      </div>
+
+      <TabPanel id="overview" activeId={activeTab}>
+        <StatsGrid stats={[
+          { value: `${projAgg.totalArea} m2`, label: "Total area" },
+          { value: projAgg.panels, label: "Total panels" },
+          { value: results.length, label: "Walls" },
+          { value: projectWarnings.length, label: "Warnings" },
+        ]} />
+        <div className="mt-3">
+          <WallsSummaryTable results={results} activeId={activeId} setActiveId={onSelectWall} warnById={warnById} toDisp={toDisp} dimUnit={dimUnit} />
+        </div>
+        <WarningsList warnings={projectWarnings} />
+      </TabPanel>
+
+      <TabPanel id="wall" activeId={activeTab}>
+        <p className="mb-3 text-sm font-semibold" style={{ color: NAVY }}>Selected wall: {active.name}</p>
+        {out.empty ? (
+          <Row k="Enter width and height to estimate this wall" v="--" dim />
+        ) : (
+          <WallEstimateCardsExt active={active} out={out} orient={orient} layoutMode={layoutMode} ScheduleComp={ScheduleComp} />
+        )}
+      </TabPanel>
+
+      <TabPanel id="connections" activeId={activeTab}>
+        <ConnectionBreakdownCard connections={combinedEstimate.connections} />
+      </TabPanel>
+
+      <TabPanel id="order" activeId={activeTab}>
+        <OrderContent layoutMode={layoutMode} projAgg={projAgg} combinedEstimate={combinedEstimate} />
+      </TabPanel>
+    </div>
+  );
+};
