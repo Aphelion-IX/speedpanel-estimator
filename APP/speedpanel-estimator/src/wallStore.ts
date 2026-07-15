@@ -185,31 +185,45 @@ export function useWallStore({ dimUnit, onWallAdded, persistLocally = true }: { 
   const addCornerWall = () => addWall({ orient: "horizontal", wallSystem: "corner" });
   const addShaftWall = () => addWall({ orient: "horizontal", wallSystem: "shaft", type: 78 });
 
-  const duplicateWall = () => {
+  // sourceId defaults to the active wall (the Calculator Workspace's own
+  // Duplicate button), but a specific id can be passed so a non-active row
+  // (e.g. the Estimate Structure nav's own per-row Duplicate button) can act
+  // on itself without racing setActiveId -- looking the source up fresh from
+  // the setWalls updater's own `ws` avoids depending on `active`/`activeId`
+  // possibly being stale from a just-fired-but-not-yet-applied setActiveId.
+  const duplicateWall = (sourceId: number = activeId) => {
     const id = nextId;
-    setWalls(ws => [...ws, {
-      ...active, id,
-      name: `${active.name} copy`,
-      forcedStock: projectLock ? projectForcedStock() : active.forcedStock,
-    }]);
+    setWalls(ws => {
+      const source = ws.find(w => w.id === sourceId) ?? active;
+      return [...ws, {
+        ...source, id,
+        name: `${source.name} copy`,
+        forcedStock: projectLock ? projectForcedStock() : source.forcedStock,
+      }];
+    });
     setNextId(id + 1);
     setActiveId(id);
     onWallAdded?.();
   };
 
-  const deleteWall = () => {
+  // targetId defaults to the active wall (the Calculator Workspace's own
+  // Delete button); same id-param pattern as duplicateWall above. Only
+  // reassigns activeId when the deleted wall WAS the active one -- deleting
+  // an unrelated row (e.g. from the nav) shouldn't change which wall the
+  // workspace is editing.
+  const deleteWall = (targetId: number = activeId) => {
     if (walls.length === 1) return;
     const rest = walls
-      .filter(w => w.id !== activeId)
+      .filter(w => w.id !== targetId)
       // If the deleted wall was linked to another (Corner or Shaft wall
       // pairing), clear the surviving wall's side of the link too -- a
       // dangling cornerPartnerId/shaftPartnerId would point at a wall that no
       // longer exists.
-      .map(w => w.cornerPartnerId === activeId ? { ...w, cornerPartnerId: null } : w)
-      .map(w => w.shaftPartnerId === activeId ? { ...w, shaftPartnerId: null } : w)
-      .map(w => w.junctionPartnerId === activeId ? { ...w, junctionPartnerId: null } : w);
+      .map(w => w.cornerPartnerId === targetId ? { ...w, cornerPartnerId: null } : w)
+      .map(w => w.shaftPartnerId === targetId ? { ...w, shaftPartnerId: null } : w)
+      .map(w => w.junctionPartnerId === targetId ? { ...w, junctionPartnerId: null } : w);
     setWalls(rest);
-    setActiveId(rest[0].id);
+    if (targetId === activeId) setActiveId(rest[0].id);
   };
 
   // Commit the typed custom length to forcedStock on the active wall (or all

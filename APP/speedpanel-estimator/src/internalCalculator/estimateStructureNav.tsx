@@ -8,32 +8,37 @@
 // ../estimate/navSelection.ts) rendered by the Calculator Workspace's
 // KitWorkspace.
 // =============================================================================
-import { Plus } from "lucide-react";
+import { Copy, Plus, Trash2 } from "lucide-react";
 import { cx, BLUE, GOLD, NAVY, MUTED } from "../styleTokens";
+import { IconButton } from "../ui/primitives";
 import type { Wall, WallResult } from "../estimate/wall.types";
 import { kitLabel, type KitEntry } from "../estimate/synthesizeKits";
 import type { SelectedNavItem } from "../estimate/navSelection";
 
-const NavRow = ({ on, warn, title, subtitle, onClick }: {
+const NavRow = ({ on, warn, title, subtitle, onClick, actions }: {
   on: boolean; warn: boolean; title: string; subtitle: string; onClick: () => void;
+  actions?: React.ReactNode;
 }) => (
-  <button onClick={onClick}
-    className={"relative w-full rounded-xl border-2 px-3.5 py-3 text-left active:scale-95 transition-all " + (on ? "" : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800")}
+  <div className={"relative flex items-center gap-2 rounded-xl border-2 px-3.5 py-3 transition-all " + (on ? "" : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800")}
     style={on ? { borderColor: BLUE, background: BLUE } : undefined}>
     {warn && <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full" style={{ background: GOLD }} />}
-    <div className="text-sm font-bold" style={{ color: on ? "#fff" : NAVY }}>{title}</div>
-    <div className="mt-1 text-xs font-medium" style={{ color: on ? "rgba(255,255,255,0.7)" : MUTED }}>{subtitle}</div>
-  </button>
+    <button onClick={onClick} className="min-w-0 flex-1 text-left active:scale-95 transition-all">
+      <div className="text-sm font-bold" style={{ color: on ? "#fff" : NAVY }}>{title}</div>
+      <div className="mt-1 text-xs font-medium" style={{ color: on ? "rgba(255,255,255,0.7)" : MUTED }}>{subtitle}</div>
+    </button>
+    {actions && <div className="flex shrink-0 items-center gap-1">{actions}</div>}
+  </div>
 );
 
 export const EstimateStructureNav = ({
   walls, results, kits, selected, onSelect, warnById,
-  addBlankWall, addCornerWall, addShaftWall,
+  addBlankWall, addCornerWall, addShaftWall, duplicateWall, deleteWall,
 }: {
   walls: Wall[]; results: WallResult[]; kits: KitEntry[];
   selected: SelectedNavItem; onSelect: (item: SelectedNavItem) => void;
   warnById: Record<number, boolean>;
   addBlankWall: () => void; addCornerWall: () => void; addShaftWall: () => void;
+  duplicateWall: (id: number) => void; deleteWall: (id: number) => void;
 }) => {
   return (
     <div className={`mt-3 ${cx.section}`}>
@@ -47,6 +52,10 @@ export const EstimateStructureNav = ({
             title={w.name}
             subtitle={`${w.orient === "vertical" ? "Vert" : "Horiz"} · P${w.type}${r.empty ? "" : ` · ${r.area} m2`}`}
             onClick={() => onSelect({ type: "wall", wallId: w.id })}
+            actions={<>
+              <IconButton size="sm" onClick={() => duplicateWall(w.id)} title="Duplicate"><Copy size={13} /></IconButton>
+              <IconButton size="sm" variant="danger" onClick={() => deleteWall(w.id)} disabled={walls.length === 1} title="Delete"><Trash2 size={13} /></IconButton>
+            </>}
           />
         ))}
         {kits.map(k => (

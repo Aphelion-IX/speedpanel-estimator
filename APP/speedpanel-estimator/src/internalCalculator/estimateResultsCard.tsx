@@ -28,9 +28,13 @@ import { CornerKitCard, ShaftJunctionCard } from "./kitCards";
 import { WallEstimateCards } from "./mainSections";
 import { OrderContent } from "./orderContent";
 
+// Per-wall warnings are prefixed with the owning wall's name so the
+// project-wide list (which can span many walls) reads like "Wall 2: ..."
+// rather than a bare, unattributed message -- kit/connection warnings
+// already name both partner walls in their own message text.
 function collectProjectWarnings(results: WallResult[], kits: KitEntry[], combinedEstimate: CombinedEstimate): string[] {
   return [
-    ...results.flatMap(r => r.out.warnings ?? []),
+    ...results.flatMap(r => (r.out.warnings ?? []).map(msg => `${r.wall.name}: ${msg}`)),
     ...kits.flatMap(k => k.result.warnings),
     ...combinedEstimate.connectionWarnings,
   ];

@@ -44,7 +44,7 @@ import { PanelScheduleCard, PanelScheduleTable } from "../ui/scheduleCards";
 import { SingleWallEstimateSection } from "./mainSections";
 import { EstimateResultsCard } from "./estimateResultsCard";
 import { OrderReviewDrawer } from "./orderReviewDrawer";
-import { StickyBar } from "../ui/stickyBar";
+import { EstimatorActionBar } from "../ui/estimatorActionBar";
 import { buildInternalReportData } from "../export/buildInternalReportData";
 import { exportEstimateToExcel } from "../export/exportEstimateToExcel";
 
@@ -86,10 +86,10 @@ export function InternalCalculator({ store, orient, dimUnit, setDimUnit, systemS
   const project = mode === "project";
   const projChosenAgg = useMemo(() => aggregate(results), [results]);
   const combinedEstimate = useCombinedEstimateCalc(walls);
-  // Rough "line item" count for the Review Order trigger/sticky bar -- stock
+  // Rough "line item" count for the Review Order trigger/action bar -- stock
   // panel groups + custom-length groups, not every card's every row.
   const orderLineItemCount = projChosenAgg.panels.length + projChosenAgg.customPanels.length;
-  const stickyProjectStats = [
+  const actionBarProjectStats = [
     { value: `${projChosenAgg.totalArea} m2`, label: "Project area" },
     { value: projChosenAgg.totalPanels, label: "Panels" },
     { value: results.length, label: "Walls" },
@@ -139,6 +139,7 @@ export function InternalCalculator({ store, orient, dimUnit, setDimUnit, systemS
       selected={selectedNavItem} onSelect={handleSelectNavItem}
       warnById={warnById}
       addBlankWall={addBlankWall} addCornerWall={addCornerWall} addShaftWall={addShaftWall}
+      duplicateWall={duplicateWall} deleteWall={deleteWall}
     />
   );
 
@@ -253,7 +254,13 @@ export function InternalCalculator({ store, orient, dimUnit, setDimUnit, systemS
     projChosenAgg, combinedEstimate, cornerPair, shaftPair,
   }));
   const footerNode = (
-    <LockedDataFooter title="Locked system data" table={<LockedDataInt />} onExport={handleExport} disabled={!hasExportData} />
+    <>
+      <LockedDataFooter title="Locked system data" table={<LockedDataInt />} />
+      {/* Clears the fixed EstimatorActionBar below so it never overlaps the
+          last bit of scrollable content -- App.tsx's shared shell padding
+          isn't touched since it's used by every tab, not just this one. */}
+      <div className="h-24" />
+    </>
   );
 
   const orderDrawerNode = (
@@ -263,20 +270,23 @@ export function InternalCalculator({ store, orient, dimUnit, setDimUnit, systemS
       onExport={handleExport} exportDisabled={!hasExportData}
     />
   );
-  // Mobile-only sticky summary bar -- project mode only, since Review Order
-  // opens the project-wide order the drawer above shows; single-wall mode's
-  // existing footer Export button is untouched.
-  const stickyBarNode = project && layoutMode === "phone" && (
-    <StickyBar
-      view="project" wallStats={[]} projectStats={stickyProjectStats}
-      onReviewOrder={() => setOrderDrawerOpen(true)} lineItemCount={orderLineItemCount}
+  // Persistent on both layouts and both modes now (see estimatorActionBar.tsx)
+  // -- project stats + Review Order only apply once there's a project-wide
+  // order to review; single-wall mode still gets Export + the two placeholders.
+  const actionBarNode = (
+    <EstimatorActionBar
+      hasExportData={hasExportData} onExport={handleExport}
+      projectStats={project ? actionBarProjectStats : undefined}
+      onReviewOrder={project ? () => setOrderDrawerOpen(true) : undefined}
+      lineItemCount={project ? orderLineItemCount : undefined}
     />
   );
 
-  if (layoutMode === "phone") return <>{sidebarNode}{mainNode}{footerNode}{stickyBarNode}{orderDrawerNode}</>;
+  if (layoutMode === "phone") return <>{sidebarNode}{mainNode}{footerNode}{actionBarNode}{orderDrawerNode}</>;
   return (
     <>
       <CalculatorShell sidebar={sidebarNode} main={mainNode} footer={footerNode} sidebarWidth={320} />
+      {actionBarNode}
       {orderDrawerNode}
     </>
   );

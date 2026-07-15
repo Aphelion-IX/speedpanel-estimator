@@ -23,9 +23,12 @@ import type { EffectiveLayout } from "../useLayoutMode";
 import { WallEstimateCardsExt } from "./mainSections";
 import { OrderContent } from "./orderContent";
 
+// Per-wall warnings are prefixed with the owning wall's name, mirrors
+// internalCalculator's version -- connection warnings already name both
+// partner walls in their own message text.
 function collectProjectWarnings(results: WallResult[], combinedEstimate: CombinedEstimate): string[] {
   return [
-    ...results.flatMap(r => r.out.warnings ?? []),
+    ...results.flatMap(r => (r.out.warnings ?? []).map(msg => `${r.wall.name}: ${msg}`)),
     ...combinedEstimate.connectionWarnings,
   ];
 }

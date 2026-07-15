@@ -132,11 +132,13 @@ export const cx = {
   drawerPanel:   "flex h-full w-full max-w-md flex-col bg-white dark:bg-slate-800 shadow-[-30px_0_60px_-24px_rgba(15,23,42,0.4)] outline-none dark:shadow-[-30px_0_60px_-24px_rgba(0,0,0,0.6)]",
   drawerSheet:   "flex h-full w-full flex-col bg-white dark:bg-slate-800 outline-none",
 
-  // -- Mobile sticky summary bar -------------------------------------------------
-  // src/ui/stickyBar.tsx -- fixed bottom bar, no equivalent existed anywhere
-  // in the app before this. Safe-area-aware bottom padding for iOS home indicator.
-  stickyBar:    "fixed inset-x-0 bottom-0 z-40 flex items-center gap-4 border-t border-slate-200 dark:border-slate-700 bg-white/95 dark:bg-slate-800/95 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-20px_40px_-28px_rgba(15,23,42,0.35)] backdrop-blur dark:shadow-[0_-20px_40px_-24px_rgba(0,0,0,0.5)]",
-  stickyBarBtn: "shrink-0 rounded-xl bg-slate-800 px-4 py-2.5 text-sm font-bold tracking-wide text-white transition-colors hover:bg-slate-700 active:scale-[0.99]",
+  // -- Estimator action bar -----------------------------------------------------
+  // src/ui/estimatorActionBar.tsx -- persistent fixed bottom bar, rendered on
+  // both layouts and in both Single Wall/Project Estimate modes (not a
+  // mobile-only pattern). Buttons inside it reuse src/ui/button.tsx's Button
+  // rather than one-off classes. Safe-area-aware bottom padding for iOS home
+  // indicator.
+  actionBar: "fixed inset-x-0 bottom-0 z-40 flex items-center justify-end gap-2 border-t border-slate-200 dark:border-slate-700 bg-white/95 dark:bg-slate-800/95 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-20px_40px_-28px_rgba(15,23,42,0.35)] backdrop-blur dark:shadow-[0_-20px_40px_-24px_rgba(0,0,0,0.5)]",
 
   // -- Footnotes & auxiliary text ---------------------------------------------
   footnote:  "pt-2 text-sm leading-relaxed text-slate-400 dark:text-slate-500",

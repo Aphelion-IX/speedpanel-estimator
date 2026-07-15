@@ -32,7 +32,7 @@ import {
 import { LockedDataExt, LockedDataFooter } from "../ui/lockedData";
 import { PanelLengthSection } from "../ui/lengthExplorer";
 import { WallsCard } from "../ui/wallsCard";
-import { StickyBar } from "../ui/stickyBar";
+import { EstimatorActionBar } from "../ui/estimatorActionBar";
 import { EstimateStructureNav } from "./estimateStructureNav";
 import {
   ProfileSection, DimensionInputs, SpanTable, EdgeRestraintSelector, ProjectSeparator,
@@ -85,7 +85,7 @@ export function ExternalCalculator({ store, orient, dimUnit, setDimUnit, systemS
     { value: colourLabel, label: "Colour" },
     { value: active.orient === "vertical" ? "Vertical" : "Horizontal", label: "Config" },
   ];
-  const stickyProjectStats = [
+  const actionBarProjectStats = [
     { value: `${projAgg.totalArea} m2`, label: "Project area" },
     { value: projAgg.panels, label: "Panels" },
     { value: results.length, label: "Walls" },
@@ -95,6 +95,7 @@ export function ExternalCalculator({ store, orient, dimUnit, setDimUnit, systemS
     <EstimateStructureNav
       walls={walls} results={results} activeId={activeId} onSelectWall={setActiveId}
       warnById={warnById} addBlankWall={addBlankWall}
+      duplicateWall={duplicateWall} deleteWall={deleteWall}
     />
   );
 
@@ -194,7 +195,11 @@ export function ExternalCalculator({ store, orient, dimUnit, setDimUnit, systemS
     projAgg, combinedEstimate,
   }));
   const footerNode = (
-    <LockedDataFooter title="Locked external system data" table={<LockedDataExt />} onExport={handleExport} disabled={!hasExportData} />
+    <>
+      <LockedDataFooter title="Locked external system data" table={<LockedDataExt />} />
+      {/* Clears the fixed EstimatorActionBar below, mirrors Internal's. */}
+      <div className="h-24" />
+    </>
   );
 
   const orderDrawerNode = (
@@ -204,20 +209,24 @@ export function ExternalCalculator({ store, orient, dimUnit, setDimUnit, systemS
       onExport={handleExport} exportDisabled={!hasExportData}
     />
   );
-  // Mobile-only sticky summary bar -- project mode only, mirrors Internal's.
-  const stickyBarNode = project && layoutMode === "phone" && (
-    <StickyBar
-      view="project" wallStats={[]} projectStats={stickyProjectStats}
-      onReviewOrder={() => setOrderDrawerOpen(true)} lineItemCount={orderLineItemCount}
+  // Persistent on both layouts and both modes now (see estimatorActionBar.tsx),
+  // mirrors Internal's.
+  const actionBarNode = (
+    <EstimatorActionBar
+      hasExportData={hasExportData} onExport={handleExport}
+      projectStats={project ? actionBarProjectStats : undefined}
+      onReviewOrder={project ? () => setOrderDrawerOpen(true) : undefined}
+      lineItemCount={project ? orderLineItemCount : undefined}
     />
   );
 
   if (layoutMode === "phone") {
-    return <div>{sidebarNode}{mainNode}{footerNode}{stickyBarNode}{orderDrawerNode}</div>;
+    return <div>{sidebarNode}{mainNode}{footerNode}{actionBarNode}{orderDrawerNode}</div>;
   }
   return (
     <>
       <CalculatorShell sidebar={sidebarNode} main={mainNode} footer={footerNode} sidebarWidth={320} />
+      {actionBarNode}
       {orderDrawerNode}
     </>
   );
