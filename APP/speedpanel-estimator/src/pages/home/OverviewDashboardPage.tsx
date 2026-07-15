@@ -9,11 +9,14 @@
 // (dark-only) with light-mode equivalents added throughout, same approach
 // used for the SpeedHub login page.
 // =============================================================================
-import { Calculator, LayoutGrid, BookOpen, FolderKanban, CheckCircle2, ChevronRight, Search, Headphones } from "lucide-react";
+import { Calculator, LayoutGrid, BookOpen, FolderKanban, CheckCircle2, ChevronRight, Search, Headphones, AlertCircle, FileText, Send, ListChecks } from "lucide-react";
 import { NAVY, BLUE } from "../../styleTokens";
+import { Card } from "../../ui/primitives";
 import type { Route } from "../../appShell/useHashRoute";
 import type { UseAuth } from "../../lib/useAuth";
 import { nameFromEmail } from "../../lib/emailDisplay";
+import { useOrdersSummary } from "../projects/dashboardStore";
+import { useProjects } from "../projects/projectsStore";
 
 type Accent = "blue" | "cyan" | "purple";
 
@@ -78,7 +81,59 @@ function WorkspaceCard({ title, description, features, accent, icon: Icon, onCli
   );
 }
 
-export const OverviewDashboardPage = ({ auth, navigate }: { auth: UseAuth; navigate: (route: Route) => void }) => {
+// Customer-only -- surfaces the handful of "needs your action" states that
+// otherwise only show up once you're already inside a specific project/
+// order (ReviewActionPanel.tsx's review gating, OrderDetailPage.tsx's
+// stage-gated buttons). Reuses the same two hooks ProjectsListPage.tsx
+// already mounts for its own stat rows -- no new Supabase query. Renders
+// nothing while loading or once loaded with zero actionable items, same
+// "safe to mount unconditionally" posture as WarningsList/
+// PendingInvitationsBanner elsewhere in this app.
+function NextActionsCallout({ auth, navigate, activeCompanyId }: {
+  auth: UseAuth; navigate: (route: Route) => void; activeCompanyId: string | null;
+}) {
+  const orders = useOrdersSummary(auth.user);
+  const projects = useProjects(auth.user, activeCompanyId);
+  if (orders.loading || projects.loading) return null;
+
+  const changesNeeded = projects.projects.filter(p =>
+    p.install_review_status === "changes_requested" || p.technical_review_status === "changes_requested").length;
+  const draftOrders = orders.ordersByStage.draft;
+  const submittedOrders = orders.ordersByStage.submitted;
+  const proformaIssuedOrders = orders.ordersByStage.proforma_issued;
+
+  const rows = [
+    changesNeeded > 0 && { key: "changes", Icon: AlertCircle, iconClass: "text-amber-600 dark:text-amber-400",
+      label: `${changesNeeded} project${changesNeeded !== 1 ? "s" : ""} need${changesNeeded === 1 ? "s" : ""} changes from you` },
+    draftOrders > 0 && { key: "draft", Icon: FileText, iconClass: "text-slate-500 dark:text-slate-400",
+      label: `${draftOrders} order${draftOrders !== 1 ? "s" : ""} still in draft` },
+    submittedOrders > 0 && { key: "submitted", Icon: Send, iconClass: "text-blue-600 dark:text-blue-400",
+      label: `${submittedOrders} order${submittedOrders !== 1 ? "s" : ""} ready to request a pro forma invoice` },
+    proformaIssuedOrders > 0 && { key: "proforma", Icon: CheckCircle2, iconClass: "text-emerald-600 dark:text-emerald-400",
+      label: `${proformaIssuedOrders} pro forma invoice${proformaIssuedOrders !== 1 ? "s" : ""} ready to view` },
+  ].filter((r): r is Exclude<typeof r, false> => r !== false);
+
+  if (rows.length === 0) return null;
+
+  return (
+    <Card title="Next Actions" icon={<ListChecks size={14} />}>
+      {rows.map(r => (
+        <button key={r.key} type="button" onClick={() => navigate({ tab: "projects" })}
+          className="flex w-full items-center justify-between gap-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 text-left transition hover:border-blue-300 dark:hover:border-blue-500/50">
+          <span className="flex items-center gap-3">
+            <r.Icon className={`h-5 w-5 shrink-0 ${r.iconClass}`} />
+            <span className="text-sm text-slate-700 dark:text-slate-300">{r.label}</span>
+          </span>
+          <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />
+        </button>
+      ))}
+    </Card>
+  );
+}
+
+export const OverviewDashboardPage = ({ auth, navigate, isInternalStaff, activeCompanyId }: {
+  auth: UseAuth; navigate: (route: Route) => void; isInternalStaff: boolean; activeCompanyId: string | null;
+}) => {
   const name = auth.user?.email ? nameFromEmail(auth.user.email) : "there";
 
   return (
@@ -89,6 +144,8 @@ export const OverviewDashboardPage = ({ auth, navigate }: { auth: UseAuth; navig
         </h1>
         <p className="mt-3 text-lg text-slate-500 dark:text-slate-400">Select a workspace to get started.</p>
       </section>
+
+      {!isInternalStaff && <NextActionsCallout auth={auth} navigate={navigate} activeCompanyId={activeCompanyId} />}
 
       <section className="mt-8 grid gap-6 lg:grid-cols-4">
         {WORKSPACES.map(w => (

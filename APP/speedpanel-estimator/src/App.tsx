@@ -219,7 +219,10 @@ export default function SpeedpanelEstimator() {
             about the account, not any one page. */}
         {auth.session && <PendingInvitationsBanner userEmail={auth.user?.email} onAccepted={company.reload} />}
 
-        {route.tab === "home" && <OverviewDashboardPage auth={auth} navigate={navigate} />}
+        {route.tab === "home" && (
+          <OverviewDashboardPage auth={auth} navigate={navigate}
+            isInternalStaff={isInternalStaff} activeCompanyId={company.activeCompanyId} />
+        )}
 
         {route.tab === "selector"  && (
           <SystemSelector layoutMode={layoutMode} system={system} activeWallSystem={active.wallSystem}
