@@ -43,6 +43,8 @@ import type { FinishKey, CornersField } from "../ui/wallConfig";
 import { PanelScheduleCard, PanelScheduleTable } from "../ui/scheduleCards";
 import { SingleWallEstimateSection } from "./mainSections";
 import { EstimateResultsCard } from "./estimateResultsCard";
+import { OrderReviewDrawer } from "./orderReviewDrawer";
+import { StickyBar } from "../ui/stickyBar";
 import { buildInternalReportData } from "../export/buildInternalReportData";
 import { exportEstimateToExcel } from "../export/exportEstimateToExcel";
 
@@ -55,6 +57,7 @@ export function InternalCalculator({ store, orient, dimUnit, setDimUnit, systemS
   linkShaftPartner: (targetId: number | null) => void;
 }) {
   const [showTrackFinish, setShowTrackFinish] = useState(false);
+  const [orderDrawerOpen, setOrderDrawerOpen] = useState(false);
 
   const {
     walls, activeId, setActiveId,
@@ -83,6 +86,14 @@ export function InternalCalculator({ store, orient, dimUnit, setDimUnit, systemS
   const project = mode === "project";
   const projChosenAgg = useMemo(() => aggregate(results), [results]);
   const combinedEstimate = useCombinedEstimateCalc(walls);
+  // Rough "line item" count for the Review Order trigger/sticky bar -- stock
+  // panel groups + custom-length groups, not every card's every row.
+  const orderLineItemCount = projChosenAgg.panels.length + projChosenAgg.customPanels.length;
+  const stickyProjectStats = [
+    { value: `${projChosenAgg.totalArea} m2`, label: "Project area" },
+    { value: projChosenAgg.totalPanels, label: "Panels" },
+    { value: results.length, label: "Walls" },
+  ];
 
   const cornerPair = useMemo(() => {
     if (orient !== "horizontal" || active.wallSystem !== "corner" || !active.cornerPartnerId) return null;
@@ -228,6 +239,7 @@ export function InternalCalculator({ store, orient, dimUnit, setDimUnit, systemS
             projChosenAgg={projChosenAgg} combinedEstimate={combinedEstimate}
             active={active} out={out} orient={orient} cornerPair={cornerPair} shaftPair={shaftPair}
             ScheduleComp={ScheduleComp}
+            onReviewOrder={() => setOrderDrawerOpen(true)} orderLineItemCount={orderLineItemCount}
           />
         </>
       )}
@@ -245,6 +257,28 @@ export function InternalCalculator({ store, orient, dimUnit, setDimUnit, systemS
     <LockedDataFooter title="Locked system data" table={<LockedDataInt />} onExport={handleExport} disabled={!hasExportData} />
   );
 
-  if (layoutMode === "phone") return <>{sidebarNode}{mainNode}{footerNode}</>;
-  return <CalculatorShell sidebar={sidebarNode} main={mainNode} footer={footerNode} sidebarWidth={320} />;
+  const orderDrawerNode = (
+    <OrderReviewDrawer
+      open={orderDrawerOpen} onClose={() => setOrderDrawerOpen(false)} layoutMode={layoutMode}
+      projChosenAgg={projChosenAgg} combinedEstimate={combinedEstimate} results={results}
+      onExport={handleExport} exportDisabled={!hasExportData}
+    />
+  );
+  // Mobile-only sticky summary bar -- project mode only, since Review Order
+  // opens the project-wide order the drawer above shows; single-wall mode's
+  // existing footer Export button is untouched.
+  const stickyBarNode = project && layoutMode === "phone" && (
+    <StickyBar
+      view="project" wallStats={[]} projectStats={stickyProjectStats}
+      onReviewOrder={() => setOrderDrawerOpen(true)} lineItemCount={orderLineItemCount}
+    />
+  );
+
+  if (layoutMode === "phone") return <>{sidebarNode}{mainNode}{footerNode}{stickyBarNode}{orderDrawerNode}</>;
+  return (
+    <>
+      <CalculatorShell sidebar={sidebarNode} main={mainNode} footer={footerNode} sidebarWidth={320} />
+      {orderDrawerNode}
+    </>
+  );
 }
