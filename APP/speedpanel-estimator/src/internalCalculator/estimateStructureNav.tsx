@@ -3,11 +3,10 @@
 // =============================================================================
 // Permanent navigator listing every wall plus synthesized Corner/Shaft "kit"
 // rows (see ../estimate/synthesizeKits.ts) as one selectable list -- replaces
-// the old flat wall-tab strip (still WallsCard's WallTabsAndActions, used
-// as-is by External) for Internal only. Selecting a wall drives activeId
-// exactly as the old tab strip did; selecting a kit is new local state (see
-// ../estimate/navSelection.ts) with nothing to show yet -- Phase C's
-// Calculator Workspace is what will render a contextual editor for it.
+// the old flat wall-tab strip for Internal. Selecting a wall drives activeId
+// exactly as the old tab strip did; selecting a kit is local state (see
+// ../estimate/navSelection.ts) rendered by the Calculator Workspace's
+// KitWorkspace.
 // =============================================================================
 import { Plus } from "lucide-react";
 import { cx, BLUE, GOLD, NAVY, MUTED } from "../styleTokens";

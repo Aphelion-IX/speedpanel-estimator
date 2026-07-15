@@ -8,7 +8,7 @@
 // layout shell both calculators compose their content into. No dependency on
 // Wall or the compute engine; pure props in, JSX out.
 // =============================================================================
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { r1 } from "../estimate/mathUtils";
 import { cx, BLUE, GOLD, WHITE, NAVY } from "../styleTokens";
 import type { EffectiveLayout } from "../useLayoutMode";
@@ -280,47 +280,3 @@ export const CalculatorShell = ({ sidebar, main, footer, sidebarWidth = 400 }: {
   </div>
 );
 
-// --- SectionNav ---------------------------------------------------------------
-// Sticky jump-nav for project mode's long main column (Wall list -> System
-// breakdown -> Connection breakdown -> Easy to order): click a pill to
-// smooth-scroll to that section's id, current pill highlights via
-// IntersectionObserver as the matching section crosses a band near the top
-// of the viewport. Purely a navigation aid -- doesn't read or affect any
-// estimate state.
-export const SectionNav = ({ sections }: { sections: { id: string; label: string }[] }) => {
-  const [activeId, setActiveId] = useState(sections[0]?.id);
-
-  useEffect(() => {
-    const els = sections
-      .map(s => document.getElementById(s.id))
-      .filter((el): el is HTMLElement => el !== null);
-    if (els.length === 0) return;
-    const observer = new IntersectionObserver(
-      entries => {
-        const visible = entries.filter(e => e.isIntersecting);
-        if (visible.length > 0) setActiveId(visible[0].target.id);
-      },
-      { rootMargin: "-15% 0px -70% 0px" }
-    );
-    els.forEach(el => observer.observe(el));
-    return () => observer.disconnect();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sections.map(s => s.id).join(",")]);
-
-  if (sections.length === 0) return null;
-  return (
-    <div className="sticky top-5 z-10 mt-4 -mx-1 flex gap-1.5 overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-white/90 dark:bg-slate-800/90 p-1.5 shadow-sm backdrop-blur">
-      {sections.map(s => {
-        const on = s.id === activeId;
-        return (
-          <button key={s.id}
-            onClick={() => document.getElementById(s.id)?.scrollIntoView({ behavior: "smooth", block: "start" })}
-            className="shrink-0 rounded-lg px-3 py-2 text-xs font-bold uppercase tracking-wide whitespace-nowrap transition-all"
-            style={on ? { background: BLUE, color: WHITE } : { color: "#94a3b8" }}>
-            {s.label}
-          </button>
-        );
-      })}
-    </div>
-  );
-};

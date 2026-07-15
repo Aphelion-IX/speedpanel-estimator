@@ -155,14 +155,13 @@ export function InternalCalculator({ store, orient, dimUnit, setDimUnit, systemS
       ) : (
         <>
           <WallsCard
-            walls={walls} results={results} activeId={activeId} setActiveId={setActiveId}
-            active={active} update={update} addBlankWall={addBlankWall}
-            duplicateWall={duplicateWall} deleteWall={deleteWall} warnById={warnById}
+            walls={walls}
+            active={active} update={update}
+            duplicateWall={duplicateWall} deleteWall={deleteWall}
             showTypes={true} systemSelector={systemSelector} orient={orient}
             onCornerLink={linkCornerPartner}
             onShaftLink={linkShaftPartner}
             onJunctionLink={linkJunctionPartner}
-            hideWallTabs
           />
 
           {/* Profile and dimensions */}

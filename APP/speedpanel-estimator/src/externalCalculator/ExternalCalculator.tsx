@@ -107,12 +107,11 @@ export function ExternalCalculator({ store, orient, dimUnit, setDimUnit, systemS
 
       <SectionLabel icon={<Settings size={13} />}>{`Calculator workspace — ${workspaceTitle}`}</SectionLabel>
       <WallsCard
-        walls={walls} results={results} activeId={activeId} setActiveId={setActiveId}
-        active={active} update={update} addBlankWall={addBlankWall}
-        duplicateWall={duplicateWall} deleteWall={deleteWall} warnById={warnById} showTypes={false}
+        walls={walls}
+        active={active} update={update}
+        duplicateWall={duplicateWall} deleteWall={deleteWall} showTypes={false}
         systemSelector={systemSelector} orient={orient}
         onJunctionLink={linkJunctionPartner}
-        hideWallTabs
       />
 
       <CollapsibleSection icon={<Box size={13} />} label="Panel configuration" defaultOpen>
