@@ -4,8 +4,9 @@
 // No mutations, no per-row interaction -- just Stat tiles fed by
 // analyticsStore.ts's aggregate queries.
 // =============================================================================
-import { cx, NAVY, MUTED } from "../../styleTokens";
+import { cx } from "../../styleTokens";
 import { Stat } from "../../ui/primitives";
+import { LoadingState, ErrorState } from "../../ui/states";
 import { useAdminAnalytics } from "./analytics/analyticsStore";
 import { REQUEST_STATUSES } from "../projects/requests/requestTypes";
 import { STAGES, STAGE_LABELS } from "../projects/projectTypes";
@@ -14,16 +15,11 @@ export const AdminAnalyticsPage = () => {
   const { data, loading, error, reload } = useAdminAnalytics();
 
   if (loading) {
-    return <div className={`${cx.card} mt-6 text-sm`} style={{ color: MUTED }}>Loading...</div>;
+    return <LoadingState className="mt-6" label="Loading analytics" />;
   }
 
   if (error || !data) {
-    return (
-      <div className={`${cx.card} mt-6`}>
-        <p className="text-sm text-red-600 dark:text-red-400">{error ?? "No data."}</p>
-        <button onClick={() => reload()} className="mt-2 text-sm font-bold" style={{ color: NAVY }}>Retry</button>
-      </div>
-    );
+    return <ErrorState className="mt-6" message={error ?? "No data."} onRetry={() => reload()} />;
   }
 
   return (

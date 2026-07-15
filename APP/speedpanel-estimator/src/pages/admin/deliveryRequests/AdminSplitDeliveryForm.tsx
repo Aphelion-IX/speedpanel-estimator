@@ -15,7 +15,9 @@
 import { useEffect, useState } from "react";
 import { z } from "zod";
 import { supabase } from "../../../lib/supabaseClient";
-import { cx, NAVY, BLUE, WHITE } from "../../../styleTokens";
+import { cx, NAVY } from "../../../styleTokens";
+import { Button } from "../../../ui/button";
+import { LoadingState, ErrorState } from "../../../ui/states";
 import { Field, SelectField, TextAreaField } from "../../shared/fields";
 import { OrderLineItemSchema, type OrderLineItem } from "../../../export/priceEstimateReportData";
 import { LineItemAllocationTable } from "../../projects/orders/LineItemAllocationTable";
@@ -64,8 +66,8 @@ export const AdminSplitDeliveryForm = ({ orderId, existingAllocations, onCreate,
 
   const setAllocation = (lineItemId: string, qty: number) => setAllocations(a => ({ ...a, [lineItemId]: qty }));
 
-  if (loadError) return <p className="text-sm text-red-600 dark:text-red-400">{loadError}</p>;
-  if (!lineItems) return <p className={cx.footnote}>Loading order items...</p>;
+  if (loadError) return <ErrorState message={loadError} />;
+  if (!lineItems) return <LoadingState label="Loading order items" />;
 
   const remaining: Record<string, number> = Object.fromEntries(lineItems.map(i => [i.id, i.qty]));
   for (const a of existingAllocations) remaining[a.lineItemId] = (remaining[a.lineItemId] ?? 0) - a.qty;
@@ -120,13 +122,8 @@ export const AdminSplitDeliveryForm = ({ orderId, existingAllocations, onCreate,
       {error && <p className="mt-3 text-sm text-red-600 dark:text-red-400">{error}</p>}
 
       <div className="mt-4 flex gap-2">
-        <button onClick={handleSubmit} disabled={submitting}
-          className="rounded-xl px-4 py-2.5 text-sm font-bold disabled:opacity-50" style={{ background: BLUE, color: WHITE }}>
-          {submitting ? "Creating..." : "Create delivery"}
-        </button>
-        <button onClick={onCancel} className="rounded-xl border border-slate-200 dark:border-slate-700 px-4 py-2.5 text-sm font-bold" style={{ color: NAVY }}>
-          Cancel
-        </button>
+        <Button onClick={handleSubmit} disabled={submitting}>{submitting ? "Creating..." : "Create delivery"}</Button>
+        <Button variant="secondary" onClick={onCancel}>Cancel</Button>
       </div>
     </div>
   );

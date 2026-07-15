@@ -19,6 +19,12 @@ body {
   --gold: #F0B323;      /* accent -- highlights, warnings, special-order badge -- PANTONE 7409 C */
   --on-fill: #FFFFFF;   /* text/icon colour on filled (BLUE/GOLD) backgrounds */
   --muted: #94A3B8;     /* inactive/unselected text & icon colour */
+
+  /* Heading-weight gradient -- the two mid-steps between --navy (H1, full
+     strength) and the body-copy muted tone, so heading hierarchy reads in
+     colour as well as size/weight. See styleTokens.ts's cx.h1/h2/h3. */
+  --navy-2: #1C304E;
+  --navy-3: #2C3E5B;
 }
 
 .dark {
@@ -28,4 +34,6 @@ body {
   --gold: #F0C152;      /* brightened tint of the new brand gold, same lightening ratio as before */
   --on-fill: #FFFFFF;
   --muted: #94A3B8;
+  --navy-2: #D3D9E8;
+  --navy-3: #BEC6DA;
 }

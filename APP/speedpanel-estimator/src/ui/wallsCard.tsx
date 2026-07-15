@@ -10,6 +10,8 @@
 import { Copy, Frame, Plus, Trash2 } from "lucide-react";
 import { cx, NAVY, BLUE, GOLD, MUTED } from "../styleTokens";
 import { TYPES } from "../data";
+import { IconButton } from "./primitives";
+import { Table, type TableColumn } from "./table";
 import type { Wall, WallResult } from "../estimate/wall.types";
 import type { WallSystemId } from "../App";
 
@@ -259,11 +261,8 @@ const WallTabsAndActions = ({ walls, results, activeId, setActiveId, active, upd
     </div>
     <div className="flex items-center gap-2 mt-2">
       <input value={active.name} onChange={e => update({ name: e.target.value })} maxLength={32} className={cx.wallName} style={{ color: NAVY }} />
-      <button onClick={duplicateWall} title="Duplicate" className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-400 dark:text-slate-500 shadow-sm active:scale-95"><Copy size={15} /></button>
-      <button onClick={deleteWall} disabled={walls.length === 1} title="Delete"
-        className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl border shadow-sm active:scale-95 ${walls.length === 1 ? "border-slate-100 dark:border-slate-800 text-slate-300 dark:text-slate-600" : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-red-400 dark:text-red-400"}`}>
-        <Trash2 size={15} />
-      </button>
+      <IconButton onClick={duplicateWall} title="Duplicate"><Copy size={15} /></IconButton>
+      <IconButton onClick={deleteWall} disabled={walls.length === 1} variant="danger" title="Delete"><Trash2 size={15} /></IconButton>
     </div>
   </div>
 );
@@ -339,49 +338,37 @@ export const WallsSummaryTable = ({ results, activeId, setActiveId, warnById, to
   results: WallResult[]; activeId: number; setActiveId: (id: number) => void;
   warnById: Record<number, boolean>; toDisp: (m: string) => string; dimUnit: string;
 }) => {
-  const TH = "py-2.5 px-3 text-left text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-800";
-  const TD = "py-2.5 px-3 text-sm text-slate-600 dark:text-slate-300 border-b border-slate-100 dark:border-slate-800 last:border-0";
-  const TDm = "py-2.5 px-3 text-sm font-semibold border-b border-slate-100 dark:border-slate-800 last:border-0";
   const dim = (m: string) => (m ? `${toDisp(m)} ${dimUnit}` : "--");
+  const columns: TableColumn<WallResult>[] = [
+    {
+      key: "wall", header: "Wall",
+      cell: ({ wall }) => (
+        <span className="font-semibold" style={{ color: NAVY }}>
+          {warnById[wall.id] && <span className="mr-1.5 inline-block h-2 w-2 rounded-full align-middle" style={{ background: GOLD }} />}
+          {wall.name}
+        </span>
+      ),
+    },
+    { key: "orientation", header: "Orientation", cell: ({ wall }) => (wall.orient === "vertical" ? "Vertical" : "Horizontal") },
+    { key: "type", header: "Type", cell: ({ wall }) => `P${wall.type}` },
+    { key: "width", header: "Width", cell: ({ wall }) => dim(wall.width) },
+    { key: "height", header: "Height", cell: ({ wall }) => dim(wall.height) },
+    { key: "area", header: "Area", cell: ({ out }) => (out.empty ? "--" : `${out.area} m2`) },
+    { key: "panels", header: "Panels", cell: ({ out }) => (out.empty ? "--" : (out.chosen?.panels ?? out.result?.panels ?? "--")) },
+  ];
   return (
     <div className={`mt-3 ${cx.card}`}>
       <div className={cx.cardTitle} style={{ color: NAVY }}>
         <span style={{ color: BLUE }}><Frame size={14} /></span>Walls ({results.length})
       </div>
-      <div className="overflow-x-auto">
-      <table className="w-full min-w-[560px]">
-        <thead>
-          <tr>
-            <th className={TH}>Wall</th>
-            <th className={TH}>Orientation</th>
-            <th className={TH}>Type</th>
-            <th className={TH}>Width</th>
-            <th className={TH}>Height</th>
-            <th className={TH}>Area</th>
-            <th className={TH}>Panels</th>
-          </tr>
-        </thead>
-        <tbody>
-          {results.map(({ wall, out }) => {
-            const on = wall.id === activeId;
-            return (
-              <tr key={wall.id} onClick={() => setActiveId(wall.id)}
-                className={`cursor-pointer transition-colors ${on ? "bg-blue-50/60 dark:bg-blue-950/40" : "hover:bg-slate-50 dark:hover:bg-slate-800"}`}>
-                <td className={TDm} style={{ color: NAVY }}>
-                  {warnById[wall.id] && <span className="mr-1.5 inline-block h-2 w-2 rounded-full align-middle" style={{ background: GOLD }} />}
-                  {wall.name}
-                </td>
-                <td className={TD}>{wall.orient === "vertical" ? "Vertical" : "Horizontal"}</td>
-                <td className={TD}>P{wall.type}</td>
-                <td className={TD}>{dim(wall.width)}</td>
-                <td className={TD}>{dim(wall.height)}</td>
-                <td className={TD}>{out.empty ? "--" : `${out.area} m2`}</td>
-                <td className={TD}>{out.empty ? "--" : (out.chosen?.panels ?? out.result?.panels ?? "--")}</td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+      <div className="mt-2">
+        <Table
+          columns={columns}
+          rows={results}
+          rowKey={({ wall }) => wall.id}
+          onRowClick={({ wall }) => setActiveId(wall.id)}
+          rowClassName={({ wall }) => (wall.id === activeId ? "bg-blue-50/60 dark:bg-blue-950/40" : undefined)}
+        />
       </div>
     </div>
   );

@@ -25,10 +25,14 @@ import {
   Building2, Activity as ActivityIcon,
   Send, CheckCircle2, AlertCircle, ChevronLeft, ChevronRight,
   CalendarDays, ShoppingCart, FileText, Box, UserRound, ClipboardCheck, Wrench,
+  Trash2, Pencil,
 } from "lucide-react";
 import { cx, NAVY, BLUE, WHITE, MUTED } from "../../styleTokens";
 import { Field } from "../shared/fields";
-import { Card, WarningsList, Stat } from "../../ui/primitives";
+import { Card, WarningsList, Stat, IconButton } from "../../ui/primitives";
+import { Button } from "../../ui/button";
+import { LoadingState, ErrorState } from "../../ui/states";
+import { ConfirmDialog } from "../../ui/confirmDialog";
 import type { EffectiveLayout } from "../../useLayoutMode";
 import { useProject } from "./projectDetailStore";
 import { useProjectCompanyNames } from "./projectsStore";
@@ -93,6 +97,7 @@ export const ProjectDetailPage = ({ id, userId, onBack, onOpenEstimator, onCreat
   const [actionError, setActionError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [quickActionBusy, setQuickActionBusy] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const journey = useMemo(() => {
     if (!project) return null;
@@ -109,13 +114,12 @@ export const ProjectDetailPage = ({ id, userId, onBack, onOpenEstimator, onCreat
   const representativeOrder = orders.find(o => o.id === journey?.representativeOrderId);
   const representativeDeliveries = representativeOrder ? (deliveriesByOrder.get(representativeOrder.id) ?? []) : [];
 
-  if (loading) return <div className={`${cx.card} mt-5 text-sm`} style={{ color: MUTED }}>Loading...</div>;
+  if (loading) return <LoadingState className="mt-5" label="Loading project" />;
 
   if (error || !project || !journey) {
     return (
-      <div className={`${cx.card} mt-5`}>
-        <p className="text-sm text-red-600 dark:text-red-400">{error || "Project not found."}</p>
-        <button onClick={() => reload()} className="mt-2 mr-4 text-sm font-bold" style={{ color: NAVY }}>Retry</button>
+      <div className="mt-5">
+        <ErrorState message={error || "Project not found."} onRetry={() => reload()} />
         <button onClick={onBack} className="mt-2 text-sm font-bold" style={{ color: BLUE }}>All projects</button>
       </div>
     );
@@ -133,7 +137,6 @@ export const ProjectDetailPage = ({ id, userId, onBack, onOpenEstimator, onCreat
   };
 
   const handleDelete = async () => {
-    if (!window.confirm(`Delete "${project.name}"? This can't be undone.`)) return;
     setDeleting(true);
     const err = await deleteProject();
     setDeleting(false);
@@ -174,16 +177,22 @@ export const ProjectDetailPage = ({ id, userId, onBack, onOpenEstimator, onCreat
         <ChevronLeft className="h-4 w-4" />All projects
       </button>
 
+      <ConfirmDialog
+        open={confirmDelete}
+        danger
+        title={`Delete "${project.name}"?`}
+        description="This can't be undone."
+        confirmLabel="Delete"
+        onCancel={() => setConfirmDelete(false)}
+        onConfirm={() => { setConfirmDelete(false); handleDelete(); }}
+      />
+
       <div className={`${cx.card} mt-3`}>
         {editingName ? (
           <form onSubmit={submitRename} className="flex items-end gap-2">
             <div className="flex-1"><Field label="Project name" value={name} onChange={setName} required /></div>
-            <button type="submit" disabled={renaming} className="h-[46px] shrink-0 rounded-xl px-4 text-sm font-bold disabled:opacity-50" style={{ background: BLUE, color: WHITE }}>
-              Save
-            </button>
-            <button type="button" onClick={() => setEditingName(false)} className="h-[46px] shrink-0 rounded-xl px-3 text-sm font-semibold" style={{ color: MUTED }}>
-              Cancel
-            </button>
+            <Button type="submit" disabled={renaming} className="h-[46px] shrink-0">Save</Button>
+            <Button type="button" variant="ghost" onClick={() => setEditingName(false)}>Cancel</Button>
           </form>
         ) : (
           <div className="flex flex-col gap-4 sm:flex-row">
@@ -193,7 +202,7 @@ export const ProjectDetailPage = ({ id, userId, onBack, onOpenEstimator, onCreat
             <div className="min-w-0 flex-1">
               <div className="flex items-start justify-between gap-2">
                 <div>
-                  <h1 className="text-lg font-bold" style={{ color: NAVY }}>{project.name}</h1>
+                  <h1 className={cx.h1}>{project.name}</h1>
                   <p className="mt-1 text-xs" style={{ color: MUTED }}>
                     Ref: {project.id.slice(0, 8).toUpperCase()}{companyName ? ` · ${companyName}` : ""}
                   </p>
@@ -205,7 +214,7 @@ export const ProjectDetailPage = ({ id, userId, onBack, onOpenEstimator, onCreat
                     <span style={{ color: MUTED }}>Last updated: {relativeTime(project.updated_at)}</span>
                   </div>
                 </div>
-                <button onClick={startRename} className="shrink-0 text-sm font-semibold hover:underline" style={{ color: BLUE }}>Rename</button>
+                <IconButton onClick={startRename} title="Rename" ariaLabel="Rename project"><Pencil size={15} /></IconButton>
               </div>
             </div>
           </div>
@@ -214,12 +223,10 @@ export const ProjectDetailPage = ({ id, userId, onBack, onOpenEstimator, onCreat
         {actionError && <p className="mt-3 text-sm text-red-600 dark:text-red-400">{actionError}</p>}
 
         <div className="mt-4 flex flex-wrap gap-2">
-          <button onClick={() => onOpenEstimator(project)} className="rounded-xl px-4 py-2.5 text-sm font-bold" style={{ background: BLUE, color: WHITE }}>
-            Open in Estimator
-          </button>
-          <button onClick={handleDelete} disabled={deleting} className="rounded-xl px-4 py-2.5 text-sm font-bold text-red-500 disabled:opacity-50">
+          <Button onClick={() => onOpenEstimator(project)}>Open in Estimator</Button>
+          <Button variant="danger" icon={<Trash2 size={15} />} disabled={deleting} onClick={() => setConfirmDelete(true)}>
             {deleting ? "Deleting..." : "Delete project"}
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -246,7 +253,7 @@ export const ProjectDetailPage = ({ id, userId, onBack, onOpenEstimator, onCreat
               <CalendarDays className="h-6 w-6" />
             </span>
             <div>
-              <h2 className="text-lg font-bold" style={{ color: NAVY }}>What&apos;s Next?</h2>
+              <h2 className={cx.h3}>What&apos;s Next?</h2>
               <p className="mt-1 font-semibold" style={{ color: NAVY }}>{milestone.label}</p>
               <p className="mt-2 text-sm" style={{ color: MUTED }}>{milestone.note}</p>
             </div>
@@ -259,7 +266,7 @@ export const ProjectDetailPage = ({ id, userId, onBack, onOpenEstimator, onCreat
             <ShoppingCart className="h-6 w-6" />
           </span>
           <div>
-            <h2 className="text-lg font-bold" style={{ color: NAVY }}>Quick Order</h2>
+            <h2 className={cx.h3}>Quick Order</h2>
             <p className="mt-1 text-sm" style={{ color: MUTED }}>Place an order without using the Estimator.</p>
             <button onClick={() => onCreateQuickOrder(project.id)} className="mt-3 rounded-lg border border-violet-300 dark:border-violet-700 px-5 py-2 text-sm font-semibold text-violet-700 dark:text-violet-400">
               Start Quick Order &rarr;
@@ -269,7 +276,7 @@ export const ProjectDetailPage = ({ id, userId, onBack, onOpenEstimator, onCreat
       </div>
 
       <section className={`${cx.card} mt-4`}>
-        <h2 className="font-bold" style={{ color: NAVY }}>Quick Actions</h2>
+        <h2 className={cx.h3}>Quick Actions</h2>
         <p className="mt-1 text-sm" style={{ color: MUTED }}>
           Create Order uses your saved Estimator design. Need to order without one? Use Quick Order below.
         </p>
@@ -289,7 +296,7 @@ export const ProjectDetailPage = ({ id, userId, onBack, onOpenEstimator, onCreat
         <div className="space-y-4">
           <section className="overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm">
             <div className="flex items-center justify-between px-5 py-4">
-              <h2 className="font-bold" style={{ color: NAVY }}>Orders</h2>
+              <h2 className={cx.h3}>Orders</h2>
             </div>
             {orders.length === 0 ? (
               <p className={cx.footnote} style={{ padding: "0 20px 20px" }}>No orders yet.</p>
@@ -329,7 +336,7 @@ export const ProjectDetailPage = ({ id, userId, onBack, onOpenEstimator, onCreat
 
           <Card title="Recent Activity" icon={<ActivityIcon size={14} />}>
             {activityLoading ? (
-              <p className={cx.footnote} style={{ paddingTop: 0 }}>Loading...</p>
+              <LoadingState label="Loading activity" />
             ) : activityError ? (
               <p className="text-sm text-red-600 dark:text-red-400">{activityError}</p>
             ) : events.length === 0 ? (

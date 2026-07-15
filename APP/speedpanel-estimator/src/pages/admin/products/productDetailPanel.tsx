@@ -9,7 +9,10 @@
 // =============================================================================
 import { useEffect, useState } from "react";
 import { Pencil, Save, Trash2, X } from "lucide-react";
-import { cx, BLUE, WHITE, NAVY, MUTED } from "../../../styleTokens";
+import { cx, NAVY, MUTED } from "../../../styleTokens";
+import { IconButton } from "../../../ui/primitives";
+import { Button } from "../../../ui/button";
+import { ConfirmDialog } from "../../../ui/confirmDialog";
 import { CATEGORY_LABEL } from "./productTypes";
 import type { ProductCategory, AdminPanel, AdminTrack, AdminFixing, AdminSealant, AdminColour } from "./productTypes";
 import type { ProductItem } from "./productCard";
@@ -30,6 +33,7 @@ export const ProductDetailPanel = ({ category, item, isAdding, isEditing, onSave
   onSave: (values: Draft) => void; onCancel: () => void; onStartEdit: () => void; onDelete: () => void;
 }) => {
   const [draft, setDraft] = useState<Draft>(() => (isAdding || !item ? blankDraft(category) : draftFromItem(item)));
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   useEffect(() => {
     setDraft(isAdding || !item ? blankDraft(category) : draftFromItem(item));
@@ -63,16 +67,21 @@ export const ProductDetailPanel = ({ category, item, isAdding, isEditing, onSave
 
   return (
     <div className={cx.card}>
+      <ConfirmDialog
+        open={confirmDelete}
+        danger
+        title="Delete item"
+        description={item ? `Delete "${itemTitle(category, item)}"? This can't be undone.` : ""}
+        confirmLabel="Delete"
+        onConfirm={() => { setConfirmDelete(false); onDelete(); }}
+        onCancel={() => setConfirmDelete(false)}
+      />
       <div className="mb-3 flex items-center justify-between gap-2">
         <span className="truncate text-xs font-bold uppercase tracking-widest" style={{ color: MUTED }}>{CATEGORY_LABEL[category]}</span>
         {!isFormMode && item && (
           <div className="flex items-center gap-2">
-            <button onClick={onStartEdit} className="grid h-8 w-8 place-items-center rounded-lg border border-slate-200 dark:border-slate-700 text-slate-400 dark:text-slate-500">
-              <Pencil size={14} />
-            </button>
-            <button onClick={onDelete} className="grid h-8 w-8 place-items-center rounded-lg border border-slate-200 dark:border-slate-700 text-slate-400 dark:text-slate-500">
-              <Trash2 size={14} />
-            </button>
+            <IconButton size="sm" ariaLabel="Edit item" onClick={onStartEdit}><Pencil size={14} /></IconButton>
+            <IconButton size="sm" variant="danger" ariaLabel="Delete item" onClick={() => setConfirmDelete(true)}><Trash2 size={14} /></IconButton>
           </div>
         )}
       </div>
@@ -84,12 +93,8 @@ export const ProductDetailPanel = ({ category, item, isAdding, isEditing, onSave
             {formForCategory()}
             <TextAreaField label="Notes" value={(draft.notes as string) ?? ""} onChange={v => set(setDraft, "notes", v)} />
             <div className="mt-4 flex items-center gap-2">
-              <button onClick={() => onSave(draft)} className="flex-1 flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-sm font-bold" style={{ background: BLUE, color: WHITE }}>
-                <Save size={14} /> Save
-              </button>
-              <button onClick={onCancel} className="flex-1 flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 dark:border-slate-700 py-2.5 text-sm font-bold" style={{ color: NAVY }}>
-                <X size={14} /> Cancel
-              </button>
+              <Button className="flex-1" icon={<Save size={14} />} onClick={() => onSave(draft)}>Save</Button>
+              <Button variant="secondary" className="flex-1" icon={<X size={14} />} onClick={onCancel}>Cancel</Button>
             </div>
           </>
         ) : item ? (

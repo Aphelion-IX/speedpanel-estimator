@@ -61,7 +61,7 @@ function WorkspaceCard({ title, description, features, accent, icon: Icon, onCli
       <div className={`grid h-14 w-14 shrink-0 place-items-center rounded-2xl border ${styles.iconWrap}`}>
         <Icon className={`h-7 w-7 ${styles.icon}`} strokeWidth={1.8} />
       </div>
-      <h2 className="mt-4 text-xl font-bold tracking-tight text-slate-900 dark:text-white">{title}</h2>
+      <h2 className="mt-4 text-xl font-bold tracking-tight" style={{ color: NAVY }}>{title}</h2>
       <p className="mt-2 text-sm leading-6 text-slate-500 dark:text-slate-400">{description}</p>
 
       <div className="mt-5 flex flex-col gap-2 border-t border-slate-100 pt-4 dark:border-slate-800">
@@ -139,7 +139,7 @@ export const OverviewDashboardPage = ({ auth, navigate, isInternalStaff, activeC
   return (
     <div className="mt-6">
       <section>
-        <h1 className="text-4xl font-extrabold tracking-tight text-slate-900 dark:text-white sm:text-5xl">
+        <h1 className="text-4xl font-extrabold tracking-tight sm:text-5xl" style={{ color: NAVY }}>
           Welcome back, {name}
         </h1>
         <p className="mt-3 text-lg text-slate-500 dark:text-slate-400">Select a workspace to get started.</p>

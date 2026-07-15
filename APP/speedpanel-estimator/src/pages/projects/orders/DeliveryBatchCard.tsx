@@ -9,7 +9,7 @@
 // =============================================================================
 import { Trash2 } from "lucide-react";
 import { cx, NAVY, MUTED, BLUE } from "../../../styleTokens";
-import { AccordionCard } from "../../../ui/primitives";
+import { AccordionCard, IconButton } from "../../../ui/primitives";
 import { SelectField } from "../../shared/fields";
 import type { OrderLineItem } from "../../../export/priceEstimateReportData";
 import { DELIVERY_STATUSES, DELIVERY_STATUS_LABELS, DELIVERY_STATUS_BADGE_CLASS, type DeliveryStatus, type OrderDeliveryRow } from "./orderTypes";
@@ -42,9 +42,9 @@ export const DeliveryBatchCard = ({ delivery, lineItems, canRemove, onRemove, on
           )}
         </div>
         {canRemove && (
-          <button onClick={() => onRemove(delivery.id)} className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-slate-200 dark:border-slate-700 text-red-500">
+          <IconButton size="sm" variant="danger" title="Remove" ariaLabel="Remove delivery" onClick={() => onRemove(delivery.id)}>
             <Trash2 size={14} />
-          </button>
+          </IconButton>
         )}
       </div>
       {onStatusChange && (

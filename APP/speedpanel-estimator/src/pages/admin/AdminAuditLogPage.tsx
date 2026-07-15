@@ -6,6 +6,8 @@
 // event, no per-row interaction.
 // =============================================================================
 import { cx, NAVY, MUTED } from "../../styleTokens";
+import { Button } from "../../ui/button";
+import { LoadingState, ErrorState, EmptyState } from "../../ui/states";
 import { useAdminAuditLog } from "./auditLog/auditLogStore";
 import { STAGE_EVENT_LABELS } from "./auditLog/auditLogTypes";
 
@@ -13,24 +15,15 @@ export const AdminAuditLogPage = () => {
   const { events, loading, loadingMore, hasMore, error, reload, loadMore } = useAdminAuditLog();
 
   if (loading) {
-    return <div className={`${cx.card} mt-6 text-sm`} style={{ color: MUTED }}>Loading...</div>;
+    return <LoadingState className="mt-6" label="Loading audit log" />;
   }
 
   if (error) {
-    return (
-      <div className={`${cx.card} mt-6`}>
-        <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
-        <button onClick={() => reload()} className="mt-2 text-sm font-bold" style={{ color: NAVY }}>Retry</button>
-      </div>
-    );
+    return <ErrorState className="mt-6" message={error} onRetry={() => reload()} />;
   }
 
   if (events.length === 0) {
-    return (
-      <div className={`${cx.card} mt-6 text-center`}>
-        <p className={cx.footnote}>No review activity yet.</p>
-      </div>
-    );
+    return <EmptyState className={`${cx.card} mt-6 text-center`} message="No review activity yet." />;
   }
 
   return (
@@ -49,10 +42,9 @@ export const AdminAuditLogPage = () => {
       ))}
 
       {hasMore && (
-        <button onClick={() => loadMore()} disabled={loadingMore}
-          className="mt-3 w-full rounded-xl border border-slate-200 dark:border-slate-700 px-4 py-2.5 text-sm font-bold disabled:opacity-50" style={{ color: NAVY }}>
+        <Button variant="secondary" className="w-full mt-3" onClick={() => loadMore()} disabled={loadingMore}>
           {loadingMore ? "Loading..." : "Load more"}
-        </button>
+        </Button>
       )}
     </div>
   );

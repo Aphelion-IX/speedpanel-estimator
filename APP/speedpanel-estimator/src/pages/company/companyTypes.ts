@@ -8,6 +8,7 @@
 // row convention as projectTypes.ts/orderTypes.ts.
 // =============================================================================
 import { z } from "zod";
+import { tone } from "../../styleTokens";
 
 export const COMPANY_ROLES = ["owner", "admin", "project_manager", "estimator", "site_user", "viewer"] as const;
 export type CompanyRole = typeof COMPANY_ROLES[number];
@@ -25,9 +26,9 @@ export const MEMBERSHIP_STATUSES = ["active", "suspended", "removed"] as const;
 export type MembershipStatus = typeof MEMBERSHIP_STATUSES[number];
 
 export const MEMBERSHIP_STATUS_BADGE_CLASS: Record<MembershipStatus, string> = {
-  active: "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400",
-  suspended: "bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400",
-  removed: "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400",
+  active: tone("ok"),
+  suspended: tone("warn"),
+  removed: tone("neutral"),
 };
 
 export const CompanyRowSchema = z.object({

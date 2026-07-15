@@ -8,7 +8,7 @@
 // invitations block itself lives in CompanyMemberList.tsx, shared with
 // Admin > Companies' per-company editor.
 // =============================================================================
-import { NAVY, BLUE } from "../../styleTokens";
+import { cx, BLUE } from "../../styleTokens";
 import type { CompanyRole } from "./companyTypes";
 import { StaffTeamCard } from "./StaffTeamCard";
 import { CompanyMemberList } from "./CompanyMemberList";
@@ -21,7 +21,7 @@ export const CompanyTeamPage = ({ companyId, myUserId, myRole, onBack }: {
   return (
     <div className="mt-2">
       <button onClick={onBack} className="text-sm font-semibold hover:underline" style={{ color: BLUE }}>&larr; Back to projects</button>
-      <h1 className="mt-3 text-xl font-bold" style={{ color: NAVY }}>Team</h1>
+      <h1 className={`${cx.h1} mt-3`}>Team</h1>
 
       <div className="mt-3">
         <StaffTeamCard companyId={companyId} />

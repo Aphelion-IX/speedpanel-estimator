@@ -17,6 +17,9 @@ import { useMemo, useState } from "react";
 import { Search } from "lucide-react";
 import { cx, NAVY, MUTED } from "../../styleTokens";
 import { AccordionCard } from "../../ui/primitives";
+import { Button } from "../../ui/button";
+import { LoadingState, ErrorState, EmptyState } from "../../ui/states";
+import { ErrorDialog } from "../../ui/confirmDialog";
 import { SelectField } from "../shared/fields";
 import { useAdminRequests } from "./requests/requestsStore";
 import { useMyBdmCompanies } from "./requests/myCompaniesStore";
@@ -88,6 +91,7 @@ export const AdminRequestsPage = ({ userId, staffRole, staffRoleLoading }: {
   const { requests, scope, scopeMode, setScopeMode, canToggleScope, loading, loadingMore, hasMore, error, reload, loadMore, updateStatus } = useAdminRequests(userId, staffRole, staffRoleLoading);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -96,7 +100,7 @@ export const AdminRequestsPage = ({ userId, staffRole, staffRoleLoading }: {
 
   const handleStatusChange = async (id: string, status: RequestStatus) => {
     const err = await updateStatus(id, status);
-    if (err) window.alert(err);
+    if (err) setActionError(err);
   };
 
   const bdmPanel = staffRole === "bdm"
@@ -104,16 +108,11 @@ export const AdminRequestsPage = ({ userId, staffRole, staffRoleLoading }: {
     : null;
 
   if (loading) {
-    return <div className={`${cx.card} mt-6 text-sm`} style={{ color: MUTED }}>Loading...</div>;
+    return <LoadingState className="mt-6" label="Loading requests" />;
   }
 
   if (error) {
-    return (
-      <div className={`${cx.card} mt-6`}>
-        <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
-        <button onClick={() => reload()} className="mt-2 text-sm font-bold" style={{ color: NAVY }}>Retry</button>
-      </div>
-    );
+    return <ErrorState className="mt-6" message={error} onRetry={() => reload()} />;
   }
 
   if (requests.length === 0) {
@@ -123,15 +122,14 @@ export const AdminRequestsPage = ({ userId, staffRole, staffRoleLoading }: {
         {canToggleScope && (
           <div className="sm:w-48"><SelectField label="Scope" value={scopeMode} options={SCOPE_OPTIONS} onChange={v => setScopeMode(v as "mine" | "all")} /></div>
         )}
-        <div className={`${cx.card} mt-3 text-center`}>
-          <p className={cx.footnote}>No requests {scopeMode === "mine" && canToggleScope ? "for your companies " : ""}yet.</p>
-        </div>
+        <EmptyState className={`${cx.card} mt-3 text-center`} message={`No requests ${scopeMode === "mine" && canToggleScope ? "for your companies " : ""}yet.`} />
       </div>
     );
   }
 
   return (
     <div className="mt-2">
+      <ErrorDialog message={actionError} onDismiss={() => setActionError(null)} />
       {bdmPanel}
       <div className="flex flex-col gap-2 sm:flex-row">
         <div className="flex flex-1 items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 shadow-sm">
@@ -151,18 +149,15 @@ export const AdminRequestsPage = ({ userId, staffRole, staffRoleLoading }: {
       )}
 
       {filtered.length === 0 ? (
-        <div className={`${cx.card} mt-3 text-center`}>
-          <p className={cx.footnote}>No requests match your search.</p>
-        </div>
+        <EmptyState className={`${cx.card} mt-3 text-center`} message="No requests match your search." />
       ) : (
         filtered.map(item => <RequestRow key={item.id} item={item} onStatusChange={handleStatusChange} />)
       )}
 
       {hasMore && (
-        <button onClick={() => loadMore()} disabled={loadingMore}
-          className="mt-3 w-full rounded-xl border border-slate-200 dark:border-slate-700 px-4 py-2.5 text-sm font-bold disabled:opacity-50" style={{ color: NAVY }}>
+        <Button variant="secondary" className="mt-3 w-full" onClick={() => loadMore()} disabled={loadingMore}>
           {loadingMore ? "Loading..." : "Load more"}
-        </button>
+        </Button>
       )}
     </div>
   );

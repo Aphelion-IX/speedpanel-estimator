@@ -7,7 +7,7 @@
 // membership; a signed-in user with zero memberships gets the informational
 // NoCompanyPage instead of a creation form.
 // =============================================================================
-import { cx, MUTED } from "../../styleTokens";
+import { LoadingState } from "../../ui/states";
 import type { Route } from "../../appShell/useHashRoute";
 import type { UseCompanyMemberships } from "../../lib/useCompanyMemberships";
 import { NoCompanyPage } from "./NoCompanyPage";
@@ -22,7 +22,7 @@ export const CompanyRouter = ({ route, navigate, userId, company }: {
 }) => {
   const onBack = () => navigate({ tab: "projects" });
 
-  if (company.loading) return <div className={`${cx.card} mt-6 text-sm`} style={{ color: MUTED }}>Loading...</div>;
+  if (company.loading) return <LoadingState className="mt-6" label="Loading company" />;
 
   if (!company.activeCompanyId || !company.activeMembership || !userId) {
     return <NoCompanyPage onBack={onBack} />;

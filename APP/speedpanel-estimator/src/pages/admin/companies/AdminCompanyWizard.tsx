@@ -13,7 +13,8 @@
 // per-company editor, this is just the guided first pass.
 // =============================================================================
 import { useState } from "react";
-import { cx, NAVY, BLUE, WHITE, MUTED } from "../../../styleTokens";
+import { cx, NAVY, BLUE, MUTED } from "../../../styleTokens";
+import { Button } from "../../../ui/button";
 import { Field, SelectField } from "../../shared/fields";
 import { COMPANY_ROLES, COMPANY_ROLE_LABELS, type CompanyRole } from "../../company/companyTypes";
 import { useCompanyMembers } from "../../company/companyStore";
@@ -68,10 +69,9 @@ const CompanyDetailsStep = ({ onCreated }: { onCreated: (companyId: string) => v
 
       {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
 
-      <button type="submit" disabled={submitting || !legalName.trim()}
-        className="w-full rounded-xl py-2.5 text-sm font-bold disabled:opacity-50" style={{ background: BLUE, color: WHITE }}>
+      <Button type="submit" className="w-full" disabled={submitting || !legalName.trim()}>
         {submitting ? "Creating..." : "Create company & continue"}
-      </button>
+      </Button>
     </form>
   );
 };
@@ -117,10 +117,9 @@ const CustomerUsersStep = ({ companyId, onNext }: { companyId: string; onNext: (
       <form onSubmit={handleAdd} className="flex flex-col gap-2 sm:flex-row sm:items-end">
         <div className="flex-1"><Field label="Email" value={email} onChange={setEmail} type="email" autoComplete="email" /></div>
         <div className="sm:w-56"><SelectField label="Role" value={role} options={ROLE_OPTIONS} onChange={v => setRole(v as CompanyRole)} /></div>
-        <button type="submit" disabled={inviting || !email.trim()}
-          className="h-[46px] shrink-0 rounded-xl px-5 text-sm font-bold disabled:opacity-50" style={{ background: BLUE, color: WHITE }}>
+        <Button type="submit" className="h-[46px] shrink-0" disabled={inviting || !email.trim()}>
           {inviting ? "Adding..." : "Add"}
-        </button>
+        </Button>
       </form>
       {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
       {added.length > 0 && (
@@ -128,9 +127,9 @@ const CustomerUsersStep = ({ companyId, onNext }: { companyId: string; onNext: (
           {added.map(e => <li key={e}>Added {e}</li>)}
         </ul>
       )}
-      <button onClick={onNext} className="w-full rounded-xl border border-slate-200 dark:border-slate-700 py-2.5 text-sm font-bold" style={{ color: NAVY }}>
+      <Button variant="secondary" className="w-full" onClick={onNext}>
         {added.length > 0 ? "Continue" : "Skip for now"}
-      </button>
+      </Button>
     </div>
   );
 };
@@ -142,8 +141,8 @@ export const AdminCompanyWizard = ({ onFinished, onCancel }: { onFinished: () =>
   return (
     <div className={`${cx.card} mt-3 max-w-lg`}>
       <div className="flex items-center justify-between gap-2">
-        <h1 className="text-lg font-bold" style={{ color: NAVY }}>New company</h1>
-        <button onClick={onCancel} className="text-sm font-semibold" style={{ color: MUTED }}>Cancel</button>
+        <h1 className={cx.h3}>New company</h1>
+        <Button variant="ghost" onClick={onCancel}>Cancel</Button>
       </div>
       <div className="mt-2"><StepIndicator step={step} /></div>
 
@@ -152,9 +151,7 @@ export const AdminCompanyWizard = ({ onFinished, onCancel }: { onFinished: () =>
       {step === 3 && companyId && (
         <div className="mt-4 space-y-3">
           <StaffTeamAssignmentPanel companyId={companyId} />
-          <button onClick={onFinished} className="w-full rounded-xl py-2.5 text-sm font-bold" style={{ background: BLUE, color: WHITE }}>
-            Finish
-          </button>
+          <Button className="w-full" onClick={onFinished}>Finish</Button>
         </div>
       )}
     </div>

@@ -18,8 +18,10 @@
 // =============================================================================
 import { useState } from "react";
 import { Plus } from "lucide-react";
-import { cx, NAVY, BLUE, WHITE, MUTED } from "../../styleTokens";
+import { cx, NAVY } from "../../styleTokens";
 import { AccordionCard } from "../../ui/primitives";
+import { Button } from "../../ui/button";
+import { LoadingState, ErrorState, EmptyState } from "../../ui/states";
 import type { UseAuth } from "../../lib/useAuth";
 import { useAdminCompanies, type AdminCompanyRow } from "./companies/companiesStore";
 import { AdminCompanyWizard } from "./companies/AdminCompanyWizard";
@@ -59,13 +61,8 @@ export const AdminCompaniesPage = ({ auth }: { auth: UseAuth }) => {
   return (
     <div className="mt-2">
       <div className="flex items-center justify-between gap-2">
-        <h1 className="text-lg font-bold" style={{ color: NAVY }}>Companies</h1>
-        {!creating && (
-          <button onClick={() => setCreating(true)}
-            className="flex items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-bold" style={{ background: BLUE, color: WHITE }}>
-            <Plus size={15} /> New company
-          </button>
-        )}
+        <h1 className={cx.h1}>Companies</h1>
+        {!creating && <Button icon={<Plus size={15} />} onClick={() => setCreating(true)}>New company</Button>}
       </div>
 
       {creating && (
@@ -75,19 +72,12 @@ export const AdminCompaniesPage = ({ auth }: { auth: UseAuth }) => {
         />
       )}
 
-      {loading && <div className={`${cx.card} mt-6 text-sm`} style={{ color: MUTED }}>Loading...</div>}
+      {loading && <LoadingState className="mt-6" label="Loading companies" />}
 
-      {!loading && error && (
-        <div className={`${cx.card} mt-6`}>
-          <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
-          <button onClick={() => reload()} className="mt-2 text-sm font-bold" style={{ color: NAVY }}>Retry</button>
-        </div>
-      )}
+      {!loading && error && <ErrorState className="mt-6" message={error} onRetry={() => reload()} />}
 
       {!loading && !error && companies.length === 0 && !creating && (
-        <div className={`${cx.card} mt-6 text-center`}>
-          <p className={cx.footnote}>No company workspaces yet.</p>
-        </div>
+        <EmptyState className={`${cx.card} mt-6 text-center`} message="No company workspaces yet." />
       )}
 
       {!loading && !error && companies.map(c => <CompanyRow key={c.id} company={c} myUserId={auth.user?.id ?? null} />)}

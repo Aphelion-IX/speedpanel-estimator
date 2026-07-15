@@ -9,8 +9,10 @@
 // stage, per the feature's design.
 // =============================================================================
 import { useEffect, useMemo, useState } from "react";
-import { cx, NAVY, BLUE, WHITE, MUTED } from "../../../styleTokens";
+import { cx, BLUE } from "../../../styleTokens";
 import { Row } from "../../../ui/primitives";
+import { Button } from "../../../ui/button";
+import { LoadingState, ErrorState } from "../../../ui/states";
 import type { UseAuth } from "../../../lib/useAuth";
 import { useProject } from "../projectDetailStore";
 import { useProductStore } from "../../admin/products/productStore";
@@ -76,13 +78,13 @@ export const OrderBuilderPage = ({ projectId, auth, onBack, onCreated }: {
   };
 
   if (projectLoading || catalogLoading || pricingLoading) {
-    return <div className={`${cx.card} mt-6 text-sm`} style={{ color: MUTED }}>Loading...</div>;
+    return <LoadingState className="mt-6" label="Loading estimate" />;
   }
 
   if (projectError || !project) {
     return (
-      <div className={`${cx.card} mt-6`}>
-        <p className="text-sm text-red-600 dark:text-red-400">{projectError || "Project not found."}</p>
+      <div className="mt-6">
+        <ErrorState message={projectError || "Project not found."} />
         <button onClick={onBack} className="mt-2 text-sm font-bold" style={{ color: BLUE }}>Back to project</button>
       </div>
     );
@@ -90,15 +92,15 @@ export const OrderBuilderPage = ({ projectId, auth, onBack, onCreated }: {
 
   if (computeError || catalogError || pricingError) {
     return (
-      <div className={`${cx.card} mt-6`}>
-        <p className="text-sm text-red-600 dark:text-red-400">{computeError || catalogError || pricingError}</p>
+      <div className="mt-6">
+        <ErrorState message={computeError || catalogError || pricingError || "Something went wrong."} />
         <button onClick={onBack} className="mt-2 text-sm font-bold" style={{ color: BLUE }}>Back to project</button>
       </div>
     );
   }
 
   if (!items || !totals) {
-    return <div className={`${cx.card} mt-6 text-sm`} style={{ color: MUTED }}>Loading...</div>;
+    return <LoadingState className="mt-6" label="Loading estimate" />;
   }
 
   return (
@@ -106,7 +108,7 @@ export const OrderBuilderPage = ({ projectId, auth, onBack, onCreated }: {
       <button onClick={onBack} className="text-sm font-semibold hover:underline" style={{ color: BLUE }}>&larr; Back to project</button>
 
       <div className={`${cx.card} mt-3`}>
-        <h1 className="text-lg font-bold" style={{ color: NAVY }}>Create order -- {project.name}</h1>
+        <h1 className={cx.h1}>Create order -- {project.name}</h1>
         <p className={cx.footnote}>Review the priced line items below, then continue to arrange delivery.</p>
 
         {totals.unpricedItemCount > 0 && (
@@ -127,10 +129,9 @@ export const OrderBuilderPage = ({ projectId, auth, onBack, onCreated }: {
 
         {createError && <p className="mt-3 text-sm text-red-600 dark:text-red-400">{createError}</p>}
 
-        <button onClick={handleCreate} disabled={creating}
-          className="mt-4 w-full rounded-xl py-3 text-sm font-bold disabled:opacity-50" style={{ background: BLUE, color: WHITE }}>
+        <Button onClick={handleCreate} disabled={creating} className="mt-4 w-full">
           {creating ? "Creating..." : "Continue to deliveries"}
-        </button>
+        </Button>
       </div>
     </div>
   );

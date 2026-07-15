@@ -14,8 +14,10 @@
 // =============================================================================
 import { useCallback, useEffect, useState } from "react";
 import { Users } from "lucide-react";
-import { cx, NAVY, BLUE, MUTED } from "../../styleTokens";
-import { Card } from "../../ui/primitives";
+import { Trash2 } from "lucide-react";
+import { cx, NAVY, MUTED } from "../../styleTokens";
+import { Card, IconButton } from "../../ui/primitives";
+import { Button } from "../../ui/button";
 import { SelectField } from "../shared/fields";
 import { supabase } from "../../lib/supabaseClient";
 import { ProjectMembershipRowSchema, PROJECT_ROLES, type ProjectMembershipRow, type ProjectRole } from "../company/companyTypes";
@@ -85,7 +87,7 @@ export const ProjectMembersCard = ({ projectId, companyId }: { projectId: string
                   className="rounded-lg border border-slate-200 dark:border-slate-700 bg-transparent px-2 py-1 text-xs" style={{ color: NAVY }}>
                   {ROLE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
-                <button onClick={() => remove(a.user_id)} className="text-xs font-bold text-red-500">Remove</button>
+                <IconButton size="sm" variant="danger" onClick={() => remove(a.user_id)} title="Remove" ariaLabel="Remove teammate"><Trash2 size={13} /></IconButton>
               </div>
             </div>
           ))}
@@ -101,10 +103,7 @@ export const ProjectMembersCard = ({ projectId, companyId }: { projectId: string
               options={[{ value: "", label: "Choose someone..." }, ...availableToAdd.map(m => ({ value: m.user_id, label: m.email ?? m.user_id }))]}
               onChange={setAddingUserId} />
           </div>
-          <button onClick={add} disabled={!addingUserId}
-            className="h-[46px] shrink-0 rounded-xl border border-slate-200 dark:border-slate-700 px-4 text-sm font-bold disabled:opacity-50" style={{ color: BLUE }}>
-            Add
-          </button>
+          <Button variant="secondary" className="h-[46px] shrink-0" onClick={add} disabled={!addingUserId}>Add</Button>
         </div>
       )}
       {members.length === 0 && !loading && <p className={cx.footnote} style={{ color: MUTED }}>No other company members yet.</p>}

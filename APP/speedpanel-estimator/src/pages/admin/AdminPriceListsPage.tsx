@@ -13,7 +13,11 @@ import { useMemo, useState } from "react";
 import { Plus, Search, Copy, Trash2, Pencil, Check, X } from "lucide-react";
 import { cx, BLUE, WHITE, NAVY, MUTED } from "../../styleTokens";
 import type { EffectiveLayout } from "../../useLayoutMode";
-import { CardGrid, SectionLabel } from "../../ui/primitives";
+import { CardGrid, SectionLabel, IconButton } from "../../ui/primitives";
+import { Button } from "../../ui/button";
+import { Badge } from "../../ui/badge";
+import { LoadingState, ErrorState } from "../../ui/states";
+import { ConfirmDialog, ErrorDialog } from "../../ui/confirmDialog";
 import { Field } from "../shared/fields";
 import { useProductStore } from "./products/productStore";
 import { CATEGORY_KEY, CATEGORY_LABEL } from "./products/productTypes";
@@ -28,7 +32,7 @@ const PriceListCard = ({ pl, selected, onSelect }: { pl: PriceListSummaryRow; se
   <div onClick={onSelect} className={cx.card + " cursor-pointer"} style={selected ? { borderColor: BLUE, borderWidth: 2 } : undefined}>
     <div className="flex items-center justify-between gap-2">
       <div className="truncate text-sm font-bold" style={{ color: NAVY }}>{pl.name}</div>
-      {pl.is_default && <span className={cx.badge} style={{ background: BLUE, color: WHITE }}>Default</span>}
+      {pl.is_default && <Badge tone="info">Default</Badge>}
     </div>
     <p className={cx.footnote}>
       {pl.product_count} priced product{pl.product_count === 1 ? "" : "s"} &middot; {pl.company_count} compan{pl.company_count === 1 ? "y" : "ies"}
@@ -69,9 +73,9 @@ const PriceRow = ({ item, category, currentPrice, priceRowId, onSave, onClear }:
           <button onClick={commit} className="grid h-8 w-8 place-items-center rounded-lg" style={{ background: BLUE, color: WHITE }}><Check size={14} /></button>
         )}
         {priceRowId && !dirty && (
-          <button onClick={() => { onClear(); setDraft(""); }} className="grid h-8 w-8 place-items-center rounded-lg border border-slate-200 dark:border-slate-700 text-slate-400 dark:text-slate-500">
+          <IconButton variant="danger" size="sm" ariaLabel="Clear price" onClick={() => { onClear(); setDraft(""); }}>
             <Trash2 size={14} />
-          </button>
+          </IconButton>
         )}
       </div>
     </div>
@@ -89,6 +93,9 @@ const PriceListDetail = ({ pl, layoutMode, onRenamed, onDuplicated, onDeleted }:
   const [query, setQuery] = useState("");
   const [renaming, setRenaming] = useState(false);
   const [nameDraft, setNameDraft] = useState(pl.name);
+  const [duplicating, setDuplicating] = useState(false);
+  const [duplicateName, setDuplicateName] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [busyError, setBusyError] = useState<string | null>(null);
 
   const list = catalog[CATEGORY_KEY[category]] as ProductItem[];
@@ -111,16 +118,17 @@ const PriceListDetail = ({ pl, layoutMode, onRenamed, onDuplicated, onDeleted }:
     onRenamed();
   };
 
+  const startDuplicate = () => { setDuplicateName(`${pl.name} (copy)`); setBusyError(null); setDuplicating(true); };
   const handleDuplicate = async () => {
-    const name = window.prompt("Name for the new price list:", `${pl.name} (copy)`);
-    if (!name || !name.trim()) return;
-    const { id, error } = await duplicatePriceList(pl.id, name.trim());
+    if (!duplicateName.trim()) return;
+    const { id, error } = await duplicatePriceList(pl.id, duplicateName.trim());
     if (error) { setBusyError(error); return; }
+    setDuplicating(false);
     if (id) onDuplicated(id);
   };
 
   const handleDelete = async () => {
-    if (!window.confirm(`Delete "${pl.name}"? This can't be undone.`)) return;
+    setConfirmDelete(false);
     const error = await deletePriceList(pl.id);
     if (error) { setBusyError(error); return; }
     onDeleted();
@@ -128,31 +136,46 @@ const PriceListDetail = ({ pl, layoutMode, onRenamed, onDuplicated, onDeleted }:
 
   return (
     <div className="mt-2">
+      <ConfirmDialog
+        open={confirmDelete}
+        danger
+        title="Delete price list"
+        description={`Delete "${pl.name}"? This can't be undone.`}
+        confirmLabel="Delete"
+        onConfirm={handleDelete}
+        onCancel={() => setConfirmDelete(false)}
+      />
+      <ErrorDialog message={busyError} onDismiss={() => setBusyError(null)} />
       <div className={cx.card}>
         <div className="flex items-center justify-between gap-2">
           {renaming ? (
             <div className="flex flex-1 items-center gap-2">
               <Field label="" value={nameDraft} onChange={setNameDraft} />
-              <button onClick={handleRename} className="grid h-9 w-9 shrink-0 place-items-center rounded-lg" style={{ background: BLUE, color: WHITE }}><Check size={14} /></button>
-              <button onClick={() => { setRenaming(false); setNameDraft(pl.name); }} className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-slate-200 dark:border-slate-700"><X size={14} /></button>
+              <button onClick={handleRename} aria-label="Save name" className="grid h-10 w-10 shrink-0 place-items-center rounded-xl" style={{ background: BLUE, color: WHITE }}><Check size={14} /></button>
+              <IconButton size="lg" ariaLabel="Cancel rename" onClick={() => { setRenaming(false); setNameDraft(pl.name); }}><X size={14} /></IconButton>
+            </div>
+          ) : duplicating ? (
+            <div className="flex flex-1 items-center gap-2">
+              <Field label="" value={duplicateName} onChange={setDuplicateName} />
+              <button onClick={handleDuplicate} aria-label="Save duplicate name" className="grid h-10 w-10 shrink-0 place-items-center rounded-xl" style={{ background: BLUE, color: WHITE }}><Check size={14} /></button>
+              <IconButton size="lg" ariaLabel="Cancel duplicate" onClick={() => setDuplicating(false)}><X size={14} /></IconButton>
             </div>
           ) : (
             <>
               <div className="flex items-center gap-2">
                 <span className="text-base font-bold" style={{ color: NAVY }}>{pl.name}</span>
-                {pl.is_default && <span className={cx.badge} style={{ background: BLUE, color: WHITE }}>Default</span>}
+                {pl.is_default && <Badge tone="info">Default</Badge>}
               </div>
               <div className="flex items-center gap-2">
-                <button onClick={() => setRenaming(true)} className="grid h-8 w-8 place-items-center rounded-lg border border-slate-200 dark:border-slate-700 text-slate-400 dark:text-slate-500"><Pencil size={14} /></button>
-                <button onClick={handleDuplicate} className="grid h-8 w-8 place-items-center rounded-lg border border-slate-200 dark:border-slate-700 text-slate-400 dark:text-slate-500"><Copy size={14} /></button>
+                <IconButton size="sm" ariaLabel="Rename price list" onClick={() => setRenaming(true)}><Pencil size={14} /></IconButton>
+                <IconButton size="sm" ariaLabel="Duplicate price list" onClick={startDuplicate}><Copy size={14} /></IconButton>
                 {!pl.is_default && pl.company_count === 0 && (
-                  <button onClick={handleDelete} className="grid h-8 w-8 place-items-center rounded-lg border border-slate-200 dark:border-slate-700 text-red-500"><Trash2 size={14} /></button>
+                  <IconButton size="sm" variant="danger" ariaLabel="Delete price list" onClick={() => setConfirmDelete(true)}><Trash2 size={14} /></IconButton>
                 )}
               </div>
             </>
           )}
         </div>
-        {busyError && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{busyError}</p>}
       </div>
 
       <div className="mt-4 flex items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 shadow-sm">
@@ -177,7 +200,7 @@ const PriceListDetail = ({ pl, layoutMode, onRenamed, onDuplicated, onDeleted }:
       {pricesError && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{pricesError}</p>}
 
       {catalogLoading || pricesLoading ? (
-        <div className={`${cx.card} mt-3 text-sm`} style={{ color: MUTED }}>Loading...</div>
+        <LoadingState className="mt-3" label="Loading products" />
       ) : (
         <CardGrid layoutMode={layoutMode} minWidth={280}>
           {filtered.map(item => {
@@ -218,25 +241,16 @@ export const AdminPriceListsPage = ({ layoutMode }: { layoutMode: EffectiveLayou
     if (id) setSelectedId(id);
   };
 
-  if (loading) return <div className={`${cx.card} mt-6 text-sm`} style={{ color: MUTED }}>Loading...</div>;
+  if (loading) return <LoadingState className="mt-6" label="Loading price lists" />;
 
-  if (error) {
-    return (
-      <div className={`${cx.card} mt-6`}>
-        <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
-        <button onClick={() => reload()} className="mt-2 text-sm font-bold" style={{ color: NAVY }}>Retry</button>
-      </div>
-    );
-  }
+  if (error) return <ErrorState className="mt-6" message={error} onRetry={() => reload()} />;
 
   return (
     <div className="mt-2">
       <div className="flex items-center justify-between gap-2">
-        <h1 className="text-lg font-bold" style={{ color: NAVY }}>Price Lists</h1>
+        <h1 className={cx.h1}>Price Lists</h1>
         {!creating && (
-          <button onClick={() => setCreating(true)} className="flex items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-bold" style={{ background: BLUE, color: WHITE }}>
-            <Plus size={15} /> New price list
-          </button>
+          <Button icon={<Plus size={15} />} onClick={() => setCreating(true)}>New price list</Button>
         )}
       </div>
 
@@ -245,8 +259,8 @@ export const AdminPriceListsPage = ({ layoutMode }: { layoutMode: EffectiveLayou
           <Field label="Name" value={newName} onChange={setNewName} />
           {createError && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{createError}</p>}
           <div className="mt-3 flex items-center gap-2">
-            <button onClick={handleCreate} className="rounded-xl px-4 py-2 text-sm font-bold" style={{ background: BLUE, color: WHITE }}>Create</button>
-            <button onClick={() => { setCreating(false); setNewName(""); setCreateError(null); }} className="rounded-xl border border-slate-200 dark:border-slate-700 px-4 py-2 text-sm font-bold" style={{ color: NAVY }}>Cancel</button>
+            <Button onClick={handleCreate}>Create</Button>
+            <Button variant="secondary" onClick={() => { setCreating(false); setNewName(""); setCreateError(null); }}>Cancel</Button>
           </div>
         </div>
       )}

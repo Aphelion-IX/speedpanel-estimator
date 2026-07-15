@@ -19,8 +19,10 @@
 // revised or cancelled, but not issued yet.
 // =============================================================================
 import { useState } from "react";
-import { cx, NAVY, MUTED, BLUE, WHITE } from "../../styleTokens";
+import { cx, NAVY } from "../../styleTokens";
 import { AccordionCard } from "../../ui/primitives";
+import { Button } from "../../ui/button";
+import { LoadingState, ErrorState, EmptyState } from "../../ui/states";
 import { TextAreaField } from "../shared/fields";
 import { useAdminOrders } from "./orders/adminOrdersStore";
 import { useOrderDeliveries } from "../projects/orders/orderDeliveriesStore";
@@ -93,19 +95,14 @@ const AdminOrderRow = ({ order, onIssue, onCancel, onRevise }: {
               </div>
               {error && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{error}</p>}
               <div className="mt-2 flex flex-wrap gap-2">
-                <button onClick={saveRevise} disabled={submitting}
-                  className="rounded-xl px-4 py-2 text-sm font-bold disabled:opacity-50" style={{ background: BLUE, color: WHITE }}>
-                  Save revision
-                </button>
-                <button onClick={() => setRevising(false)} disabled={submitting} className="text-sm font-semibold" style={{ color: MUTED }}>
-                  Cancel
-                </button>
+                <Button onClick={saveRevise} disabled={submitting}>Save revision</Button>
+                <Button variant="ghost" onClick={() => setRevising(false)} disabled={submitting}>Cancel</Button>
               </div>
             </>
           ) : (
             <>
               <OrderLineItemsTable items={items} readOnly />
-              <button onClick={startRevise} className="mt-2 text-sm font-bold" style={{ color: BLUE }}>Revise</button>
+              <Button variant="ghost" className="mt-2" onClick={startRevise}>Revise</Button>
             </>
           )}
         </AccordionCard>
@@ -128,15 +125,9 @@ const AdminOrderRow = ({ order, onIssue, onCancel, onRevise }: {
 
           <div className="mt-3 flex flex-wrap gap-2">
             {order.stage === "proforma_requested" && (
-              <button onClick={() => run(() => onIssue(order.id, note))} disabled={submitting}
-                className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">
-                Issue pro forma invoice
-              </button>
+              <Button onClick={() => run(() => onIssue(order.id, note))} disabled={submitting}>Issue pro forma invoice</Button>
             )}
-            <button onClick={() => run(() => onCancel(order.id))} disabled={submitting}
-              className="rounded-xl bg-red-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">
-              Cancel order
-            </button>
+            <Button variant="danger" onClick={() => run(() => onCancel(order.id))} disabled={submitting}>Cancel order</Button>
           </div>
         </>
       )}
@@ -149,23 +140,14 @@ export const AdminOrdersPage = ({ userId, staffRole, staffRoleLoading }: {
 }) => {
   const { orders, loading, error, reload, issueProforma, cancelOrder, reviseOrder } = useAdminOrders(userId, staffRole, staffRoleLoading);
 
-  if (loading) return <div className={`${cx.card} mt-6 text-sm`} style={{ color: MUTED }}>Loading...</div>;
+  if (loading) return <LoadingState className="mt-6" label="Loading orders" />;
 
   if (error) {
-    return (
-      <div className={`${cx.card} mt-6`}>
-        <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
-        <button onClick={() => reload()} className="mt-2 text-sm font-bold" style={{ color: NAVY }}>Retry</button>
-      </div>
-    );
+    return <ErrorState className="mt-6" message={error} onRetry={() => reload()} />;
   }
 
   if (orders.length === 0) {
-    return (
-      <div className={`${cx.card} mt-6 text-center`}>
-        <p className={cx.footnote}>No orders awaiting a decision.</p>
-      </div>
-    );
+    return <EmptyState className={`${cx.card} mt-6 text-center`} message="No orders awaiting a decision." />;
   }
 
   return (

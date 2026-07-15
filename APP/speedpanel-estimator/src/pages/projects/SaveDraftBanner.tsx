@@ -9,7 +9,8 @@
 // System Selector's "Select System" flow.
 // =============================================================================
 import { useState } from "react";
-import { NAVY, BLUE, MUTED, cx } from "../../styleTokens";
+import { NAVY, cx } from "../../styleTokens";
+import { Button } from "../../ui/button";
 
 export const SaveDraftBanner = ({ onSave }: { onSave: (name: string) => Promise<string | null> }) => {
   const [naming, setNaming] = useState(false);
@@ -38,20 +39,11 @@ export const SaveDraftBanner = ({ onSave }: { onSave: (name: string) => Promise<
           <input value={name} onChange={e => setName(e.target.value)} placeholder="Project name" required autoFocus
             className={cx.input + " w-48 !py-2"} style={{ color: NAVY }} />
           {error && <span className="text-sm text-red-600 dark:text-red-400">{error}</span>}
-          <button type="submit" disabled={saving || !name.trim()}
-            className="rounded-xl px-4 py-2 text-sm font-bold disabled:opacity-50" style={{ background: BLUE, color: "#fff" }}>
-            {saving ? "Saving..." : "Save"}
-          </button>
-          <button type="button" onClick={() => { setNaming(false); setError(null); }}
-            className="rounded-xl px-3 py-2 text-sm font-semibold" style={{ color: MUTED }}>
-            Cancel
-          </button>
+          <Button type="submit" disabled={saving || !name.trim()}>{saving ? "Saving..." : "Save"}</Button>
+          <Button type="button" variant="ghost" onClick={() => { setNaming(false); setError(null); }}>Cancel</Button>
         </form>
       ) : (
-        <button onClick={() => setNaming(true)}
-          className="rounded-xl px-4 py-2 text-sm font-bold" style={{ background: BLUE, color: "#fff" }}>
-          Save as Project
-        </button>
+        <Button onClick={() => setNaming(true)}>Save as Project</Button>
       )}
     </div>
   );

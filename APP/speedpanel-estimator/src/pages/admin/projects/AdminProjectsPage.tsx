@@ -18,8 +18,10 @@
 // is scoped to their companies too now (see adminProjectsStore.ts).
 // =============================================================================
 import { useState } from "react";
-import { cx, NAVY, MUTED } from "../../../styleTokens";
+import { cx, NAVY } from "../../../styleTokens";
 import { AccordionCard } from "../../../ui/primitives";
+import { Button } from "../../../ui/button";
+import { LoadingState, ErrorState, EmptyState } from "../../../ui/states";
 import { TextAreaField } from "../../shared/fields";
 import { StageStepper } from "../../projects/StageStepper";
 import { useAdminProjects, useMyPmProjects } from "./adminProjectsStore";
@@ -66,25 +68,13 @@ const ProjectReviewRow = ({ item, onApproveInstall, onChangesInstall, onApproveT
       <div className="mt-3 flex flex-wrap gap-2">
         {isInstall ? (
           <>
-            <button onClick={() => run(() => onApproveInstall(item.id))} disabled={submitting}
-              className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">
-              Approve install review
-            </button>
-            <button onClick={() => run(() => onChangesInstall(item.id, note))} disabled={submitting || !note.trim()}
-              className="rounded-xl bg-amber-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">
-              Request changes
-            </button>
+            <Button onClick={() => run(() => onApproveInstall(item.id))} disabled={submitting}>Approve install review</Button>
+            <Button variant="secondary" onClick={() => run(() => onChangesInstall(item.id, note))} disabled={submitting || !note.trim()}>Request changes</Button>
           </>
         ) : (
           <>
-            <button onClick={() => run(() => onApproveTechnical(item.id))} disabled={submitting}
-              className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">
-              Approve technical review
-            </button>
-            <button onClick={() => run(() => onChangesTechnical(item.id, note))} disabled={submitting || !note.trim()}
-              className="rounded-xl bg-amber-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">
-              Request changes
-            </button>
+            <Button onClick={() => run(() => onApproveTechnical(item.id))} disabled={submitting}>Approve technical review</Button>
+            <Button variant="secondary" onClick={() => run(() => onChangesTechnical(item.id, note))} disabled={submitting || !note.trim()}>Request changes</Button>
           </>
         )}
       </div>
@@ -126,23 +116,16 @@ export const AdminProjectsPage = ({ userId, staffRole, staffRoleLoading }: {
     ? <MyActiveProjectsSection companyIds={scope.kind === "companies" ? scope.companyIds : []} />
     : null;
 
-  if (loading) return <div className={`${cx.card} mt-6 text-sm`} style={{ color: MUTED }}>Loading...</div>;
+  if (loading) return <LoadingState className="mt-6" label="Loading project reviews" />;
 
   if (error) {
-    return (
-      <div className={`${cx.card} mt-6`}>
-        <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
-        <button onClick={() => reload()} className="mt-2 text-sm font-bold" style={{ color: NAVY }}>Retry</button>
-      </div>
-    );
+    return <ErrorState className="mt-6" message={error} onRetry={() => reload()} />;
   }
 
   if (projects.length === 0) {
     return (
       <div className="mt-2">
-        <div className={`${cx.card} mt-4 text-center`}>
-          <p className={cx.footnote}>No projects awaiting review.</p>
-        </div>
+        <EmptyState className={`${cx.card} mt-4 text-center`} message="No projects awaiting review." />
         {myProjectsSection}
       </div>
     );

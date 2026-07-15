@@ -16,10 +16,16 @@
 // #/admin/permissions) even though the label is "Roles" -- see
 // adminSectionAccess.ts and AdminDashboard.tsx.
 // =============================================================================
-import { cx, NAVY, MUTED, BLUE } from "../../styleTokens";
+import { useState } from "react";
+import { cx, MUTED, BLUE } from "../../styleTokens";
+import { LoadingState, ErrorState } from "../../ui/states";
+import { ErrorDialog } from "../../ui/confirmDialog";
+import { Table, type TableColumn } from "../../ui/table";
 import { STAFF_ROLES, STAFF_ROLE_LABELS } from "../company/staffTypes";
 import { useAdminPermissionMatrix } from "./roles/rolesStore";
 import type { PermissionMatrixRow } from "./roles/roleTypes";
+
+type PermissionRow = { key: string; description: string; granted: Partial<Record<typeof STAFF_ROLES[number], boolean>> };
 
 const CATEGORY_LABELS: Record<string, string> = {
   requests: "Requests",
@@ -64,62 +70,53 @@ function groupByCategory(rows: PermissionMatrixRow[]): PermissionGroup[] {
 export const AdminRolesPage = () => {
   const { rows, loading, error, reload, setGrant } = useAdminPermissionMatrix();
   const groups = groupByCategory(rows);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const handleToggle = async (role: typeof STAFF_ROLES[number], permissionKey: string, next: boolean) => {
     const err = await setGrant(role, permissionKey, next);
-    if (err) alert(err);
+    if (err) setActionError(err);
   };
 
   return (
     <div className="mt-2">
-      <h1 className="text-lg font-bold" style={{ color: NAVY }}>Roles</h1>
+      <ErrorDialog message={actionError} onDismiss={() => setActionError(null)} />
+      <h1 className={cx.h1}>Roles</h1>
       <p className="mt-1 text-sm" style={{ color: MUTED }}>
         Control which internal roles can access each admin section and action. super_admin (and any not-yet-assigned
         staff account) always has full access regardless of these grants.
       </p>
 
-      {loading && <div className={`${cx.card} mt-6 text-sm`} style={{ color: MUTED }}>Loading...</div>}
+      {loading && <LoadingState className="mt-6" label="Loading roles" />}
 
-      {!loading && error && (
-        <div className={`${cx.card} mt-6`}>
-          <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
-          <button onClick={() => reload()} className="mt-2 text-sm font-bold" style={{ color: NAVY }}>Retry</button>
-        </div>
-      )}
+      {!loading && error && <ErrorState className="mt-6" message={error} onRetry={() => reload()} />}
 
-      {!loading && !error && groups.map(group => (
-        <div key={group.category} className={`${cx.card} mt-4 overflow-x-auto`}>
-          <div className={cx.cardHd}>{CATEGORY_LABELS[group.category] ?? group.category}</div>
-          <table className="mt-2 w-full min-w-[640px] text-left text-sm">
-            <thead>
-              <tr>
-                <th className="pb-2 pr-4 font-semibold" style={{ color: NAVY }}>Permission</th>
-                {STAFF_ROLES.map(role => (
-                  <th key={role} className="pb-2 px-2 text-center font-semibold" style={{ color: NAVY }}>{STAFF_ROLE_LABELS[role]}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {group.permissions.map(perm => (
-                <tr key={perm.key} className="border-t border-slate-100 dark:border-slate-700">
-                  <td className="py-2 pr-4 text-slate-700 dark:text-slate-300">{perm.description}</td>
-                  {STAFF_ROLES.map(role => (
-                    <td key={role} className="py-2 px-2 text-center">
-                      <input
-                        type="checkbox"
-                        checked={perm.granted[role] ?? false}
-                        onChange={e => handleToggle(role, perm.key, e.target.checked)}
-                        style={{ accentColor: BLUE }}
-                        className="h-4 w-4 cursor-pointer"
-                      />
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ))}
+      {!loading && !error && groups.map(group => {
+        const columns: TableColumn<PermissionRow>[] = [
+          { key: "permission", header: "Permission", cell: perm => <span className="text-slate-700 dark:text-slate-300">{perm.description}</span> },
+          ...STAFF_ROLES.map(role => ({
+            key: role,
+            header: STAFF_ROLE_LABELS[role],
+            align: "center" as const,
+            cell: (perm: PermissionRow) => (
+              <input
+                type="checkbox"
+                checked={perm.granted[role] ?? false}
+                onChange={e => handleToggle(role, perm.key, e.target.checked)}
+                style={{ accentColor: BLUE }}
+                className="h-4 w-4 cursor-pointer"
+              />
+            ),
+          })),
+        ];
+        return (
+          <div key={group.category} className="mt-4">
+            <div className={cx.cardHd}>{CATEGORY_LABELS[group.category] ?? group.category}</div>
+            <div className="mt-2">
+              <Table columns={columns} rows={group.permissions} rowKey={perm => perm.key} />
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 };

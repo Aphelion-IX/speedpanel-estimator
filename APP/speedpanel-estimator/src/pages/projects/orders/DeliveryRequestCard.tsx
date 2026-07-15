@@ -13,8 +13,9 @@
 // =============================================================================
 import { useState } from "react";
 import { Trash2 } from "lucide-react";
-import { cx, NAVY, MUTED, BLUE, WHITE } from "../../../styleTokens";
-import { AccordionCard } from "../../../ui/primitives";
+import { cx, NAVY, MUTED, BLUE } from "../../../styleTokens";
+import { AccordionCard, IconButton } from "../../../ui/primitives";
+import { Button } from "../../../ui/button";
 import type { OrderLineItem } from "../../../export/priceEstimateReportData";
 import { DELIVERY_APPROVAL_STATUS_LABELS, DELIVERY_APPROVAL_STATUS_BADGE_CLASS, type OrderDeliveryRow } from "./orderTypes";
 import { LineItemAllocationTable } from "./LineItemAllocationTable";
@@ -48,9 +49,9 @@ export const DeliveryRequestCard = ({ delivery, lineItems, onRemove, onAcceptPro
           </span>
         </div>
         {delivery.approval_status === "pending" && (
-          <button onClick={() => onRemove(delivery.id)} className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-slate-200 dark:border-slate-700 text-red-500">
+          <IconButton size="sm" variant="danger" title="Remove" ariaLabel="Remove delivery" onClick={() => onRemove(delivery.id)}>
             <Trash2 size={14} />
-          </button>
+          </IconButton>
         )}
       </div>
 
@@ -73,18 +74,15 @@ export const DeliveryRequestCard = ({ delivery, lineItems, onRemove, onAcceptPro
             Speedpanel proposed a different date{delivery.proposed_date ? `: ${fmt(delivery.proposed_date)}` : ""}.
           </p>
           <div className="mt-2 flex flex-wrap items-center gap-2">
-            <button onClick={() => onAcceptProposedDate(delivery.id)}
-              className="rounded-xl px-3 py-1.5 text-xs font-bold" style={{ background: BLUE, color: WHITE }}>
-              Accept proposed date
-            </button>
+            <Button onClick={() => onAcceptProposedDate(delivery.id)}>Accept proposed date</Button>
             {changingDate ? (
               <>
                 <input type="date" value={newDate} onChange={e => setNewDate(e.target.value)} className={cx.input + " w-auto !py-1.5"} style={{ color: NAVY }} />
-                <button onClick={submitDateChange} disabled={!newDate} className="rounded-xl border border-slate-200 dark:border-slate-700 px-3 py-1.5 text-xs font-bold disabled:opacity-50" style={{ color: NAVY }}>Request this date</button>
-                <button onClick={() => setChangingDate(false)} className="text-xs font-semibold" style={{ color: MUTED }}>Cancel</button>
+                <Button variant="secondary" disabled={!newDate} onClick={submitDateChange}>Request this date</Button>
+                <Button variant="ghost" onClick={() => setChangingDate(false)}>Cancel</Button>
               </>
             ) : (
-              <button onClick={() => setChangingDate(true)} className="text-xs font-bold" style={{ color: BLUE }}>Propose a different date</button>
+              <Button variant="ghost" onClick={() => setChangingDate(true)}>Propose a different date</Button>
             )}
           </div>
         </div>
@@ -98,11 +96,11 @@ export const DeliveryRequestCard = ({ delivery, lineItems, onRemove, onAcceptPro
           {changingDate ? (
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <input type="date" value={newDate} onChange={e => setNewDate(e.target.value)} className={cx.input + " w-auto !py-1.5"} style={{ color: NAVY }} />
-              <button onClick={submitDateChange} disabled={!newDate} className="rounded-xl px-3 py-1.5 text-xs font-bold disabled:opacity-50" style={{ background: BLUE, color: WHITE }}>Submit</button>
-              <button onClick={() => setChangingDate(false)} className="text-xs font-semibold" style={{ color: MUTED }}>Cancel</button>
+              <Button disabled={!newDate} onClick={submitDateChange}>Submit</Button>
+              <Button variant="ghost" onClick={() => setChangingDate(false)}>Cancel</Button>
             </div>
           ) : (
-            <button onClick={() => setChangingDate(true)} className="mt-1 text-xs font-bold" style={{ color: BLUE }}>Request date change</button>
+            <Button variant="ghost" className="mt-1" onClick={() => setChangingDate(true)}>Request date change</Button>
           )}
         </div>
       )}

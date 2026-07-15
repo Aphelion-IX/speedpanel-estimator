@@ -17,6 +17,7 @@
 // of the top nav).
 // =============================================================================
 import { z } from "zod";
+import { tone } from "../../../styleTokens";
 
 export const REQUEST_STATUSES = ["new", "contacted", "closed"] as const;
 export type RequestStatus = typeof REQUEST_STATUSES[number];
@@ -28,9 +29,9 @@ export const REQUEST_STATUS_LABELS: Record<RequestStatus, string> = {
 };
 
 export const REQUEST_STATUS_BADGE_CLASS: Record<RequestStatus, string> = {
-  new: "bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400",
-  contacted: "bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400",
-  closed: "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400",
+  new: tone("info"),
+  contacted: tone("warn"),
+  closed: tone("ok"),
 };
 
 export const AdminRequestRowSchema = z.object({
