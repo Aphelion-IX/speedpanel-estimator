@@ -224,6 +224,22 @@ const PanelTypeSelector = ({ active, update, topBorder }: {
   </div>
 );
 
+// --- WallNameAndActions -----------------------------------------------------------
+// The active wall's name input + duplicate/delete toolbar -- split out from
+// WallTabsAndActions so a caller that hides the tab strip (Internal's
+// Estimate Structure nav supersedes it, see WallsCard's hideWallTabs prop)
+// can still keep rename/duplicate/delete available.
+const WallNameAndActions = ({ walls, active, update, duplicateWall, deleteWall }: {
+  walls: Wall[]; active: Wall; update: (patch: Partial<Wall>) => void;
+  duplicateWall: () => void; deleteWall: () => void;
+}) => (
+  <div className="flex items-center gap-2 mt-2">
+    <input value={active.name} onChange={e => update({ name: e.target.value })} maxLength={32} className={cx.wallName} style={{ color: NAVY }} />
+    <IconButton onClick={duplicateWall} title="Duplicate"><Copy size={15} /></IconButton>
+    <IconButton onClick={deleteWall} disabled={walls.length === 1} variant="danger" title="Delete"><Trash2 size={15} /></IconButton>
+  </div>
+);
+
 // --- WallTabsAndActions -----------------------------------------------------------
 // Wall tab strip (+ Add) and the active wall's name/duplicate/delete toolbar.
 const WallTabsAndActions = ({ walls, results, activeId, setActiveId, active, update, addBlankWall, duplicateWall, deleteWall, warnById, topBorder }: {
@@ -259,11 +275,7 @@ const WallTabsAndActions = ({ walls, results, activeId, setActiveId, active, upd
         <div className="mt-1 text-xs font-medium text-transparent">-</div>
       </button>
     </div>
-    <div className="flex items-center gap-2 mt-2">
-      <input value={active.name} onChange={e => update({ name: e.target.value })} maxLength={32} className={cx.wallName} style={{ color: NAVY }} />
-      <IconButton onClick={duplicateWall} title="Duplicate"><Copy size={15} /></IconButton>
-      <IconButton onClick={deleteWall} disabled={walls.length === 1} variant="danger" title="Delete"><Trash2 size={15} /></IconButton>
-    </div>
+    <WallNameAndActions walls={walls} active={active} update={update} duplicateWall={duplicateWall} deleteWall={deleteWall} />
   </div>
 );
 
@@ -279,8 +291,14 @@ export interface WallsCardProps {
   onCornerLink?: (targetId: number | null) => void; // Corner wall run linking (internal only)
   onShaftLink?: (targetId: number | null) => void; // Shaft wall primary/secondary linking (internal only)
   onJunctionLink?: (targetId: number | null) => void; // Generic adjoining-wall linking -- any orient/wallSystem, Internal or External
+  // Suppresses the tab-strip+Add portion of WallTabsAndActions, keeping just
+  // WallNameAndActions (rename/duplicate/delete) -- for Internal, whose
+  // Estimate Structure nav (src/internalCalculator/estimateStructureNav.tsx)
+  // is now the wall picker + add-wall entry point instead. Defaults to false
+  // so External (and any other caller) renders exactly as before.
+  hideWallTabs?: boolean;
 }
-export const WallsCard = ({ walls, results, activeId, setActiveId, active, update, addBlankWall, duplicateWall, deleteWall, warnById, showTypes = true, systemSelector, orient, onCornerLink, onShaftLink, onJunctionLink }: WallsCardProps) => (
+export const WallsCard = ({ walls, results, activeId, setActiveId, active, update, addBlankWall, duplicateWall, deleteWall, warnById, showTypes = true, systemSelector, orient, onCornerLink, onShaftLink, onJunctionLink, hideWallTabs = false }: WallsCardProps) => (
   <div className={cx.section}>
     {/* 1 -- System selector */}
     {systemSelector && (
@@ -320,13 +338,22 @@ export const WallsCard = ({ walls, results, activeId, setActiveId, active, updat
     {showTypes && (
       <PanelTypeSelector active={active} update={update} topBorder={!!systemSelector} />
     )}
-    {/* 3 -- Wall tabs + name + actions */}
-    <WallTabsAndActions
-      walls={walls} results={results} activeId={activeId} setActiveId={setActiveId}
-      active={active} update={update} addBlankWall={addBlankWall}
-      duplicateWall={duplicateWall} deleteWall={deleteWall} warnById={warnById}
-      topBorder={showTypes || !!systemSelector}
-    />
+    {/* 3 -- Wall tabs + name + actions (tab strip suppressed when
+        hideWallTabs -- Internal renders its own Estimate Structure nav
+        instead, but still needs the rename/duplicate/delete toolbar for
+        whichever wall is active) */}
+    {hideWallTabs ? (
+      <div className={(showTypes || !!systemSelector) ? "border-t border-slate-100 dark:border-slate-800 pt-3" : ""}>
+        <WallNameAndActions walls={walls} active={active} update={update} duplicateWall={duplicateWall} deleteWall={deleteWall} />
+      </div>
+    ) : (
+      <WallTabsAndActions
+        walls={walls} results={results} activeId={activeId} setActiveId={setActiveId}
+        active={active} update={update} addBlankWall={addBlankWall}
+        duplicateWall={duplicateWall} deleteWall={deleteWall} warnById={warnById}
+        topBorder={showTypes || !!systemSelector}
+      />
+    )}
   </div>
 );
 

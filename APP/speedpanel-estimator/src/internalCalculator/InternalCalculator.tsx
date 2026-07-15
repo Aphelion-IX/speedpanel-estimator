@@ -12,7 +12,7 @@
 // estimate are computed independently here, mirroring ExternalCalculator's
 // own independent compute calls on the same shared `walls` array.
 // =============================================================================
-import { useState, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Frame, Lock, Settings } from "lucide-react";
 import { cx } from "../styleTokens";
 import { useWallResults } from "../wallStore";
@@ -21,6 +21,8 @@ import { compute } from "../estimate/computeWall";
 import { aggregate } from "../estimate/aggregate";
 import { useCombinedEstimateCalc } from "../estimate/useCombinedEstimateCalc";
 import { computeCornerPair, computeShaftPair } from "../estimate/cornerShaftKits";
+import { synthesizeKits } from "../estimate/synthesizeKits";
+import type { SelectedNavItem } from "../estimate/navSelection";
 import { HEAD_FLASH_LABEL, HEAD_FLASH_SUBLABEL, STOCK_LENGTHS, INT_CONFIG } from "../data";
 import type { Wall } from "../estimate/wall.types";
 import type { EffectiveLayout } from "../useLayoutMode";
@@ -31,6 +33,7 @@ import {
 import { LockedDataInt, LockedDataFooter } from "../ui/lockedData";
 import { PanelLengthSection } from "../ui/lengthExplorer";
 import { WallsCard, WallsSummaryTable } from "../ui/wallsCard";
+import { EstimateStructureNav } from "./estimateStructureNav";
 import {
   ProfileSection, DimensionInputs, SpanTable, EdgeRestraintSelector, ProjectSeparator,
 } from "../ui/wallConfig";
@@ -54,11 +57,24 @@ export function InternalCalculator({ store, orient, dimUnit, setDimUnit, systemS
     walls, activeId, setActiveId,
     projectStock, projectLock, customLengthInput, customActive,
     active, update, toDisp, updDim,
-    setProjectLength, addBlankWall, duplicateWall, deleteWall,
+    setProjectLength, addBlankWall, addCornerWall, addShaftWall, duplicateWall, deleteWall,
     commitCustomLength, toggleCustom, clearCustomLength,
     linkJunctionPartner,
   } = store;
   const { results, out, warnById } = useWallResults(walls, activeId, compute);
+  const kits = useMemo(() => synthesizeKits(walls, INT_CONFIG), [walls]);
+  const [selectedNavItem, setSelectedNavItem] = useState<SelectedNavItem>({ type: "wall", wallId: activeId });
+  useEffect(() => {
+    setSelectedNavItem(prev =>
+      prev.type === "kit" && kits.some(k => k.wallAId === prev.wallAId && k.wallBId === prev.wallBId)
+        ? prev
+        : { type: "wall", wallId: activeId }
+    );
+  }, [activeId, kits]);
+  const handleSelectNavItem = (item: SelectedNavItem) => {
+    setSelectedNavItem(item);
+    if (item.type === "wall") setActiveId(item.wallId);
+  };
 
   const switchDimUnit = (u: string) => { setDimUnit(u); clearCustomLength(); };
   const project = mode === "project";
@@ -92,6 +108,13 @@ export function InternalCalculator({ store, orient, dimUnit, setDimUnit, systemS
         onCornerLink={linkCornerPartner}
         onShaftLink={linkShaftPartner}
         onJunctionLink={linkJunctionPartner}
+        hideWallTabs
+      />
+      <EstimateStructureNav
+        walls={walls} results={results} kits={kits}
+        selected={selectedNavItem} onSelect={handleSelectNavItem}
+        warnById={warnById}
+        addBlankWall={addBlankWall} addCornerWall={addCornerWall} addShaftWall={addShaftWall}
       />
 
       {/* Profile and dimensions */}

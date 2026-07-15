@@ -162,13 +162,28 @@ export function useWallStore({ dimUnit, onWallAdded, persistLocally = true }: { 
     return projectStock;
   };
 
-  const addBlankWall = () => {
+  // Shared body for addBlankWall/addCornerWall/addShaftWall -- an optional
+  // patch lets a caller pre-set fields (e.g. orient/wallSystem) atomically in
+  // the same setWalls call, since update() closes over activeId from
+  // render-time state and can't safely be chained right after this (the new
+  // wall's setActiveId hasn't re-rendered yet). addBlankWall itself keeps its
+  // existing zero-arg signature -- src/ui/wallsCard.tsx passes it directly as
+  // `onClick={addBlankWall}`, so it must never take an argument the DOM
+  // MouseEvent could be mistaken for.
+  const addWall = (patch?: Partial<Wall>) => {
     const id = nextId;
-    setWalls(ws => [...ws, { ...defaultWall(id, active.orient), forcedStock: projectForcedStock() }]);
+    setWalls(ws => [...ws, { ...defaultWall(id, active.orient), forcedStock: projectForcedStock(), ...patch }]);
     setNextId(id + 1);
     setActiveId(id);
     onWallAdded?.();
   };
+  const addBlankWall = () => addWall();
+  // Convenience creators for the Estimate Structure nav's "+ Add corner"/
+  // "+ Add shaft" actions -- corner/shaft wall systems are horizontal-only
+  // (see WallSystemSelector), and shaft is always 78 mm, not a user choice
+  // (same convention as WallSystemSelector's own onChange handler).
+  const addCornerWall = () => addWall({ orient: "horizontal", wallSystem: "corner" });
+  const addShaftWall = () => addWall({ orient: "horizontal", wallSystem: "shaft", type: 78 });
 
   const duplicateWall = () => {
     const id = nextId;
@@ -290,7 +305,7 @@ export function useWallStore({ dimUnit, onWallAdded, persistLocally = true }: { 
     projectStock, projectLock, customLengthInput, customActive,
     active, update, toDisp, toM, updDim,
     setProjectLength, projectForcedStock,
-    addBlankWall, duplicateWall, deleteWall,
+    addBlankWall, addCornerWall, addShaftWall, duplicateWall, deleteWall,
     commitCustomLength, toggleCustom, resetWalls, clearCustomLength,
     linkJunctionPartner, loadFrom, exportSnapshot,
   };
