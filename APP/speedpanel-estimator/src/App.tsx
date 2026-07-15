@@ -92,7 +92,10 @@ export default function SpeedpanelEstimator() {
   // open saved project (a fresh device-local scratch project, not that
   // project, is what "start over" should mean). The persistence effects
   // immediately re-save the clean default, so a later reload stays clear.
-  const resetAll     = () => { resetWalls(); setMode("project"); setSystem("int-vert"); setDimUnit("m"); setOpenProject(null); };
+  const resetAll = () => {
+    if (!window.confirm("Reset the estimator? This can't be undone.")) return;
+    resetWalls(); setMode("project"); setSystem("int-vert"); setDimUnit("m"); setOpenProject(null);
+  };
   // Switching system no longer clears walls -- the shared store is preserved
   // across every orientation/wall-type change.
   const switchSystem = (id: string) => { setSystem(id); setShowWall(true); };
