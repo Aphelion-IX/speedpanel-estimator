@@ -264,8 +264,9 @@ export const WarningsList = ({ warnings }: { warnings?: string[] | null }) => {
 // layout mode. Phone reproduces today's stacked order exactly (byte-for-byte
 // equivalent JSX, just relocated into variables); web arranges it as a sticky
 // sidebar + wider main column.
-export const CalculatorShell = ({ sidebar, main, footer }: {
+export const CalculatorShell = ({ sidebar, main, footer, sidebarWidth = 400 }: {
   sidebar: React.ReactNode; main: React.ReactNode; footer: React.ReactNode;
+  sidebarWidth?: number; // narrower once a sidebar is nav-only (see InternalCalculator's Estimate Structure nav) -- default keeps every existing caller byte-identical
 }) => (
   // No space-y-* here: every child component already carries its own correct
   // top margin (mt-3/mt-5/etc., matching phone layout exactly). space-y-*'s
@@ -273,7 +274,7 @@ export const CalculatorShell = ({ sidebar, main, footer }: {
   // specificity than a plain utility class like mt-5, so it was silently
   // overriding every child's real margin down to a flat 4px -- the actual
   // cause of web layout's spacing looking compressed/inconsistent vs phone.
-  <div className="grid grid-cols-[400px_1fr] items-start gap-8">
+  <div className="grid items-start gap-8" style={{ gridTemplateColumns: `${sidebarWidth}px 1fr` }}>
     <aside className="sticky top-5">{sidebar}</aside>
     <div className="min-w-0">{main}{footer}</div>
   </div>

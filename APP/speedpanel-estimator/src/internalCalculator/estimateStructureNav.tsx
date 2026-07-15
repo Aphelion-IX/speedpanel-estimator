@@ -12,7 +12,7 @@
 import { Plus } from "lucide-react";
 import { cx, BLUE, GOLD, NAVY, MUTED } from "../styleTokens";
 import type { Wall, WallResult } from "../estimate/wall.types";
-import type { KitEntry } from "../estimate/synthesizeKits";
+import { kitLabel, type KitEntry } from "../estimate/synthesizeKits";
 import type { SelectedNavItem } from "../estimate/navSelection";
 
 const NavRow = ({ on, warn, title, subtitle, onClick }: {
@@ -36,11 +36,6 @@ export const EstimateStructureNav = ({
   warnById: Record<number, boolean>;
   addBlankWall: () => void; addCornerWall: () => void; addShaftWall: () => void;
 }) => {
-  const kitLabel = (k: KitEntry) => {
-    const n = kits.filter(x => x.kind === k.kind).findIndex(x => x.id === k.id) + 1;
-    return `${k.kind === "corner" ? "Corner Kit" : "Shaft Junction"} ${String(n).padStart(2, "0")}`;
-  };
-
   return (
     <div className={`mt-3 ${cx.section}`}>
       <div className={cx.cardHd} style={{ marginTop: 0 }}>Estimate structure ({walls.length + kits.length})</div>
@@ -60,7 +55,7 @@ export const EstimateStructureNav = ({
             key={k.id}
             on={selected.type === "kit" && selected.wallAId === k.wallAId && selected.wallBId === k.wallBId}
             warn={k.result.warnings.length > 0}
-            title={kitLabel(k)}
+            title={kitLabel(k, kits)}
             subtitle={`Links ${k.wallAName} ↔ ${k.wallBName}`}
             onClick={() => onSelect({ type: "kit", kind: k.kind, wallAId: k.wallAId, wallBId: k.wallBId })}
           />

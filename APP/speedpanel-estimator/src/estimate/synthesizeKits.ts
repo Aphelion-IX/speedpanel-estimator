@@ -54,3 +54,12 @@ export function synthesizeKits(walls: Wall[], cfg: SystemConfig): KitEntry[] {
 
   return entries;
 }
+
+// Shared "Corner Kit 01" / "Shaft Junction 01" label -- 1-based index within
+// the kit's own kind, not stored on KitEntry itself since it depends on the
+// full kits array's order. Used by both the Estimate Structure nav's rows
+// and the Calculator Workspace's title, so they can't drift out of sync.
+export function kitLabel(kit: KitEntry, kits: KitEntry[]): string {
+  const n = kits.filter(k => k.kind === kit.kind).findIndex(k => k.id === kit.id) + 1;
+  return `${kit.kind === "corner" ? "Corner Kit" : "Shaft Junction"} ${String(n).padStart(2, "0")}`;
+}
