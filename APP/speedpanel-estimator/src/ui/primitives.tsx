@@ -188,6 +188,15 @@ export const Stat = ({ value, label }: { value: string | number; label: string }
   </div>
 );
 
+/** Arbitrary-length stats grid (unlike StatsRow's fixed 3) -- for contexts
+ * needing more than area/panels/type at once, e.g. a project-wide overview
+ * (area, panels, wall count, kit count, waste%, warnings). */
+export const StatsGrid = ({ stats }: { stats: { value: string | number; label: string }[] }) => (
+  <div className="grid grid-cols-2 sm:grid-cols-3 items-end gap-1.5">
+    {stats.map((s, i) => <Stat key={i} value={s.value} label={s.label} />)}
+  </div>
+);
+
 export const Card = ({ title, icon, children }: { title: string; icon: React.ReactNode; children: React.ReactNode }) => (
   <div className={`mt-3 ${cx.card}`}>
     <div className={cx.cardTitle} style={{ color: NAVY }}>

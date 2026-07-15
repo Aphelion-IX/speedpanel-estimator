@@ -117,6 +117,27 @@ export const cx = {
   pill:      "rounded-full px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-white",
   badge:     "shrink-0 rounded-full px-2.5 py-0.5 text-xs font-bold uppercase tracking-wide",
 
+  // -- Tabs --------------------------------------------------------------------
+  // Click-to-switch pill tab bar (src/ui/tabs.tsx) -- same pill visual
+  // language as SectionNav's scroll-spy pills, but a plain non-sticky row
+  // since tab switching stays within one card, not the whole page.
+  tabList:     "flex gap-1.5 overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40 p-1.5",
+  tabActive:   "shrink-0 rounded-lg px-3.5 py-2 text-xs font-bold uppercase tracking-wide whitespace-nowrap text-white bg-[color:var(--blue)]",
+  tabInactive: "shrink-0 rounded-lg px-3.5 py-2 text-xs font-bold uppercase tracking-wide whitespace-nowrap text-slate-400 dark:text-slate-500 hover:text-[color:var(--blue)]",
+
+  // -- Drawer / slide-over ------------------------------------------------------
+  // src/ui/drawer.tsx -- right-side panel on web layout, full-screen sheet on
+  // phone layout, same backdrop feel as ConfirmDialog's centered modal.
+  drawerOverlay: "fixed inset-0 z-50 flex justify-end bg-slate-900/40 backdrop-blur-sm",
+  drawerPanel:   "flex h-full w-full max-w-md flex-col bg-white dark:bg-slate-800 shadow-[-30px_0_60px_-24px_rgba(15,23,42,0.4)] outline-none dark:shadow-[-30px_0_60px_-24px_rgba(0,0,0,0.6)]",
+  drawerSheet:   "flex h-full w-full flex-col bg-white dark:bg-slate-800 outline-none",
+
+  // -- Mobile sticky summary bar -------------------------------------------------
+  // src/ui/stickyBar.tsx -- fixed bottom bar, no equivalent existed anywhere
+  // in the app before this. Safe-area-aware bottom padding for iOS home indicator.
+  stickyBar:    "fixed inset-x-0 bottom-0 z-40 flex items-center gap-4 border-t border-slate-200 dark:border-slate-700 bg-white/95 dark:bg-slate-800/95 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-20px_40px_-28px_rgba(15,23,42,0.35)] backdrop-blur dark:shadow-[0_-20px_40px_-24px_rgba(0,0,0,0.5)]",
+  stickyBarBtn: "shrink-0 rounded-xl bg-slate-800 px-4 py-2.5 text-sm font-bold tracking-wide text-white transition-colors hover:bg-slate-700 active:scale-[0.99]",
+
   // -- Footnotes & auxiliary text ---------------------------------------------
   footnote:  "pt-2 text-sm leading-relaxed text-slate-400 dark:text-slate-500",
   // Locked-data panel wrapper
