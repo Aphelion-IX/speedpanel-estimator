@@ -11,7 +11,7 @@
 // needs one yet.
 // =============================================================================
 import { useEffect, useRef, useState } from "react";
-import { LogIn, LogOut, ChevronDown, ShieldCheck } from "lucide-react";
+import { LogIn, LogOut, ChevronDown, ShieldCheck, ListChecks } from "lucide-react";
 import { BLUE, WHITE, NAVY } from "../styleTokens";
 import { IconButton } from "../ui/primitives";
 import type { UseAuth } from "../lib/useAuth";
@@ -86,6 +86,15 @@ export const AuthStatus = ({ auth, onSignInClick, isInternalStaff, staffRole, na
               style={{ color: NAVY }}
             >
               <ShieldCheck size={15} /> Admin
+            </button>
+          )}
+          {!isInternalStaff && (
+            <button
+              onClick={() => { setOpen(false); navigate({ tab: "myRequests" }); }}
+              className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm font-semibold hover:bg-slate-50 dark:hover:bg-slate-700"
+              style={{ color: NAVY }}
+            >
+              <ListChecks size={15} /> My Requests
             </button>
           )}
           <button

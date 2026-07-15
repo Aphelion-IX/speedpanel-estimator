@@ -3643,3 +3643,26 @@ as $$
 $$;
 revoke execute on function public.admin_list_delivery_requests() from public, anon;
 grant execute on function public.admin_list_delivery_requests() to authenticated;
+
+-- =============================================================================
+-- Owner/company read access for quote requests tied to a saved project
+-- =============================================================================
+-- "My Requests" (customer-facing consolidated request history) needs
+-- customers to read their own requests table rows, which today only has
+-- admin-gated SELECT policies. Reuses can_view_project(), the same
+-- function projects/orders/order_deliveries already use for ownership/
+-- company-membership checks.
+--
+-- Deliberately does NOT cover anonymous/pre-signup requests (project_id
+-- is null) -- there's no reliable ownership signal for those (name/email/
+-- phone are free-typed, never matched against auth.jwt()), so they stay
+-- staff-only, exactly as before this policy.
+-- =============================================================================
+create policy "Owners, company, and admins can read their own requests" on requests
+  for select using (
+    project_id is not null
+    and exists (
+      select 1 from projects p where p.id = project_id
+        and public.can_view_project(p.owner_id, p.company_id, p.id)
+    )
+  );

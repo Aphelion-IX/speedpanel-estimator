@@ -30,6 +30,7 @@ import { SaveDraftBanner } from "./pages/projects/SaveDraftBanner";
 import type { ProjectRow, SavedProjectData } from "./pages/projects/projectTypes";
 import { ProformaInvoicePage } from "./pages/projects/orders/ProformaInvoicePage";
 import { CompanyRouter } from "./pages/company/CompanyRouter";
+import { MyRequestsPage } from "./pages/projects/requests/MyRequestsPage";
 import { PendingInvitationsBanner } from "./pages/company/PendingInvitationsBanner";
 import type { WallSystemOption } from "./systemSelector/systemOptions";
 
@@ -243,6 +244,10 @@ export default function SpeedpanelEstimator() {
 
         {route.tab === "company" && (
           <CompanyRouter route={route} navigate={navigate} userId={auth.user?.id ?? null} company={company} />
+        )}
+
+        {route.tab === "myRequests" && (
+          <MyRequestsPage auth={auth} navigate={navigate} activeCompanyId={company.activeCompanyId} />
         )}
 
         {route.tab === "admin" && (
