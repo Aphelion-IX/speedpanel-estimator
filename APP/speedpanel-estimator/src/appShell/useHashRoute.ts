@@ -4,7 +4,7 @@
 // Lightweight hash-based routing so GitHub Pages deep links (#/admin/products
 // etc.) work without server-side rewrite rules -- a refresh or shared link
 // never 404s because the server only ever sees index.html, the route lives
-// entirely in the fragment. No react-router dependency; this app has five
+// entirely in the fragment. No react-router dependency; this app has six
 // routes total and doesn't need one.
 // =============================================================================
 import { useCallback, useEffect, useState } from "react";
@@ -34,6 +34,13 @@ export type Route =
   // user's account/company membership, not any one project -- same reasoning
   // "admin" is its own top-level tab rather than nested somewhere else.
   | { tab: "company"; sub: CompanySubPage }
+  // Consolidated read-only history of every install/technical review,
+  // delivery, and quote request across ALL of the signed-in customer's
+  // projects -- same "about the account, not one project" reasoning as
+  // "company" above. Reached via AuthStatus.tsx's account dropdown, not a
+  // top-nav tab (see topNav.tsx's header comment for why "company"/"admin"
+  // are excluded from TOP_NAV_ITEMS -- same precedent applies here).
+  | { tab: "myRequests" }
   // Top-level (not nested under "projects") since both the customer and an
   // admin reach this -- App.tsx renders it standalone, before the normal
   // shell/nav JSX, since it's a printable document, not a page in the app.
@@ -53,6 +60,7 @@ function parseHash(hash: string): Route {
     const sub = COMPANY_SUBPAGES.find(s => s === second) ?? "team";
     return { tab: "company", sub };
   }
+  if (first === "myRequests") return { tab: "myRequests" };
   if (first === "projects") {
     if (second === "request" && !third) return { tab: "projects", request: true };
     if (second && third === "orders") {

@@ -30,7 +30,7 @@
 // =============================================================================
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "../../../lib/supabaseClient";
-import { AdminRequestRowSchema, type AdminRequestRow, type RequestStatus } from "./requestTypes";
+import { AdminRequestRowSchema, type AdminRequestRow, type RequestStatus } from "../../projects/requests/requestTypes";
 import { useMyQueueScope } from "../shared/useMyQueueScope";
 import type { InternalRole } from "../../company/staffTypes";
 

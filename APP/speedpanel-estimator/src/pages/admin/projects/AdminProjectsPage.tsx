@@ -55,7 +55,7 @@ const ProjectReviewRow = ({ item, onApproveInstall, onChangesInstall, onApproveT
         <div className={cx.footnote}>{new Date(item.updated_at).toLocaleString()}</div>
       </div>
 
-      <div className="mt-3"><StageStepper stage={item.stage} /></div>
+      <div className="mt-3"><StageStepper stage={item.stage} layoutMode="web" /></div>
 
       {error && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{error}</p>}
 

@@ -2,10 +2,18 @@
 // Admin order review queue -- live Supabase fetch
 // =============================================================================
 // Same shape as adminProjectsStore.ts's useAdminProjects: a narrow "awaiting
-// action" queue (stage = 'proforma_requested', not every order), and a
-// successful action removes the row locally since it leaves that filter --
-// same "narrower than submitted, matches the two-step decision" reasoning
-// documented in supabase/schema.sql.
+// action" queue -- stage in (submitted, proforma_requested), not every
+// order. issue_proforma_invoice/cancel_order leave both stages (the order
+// moves to proforma_issued/cancelled), so those actions remove the row
+// locally; revise_order does neither -- the order stays in the queue at
+// its current stage, just repriced, so it triggers a full reload instead
+// of a local filter-out.
+//
+// 'submitted' orders were added to this queue's scope alongside
+// revise_order -- previously this page only ever showed
+// 'proforma_requested' orders, since issuing/cancelling were the only
+// actions that existed; revising a quote before it's even reached the
+// pro forma stage is equally valid, so the queue now surfaces both.
 //
 // Scoped to the caller's assigned companies via useMyQueueScope/
 // applyQueueScope (see shared/useMyQueueScope.ts) -- a super_admin (or any
@@ -14,6 +22,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "../../../lib/supabaseClient";
 import { OrderRowSchema, type OrderRow } from "../../projects/orders/orderTypes";
+import type { OrderLineItem } from "../../../export/priceEstimateReportData";
 import { useMyQueueScope, applyQueueScope } from "../shared/useMyQueueScope";
 import type { InternalRole } from "../../company/staffTypes";
 
@@ -35,8 +44,8 @@ export function useAdminOrders(userId: string | null, staffRole: InternalRole | 
     if (scopeError) { setState({ orders: [], loading: false, error: scopeError }); return; }
     setState(s => ({ ...s, loading: true, error: null }));
     const { data, error } = await applyQueueScope(
-      supabase.from("orders").select("*").eq("stage", "proforma_requested"), scope,
-    ).order("proforma_requested_at", { ascending: true });
+      supabase.from("orders").select("*").in("stage", ["submitted", "proforma_requested"]), scope,
+    ).order("created_at", { ascending: true });
     if (error) { setState({ orders: [], loading: false, error: error.message }); return; }
     const parsed = OrderRowSchema.array().safeParse(data ?? []);
     if (!parsed.success) { setState({ orders: [], loading: false, error: BAD_SHAPE }); return; }
@@ -57,5 +66,16 @@ export function useAdminOrders(userId: string | null, staffRole: InternalRole | 
     runAction("issue_proforma_invoice", { p_order_id: id, p_note: note || null }, id);
   const cancelOrder = (id: string) => runAction("cancel_order", { p_order_id: id }, id);
 
-  return { ...state, reload: load, issueProforma, cancelOrder };
+  // Doesn't move the order out of this queue's stage filter -- reload
+  // instead of the filter-out runAction() does for issue/cancel, so the
+  // row stays visible with its updated line items/totals.
+  const reviseOrder = async (id: string, lineItems: OrderLineItem[], note: string): Promise<string | null> => {
+    if (!supabase) return NOT_CONFIGURED;
+    const { error } = await supabase.rpc("revise_order", { p_order_id: id, p_line_items: lineItems, p_note: note });
+    if (error) return error.message;
+    await load();
+    return null;
+  };
+
+  return { ...state, reload: load, issueProforma, cancelOrder, reviseOrder };
 }

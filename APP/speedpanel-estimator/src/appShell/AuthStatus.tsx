@@ -13,20 +13,12 @@
 import { useEffect, useRef, useState } from "react";
 import { LogIn, LogOut, ChevronDown, ShieldCheck } from "lucide-react";
 import { BLUE, WHITE, NAVY } from "../styleTokens";
+import { IconButton } from "../ui/primitives";
 import type { UseAuth } from "../lib/useAuth";
+import { nameFromEmail, initialsFromEmail } from "../lib/emailDisplay";
 import type { InternalRole } from "../pages/company/staffTypes";
 import { INTERNAL_ROLE_LABELS } from "../pages/company/staffTypes";
 import type { Route } from "./useHashRoute";
-
-// No display-name field exists anywhere in this app (profiles only carries
-// role/staff_role) -- initials/derived-from-email is the same pragmatic
-// fallback used for the workspace page's "Welcome back" heading.
-function initialsFromEmail(email: string): string {
-  const local = email.split("@")[0] ?? "";
-  const parts = local.split(/[._-]+/).filter(Boolean);
-  const initials = parts.length >= 2 ? parts[0][0] + parts[1][0] : local.slice(0, 2);
-  return (initials || "?").toUpperCase();
-}
 
 export const AuthStatus = ({ auth, onSignInClick, isInternalStaff, staffRole, navigate }: {
   auth: UseAuth;
@@ -54,17 +46,14 @@ export const AuthStatus = ({ auth, onSignInClick, isInternalStaff, staffRole, na
   // generic call-to-action.
   if (!auth.session) {
     return (
-      <button
-        onClick={onSignInClick}
-        title="Log in"
-        className="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 shadow-sm active:scale-95 transition-all"
-      >
+      <IconButton onClick={onSignInClick} title="Log in">
         <LogIn size={16} />
-      </button>
+      </IconButton>
     );
   }
 
   const email = auth.user?.email ?? "";
+  const name = nameFromEmail(email);
   const initials = initialsFromEmail(email);
   const roleLabel = isInternalStaff && staffRole ? INTERNAL_ROLE_LABELS[staffRole] : null;
 
@@ -82,7 +71,7 @@ export const AuthStatus = ({ auth, onSignInClick, isInternalStaff, staffRole, na
           {initials}
         </span>
         <span className="hidden text-left lg:block">
-          <span className="block max-w-[130px] truncate text-sm font-semibold" style={{ color: NAVY }}>{email}</span>
+          <span className="block max-w-[130px] truncate text-sm font-semibold" style={{ color: NAVY }}>{name}</span>
           {roleLabel && <span className="block text-xs text-slate-400 dark:text-slate-500">{roleLabel}</span>}
         </span>
         <ChevronDown size={14} className="hidden shrink-0 text-slate-400 sm:block" />

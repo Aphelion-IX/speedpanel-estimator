@@ -20,16 +20,12 @@ import { AccordionCard } from "../../ui/primitives";
 import { SelectField } from "../shared/fields";
 import { useAdminRequests } from "./requests/requestsStore";
 import { useMyBdmCompanies } from "./requests/myCompaniesStore";
-import type { AdminRequestRow, RequestStatus } from "./requests/requestTypes";
+import { REQUEST_STATUSES, REQUEST_STATUS_LABELS, type AdminRequestRow, type RequestStatus } from "../projects/requests/requestTypes";
 import type { InternalRole } from "../company/staffTypes";
 
 const SCOPE_OPTIONS = [{ value: "mine", label: "My companies" }, { value: "all", label: "All requests" }];
 
-const STATUS_OPTIONS: { value: string; label: string }[] = [
-  { value: "new", label: "New" },
-  { value: "contacted", label: "Contacted" },
-  { value: "closed", label: "Closed" },
-];
+const STATUS_OPTIONS: { value: string; label: string }[] = REQUEST_STATUSES.map(s => ({ value: s, label: REQUEST_STATUS_LABELS[s] }));
 
 const STATUS_FILTER_OPTIONS = [{ value: "all", label: "All statuses" }, ...STATUS_OPTIONS];
 

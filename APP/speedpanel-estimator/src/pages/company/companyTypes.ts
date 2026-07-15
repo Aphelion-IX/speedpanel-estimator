@@ -71,7 +71,6 @@ export const CompanyMemberRowSchema = z.object({
 export type CompanyMemberRow = z.infer<typeof CompanyMemberRowSchema>;
 
 export const INVITATION_STATUSES = ["pending", "accepted", "expired", "cancelled"] as const;
-export type InvitationStatus = typeof INVITATION_STATUSES[number];
 
 export const InvitationRowSchema = z.object({
   id: z.string(),

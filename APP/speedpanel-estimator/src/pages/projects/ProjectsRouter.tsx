@@ -11,11 +11,19 @@
 // The anonymous "request" (Request a Quote) branch is checked BEFORE the
 // session check -- it's the one sub-feature here that deliberately works
 // without signing in (see SignInGate.tsx's CTA into it). The newOrder/
-// quickOrder/orderId/project-scoped-request branches all still short-circuit
-// to their own full-page views before the ProjectsListPage fallback,
-// unchanged. newOrder (OrderBuilderPage, Estimator-derived line items) and
+// quickOrder/orderId branches all still short-circuit to their own
+// full-page views before the ProjectsListPage fallback, unchanged.
+// newOrder (OrderBuilderPage, Estimator-derived line items) and
 // quickOrder (QuickOrderPage, manual product picker) are two independent
 // order-creation entry points reachable from the same project.
+//
+// The project-scoped "request" branch below (id && request) is no longer
+// linked from anywhere in the app -- ProjectDetailPage's "Request a quote"
+// now routes into newOrder (OrderBuilderPage) instead, so an existing
+// project's quote request actually becomes an order. This branch is kept
+// only so an old bookmarked/shared #/projects/:id/request URL doesn't 404;
+// QuoteRequestPage itself stays in active use by the anonymous, no-id case
+// above.
 // =============================================================================
 import { cx, MUTED } from "../../styleTokens";
 import type { EffectiveLayout } from "../../useLayoutMode";
@@ -77,7 +85,6 @@ export const ProjectsRouter = ({ route, navigate, auth, company, onOpenEstimator
       <ProjectDetailPage id={route.id} userId={auth.user?.id ?? null}
         onBack={() => navigate({ tab: "projects" })}
         onOpenEstimator={onOpenEstimator}
-        onRequestQuote={id => navigate({ tab: "projects", id, request: true })}
         onCreateOrder={id => navigate({ tab: "projects", id, newOrder: true })}
         onCreateQuickOrder={id => navigate({ tab: "projects", id, quickOrder: true })}
         onOpenOrder={(id, orderId) => navigate({ tab: "projects", id, orderId })}

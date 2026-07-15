@@ -12,14 +12,18 @@
 import { useState } from "react";
 import { Menu, X } from "lucide-react";
 import { BLUE, WHITE, NAVY } from "../styleTokens";
+import { IconButton } from "../ui/primitives";
 
 // "company" is intentionally not in TOP_NAV_ITEMS below -- Company Team/
 // Activity/Create pages are reached via a header control near AuthStatus.tsx
-// and entry-point callouts on ProjectsListPage.tsx, not a top-nav tab. It's
-// still part of this union purely so route.tab (which includes it) type-checks
-// as an activeTab value -- it just never matches any TOP_NAV_ITEMS key, so no
-// button ever highlights for it.
-export type TopNavTab = "home" | "estimator" | "selector" | "education" | "projects" | "admin" | "company";
+// and entry-point callouts on ProjectsListPage.tsx, not a top-nav tab. "admin"
+// isn't in the list either -- it's reached via the account dropdown's Admin
+// shortcut (AuthStatus.tsx) instead of a top-nav tab. Same for "myRequests" --
+// reached via the account dropdown's "My Requests" shortcut. All three are
+// still part of this union purely so route.tab (which includes them)
+// type-checks as an activeTab value -- they just never match any
+// TOP_NAV_ITEMS key, so no button ever highlights for them.
+export type TopNavTab = "home" | "estimator" | "selector" | "education" | "projects" | "admin" | "company" | "myRequests";
 
 const TOP_NAV_ITEMS: { key: TopNavTab; label: string }[] = [
   { key: "home",      label: "Home" },
@@ -27,7 +31,6 @@ const TOP_NAV_ITEMS: { key: TopNavTab; label: string }[] = [
   { key: "selector",  label: "System Selector" },
   { key: "estimator", label: "System Estimator" },
   { key: "education", label: "Education Hub" },
-  { key: "admin",     label: "Admin" },
 ];
 
 // Inactive labels use NAVY (the app's primary text colour, same token used
@@ -55,7 +58,6 @@ export const TopNav = ({ activeTab, onTabChange, right }: { activeTab: TopNavTab
               <span className="text-xl font-black tracking-[-0.04em] text-slate-950 dark:text-white">SPEED</span>
               <span className="text-xl font-black tracking-[-0.04em]" style={{ color: BLUE }}>HUB</span>
             </div>
-            <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">by Speedpanel</p>
           </div>
           <div className="hidden md:flex items-center gap-0.5 overflow-x-auto">
             {TOP_NAV_ITEMS.map(item => (
@@ -65,12 +67,9 @@ export const TopNav = ({ activeTab, onTabChange, right }: { activeTab: TopNavTab
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
           {right}
-          <button
-            onClick={() => setMobileOpen(v => !v)}
-            className="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-400 dark:text-slate-500 shadow-sm active:scale-95 transition-all md:hidden"
-          >
+          <IconButton onClick={() => setMobileOpen(v => !v)} className="md:hidden">
             {mobileOpen ? <X size={16} /> : <Menu size={16} />}
-          </button>
+          </IconButton>
         </div>
       </div>
       {mobileOpen && (

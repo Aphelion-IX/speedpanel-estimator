@@ -16,7 +16,7 @@
 // =============================================================================
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "../../../lib/supabaseClient";
-import { REQUEST_STATUSES, type RequestStatus } from "../requests/requestTypes";
+import { REQUEST_STATUSES, type RequestStatus } from "../../projects/requests/requestTypes";
 import { STAGES, type Stage } from "../../projects/projectTypes";
 
 const NOT_CONFIGURED = "Analytics aren't configured for this environment.";

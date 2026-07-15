@@ -2,10 +2,17 @@
 // Review action panel -- "Request Services" card
 // =============================================================================
 // Customer-facing request actions for a project, all in one card: "Request a
-// quote" (always available -- see onRequestQuote) plus the linear/enforced
+// quote" (always available -- see onCreateOrder) plus the linear/enforced
 // review model's ONE next action at a time: request install review (from
 // draft, no prior install approval), request technical review (from draft,
 // once install review is approved), or a waiting/approved message otherwise.
+//
+// "Request a quote" creates+submits a real order via OrderBuilderPage (the
+// same destination as the Quick Actions "Create Order" tile) rather than
+// submitting to the separate `requests` contact-inbox table -- this makes
+// the journey timeline's "Quote Submitted"/"Quote Accepted" labels (which
+// already alias order.stage, see journeyStage.ts) literally true instead of
+// borrowed terminology from an unrelated table.
 // Surfaces the latest changes-requested note (if any) so the customer knows
 // what to fix before re-requesting. Takes the request actions as props (from
 // the caller's own useProject(id) instance) rather than creating a second
@@ -40,9 +47,9 @@ export const canRequestInstallReview = (project: Pick<ProjectRow, "stage" | "ins
 export const canRequestTechnicalReview = (project: Pick<ProjectRow, "stage" | "install_review_status">): boolean =>
   project.stage === "draft" && project.install_review_status === "approved";
 
-export const ReviewActionPanel = ({ project, onRequestQuote, onRequestInstallReview, onRequestTechnicalReview, onChanged }: {
+export const ReviewActionPanel = ({ project, onCreateOrder, onRequestInstallReview, onRequestTechnicalReview, onChanged }: {
   project: ProjectRow;
-  onRequestQuote: () => void;
+  onCreateOrder: () => void;
   onRequestInstallReview: () => Promise<string | null>;
   onRequestTechnicalReview: () => Promise<string | null>;
   onChanged: () => void;
@@ -73,7 +80,7 @@ export const ReviewActionPanel = ({ project, onRequestQuote, onRequestInstallRev
 
       {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
 
-      <ServiceRow label="Request a quote" icon={<FileText size={15} />} onClick={onRequestQuote} />
+      <ServiceRow label="Request a quote" icon={<FileText size={15} />} onClick={onCreateOrder} />
       {canRequestInstall && (
         <ServiceRow label="Request install review" icon={<ClipboardCheck size={15} />} onClick={() => run(onRequestInstallReview)} disabled={submitting} />
       )}

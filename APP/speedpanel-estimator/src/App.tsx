@@ -6,7 +6,7 @@ import { useAuth } from "./lib/useAuth";
 import { useCompanyMemberships } from "./lib/useCompanyMemberships";
 import { useWallStore } from "./wallStore";
 import { NAVY, BLUE, GOLD, MUTED } from "./styleTokens";
-import { SectionLabel } from "./ui/primitives";
+import { SectionLabel, IconButton } from "./ui/primitives";
 import { EducationHub } from "./education/EducationHub";
 import { SystemSelector } from "./systemSelector/SystemSelector";
 import { ExternalCalculator } from "./externalCalculator/ExternalCalculator";
@@ -25,11 +25,13 @@ import { ProjectsRouter } from "./pages/projects/ProjectsRouter";
 import { LandingPage } from "./pages/home/LandingPage";
 import { OverviewDashboardPage } from "./pages/home/OverviewDashboardPage";
 import { saveProjectSnapshot } from "./pages/projects/saveProjectSnapshot";
-import { insertProject, seedSnapshotForSystem } from "./pages/projects/projectsStore";
+import { insertProject, seedSnapshotForSystem, useProjects } from "./pages/projects/projectsStore";
 import { SaveDraftBanner } from "./pages/projects/SaveDraftBanner";
 import type { ProjectRow, SavedProjectData } from "./pages/projects/projectTypes";
 import { ProformaInvoicePage } from "./pages/projects/orders/ProformaInvoicePage";
 import { CompanyRouter } from "./pages/company/CompanyRouter";
+import { MyRequestsPage } from "./pages/projects/requests/MyRequestsPage";
+import { useMyRequests, isOpenRequest } from "./pages/projects/requests/myRequestsStore";
 import { PendingInvitationsBanner } from "./pages/company/PendingInvitationsBanner";
 import type { WallSystemOption } from "./systemSelector/systemOptions";
 
@@ -57,6 +59,18 @@ export default function SpeedpanelEstimator() {
   const auth = useAuth();
   const company = useCompanyMemberships(auth);
   const { isInternalStaff, staffRole } = useMyInternalRole(auth.user?.id ?? null);
+
+  // Header bell's badge count -- customer-only (staff have no personal
+  // request history), so `user` is passed as null for a staff account,
+  // which both hooks' own `if (!user) return;` guards already turn into a
+  // zero-network-call no-op, same pattern NextActionsCallout relies on.
+  // Runs on every route (the header renders everywhere), independent of
+  // and in addition to OverviewDashboardPage's own NextActionsCallout
+  // fetch on the Home tab -- an accepted, explicit double-fetch tradeoff,
+  // this app has no query-caching layer to share results through.
+  const { projects: myProjects } = useProjects(isInternalStaff ? null : auth.user, company.activeCompanyId);
+  const { items: myRequestItems } = useMyRequests(isInternalStaff ? null : auth.user, myProjects);
+  const openRequestsCount = isInternalStaff ? 0 : myRequestItems.filter(isOpenRequest).length;
 
   // Which saved (Supabase) project, if any, is currently open in the
   // Estimator tab -- see wallStore.ts's persistLocally/loadFrom/exportSnapshot.
@@ -92,7 +106,10 @@ export default function SpeedpanelEstimator() {
   // open saved project (a fresh device-local scratch project, not that
   // project, is what "start over" should mean). The persistence effects
   // immediately re-save the clean default, so a later reload stays clear.
-  const resetAll     = () => { resetWalls(); setMode("project"); setSystem("int-vert"); setDimUnit("m"); setOpenProject(null); };
+  const resetAll = () => {
+    if (!window.confirm("Reset the estimator? This can't be undone.")) return;
+    resetWalls(); setMode("project"); setSystem("int-vert"); setDimUnit("m"); setOpenProject(null);
+  };
   // Switching system no longer clears walls -- the shared store is preserved
   // across every orientation/wall-type change.
   const switchSystem = (id: string) => { setSystem(id); setShowWall(true); };
@@ -197,15 +214,15 @@ export default function SpeedpanelEstimator() {
             activeTab={route.tab}
             onTabChange={switchTab}
             right={<>
-              <NotificationBell />
+              <NotificationBell count={openRequestsCount} onClick={() => navigate({ tab: "myRequests" })} />
               <CompanySwitcher company={company} />
-              <AuthStatus auth={auth} onSignInClick={() => navigate({ tab: "home" })}
-                isInternalStaff={isInternalStaff} staffRole={staffRole} navigate={navigate} />
               <ThemeToggle effective={themeMode} onToggle={toggleTheme} />
               <LayoutModeToggle effective={layoutMode} onToggle={toggleLayout} />
-              <button onClick={resetAll} className="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-400 dark:text-slate-500 shadow-sm active:scale-95 transition-all">
+              <IconButton onClick={resetAll}>
                 <RotateCcw size={16} />
-              </button>
+              </IconButton>
+              <AuthStatus auth={auth} onSignInClick={() => navigate({ tab: "home" })}
+                isInternalStaff={isInternalStaff} staffRole={staffRole} navigate={navigate} />
             </>}
           />
         </div>
@@ -219,7 +236,10 @@ export default function SpeedpanelEstimator() {
             about the account, not any one page. */}
         {auth.session && <PendingInvitationsBanner userEmail={auth.user?.email} onAccepted={company.reload} />}
 
-        {route.tab === "home" && <OverviewDashboardPage auth={auth} navigate={navigate} />}
+        {route.tab === "home" && (
+          <OverviewDashboardPage auth={auth} navigate={navigate}
+            isInternalStaff={isInternalStaff} activeCompanyId={company.activeCompanyId} />
+        )}
 
         {route.tab === "selector"  && (
           <SystemSelector layoutMode={layoutMode} system={system} activeWallSystem={active.wallSystem}
@@ -237,6 +257,10 @@ export default function SpeedpanelEstimator() {
 
         {route.tab === "company" && (
           <CompanyRouter route={route} navigate={navigate} userId={auth.user?.id ?? null} company={company} />
+        )}
+
+        {route.tab === "myRequests" && (
+          <MyRequestsPage auth={auth} navigate={navigate} activeCompanyId={company.activeCompanyId} />
         )}
 
         {route.tab === "admin" && (

@@ -14,6 +14,22 @@ import { cx, BLUE, GOLD, WHITE, NAVY } from "../styleTokens";
 import type { EffectiveLayout } from "../useLayoutMode";
 import { AlertTriangle, ChevronDown } from "lucide-react";
 
+// --- IconButton -------------------------------------------------------------
+// The header's square icon-only button shape (bell/theme/layout/reset/
+// hamburger/sign-in) -- was a repeated literal className in each of those
+// components; shared here so they can't drift out of sync with each other.
+export const IconButton = ({ onClick, title, className = "", children }: {
+  onClick?: () => void; title?: string; className?: string; children: React.ReactNode;
+}) => (
+  <button
+    onClick={onClick}
+    title={title}
+    className={`grid h-10 w-10 place-items-center rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-400 dark:text-slate-500 shadow-sm active:scale-95 transition-all ${className}`}
+  >
+    {children}
+  </button>
+);
+
 // --- CardGrid -------------------------------------------------------------
 // On web layout, arranges its children (cards) side by side in a responsive
 // grid instead of one full-width stacked column -- fixes cards stretching to
@@ -134,29 +150,6 @@ export const Stat = ({ value, label }: { value: string | number; label: string }
     <div className="mt-2 text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">{label}</div>
   </div>
 );
-
-// Same card chrome as Stat (border/GOLD top border/shadow) so it sits
-// naturally beside Stat tiles in the same grid -- a plain SVG stroke-
-// dasharray ring, no chart library, for a real percent a caller already
-// computed honestly (never fabricated inside this component).
-export const ProgressRing = ({ percent, label }: { percent: number; label: string }) => {
-  const clamped = Math.min(100, Math.max(0, percent));
-  const r = 30, c = 2 * Math.PI * r;
-  const offset = c * (1 - clamped / 100);
-  return (
-    <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-3 text-center shadow-sm" style={{ borderTop: `2px solid ${GOLD}` }}>
-      <div className="relative mx-auto" style={{ width: 72, height: 72 }}>
-        <svg width={72} height={72} viewBox="0 0 72 72" className="-rotate-90">
-          <circle cx={36} cy={36} r={r} fill="none" strokeWidth={8} className="stroke-slate-100 dark:stroke-slate-700" />
-          <circle cx={36} cy={36} r={r} fill="none" stroke={BLUE} strokeWidth={8} strokeLinecap="round"
-            strokeDasharray={c} strokeDashoffset={offset} style={{ transition: "stroke-dashoffset 0.3s" }} />
-        </svg>
-        <div className="absolute inset-0 grid place-items-center text-sm font-extrabold" style={{ color: BLUE }}>{Math.round(clamped)}%</div>
-      </div>
-      <div className="mt-2 text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">{label}</div>
-    </div>
-  );
-};
 
 export const Card = ({ title, icon, children }: { title: string; icon: React.ReactNode; children: React.ReactNode }) => (
   <div className={`mt-3 ${cx.card}`}>

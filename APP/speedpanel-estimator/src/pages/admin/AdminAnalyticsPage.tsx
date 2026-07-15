@@ -7,7 +7,7 @@
 import { cx, NAVY, MUTED } from "../../styleTokens";
 import { Stat } from "../../ui/primitives";
 import { useAdminAnalytics } from "./analytics/analyticsStore";
-import { REQUEST_STATUSES } from "./requests/requestTypes";
+import { REQUEST_STATUSES } from "../projects/requests/requestTypes";
 import { STAGES, STAGE_LABELS } from "../projects/projectTypes";
 
 export const AdminAnalyticsPage = () => {
