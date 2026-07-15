@@ -1,34 +1,22 @@
 // =============================================================================
-// Stage stepper
+// Stage stepper -- the four linear project.stage steps
 // =============================================================================
-// New presentational primitive -- no stepper/progress-bar component exists
-// anywhere else in this codebase. A plain horizontal row of the four linear
-// stages (draft -> install_review -> technical_review -> approved), with
-// every stage up to and including the current one filled, later ones muted.
-// Reused by both the customer's ProjectDashboard and the admin review queue.
+// Thin wrapper mapping STAGES onto the shared StepTracker.tsx primitive (same
+// dot+connector web / pill-row phone, done/current/upcoming colouring
+// ProjectJourneyTimeline.tsx uses) -- see that file for the actual rendering.
+// No per-step icons exist for this pipeline, so every non-done step falls
+// back to StepTracker's generic icon, same as most JourneyStage steps
+// already do. No own heading -- the caller supplies section context (see
+// ProjectDetailPage.tsx's merged "Project Progress" card).
 // =============================================================================
-import { cx, BLUE, WHITE, MUTED } from "../../styleTokens";
+import type { EffectiveLayout } from "../../useLayoutMode";
 import { STAGES, STAGE_LABELS, type Stage } from "./projectTypes";
+import { StepTracker } from "./StepTracker";
 
-export const StageStepper = ({ stage }: { stage: Stage }) => {
-  const currentIndex = STAGES.indexOf(stage);
-  return (
-    <div>
-      <div className={cx.cardHd}>Project stage</div>
-      <div className="flex items-center gap-1.5">
-        {STAGES.map((s, i) => {
-          const reached = i <= currentIndex;
-          return (
-            <div key={s} className="flex flex-1 items-center gap-1.5">
-              <div className="flex-1 rounded-full py-1.5 text-center text-xs font-bold uppercase tracking-wide"
-                style={reached ? { background: BLUE, color: WHITE } : { background: "transparent", color: MUTED, border: "1px solid currentColor" }}>
-                {STAGE_LABELS[s]}
-              </div>
-              {i < STAGES.length - 1 && <div className="h-0.5 w-3 shrink-0" style={{ background: i < currentIndex ? BLUE : "#cbd5e1" }} />}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-};
+export const StageStepper = ({ stage, layoutMode }: { stage: Stage; layoutMode: EffectiveLayout }) => (
+  <StepTracker
+    steps={STAGES.map(s => ({ label: STAGE_LABELS[s] }))}
+    activeIndex={STAGES.indexOf(stage)}
+    layoutMode={layoutMode}
+  />
+);

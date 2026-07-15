@@ -4,17 +4,21 @@
 // Replaces ProjectDashboard.tsx (deleted) -- was embedded directly beneath
 // ProjectsListPage.tsx's carousel; now its own full view reached at
 // #/projects/:id with an explicit back link (see ProjectsRouter.tsx). Modeled
-// on the supplied ProjectOverviewPage.tsx mockup: hero, an 8-step journey
-// timeline, What's Next/Quick Order cards, Quick Actions, Orders, Recent
-// Activity, Project Services, Documents, Project Team.
+// on the supplied ProjectOverviewPage.tsx mockup: hero, a merged "Project
+// Progress" card, What's Next/Quick Order cards, Quick Actions, Orders,
+// Recent Activity, Request Services, Documents, Project Team.
 //
-// Journey stage (the mockup's 8-step Estimating..Completed pipeline) is
-// DISPLAY-ONLY, computed here from this project's real orders/manufacturing/
-// delivery data via journeyStage.ts -- see that file's header comment for
-// why it's never persisted. "Project Services" further down still shows the
-// real project.stage (draft/install_review/technical_review/approved) via
-// the unchanged StageStepper/ReviewActionPanel -- the two pipelines stay
-// visually distinct, not conflated into one number.
+// "Project Progress" shows two independent stage trackers stacked together,
+// each still reading its own value -- they're deliberately NOT conflated
+// into one number (see journeyStage.ts's header comment for why, a past
+// "stage drift" bug):
+//  - "Order Progress": the 8-step Estimating..Completed journey stage, a
+//    DISPLAY-ONLY value computed here from this project's real orders/
+//    manufacturing/delivery data via journeyStage.ts, never persisted.
+//  - "Design Review": the real project.stage (draft/install_review/
+//    technical_review/approved) via StageStepper.tsx.
+// Both trackers render through the same StepTracker.tsx primitive so they
+// read as one coherent section instead of two unrelated-looking widgets.
 // =============================================================================
 import { useMemo, useState } from "react";
 import {
@@ -72,8 +76,8 @@ const QuickAction = ({ icon: Icon, label, onClick, disabled, tone = "blue" }: {
   );
 };
 
-export const ProjectDetailPage = ({ id, userId, onBack, onOpenEstimator, onRequestQuote, onCreateOrder, onCreateQuickOrder, onOpenOrder, layoutMode }: {
-  id: string; userId: string | null; onBack: () => void; onOpenEstimator: (project: ProjectRow) => void; onRequestQuote: (id: string) => void;
+export const ProjectDetailPage = ({ id, userId, onBack, onOpenEstimator, onCreateOrder, onCreateQuickOrder, onOpenOrder, layoutMode }: {
+  id: string; userId: string | null; onBack: () => void; onOpenEstimator: (project: ProjectRow) => void;
   onCreateOrder: (id: string) => void; onCreateQuickOrder: (id: string) => void; onOpenOrder: (id: string, orderId: string) => void;
   layoutMode: EffectiveLayout;
 }) => {
@@ -158,10 +162,10 @@ export const ProjectDetailPage = ({ id, userId, onBack, onOpenEstimator, onReque
     summaryWarnings.push(`${summary.unpricedCount} item${summary.unpricedCount !== 1 ? "s" : ""} across your orders couldn't be priced automatically.`);
   }
   if (project.install_review_status === "changes_requested") {
-    summaryWarnings.push("Install review needs changes — see Project Services below.");
+    summaryWarnings.push("Install review needs changes — see Request Services below.");
   }
   if (project.technical_review_status === "changes_requested") {
-    summaryWarnings.push("Technical review needs changes — see Project Services below.");
+    summaryWarnings.push("Technical review needs changes — see Request Services below.");
   }
 
   return (
@@ -219,9 +223,13 @@ export const ProjectDetailPage = ({ id, userId, onBack, onOpenEstimator, onReque
         </div>
       </div>
 
-      <div className="mt-4 overflow-x-auto">
+      <Card title="Project Progress" icon={<Wrench size={14} />}>
+        <div className={cx.sectionLbl}>Order Progress</div>
         <ProjectJourneyTimeline stage={journey.stage} layoutMode={layoutMode} />
-      </div>
+        <div className={cx.hr} />
+        <div className={cx.sectionLbl}>Design Review</div>
+        <StageStepper stage={project.stage} layoutMode={layoutMode} />
+      </Card>
 
       <WarningsList warnings={summaryWarnings} />
 
@@ -262,6 +270,9 @@ export const ProjectDetailPage = ({ id, userId, onBack, onOpenEstimator, onReque
 
       <section className={`${cx.card} mt-4`}>
         <h2 className="font-bold" style={{ color: NAVY }}>Quick Actions</h2>
+        <p className="mt-1 text-sm" style={{ color: MUTED }}>
+          Create Order uses your saved Estimator design. Need to order without one? Use Quick Order below.
+        </p>
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <QuickAction icon={FileText} label="Open Estimate" onClick={() => onOpenEstimator(project)} />
           <QuickAction icon={Box} label="Create Order" tone="green" onClick={() => onCreateOrder(project.id)} />
@@ -348,10 +359,7 @@ export const ProjectDetailPage = ({ id, userId, onBack, onOpenEstimator, onReque
         </div>
 
         <div className="space-y-4">
-          <Card title="Project Services" icon={<Wrench size={14} />}>
-            <StageStepper stage={project.stage} />
-          </Card>
-          <ReviewActionPanel project={project} onChanged={reload} onRequestQuote={() => onRequestQuote(project.id)}
+          <ReviewActionPanel project={project} onChanged={reload} onCreateOrder={() => onCreateOrder(project.id)}
             onRequestInstallReview={requestInstallReview} onRequestTechnicalReview={requestTechnicalReview} />
           <ProjectDocumentsCard projectId={project.id} userId={userId} />
           {project.company_id && <ProjectMembersCard projectId={project.id} companyId={project.company_id} />}
