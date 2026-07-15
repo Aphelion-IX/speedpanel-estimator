@@ -127,6 +127,11 @@ export const DELIVERY_APPROVAL_STATUS_LABELS: Record<DeliveryApprovalStatus, str
   declined: "Declined",
 };
 
+// Rows still needing a staff decision -- shared by AdminDeliveryRequestsPage.tsx
+// (per-row action buttons) and useWorkflowCounts.ts (the Delivery Requests
+// tile badge), so the two can't drift apart.
+export const DELIVERY_AWAITING_DECISION_STATUSES: DeliveryApprovalStatus[] = ["draft", "pending", "date_proposed"];
+
 // Reuses ORDER_STAGE_BADGE_CLASS's exact palette -- date_proposed is blue,
 // not red, since red means an actual rejection (declined), not just an
 // alternative date being offered.

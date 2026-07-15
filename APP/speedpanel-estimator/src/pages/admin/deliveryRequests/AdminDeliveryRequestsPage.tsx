@@ -17,7 +17,7 @@ import { AccordionCard } from "../../../ui/primitives";
 import {
   useAdminDeliveryRequests, type AdminDeliveryRequestRow,
 } from "./adminDeliveryRequestsStore";
-import { DELIVERY_APPROVAL_STATUS_LABELS, DELIVERY_APPROVAL_STATUS_BADGE_CLASS } from "../../projects/orders/orderTypes";
+import { DELIVERY_APPROVAL_STATUS_LABELS, DELIVERY_APPROVAL_STATUS_BADGE_CLASS, DELIVERY_AWAITING_DECISION_STATUSES } from "../../projects/orders/orderTypes";
 import { AdminSplitDeliveryForm } from "./AdminSplitDeliveryForm";
 import type { InternalRole } from "../../company/staffTypes";
 
@@ -57,7 +57,7 @@ const DeliveryRequestRow = ({ request, allForOrder, onAccept, onPropose, onDecli
     if (err) setError(err);
   };
 
-  const awaitingDecision = ["draft", "pending", "date_proposed"].includes(request.approval_status);
+  const awaitingDecision = DELIVERY_AWAITING_DECISION_STATUSES.includes(request.approval_status);
 
   return (
     <div className={`${cx.card} mt-3`}>
