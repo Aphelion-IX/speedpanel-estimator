@@ -20,6 +20,7 @@ import type { Wall } from "../estimate/wall.types";
 import type { EffectiveLayout } from "../useLayoutMode";
 import {
   SectionLabel, WarningsList, EstimateModeSelector, UnitToggle, CalculatorShell,
+  CollapsibleSection, SectionNav,
 } from "../ui/primitives";
 import { LockedDataExt, LockedDataFooter } from "../ui/lockedData";
 import { PanelLengthSection } from "../ui/lengthExplorer";
@@ -75,43 +76,46 @@ export function ExternalCalculator({ store, orient, dimUnit, setDimUnit, systemS
         onJunctionLink={linkJunctionPartner}
       />
 
-      <SectionLabel icon={<Box size={13} />}>Panel configuration</SectionLabel>
-      <div className={cx.section}>
-        <PanelColourSection active={active} update={update} />
+      <CollapsibleSection icon={<Box size={13} />} label="Panel configuration" defaultOpen>
+        <div className={cx.section}>
+          <PanelColourSection active={active} update={update} />
 
-        <PanelLengthSection
-          dimUnit={dimUnit} out={out} active={active} walls={walls}
-          projectLock={projectLock} projectStock={projectStock}
-          customLengthInput={customLengthInput} customActive={customActive}
-          stocks={EXT_STOCK} packType={78}
-          update={update} setProjectLength={setProjectLength}
-          commitCustomLength={commitCustomLength} toggleCustom={toggleCustom} clearCustomLength={clearCustomLength}
-        />
-      </div>
-
-      <SectionLabel icon={<Frame size={13} />}>Wall geometry</SectionLabel>
-      <div className={cx.section}>
-        <ProfileSection profile={active.profile} onChange={id => update({ profile: id })} />
-        <div className="border-t border-slate-100 dark:border-slate-800 pt-3">
-          <div className="mb-2 flex items-center justify-between">
-            <span className={cx.cardHd} style={{marginBottom:0}}>Dimensions</span>
-            <div className="flex items-center gap-2">
-              <UnitToggle unit={dimUnit} setUnit={switchDimUnit} />
-            </div>
-          </div>
-          <DimensionInputs active={active} toDisp={toDisp} updDim={updDim} out={out} orient={orient} />
-          <SpanTable orient={orient} type={78} />
+          <PanelLengthSection
+            dimUnit={dimUnit} out={out} active={active} walls={walls}
+            projectLock={projectLock} projectStock={projectStock}
+            customLengthInput={customLengthInput} customActive={customActive}
+            stocks={EXT_STOCK} packType={78}
+            update={update} setProjectLength={setProjectLength}
+            commitCustomLength={commitCustomLength} toggleCustom={toggleCustom} clearCustomLength={clearCustomLength}
+          />
         </div>
-      </div>
+      </CollapsibleSection>
 
-      <SectionLabel icon={<Lock size={13} />}>TRACKS AND FLASHING</SectionLabel>
-      <EdgeRestraintSelector
-        edges={active.edges}
-        onEdgeToggle={k => update({ edges: { ...active.edges, [k]: !active.edges[k] } })}
-        options={edgeOptions}
-        orient={orient}
-        corners={{ intCorners: active.intCorners, extCorners: active.extCorners, onChange: (f: CornersField, v: string) => update({ [f]: v } as Pick<Wall, CornersField>) }}
-      />
+      <CollapsibleSection icon={<Frame size={13} />} label="Wall geometry" defaultOpen>
+        <div className={cx.section}>
+          <ProfileSection profile={active.profile} onChange={id => update({ profile: id })} />
+          <div className="border-t border-slate-100 dark:border-slate-800 pt-3">
+            <div className="mb-2 flex items-center justify-between">
+              <span className={cx.cardHd} style={{marginBottom:0}}>Dimensions</span>
+              <div className="flex items-center gap-2">
+                <UnitToggle unit={dimUnit} setUnit={switchDimUnit} />
+              </div>
+            </div>
+            <DimensionInputs active={active} toDisp={toDisp} updDim={updDim} out={out} orient={orient} />
+            <SpanTable orient={orient} type={78} />
+          </div>
+        </div>
+      </CollapsibleSection>
+
+      <CollapsibleSection icon={<Lock size={13} />} label="Tracks and flashing" defaultOpen={false}>
+        <EdgeRestraintSelector
+          edges={active.edges}
+          onEdgeToggle={k => update({ edges: { ...active.edges, [k]: !active.edges[k] } })}
+          options={edgeOptions}
+          orient={orient}
+          corners={{ intCorners: active.intCorners, extCorners: active.extCorners, onChange: (f: CornersField, v: string) => update({ [f]: v } as Pick<Wall, CornersField>) }}
+        />
+      </CollapsibleSection>
 
       <WarningsList warnings={!out.empty ? out.warnings : null} />
       <EstimateModeSelector visible={!out.empty} mode={extMode} setMode={setExtMode} />
@@ -130,23 +134,35 @@ export function ExternalCalculator({ store, orient, dimUnit, setDimUnit, systemS
       {project && (
         <>
           <ProjectSeparator />
+          <SectionNav sections={[
+            ...(layoutMode === "web" ? [{ id: "wall-list", label: "Wall list" }] : []),
+            { id: "system-breakdown", label: "System breakdown" },
+            { id: "connection-breakdown", label: "Connection breakdown" },
+            { id: "easy-to-order", label: "Easy to order" },
+          ]} />
 
           {layoutMode === "web" && (
-            <>
+            <div id="wall-list">
               <SectionLabel icon={<Frame size={13} />}>Wall list</SectionLabel>
               <WallsSummaryTable results={results} activeId={activeId} setActiveId={setActiveId} warnById={warnById} toDisp={toDisp} dimUnit={dimUnit} />
-            </>
+            </div>
           )}
 
           {/* System Breakdown: shows HOW the estimate was built, wall by wall */}
-          <SystemBreakdownSection layoutMode={layoutMode} results={results} ScheduleComp={ScheduleComp} />
+          <div id="system-breakdown">
+            <SystemBreakdownSection layoutMode={layoutMode} results={results} ScheduleComp={ScheduleComp} />
+          </div>
 
           {/* Connection Breakdown: shows WHY extra materials were added */}
-          <SectionLabel icon={<Frame size={13} />}>Connection breakdown</SectionLabel>
-          <ConnectionBreakdownCard connections={combinedEstimate.connections} />
+          <div id="connection-breakdown">
+            <SectionLabel icon={<Frame size={13} />}>Connection breakdown</SectionLabel>
+            <ConnectionBreakdownCard connections={combinedEstimate.connections} />
+          </div>
 
           {/* Easy to Order: shows WHAT needs to be ordered -- one combined material list */}
-          <EasyToOrderSectionExt layoutMode={layoutMode} projAgg={projAgg} combinedEstimate={combinedEstimate} />
+          <div id="easy-to-order">
+            <EasyToOrderSectionExt layoutMode={layoutMode} projAgg={projAgg} combinedEstimate={combinedEstimate} />
+          </div>
         </>
       )}
     </>

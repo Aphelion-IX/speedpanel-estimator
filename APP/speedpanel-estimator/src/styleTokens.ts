@@ -61,8 +61,8 @@ export const cx = {
   // + a wider ambient one), matching the depth already used on the sign-in
   // card and the signed-in home screen's workspace cards, instead of the
   // flatter shadow-sm every other page used previously.
-  card:      "rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_20px_40px_-28px_rgba(15,23,42,0.18)] dark:shadow-[0_1px_2px_rgba(0,0,0,0.2),0_20px_40px_-24px_rgba(0,0,0,0.35)]",
-  section:   "rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_20px_40px_-28px_rgba(15,23,42,0.18)] dark:shadow-[0_1px_2px_rgba(0,0,0,0.2),0_20px_40px_-24px_rgba(0,0,0,0.35)] space-y-4",
+  card:      "rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 lg:p-7 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_20px_40px_-28px_rgba(15,23,42,0.18)] dark:shadow-[0_1px_2px_rgba(0,0,0,0.2),0_20px_40px_-24px_rgba(0,0,0,0.35)]",
+  section:   "rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 lg:p-7 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_20px_40px_-28px_rgba(15,23,42,0.18)] dark:shadow-[0_1px_2px_rgba(0,0,0,0.2),0_20px_40px_-24px_rgba(0,0,0,0.35)] space-y-4",
 
   // -- Page heading scale -------------------------------------------------------
   // Colour fades from full-strength Navy (H1) through two mid-steps to the
