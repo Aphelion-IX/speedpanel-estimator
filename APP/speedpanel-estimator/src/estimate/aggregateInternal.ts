@@ -25,6 +25,21 @@ export interface CustomMapEntry { type: number; mm: number; qty: number; }
 export interface AggPanelEntry extends PanelGroup { type: number; }
 export interface AggCustomEntry { type: number; mm: number; qty: number; packs: number; ordered: number; spare: number; packSize: number; }
 
+// --- collectProjectWarnings ---------------------------------------------------
+// Flattens every wall's own out.warnings (each wall's ComputeOut only ever
+// carries its own warnings -- there is no project-wide rollup anywhere in the
+// compute engine) into one list with the owning wall's name attached, for the
+// Estimator's project-mode "Warnings" summary tile. Pure/presentational --
+// doesn't affect aggregate()'s own return shape. Shared by both Internal and
+// External (WallResult/ComputeOut are the same shape either way), so it lives
+// here rather than being duplicated in aggregateExternal.ts.
+export interface ProjectWarning { wallId: number; wallName: string; msg: string; }
+export function collectProjectWarnings(results: WallResult[]): ProjectWarning[] {
+  return results.flatMap(({ wall, out }) =>
+    (out.warnings ?? []).map(msg => ({ wallId: wall.id, wallName: wall.name, msg }))
+  );
+}
+
 export function aggregate(results: WallResult[], cfg: SystemConfig = INT_CONFIG) {
   const pm: Record<string, PanelMapEntry> = {}, ct: Record<string, CTrackMapEntry> = {}, cm: Record<string, CustomMapEntry> = {};
   let f30 = 0, f16 = 0, flLM = 0, jLM = 0, offcut = 0, usedLM = 0, ta = 0, sus = 0;

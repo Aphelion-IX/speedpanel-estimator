@@ -8,32 +8,68 @@
 // component is kept mounted across orientation switches.
 // =============================================================================
 import { useState, useMemo } from "react";
-import { Box, Frame, Lock } from "lucide-react";
+import { Box, Frame, Lock, Settings } from "lucide-react";
 import { cx } from "../styleTokens";
 import { useWallResults } from "../wallStore";
 import type { WallStore } from "../wallStore";
 import { computeExternal } from "../estimate/computeWall";
-import { buildExtProjAgg } from "../estimate/aggregate";
+import { buildExtProjAgg, collectProjectWarnings } from "../estimate/aggregate";
+import { plural } from "../estimate/computeUtils";
+import { r1 } from "../estimate/mathUtils";
 import { useCombinedEstimateCalc } from "../estimate/useCombinedEstimateCalc";
 import { HEAD_FLASH_LABEL, HEAD_FLASH_SUBLABEL, EXT_STOCK } from "../data";
-import type { Wall } from "../estimate/wall.types";
+import type { ComputeOut, Wall } from "../estimate/wall.types";
 import type { EffectiveLayout } from "../useLayoutMode";
 import {
   SectionLabel, WarningsList, EstimateModeSelector, UnitToggle, CalculatorShell,
-  CollapsibleSection, SectionNav,
+  CollapsibleSection,
 } from "../ui/primitives";
+import {
+  WorkspaceCard, SummaryTiles, MetricTile, ExpandableTile, WallRowCard, ExpandableOrderDetails,
+} from "../ui/estimateWorkspace";
 import { LockedDataExt, LockedDataFooter } from "../ui/lockedData";
+import { EstimatorActionBar } from "../appShell/EstimatorActionBar";
 import { PanelLengthSection } from "../ui/lengthExplorer";
-import { WallsCard, WallsSummaryTable } from "../ui/wallsCard";
+import { WallsCard } from "../ui/wallsCard";
 import {
   ProfileSection, DimensionInputs, SpanTable, EdgeRestraintSelector, ProjectSeparator,
 } from "../ui/wallConfig";
 import type { CornersField } from "../ui/wallConfig";
 import { PanelScheduleCard, PanelScheduleTable, ConnectionBreakdownCard } from "../ui/scheduleCards";
 import { PanelColourSection } from "./panelColourSection";
-import { SingleWallMaterialsSection, SystemBreakdownSection, EasyToOrderSectionExt } from "./mainSections";
+import { SingleWallMaterialsContent, SystemBreakdownSection, EasyToOrderSectionExt } from "./mainSections";
 import { buildExternalReportData } from "../export/buildExternalReportData";
 import { exportEstimateToExcel } from "../export/exportEstimateToExcel";
+
+// --- Accessory row builders -----------------------------------------------
+// Track/flashing (linear metres), screws (box counts) and sealant (box +
+// sausage counts) are different units -- there's no honest single combined
+// "accessories" number, so the summary tile shows a category count and
+// expands into these per-category rows instead (see ui/estimateWorkspace's
+// ExpandableTile). Only non-zero categories are included.
+function buildAccessoryRowsExtSingle(out: ComputeOut): { label: string; value: string }[] {
+  const rows: { label: string; value: string }[] = [];
+  if (out.cLM) rows.push({ label: "C-track", value: `${out.cLM} m` });
+  if (out.jLM) rows.push({ label: "J-track", value: `${out.jLM} m` });
+  if (out.zLM) rows.push({ label: "Z-flashing", value: `${out.zLM} m` });
+  if (out.flashLM) rows.push({ label: "Head flashing", value: `${out.flashLM} m` });
+  if (out.boxes30) rows.push({ label: "10g 30mm SDS", value: `${out.boxes30} box${plural(out.boxes30)}` });
+  if (out.boxes16) rows.push({ label: "10g 16mm SDS", value: `${out.boxes16} box${plural(out.boxes16)}` });
+  if (out.sealantBoxes) rows.push({ label: "Sealant", value: `${out.sealantBoxes} box${plural(out.sealantBoxes)} (${out.sausages ?? 0} sausages)` });
+  return rows;
+}
+function buildAccessoryRowsExtProject(agg: ReturnType<typeof buildExtProjAgg>, connectionLM: number): { label: string; value: string }[] {
+  const rows: { label: string; value: string }[] = [];
+  if (agg.cLM) rows.push({ label: "C-track", value: `${agg.cLM} m` });
+  if (agg.jLM) rows.push({ label: "J-track", value: `${agg.jLM} m` });
+  if (agg.zLM) rows.push({ label: "Z-flashing", value: `${agg.zLM} m` });
+  if (agg.flashLM) rows.push({ label: "Head flashing", value: `${agg.flashLM} m` });
+  if (connectionLM) rows.push({ label: "Connection track", value: `${r1(connectionLM)} m` });
+  if (agg.boxes30) rows.push({ label: "10g 30mm SDS", value: `${agg.boxes30} box${plural(agg.boxes30)}` });
+  if (agg.boxes16) rows.push({ label: "10g 16mm SDS", value: `${agg.boxes16} box${plural(agg.boxes16)}` });
+  if (agg.sealantBoxes) rows.push({ label: "Sealant", value: `${agg.sealantBoxes} box${plural(agg.sealantBoxes)} (${agg.sausages} sausages)` });
+  return rows;
+}
 
 // --- ExternalCalculator -------------------------------------------------------
 // orient is derived from sys.orient in the parent and passed as a prop. The
@@ -43,7 +79,6 @@ import { exportEstimateToExcel } from "../export/exportEstimateToExcel";
 // across orientation switches.
 export function ExternalCalculator({ store, orient, dimUnit, setDimUnit, systemSelector, layoutMode }: { store: WallStore; orient: "vertical" | "horizontal"; dimUnit: string; setDimUnit: (u: string) => void; systemSelector?: React.ReactNode; layoutMode: EffectiveLayout }) {
   const [extMode, setExtMode] = useState("project");
-  const [showTakeoff, setShowTakeoff] = useState(true);
 
   const {
     walls, activeId, setActiveId,
@@ -65,9 +100,11 @@ export function ExternalCalculator({ store, orient, dimUnit, setDimUnit, systemS
   ];
 
   const ScheduleComp = layoutMode === "web" ? PanelScheduleTable : PanelScheduleCard;
+  const dim = (m: string) => (m ? `${toDisp(m)} ${dimUnit}` : "--");
 
   const sidebarNode = (
     <>
+      <SectionLabel icon={<Settings size={13} />} step={1}>System configuration</SectionLabel>
       <WallsCard
         walls={walls} results={results} activeId={activeId} setActiveId={setActiveId}
         active={active} update={update} addBlankWall={addBlankWall}
@@ -76,7 +113,7 @@ export function ExternalCalculator({ store, orient, dimUnit, setDimUnit, systemS
         onJunctionLink={linkJunctionPartner}
       />
 
-      <CollapsibleSection icon={<Box size={13} />} label="Panel configuration" defaultOpen>
+      <CollapsibleSection icon={<Box size={13} />} step={2} label="Panel configuration" defaultOpen>
         <div className={cx.section}>
           <PanelColourSection active={active} update={update} />
 
@@ -91,7 +128,7 @@ export function ExternalCalculator({ store, orient, dimUnit, setDimUnit, systemS
         </div>
       </CollapsibleSection>
 
-      <CollapsibleSection icon={<Frame size={13} />} label="Wall geometry" defaultOpen>
+      <CollapsibleSection icon={<Frame size={13} />} step={3} label="Wall geometry" defaultOpen>
         <div className={cx.section}>
           <ProfileSection profile={active.profile} onChange={id => update({ profile: id })} />
           <div className="border-t border-slate-100 dark:border-slate-800 pt-3">
@@ -107,7 +144,7 @@ export function ExternalCalculator({ store, orient, dimUnit, setDimUnit, systemS
         </div>
       </CollapsibleSection>
 
-      <CollapsibleSection icon={<Lock size={13} />} label="Tracks and flashing" defaultOpen={false}>
+      <CollapsibleSection icon={<Lock size={13} />} step={4} label="Tracks and flashing" defaultOpen={false}>
         <EdgeRestraintSelector
           edges={active.edges}
           onEdgeToggle={k => update({ edges: { ...active.edges, [k]: !active.edges[k] } })}
@@ -122,47 +159,76 @@ export function ExternalCalculator({ store, orient, dimUnit, setDimUnit, systemS
     </>
   );
 
+  const singleAccessoryRows = useMemo(() => buildAccessoryRowsExtSingle(out), [out]);
+  const projectAccessoryRows = useMemo(
+    () => buildAccessoryRowsExtProject(projAgg, combinedEstimate.connectionLM),
+    [projAgg, combinedEstimate.connectionLM]
+  );
+  const projectWarnings = useMemo(() => collectProjectWarnings(results), [results]);
+
   const mainNode = (
     <>
       {!project && (
-        <SingleWallMaterialsSection
-          active={active} out={out} orient={orient} layoutMode={layoutMode}
-          showTakeoff={showTakeoff} setShowTakeoff={setShowTakeoff} ScheduleComp={ScheduleComp}
-        />
+        <>
+          <WorkspaceCard title="Calculator Workspace" badge={active.name}>
+            <SingleWallMaterialsContent
+              active={active} out={out} orient={orient} layoutMode={layoutMode} ScheduleComp={ScheduleComp}
+            />
+          </WorkspaceCard>
+          <SummaryTiles tiles={[
+            <MetricTile key="panels" label="Panels" value={!out.empty && out.result ? out.result.panels : "--"} />,
+            <ExpandableTile key="accessories" label="Accessories" compactValue={singleAccessoryRows.length} rows={singleAccessoryRows} />,
+            <ExpandableTile key="warnings" label="Warnings" tone="warn"
+              compactValue={out.warnings?.length ?? 0}
+              rows={(out.warnings ?? []).map(msg => ({ label: "Warning", value: msg }))} />,
+          ]} />
+        </>
       )}
 
       {project && (
         <>
           <ProjectSeparator />
-          <SectionNav sections={[
-            ...(layoutMode === "web" ? [{ id: "wall-list", label: "Wall list" }] : []),
-            { id: "system-breakdown", label: "System breakdown" },
-            { id: "connection-breakdown", label: "Connection breakdown" },
-            { id: "easy-to-order", label: "Easy to order" },
+
+          <WorkspaceCard title="Project Workspace" badge={`${walls.length} wall${walls.length !== 1 ? "s" : ""}`}>
+            <button onClick={addBlankWall}
+              className="w-full rounded-xl border border-dashed py-3 text-sm font-bold active:scale-[0.99] transition-all bg-white dark:bg-slate-800"
+              style={{ borderColor: "var(--blue)", color: "var(--blue)" }}>
+              + Add wall
+            </button>
+            <div className="space-y-2">
+              {results.map(({ wall: w, out: o }) => (
+                <WallRowCard key={w.id} wall={w} active={w.id === activeId} warn={warnById[w.id]}
+                  typeLabel={`P78 · ${w.orient === "vertical" ? "Vertical" : "Horizontal"}`}
+                  dimLabel={`${dim(w.width)} × ${dim(w.height)}`}
+                  panelsLabel={!o.empty && o.result ? `${o.result.panels} panels` : "-- panels"}
+                  onEdit={() => setActiveId(w.id)}
+                  onDuplicate={() => duplicateWall(w.id)}
+                  onDelete={() => deleteWall(w.id)}
+                  deletable={walls.length > 1}
+                />
+              ))}
+            </div>
+          </WorkspaceCard>
+
+          <SummaryTiles tiles={[
+            <MetricTile key="panels" label="Total panels" value={projAgg.panels} />,
+            <ExpandableTile key="accessories" label="Accessories" compactValue={projectAccessoryRows.length} rows={projectAccessoryRows} />,
+            <ExpandableTile key="warnings" label="Warnings" tone="warn"
+              compactValue={projectWarnings.length}
+              rows={projectWarnings.map(w => ({ label: w.wallName, value: w.msg }))} />,
           ]} />
 
-          {layoutMode === "web" && (
-            <div id="wall-list">
-              <SectionLabel icon={<Frame size={13} />}>Wall list</SectionLabel>
-              <WallsSummaryTable results={results} activeId={activeId} setActiveId={setActiveId} warnById={warnById} toDisp={toDisp} dimUnit={dimUnit} />
-            </div>
-          )}
-
-          {/* System Breakdown: shows HOW the estimate was built, wall by wall */}
-          <div id="system-breakdown">
+          <ExpandableOrderDetails>
+            {/* System Breakdown: shows HOW the estimate was built, wall by wall */}
             <SystemBreakdownSection layoutMode={layoutMode} results={results} ScheduleComp={ScheduleComp} />
-          </div>
 
-          {/* Connection Breakdown: shows WHY extra materials were added */}
-          <div id="connection-breakdown">
+            {/* Connection Breakdown: shows WHY extra materials were added */}
             <SectionLabel icon={<Frame size={13} />}>Connection breakdown</SectionLabel>
             <ConnectionBreakdownCard connections={combinedEstimate.connections} />
-          </div>
 
-          {/* Easy to Order: shows WHAT needs to be ordered -- one combined material list */}
-          <div id="easy-to-order">
+            {/* Easy to Order: shows WHAT needs to be ordered -- one combined material list */}
             <EasyToOrderSectionExt layoutMode={layoutMode} projAgg={projAgg} combinedEstimate={combinedEstimate} />
-          </div>
+          </ExpandableOrderDetails>
         </>
       )}
     </>
@@ -179,8 +245,12 @@ export function ExternalCalculator({ store, orient, dimUnit, setDimUnit, systemS
     <LockedDataFooter title="Locked external system data" table={<LockedDataExt />} onExport={handleExport} disabled={!hasExportData} />
   );
 
-  if (layoutMode === "phone") {
-    return <div>{sidebarNode}{mainNode}{footerNode}</div>;
-  }
-  return <CalculatorShell sidebar={sidebarNode} main={mainNode} footer={footerNode} />;
+  return (
+    <>
+      {layoutMode === "phone"
+        ? <div>{sidebarNode}{mainNode}{footerNode}</div>
+        : <CalculatorShell sidebar={sidebarNode} main={mainNode} footer={footerNode} />}
+      <EstimatorActionBar disabled={!hasExportData} onExport={handleExport} />
+    </>
+  );
 }

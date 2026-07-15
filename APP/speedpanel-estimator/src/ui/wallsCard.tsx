@@ -3,15 +3,15 @@
 // =============================================================================
 // Wall-list management UI shared by both calculators: horizontal-only wall
 // system selector (Standard/Corner/Shaft) plus its Corner/Shaft/generic
-// junction link pickers, the WallsCard itself (system buttons, panel type,
-// wall tabs, name/duplicate/delete), and the read-only project-wide
-// WallsSummaryTable.
+// junction link pickers, and the WallsCard itself (system buttons, panel
+// type, wall tabs, name/duplicate/delete). The project-wide wall list is now
+// ui/estimateWorkspace.tsx's WallRowCard, rendered in each calculator's
+// Project Workspace instead of a read-only table here.
 // =============================================================================
-import { Copy, Frame, Plus, Trash2 } from "lucide-react";
+import { Copy, Plus, Trash2 } from "lucide-react";
 import { cx, NAVY, BLUE, GOLD, MUTED } from "../styleTokens";
 import { TYPES } from "../data";
 import { IconButton } from "./primitives";
-import { Table, type TableColumn } from "./table";
 import type { Wall, WallResult } from "../estimate/wall.types";
 import type { WallSystemId } from "../App";
 
@@ -329,47 +329,3 @@ export const WallsCard = ({ walls, results, activeId, setActiveId, active, updat
     />
   </div>
 );
-
-// --- WallsSummaryTable ----------------------------------------------------------
-// Web/tablet-only "all walls at a glance" table. No new state -- driven entirely
-// by data already computed by the wall store / useWallResults (results/activeId/warnById);
-// clicking a row calls the same setActiveId used by WallsCard's tab strip.
-export const WallsSummaryTable = ({ results, activeId, setActiveId, warnById, toDisp, dimUnit }: {
-  results: WallResult[]; activeId: number; setActiveId: (id: number) => void;
-  warnById: Record<number, boolean>; toDisp: (m: string) => string; dimUnit: string;
-}) => {
-  const dim = (m: string) => (m ? `${toDisp(m)} ${dimUnit}` : "--");
-  const columns: TableColumn<WallResult>[] = [
-    {
-      key: "wall", header: "Wall",
-      cell: ({ wall }) => (
-        <span className="font-semibold" style={{ color: NAVY }}>
-          {warnById[wall.id] && <span className="mr-1.5 inline-block h-2 w-2 rounded-full align-middle" style={{ background: GOLD }} />}
-          {wall.name}
-        </span>
-      ),
-    },
-    { key: "orientation", header: "Orientation", cell: ({ wall }) => (wall.orient === "vertical" ? "Vertical" : "Horizontal") },
-    { key: "type", header: "Type", cell: ({ wall }) => `P${wall.type}` },
-    { key: "width", header: "Width", cell: ({ wall }) => dim(wall.width) },
-    { key: "height", header: "Height", cell: ({ wall }) => dim(wall.height) },
-    { key: "area", header: "Area", cell: ({ out }) => (out.empty ? "--" : `${out.area} m2`) },
-    { key: "panels", header: "Panels", cell: ({ out }) => (out.empty ? "--" : (out.chosen?.panels ?? out.result?.panels ?? "--")) },
-  ];
-  return (
-    <div className={`mt-3 ${cx.card}`}>
-      <div className={cx.cardTitle} style={{ color: NAVY }}>
-        <span style={{ color: BLUE }}><Frame size={14} /></span>Walls ({results.length})
-      </div>
-      <div className="mt-2">
-        <Table
-          columns={columns}
-          rows={results}
-          rowKey={({ wall }) => wall.id}
-          onRowClick={({ wall }) => setActiveId(wall.id)}
-          rowClassName={({ wall }) => (wall.id === activeId ? "bg-blue-50/60 dark:bg-blue-950/40" : undefined)}
-        />
-      </div>
-    </div>
-  );
-};

@@ -7,8 +7,8 @@
 // Split out purely to keep ExternalCalculator.tsx to its own state wiring +
 // composition -- mirrors internalCalculator/mainSections.tsx.
 // =============================================================================
-import { ChevronDown, Box, Layers } from "lucide-react";
-import { cx, NAVY, GOLD } from "../styleTokens";
+import { Box, Layers } from "lucide-react";
+import { NAVY, GOLD } from "../styleTokens";
 import { buildExtProjAgg, type ExtAggGroup } from "../estimate/aggregate";
 import type { CombinedEstimate } from "../estimate/calculateCombinedEstimate";
 import { EXT_STOCKED_COLOURS, EXT_STOCK, EXT_PACK } from "../data";
@@ -19,51 +19,52 @@ import { PanelScheduleCard, FixingSealantCard, StockGroupRow } from "../ui/sched
 import { TrackFlashingCardExt, TrackFlashingCardExtProj } from "./trackFlashingCards";
 import { SystemBreakdownWallCardExt } from "./systemBreakdownCard";
 
-// --- SingleWallMaterialsSection -----------------------------------------------
-// "Material quantities" accordion shown in single-wall mode: stats, colour
-// note, panel schedule, tracks/flashing, fixings/sealant.
-export const SingleWallMaterialsSection = ({
-  active, out, orient, layoutMode, showTakeoff, setShowTakeoff, ScheduleComp,
+// --- SingleWallMaterialsContent -----------------------------------------------
+// Single-wall mode's "Calculator Workspace" card content: stats, colour note,
+// panel schedule, tracks/flashing, fixings/sealant. Used to be its own
+// "Material quantities" accordion; now rendered plainly inside
+// ExternalCalculator's always-visible WorkspaceCard instead (no open/close
+// state of its own), with a placeholder shown until there's a valid estimate.
+export const SingleWallMaterialsContent = ({
+  active, out, orient, layoutMode, ScheduleComp,
 }: {
   active: Wall; out: ComputeOut; orient: "vertical" | "horizontal"; layoutMode: EffectiveLayout;
-  showTakeoff: boolean; setShowTakeoff: (v: boolean) => void; ScheduleComp: typeof PanelScheduleCard;
+  ScheduleComp: typeof PanelScheduleCard;
 }) => {
-  if (out.empty || !out.result) return null;
+  if (out.empty || !out.result) {
+    return (
+      <p className="rounded-xl border border-dashed border-slate-200 dark:border-slate-700 px-4 py-8 text-center text-sm text-slate-400 dark:text-slate-500">
+        Enter wall dimensions in Wall geometry to see the estimate here.
+      </p>
+    );
+  }
   const result = out.result;
   const colourEntry = active.colour ? EXT_STOCKED_COLOURS.find(c => c.code === active.colour) : null;
   const colourDisplay = colourEntry ? `${colourEntry.label} (${colourEntry.code})` : active.colour;
   return (
-    <>
-      <button onClick={() => setShowTakeoff(!showTakeoff)} className={cx.accordion}>
-        <span>Material quantities</span>
-        <ChevronDown size={15} className={`transition-transform ${showTakeoff ? "rotate-180" : ""}`} />
-      </button>
-      {showTakeoff && (
-        <div className="mt-3">
-          <StatsRow area={`${out.area} m2`} panels={result.panels} panelType="P78" />
-          {active.colour && (
-            <div className="mt-2 flex items-center gap-2 rounded-lg border bg-amber-50 dark:bg-amber-950/30 px-3 py-2.5" style={{ borderColor: GOLD }}>
-              <span className="text-xs font-bold uppercase tracking-wide text-amber-700 dark:text-amber-400">Colour</span>
-              <span className="text-sm font-semibold" style={{ color: NAVY }}>{colourDisplay}</span>
-              {active.colourType === "special" && <span className="ml-auto text-xs font-bold uppercase tracking-wide text-amber-600 dark:text-amber-400">Special order</span>}
-            </div>
-          )}
-          <CardGrid layoutMode={layoutMode} minWidth={380}>
-            <ScheduleComp title="Panel order schedule -- P78 coloured" icon={<Box size={14} />}
-              customSchedule={out.customSchedule}
-              groups={result.groups.map((g: PanelGroup) => ({ ...g, ps: EXT_PACK }))}
-              packSize={EXT_PACK} stocks={EXT_STOCK} wastePct={result.wastePct} orient={orient} />
-            <TrackFlashingCardExt out={out} orient={orient} headFlashActive={active.headFlash} />
-            <FixingSealantCard title="Fixing and sealant quantities"
-              boxes30={out.boxes30 || 0} fix30={out.fix30 || 0}
-              boxes16={out.boxes16 || 0} fix16={out.fix16 || 0}
-              sealantBoxes={out.sealantBoxes || 0} sausages={out.sausages || 0} area={out.area || 0}
-              sealantLabel="Sikaflex 400 Fire PU" sealantRate={2} footnote="Est. fixings -- 1000/box." />
-          </CardGrid>
-          {out.notes && out.notes.length > 0 && <NotesList notes={out.notes} />}
+    <div>
+      <StatsRow area={`${out.area} m2`} panels={result.panels} panelType="P78" />
+      {active.colour && (
+        <div className="mt-2 flex items-center gap-2 rounded-lg border bg-amber-50 dark:bg-amber-950/30 px-3 py-2.5" style={{ borderColor: GOLD }}>
+          <span className="text-xs font-bold uppercase tracking-wide text-amber-700 dark:text-amber-400">Colour</span>
+          <span className="text-sm font-semibold" style={{ color: NAVY }}>{colourDisplay}</span>
+          {active.colourType === "special" && <span className="ml-auto text-xs font-bold uppercase tracking-wide text-amber-600 dark:text-amber-400">Special order</span>}
         </div>
       )}
-    </>
+      <CardGrid layoutMode={layoutMode} minWidth={380}>
+        <ScheduleComp title="Panel order schedule -- P78 coloured" icon={<Box size={14} />}
+          customSchedule={out.customSchedule}
+          groups={result.groups.map((g: PanelGroup) => ({ ...g, ps: EXT_PACK }))}
+          packSize={EXT_PACK} stocks={EXT_STOCK} wastePct={result.wastePct} orient={orient} />
+        <TrackFlashingCardExt out={out} orient={orient} headFlashActive={active.headFlash} />
+        <FixingSealantCard title="Fixing and sealant quantities"
+          boxes30={out.boxes30 || 0} fix30={out.fix30 || 0}
+          boxes16={out.boxes16 || 0} fix16={out.fix16 || 0}
+          sealantBoxes={out.sealantBoxes || 0} sausages={out.sausages || 0} area={out.area || 0}
+          sealantLabel="Sikaflex 400 Fire PU" sealantRate={2} footnote="Est. fixings -- 1000/box." />
+      </CardGrid>
+      {out.notes && out.notes.length > 0 && <NotesList notes={out.notes} />}
+    </div>
   );
 };
 

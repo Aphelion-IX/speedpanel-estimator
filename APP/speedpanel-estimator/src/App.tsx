@@ -1,12 +1,12 @@
 import { useState, useEffect, lazy, Suspense } from "react";
-import { RotateCcw, AlertTriangle, Settings } from "lucide-react";
+import { RotateCcw, AlertTriangle } from "lucide-react";
 import { useLayoutMode } from "./useLayoutMode";
 import { useThemeMode } from "./useThemeMode";
 import { useAuth } from "./lib/useAuth";
 import { useCompanyMemberships } from "./lib/useCompanyMemberships";
 import { useWallStore } from "./wallStore";
 import { NAVY, BLUE, GOLD } from "./styleTokens";
-import { SectionLabel, IconButton } from "./ui/primitives";
+import { IconButton } from "./ui/primitives";
 import { Button } from "./ui/button";
 import { ConfirmDialog, ErrorDialog } from "./ui/confirmDialog";
 import { LoadingState } from "./ui/states";
@@ -50,7 +50,6 @@ export default function SpeedpanelEstimator() {
   const savedSession = loadSession();
   const [system, setSystem] = useState(() => savedSession ? savedSession.system : "int-vert");
   const [mode, setMode]     = useState(() => savedSession ? savedSession.mode : "project");
-  const [showWall, setShowWall]               = useState(true);
   const [dimUnit, setDimUnit] = useState(() => savedSession ? savedSession.dimUnit : "m");
   const { route, navigate } = useHashRoute();
   const switchTab = (tab: TopNavTab) =>
@@ -97,14 +96,14 @@ export default function SpeedpanelEstimator() {
   // Single SHARED wall store (persisted); the Internal and External calculators
   // each independently destructure/compute what they need from it, so walls
   // survive switching in/out of External mode and between orientations.
-  const store = useWallStore({ dimUnit, onWallAdded: () => setShowWall(true), persistLocally: !openProject });
+  const store = useWallStore({ dimUnit, persistLocally: !openProject });
   const { active, resetWalls, clearCustomLength, loadFrom, exportSnapshot } = store;
   // Orientation is per-wall (see Wall.orient) -- this is the ACTIVE wall's own
   // orientation, used only to drive which fields/selectors are shown for it.
   // It must never be applied to every wall (that was the combined-estimate bug).
   const orient = active.orient;
 
-  const { linkCornerPartner, linkShaftPartner, switchOrient } = useCornerShaftLinking(store, setShowWall);
+  const { linkCornerPartner, linkShaftPartner, switchOrient } = useCornerShaftLinking(store);
 
   const switchDimUnit = (u: string) => { setDimUnit(u); clearCustomLength(); };
   // Deliberate "start over": reset the shared store + view, and close any
@@ -117,7 +116,7 @@ export default function SpeedpanelEstimator() {
   };
   // Switching system no longer clears walls -- the shared store is preserved
   // across every orientation/wall-type change.
-  const switchSystem = (id: string) => { setSystem(id); setShowWall(true); };
+  const switchSystem = (id: string) => { setSystem(id); };
   const findSys = (orientVal: "vertical" | "horizontal", ext: boolean) =>
     SYSTEMS.find(s => s.orient === orientVal && s.ext === ext)!;
 
@@ -244,7 +243,11 @@ export default function SpeedpanelEstimator() {
         <div className="h-[2px] w-full" style={{ background: `linear-gradient(90deg, ${NAVY} 0%, ${BLUE} 55%, ${GOLD} 100%)` }} />
       </header>
 
-      <div className={layoutMode === "web" ? "mx-auto w-full max-w-[1520px] px-6 pb-16 pt-6" : "mx-auto w-full max-w-md px-3 sm:px-4 pb-24 pt-5"}>
+      <div className={
+        layoutMode === "web"
+          ? `mx-auto w-full max-w-[1520px] px-6 pt-6 ${route.tab === "estimator" ? "pb-24" : "pb-16"}`
+          : `mx-auto w-full max-w-md px-3 sm:px-4 pt-5 ${route.tab === "estimator" ? "pb-32" : "pb-24"}`
+      }>
 
         {/* Renders nothing when there's no pending invitation -- safe to
             mount unconditionally on every tab, not just Projects, since it's
@@ -303,21 +306,15 @@ export default function SpeedpanelEstimator() {
         {/* System configuration + calculator body */}
         {route.tab === "estimator" && (
           isExt ? (
-            <>
-              <SectionLabel icon={<Settings size={13} />}>System configuration</SectionLabel>
-              <div className="mt-1">
-                <ExternalCalculator store={store} orient={orient} dimUnit={dimUnit} setDimUnit={switchDimUnit}
-                  systemSelector={<SystemRows orient={orient} switchOrient={switchOrient} isExt={isExt} switchSystem={switchSystem} findSys={findSys} />}
-                  layoutMode={layoutMode} />
-              </div>
-            </>
+            <ExternalCalculator store={store} orient={orient} dimUnit={dimUnit} setDimUnit={switchDimUnit}
+              systemSelector={<SystemRows orient={orient} switchOrient={switchOrient} isExt={isExt} switchSystem={switchSystem} findSys={findSys} />}
+              layoutMode={layoutMode} />
           ) : (
             <InternalCalculator
               store={store} orient={orient} dimUnit={dimUnit} setDimUnit={switchDimUnit}
               systemSelector={<SystemRows orient={orient} switchOrient={switchOrient} isExt={isExt} switchSystem={switchSystem} findSys={findSys} />}
               layoutMode={layoutMode}
               mode={mode} setMode={setMode}
-              showWall={showWall} setShowWall={setShowWall}
               linkCornerPartner={linkCornerPartner} linkShaftPartner={linkShaftPartner}
             />
           )

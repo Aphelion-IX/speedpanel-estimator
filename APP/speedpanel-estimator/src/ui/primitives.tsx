@@ -8,7 +8,7 @@
 // layout shell both calculators compose their content into. No dependency on
 // Wall or the compute engine; pure props in, JSX out.
 // =============================================================================
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { r1 } from "../estimate/mathUtils";
 import { cx, BLUE, GOLD, WHITE, NAVY } from "../styleTokens";
 import type { EffectiveLayout } from "../useLayoutMode";
@@ -76,10 +76,18 @@ export const CardGrid = ({ layoutMode, minWidth = 320, stretch = false, children
     : <>{children}</>
 );
 
+// --- StepBadge ----------------------------------------------------------------
+// Numbered circle badge for the sidebar's step-by-step flow (1 System
+// configuration -> 2 Wall geometry -> 3 Tracks and flashing), used in place of
+// an icon by SectionLabel/CollapsibleSection when a `step` number is given.
+const StepBadge = ({ n }: { n: number }) => (
+  <span className="grid h-[26px] w-[26px] shrink-0 place-items-center rounded-full text-[13px] font-extrabold text-white" style={{ background: BLUE }}>{n}</span>
+);
+
 // --- UI primitives ------------------------------------------------------------
-export const SectionLabel = ({ icon, children }: { icon: React.ReactNode; children: React.ReactNode }) => (
+export const SectionLabel = ({ icon, step, children }: { icon?: React.ReactNode; step?: number; children: React.ReactNode }) => (
   <div className={cx.sectionLbl}>
-    <span style={{ color: BLUE }}>{icon}</span>{children}
+    {step != null ? <StepBadge n={step} /> : <span style={{ color: BLUE }}>{icon}</span>}{children}
   </div>
 );
 
@@ -89,15 +97,16 @@ export const SectionLabel = ({ icon, children }: { icon: React.ReactNode; childr
 // sidebar section header that can be toggled shut -- used to shrink the
 // sidebar's default rendered height (Wall geometry stays open, Tracks and
 // flashing starts closed) so the sticky sidebar isn't routinely taller than
-// the main column it sits beside.
-export const CollapsibleSection = ({ icon, label, defaultOpen = true, children }: {
-  icon: React.ReactNode; label: React.ReactNode; defaultOpen?: boolean; children: React.ReactNode;
+// the main column it sits beside. `step` swaps the icon for a numbered
+// StepBadge, matching the sidebar's 1/2/3 step-flow visual language.
+export const CollapsibleSection = ({ icon, step, label, defaultOpen = true, children }: {
+  icon?: React.ReactNode; step?: number; label: React.ReactNode; defaultOpen?: boolean; children: React.ReactNode;
 }) => {
   const [open, setOpen] = useState(defaultOpen);
   return (
     <>
       <button onClick={() => setOpen(v => !v)} className={`${cx.sectionLbl} w-full justify-between`}>
-        <span className="flex items-center gap-2"><span style={{ color: BLUE }}>{icon}</span>{label}</span>
+        <span className="flex items-center gap-2">{step != null ? <StepBadge n={step} /> : <span style={{ color: BLUE }}>{icon}</span>}{label}</span>
         <ChevronDown size={14} className={`text-slate-400 dark:text-slate-500 transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
       {open && children}
@@ -269,48 +278,3 @@ export const CalculatorShell = ({ sidebar, main, footer }: {
     <div className="min-w-0">{main}{footer}</div>
   </div>
 );
-
-// --- SectionNav ---------------------------------------------------------------
-// Sticky jump-nav for project mode's long main column (Wall list -> System
-// breakdown -> Connection breakdown -> Easy to order): click a pill to
-// smooth-scroll to that section's id, current pill highlights via
-// IntersectionObserver as the matching section crosses a band near the top
-// of the viewport. Purely a navigation aid -- doesn't read or affect any
-// estimate state.
-export const SectionNav = ({ sections }: { sections: { id: string; label: string }[] }) => {
-  const [activeId, setActiveId] = useState(sections[0]?.id);
-
-  useEffect(() => {
-    const els = sections
-      .map(s => document.getElementById(s.id))
-      .filter((el): el is HTMLElement => el !== null);
-    if (els.length === 0) return;
-    const observer = new IntersectionObserver(
-      entries => {
-        const visible = entries.filter(e => e.isIntersecting);
-        if (visible.length > 0) setActiveId(visible[0].target.id);
-      },
-      { rootMargin: "-15% 0px -70% 0px" }
-    );
-    els.forEach(el => observer.observe(el));
-    return () => observer.disconnect();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sections.map(s => s.id).join(",")]);
-
-  if (sections.length === 0) return null;
-  return (
-    <div className="sticky top-5 z-10 mt-4 -mx-1 flex gap-1.5 overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-white/90 dark:bg-slate-800/90 p-1.5 shadow-sm backdrop-blur">
-      {sections.map(s => {
-        const on = s.id === activeId;
-        return (
-          <button key={s.id}
-            onClick={() => document.getElementById(s.id)?.scrollIntoView({ behavior: "smooth", block: "start" })}
-            className="shrink-0 rounded-lg px-3 py-2 text-xs font-bold uppercase tracking-wide whitespace-nowrap transition-all"
-            style={on ? { background: BLUE, color: WHITE } : { color: "#94a3b8" }}>
-            {s.label}
-          </button>
-        );
-      })}
-    </div>
-  );
-};

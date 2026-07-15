@@ -8,7 +8,7 @@
 // ../ui -- split out purely to keep InternalCalculator.tsx to its own state
 // wiring + composition.
 // =============================================================================
-import { ChevronDown, Box, Layers, Hammer } from "lucide-react";
+import { Box, Layers, Hammer } from "lucide-react";
 import { cx } from "../styleTokens";
 import { r1 } from "../estimate/mathUtils";
 import { plural } from "../estimate/computeUtils";
@@ -24,55 +24,56 @@ import { CornerKitCard, ShaftVerticalCard, ShaftSlabCard, ShaftJunctionCard } fr
 import { TrackFlashingCardInt, TrackFlashingCardIntProj } from "./trackFlashingCards";
 import { SystemBreakdownWallCard } from "./systemBreakdownCard";
 
-// --- SingleWallEstimateSection ---------------------------------------------
-// "Wall estimate -- {name}" accordion shown in single-wall mode: stats,
-// panel schedule, tracks/flashing, corner/shaft kit cards, fixings/sealant.
-export const SingleWallEstimateSection = ({
-  active, out, orient, layoutMode, showWall, setShowWall, ScheduleComp, walls, cornerPair, shaftPair,
+// --- SingleWallEstimateContent -----------------------------------------------
+// Single-wall mode's "Calculator Workspace" card content: stats, panel
+// schedule, tracks/flashing, corner/shaft kit cards, fixings/sealant. Used to
+// be its own "Wall estimate -- {name}" accordion; now rendered plainly inside
+// InternalCalculator's always-visible WorkspaceCard instead (no open/close
+// state of its own), with a placeholder shown until there's a valid estimate.
+export const SingleWallEstimateContent = ({
+  active, out, orient, layoutMode, ScheduleComp, walls, cornerPair, shaftPair,
 }: {
   active: Wall; out: ComputeOut; orient: "vertical" | "horizontal"; layoutMode: EffectiveLayout;
-  showWall: boolean; setShowWall: (v: boolean) => void; ScheduleComp: typeof PanelScheduleCard;
+  ScheduleComp: typeof PanelScheduleCard;
   walls: Wall[]; cornerPair: CornerPairResult | null; shaftPair: ShaftPairResult | null;
 }) => {
-  if (out.empty || !out.chosen || out.chosen.invalid) return null;
+  if (out.empty || !out.chosen || out.chosen.invalid) {
+    return (
+      <p className="rounded-xl border border-dashed border-slate-200 dark:border-slate-700 px-4 py-8 text-center text-sm text-slate-400 dark:text-slate-500">
+        Enter wall dimensions in Wall geometry to see the estimate here.
+      </p>
+    );
+  }
   const chosen = out.chosen;
   return (
-    <>
-      <button onClick={() => setShowWall(!showWall)} className={cx.accordion}>
-        <span>Wall estimate -- {active.name}</span>
-        <ChevronDown size={15} className={`transition-transform ${showWall ? "rotate-180" : ""}`} />
-      </button>
-      {showWall && (
-        <div className="mt-3">
-          <StatsRow area={`${out.area} m2`} panels={chosen.panels} panelType={`P${active.type}`} />
-          <CardGrid layoutMode={layoutMode} minWidth={420}>
-            <ScheduleComp title={`Panel schedule -- P${active.type}`} icon={<Box size={14} />}
-              customSchedule={out.customSchedule}
-              groups={chosen.groups}
-              packSize={PACK[active.type]} stocks={STOCK_LENGTHS}
-              wastePct={chosen.wastePct} orient={orient} />
-            <TrackFlashingCardInt out={out} headFlashActive={active.headFlash} wall={active} />
-            {active.wallSystem === "shaft" && <ShaftVerticalCard out={out} />}
-            {cornerPair && (() => {
-              const partner = walls.find(w => w.id === active.cornerPartnerId);
-              return <CornerKitCard kit={cornerPair} partnerName={partner ? partner.name : "linked run"} />;
-            })()}
-            {shaftPair && (() => {
-              const partner = walls.find(w => w.id === active.shaftPartnerId);
-              return <ShaftJunctionCard kit={shaftPair} partnerName={partner ? partner.name : "linked wall"} />;
-            })()}
-            {active.wallSystem === "shaft" && <ShaftSlabCard out={out} />}
-            <FixingSealantCard title="Fixing and sealant quantities"
-              boxes30={out.boxes30 || 0} fix30={out.fix30 || 0}
-              boxes16={out.boxes16 || 0} fix16={out.fix16 || 0}
-              sealantBoxes={out.sealantBoxes || 0} sausages={out.sausages || 0} area={out.area || 0}
-              sealantLabel="Hilti CP606 sealant" sealantRate={4}
-              p2pNote={out.p2pNote} p2pEnhanced={out.p2pEnhanced} />
-          </CardGrid>
-          {out.notes && out.notes.length > 0 && <NotesList notes={out.notes} />}
-        </div>
-      )}
-    </>
+    <div>
+      <StatsRow area={`${out.area} m2`} panels={chosen.panels} panelType={`P${active.type}`} />
+      <CardGrid layoutMode={layoutMode} minWidth={420}>
+        <ScheduleComp title={`Panel schedule -- P${active.type}`} icon={<Box size={14} />}
+          customSchedule={out.customSchedule}
+          groups={chosen.groups}
+          packSize={PACK[active.type]} stocks={STOCK_LENGTHS}
+          wastePct={chosen.wastePct} orient={orient} />
+        <TrackFlashingCardInt out={out} headFlashActive={active.headFlash} wall={active} />
+        {active.wallSystem === "shaft" && <ShaftVerticalCard out={out} />}
+        {cornerPair && (() => {
+          const partner = walls.find(w => w.id === active.cornerPartnerId);
+          return <CornerKitCard kit={cornerPair} partnerName={partner ? partner.name : "linked run"} />;
+        })()}
+        {shaftPair && (() => {
+          const partner = walls.find(w => w.id === active.shaftPartnerId);
+          return <ShaftJunctionCard kit={shaftPair} partnerName={partner ? partner.name : "linked wall"} />;
+        })()}
+        {active.wallSystem === "shaft" && <ShaftSlabCard out={out} />}
+        <FixingSealantCard title="Fixing and sealant quantities"
+          boxes30={out.boxes30 || 0} fix30={out.fix30 || 0}
+          boxes16={out.boxes16 || 0} fix16={out.fix16 || 0}
+          sealantBoxes={out.sealantBoxes || 0} sausages={out.sausages || 0} area={out.area || 0}
+          sealantLabel="Hilti CP606 sealant" sealantRate={4}
+          p2pNote={out.p2pNote} p2pEnhanced={out.p2pEnhanced} />
+      </CardGrid>
+      {out.notes && out.notes.length > 0 && <NotesList notes={out.notes} />}
+    </div>
   );
 };
 
