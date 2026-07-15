@@ -18,6 +18,7 @@
 // the compute engine itself (see wallStore.ts's WallSchema/PersistedProjectSchema).
 // =============================================================================
 import { z } from "zod";
+import { tone } from "../../styleTokens";
 import { PersistedProjectSchema } from "../../wallStore";
 
 export const STAGES = ["draft", "install_review", "technical_review", "approved"] as const;
@@ -58,13 +59,13 @@ export const STAGE_LABELS: Record<Stage, string> = {
   approved: "Approved",
 };
 
-// Same slate/blue/amber/emerald convention as orders/orderTypes.ts's
-// ORDER_STAGE_BADGE_CLASS, so both pipelines' badges read consistently.
+// Same shared tone() map as orders/orderTypes.ts's ORDER_STAGE_BADGE_CLASS,
+// so both pipelines' badges read consistently.
 export const PROJECT_STAGE_BADGE_CLASS: Record<Stage, string> = {
-  draft: "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400",
-  install_review: "bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400",
-  technical_review: "bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400",
-  approved: "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400",
+  draft: tone("neutral"),
+  install_review: tone("info"),
+  technical_review: tone("warn"),
+  approved: tone("ok"),
 };
 
 export const REVIEW_STATUS_LABELS: Record<ReviewStatus, string> = {
@@ -74,9 +75,9 @@ export const REVIEW_STATUS_LABELS: Record<ReviewStatus, string> = {
 };
 
 // install_review_status/technical_review_status badge colours -- same
-// slate/blue/amber/emerald convention as PROJECT_STAGE_BADGE_CLASS above.
+// shared tone() map as PROJECT_STAGE_BADGE_CLASS above.
 export const REVIEW_STATUS_BADGE_CLASS: Record<ReviewStatus, string> = {
-  pending: "bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400",
-  changes_requested: "bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400",
-  approved: "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400",
+  pending: tone("info"),
+  changes_requested: tone("warn"),
+  approved: tone("ok"),
 };

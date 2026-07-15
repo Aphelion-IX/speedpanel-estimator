@@ -169,6 +169,9 @@ export const PanelScheduleCard = ({ title, icon, customSchedule, groups, packSiz
 // Web/tablet counterpart to PanelScheduleCard: same props, same underlying
 // data (stockStatus/StockBadge/PackNote/typeFromPackSize), just rendered as a
 // real <table> (matching SpanTable's TH/TD conventions) instead of stacked rows.
+// Not built on the shared <Table> primitive -- some rows need an extra
+// colSpan note row directly beneath them (the pack-note Fragment below),
+// which doesn't fit Table's one-<tr>-per-datum render-prop model.
 export const PanelScheduleTable = ({ title, icon, customSchedule, groups, packSize, stocks, wastePct, orient, showCustomNote = true }: {
   title: string; icon: React.ReactNode;
   customSchedule?: CustomScheduleEntry[] | null; groups?: PanelGroup[];

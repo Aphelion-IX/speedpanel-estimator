@@ -14,8 +14,9 @@
 // createProjectFromSystem/pendingSystemSelection).
 // =============================================================================
 import { useState } from "react";
-import { cx, NAVY, BLUE, WHITE, MUTED } from "../../styleTokens";
+import { cx, BLUE, MUTED } from "../../styleTokens";
 import { Field } from "../shared/fields";
+import { Button } from "../../ui/button";
 import type { UseAuth } from "../../lib/useAuth";
 
 export const SignInGate = ({ auth, onRequestQuote, pendingNote }: { auth: UseAuth; onRequestQuote: () => void; pendingNote?: string }) => {
@@ -49,7 +50,7 @@ export const SignInGate = ({ auth, onRequestQuote, pendingNote }: { auth: UseAut
 
   return (
     <div className={`${cx.card} mt-6 max-w-sm`}>
-      <h1 className="text-lg font-bold" style={{ color: NAVY }}>{mode === "signIn" ? "Sign in" : "Create an account"}</h1>
+      <h1 className={cx.h2}>{mode === "signIn" ? "Sign in" : "Create an account"}</h1>
       <p className={cx.footnote} style={{ paddingTop: 0 }}>Sign in to save and reopen your projects.</p>
       {pendingNote && <p className="mt-1 text-sm" style={{ color: MUTED }}>{pendingNote}</p>}
       <form onSubmit={handleSubmit} className="mt-4 space-y-3">
@@ -57,10 +58,9 @@ export const SignInGate = ({ auth, onRequestQuote, pendingNote }: { auth: UseAut
         <Field label="Password" value={password} onChange={setPassword} type="password" required
           autoComplete={mode === "signIn" ? "current-password" : "new-password"} />
         {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
-        <button type="submit" disabled={submitting}
-          className="w-full rounded-xl py-2.5 text-sm font-bold disabled:opacity-50" style={{ background: BLUE, color: WHITE }}>
+        <Button type="submit" disabled={submitting} className="w-full">
           {submitting ? "Please wait..." : mode === "signIn" ? "Sign in" : "Sign up"}
-        </button>
+        </Button>
       </form>
       <button onClick={() => { setMode(m => m === "signIn" ? "signUp" : "signIn"); setError(null); }}
         className="mt-3 text-sm font-semibold hover:underline" style={{ color: BLUE }}>

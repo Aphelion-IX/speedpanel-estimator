@@ -18,17 +18,32 @@ import { AlertTriangle, ChevronDown } from "lucide-react";
 // The header's square icon-only button shape (bell/theme/layout/reset/
 // hamburger/sign-in) -- was a repeated literal className in each of those
 // components; shared here so they can't drift out of sync with each other.
-export const IconButton = ({ onClick, title, className = "", children }: {
-  onClick?: () => void; title?: string; className?: string; children: React.ReactNode;
-}) => (
-  <button
-    onClick={onClick}
-    title={title}
-    className={`grid h-10 w-10 place-items-center rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-400 dark:text-slate-500 shadow-sm active:scale-95 transition-all ${className}`}
-  >
-    {children}
-  </button>
-);
+//
+// Also the app-wide bordered icon button for utility actions (Save/Edit/
+// Delete/Retry) -- `size="lg"` (40px, the default, matches the original
+// header shape exactly) for standalone toolbar-level actions, `size="sm"`
+// (32px) for repeated row actions in dense tables; `variant="danger"` tints
+// the border/hover red for destructive actions like Delete.
+export const IconButton = ({ onClick, title, ariaLabel, className = "", variant = "default", size = "lg", disabled = false, children }: {
+  onClick?: () => void; title?: string; ariaLabel?: string; className?: string;
+  variant?: "default" | "danger"; size?: "lg" | "sm"; disabled?: boolean; children: React.ReactNode;
+}) => {
+  const sizeCx = size === "sm" ? "h-8 w-8 rounded-lg" : "h-10 w-10 rounded-xl";
+  const variantCx = variant === "danger"
+    ? "border-red-100 dark:border-red-900/40 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 hover:border-red-300 dark:hover:border-red-700"
+    : "border-slate-200 dark:border-slate-700 text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700/60 hover:text-blue-600 dark:hover:text-blue-400 hover:border-blue-300 dark:hover:border-blue-600";
+  return (
+    <button
+      onClick={onClick}
+      title={title}
+      aria-label={ariaLabel ?? title}
+      disabled={disabled}
+      className={`grid place-items-center border bg-white dark:bg-slate-800 shadow-sm active:scale-95 transition-all disabled:opacity-50 disabled:pointer-events-none ${sizeCx} ${variantCx} ${className}`}
+    >
+      {children}
+    </button>
+  );
+};
 
 // --- CardGrid -------------------------------------------------------------
 // On web layout, arranges its children (cards) side by side in a responsive

@@ -13,6 +13,9 @@
 import { useState } from "react";
 import { cx, BLUE, WHITE, NAVY } from "../../styleTokens";
 import type { EffectiveLayout } from "../../useLayoutMode";
+import { Button } from "../../ui/button";
+import { LoadingState, ErrorState } from "../../ui/states";
+import { ErrorDialog } from "../../ui/confirmDialog";
 import { LDRow } from "../../ui/lockedData";
 import { RepeatableRowEditor } from "./shared/repeatableRowEditor";
 import { useSystemsStore } from "./systems/systemsStore";
@@ -36,26 +39,22 @@ const SystemToggle = ({ active, onChange }: { active: SystemId; onChange: (s: Sy
 export const AdminSystemsPage = ({ layoutMode }: { layoutMode: EffectiveLayout }) => {
   const { internal, external, loading, error, dirty, reload, setRows, save, discard } = useSystemsStore();
   const [system, setSystem] = useState<SystemId>("internal");
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const rows = system === "internal" ? internal : external;
   const isDirty = dirty[system];
 
   const handleSave = async () => {
     const err = await save(system);
-    if (err) window.alert(err);
+    if (err) setActionError(err);
   };
 
   if (loading) {
-    return <div className={`${cx.card} mt-6 text-sm`} style={{ color: NAVY }}>Loading...</div>;
+    return <LoadingState className="mt-6" label="Loading system data" />;
   }
 
   if (error) {
-    return (
-      <div className={`${cx.card} mt-6`}>
-        <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
-        <button onClick={() => reload()} className="mt-2 text-sm font-bold" style={{ color: NAVY }}>Retry</button>
-      </div>
-    );
+    return <ErrorState className="mt-6" message={error} onRetry={() => reload()} />;
   }
 
   const editor = (
@@ -82,16 +81,8 @@ export const AdminSystemsPage = ({ layoutMode }: { layoutMode: EffectiveLayout }
           />
         </div>
         <div className="mt-4 flex gap-2">
-          <button onClick={handleSave} disabled={!isDirty}
-            className="rounded-xl px-4 py-2.5 text-sm font-semibold shadow-sm active:scale-95 transition-all disabled:opacity-40"
-            style={{ background: BLUE, color: WHITE }}>
-            Save changes
-          </button>
-          <button onClick={() => discard(system)} disabled={!isDirty}
-            className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-2.5 text-sm font-semibold active:scale-95 transition-all disabled:opacity-40"
-            style={{ color: NAVY }}>
-            Discard
-          </button>
+          <Button onClick={handleSave} disabled={!isDirty}>Save changes</Button>
+          <Button variant="secondary" onClick={() => discard(system)} disabled={!isDirty}>Discard</Button>
         </div>
       </div>
     </>
@@ -110,9 +101,12 @@ export const AdminSystemsPage = ({ layoutMode }: { layoutMode: EffectiveLayout }
     </div>
   );
 
+  const errorDialog = <ErrorDialog message={actionError} onDismiss={() => setActionError(null)} />;
+
   if (layoutMode === "phone") {
     return (
       <div className="mt-2">
+        {errorDialog}
         {editor}
         <div className="mt-6">{preview}</div>
       </div>
@@ -121,6 +115,7 @@ export const AdminSystemsPage = ({ layoutMode }: { layoutMode: EffectiveLayout }
 
   return (
     <div className="mt-2 grid grid-cols-[1fr_380px] items-start gap-6">
+      {errorDialog}
       <div className="min-w-0">{editor}</div>
       <aside className="sticky top-5">{preview}</aside>
     </div>

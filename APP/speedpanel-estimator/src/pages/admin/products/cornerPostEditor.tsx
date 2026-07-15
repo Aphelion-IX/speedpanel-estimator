@@ -7,7 +7,9 @@
 // itself non-recursive/simple.
 // =============================================================================
 import { Plus, Trash2 } from "lucide-react";
-import { BLUE, MUTED, NAVY } from "../../../styleTokens";
+import { MUTED, NAVY } from "../../../styleTokens";
+import { Button } from "../../../ui/button";
+import { IconButton } from "../../../ui/primitives";
 import { RepeatableRowEditor } from "../shared/repeatableRowEditor";
 import type { AdminPanel } from "./productTypes";
 
@@ -30,9 +32,9 @@ export const CornerPostEditor = ({ value, onChange }: { value: CornerPost; onCha
               <input type="number" value={band.maxW} onChange={e => setMaxW(i, Number(e.target.value))}
                 className="w-20 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1 text-xs" style={{ color: NAVY }} />
             </label>
-            <button onClick={() => removeBand(i)} className="grid h-7 w-7 place-items-center rounded text-slate-400 dark:text-slate-500">
+            <IconButton size="sm" variant="danger" ariaLabel="Remove width band" onClick={() => removeBand(i)}>
               <Trash2 size={13} />
-            </button>
+            </IconButton>
           </div>
           <div className="mt-2">
             <RepeatableRowEditor<CornerPostRow>
@@ -50,9 +52,7 @@ export const CornerPostEditor = ({ value, onChange }: { value: CornerPost; onCha
           </div>
         </div>
       ))}
-      <button onClick={addBand} className="flex items-center gap-1.5 text-xs font-bold" style={{ color: BLUE }}>
-        <Plus size={13} /> Add width band
-      </button>
+      <Button variant="ghost" icon={<Plus size={13} />} onClick={addBand}>Add width band</Button>
     </div>
   );
 };

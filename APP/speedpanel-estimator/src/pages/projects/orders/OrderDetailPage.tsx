@@ -7,9 +7,12 @@
 // submit_order/request_proforma_invoice RPCs.
 // =============================================================================
 import { useState } from "react";
-import { History } from "lucide-react";
-import { cx, NAVY, BLUE, WHITE, MUTED } from "../../../styleTokens";
+import { History, Plus } from "lucide-react";
+import { cx, NAVY, BLUE, MUTED } from "../../../styleTokens";
 import { Row, WarningsList, Stat, Card } from "../../../ui/primitives";
+import { Button } from "../../../ui/button";
+import { LoadingState, ErrorState } from "../../../ui/states";
+import { ConfirmDialog } from "../../../ui/confirmDialog";
 import { useOrder } from "./orderDetailStore";
 import { useOrderDeliveries } from "./orderDeliveriesStore";
 import { OrderLineItemsTable, type DraftLineItem } from "./OrderLineItemsTable";
@@ -30,14 +33,14 @@ export const OrderDetailPage = ({ orderId, onBack, onViewProforma }: {
   const [addingDelivery, setAddingDelivery] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [confirmCancel, setConfirmCancel] = useState(false);
 
-  if (loading) return <div className={`${cx.card} mt-6 text-sm`} style={{ color: MUTED }}>Loading...</div>;
+  if (loading) return <LoadingState className="mt-6" label="Loading order" />;
 
   if (error || !order) {
     return (
-      <div className={`${cx.card} mt-6`}>
-        <p className="text-sm text-red-600 dark:text-red-400">{error || "Order not found."}</p>
-        <button onClick={() => reload()} className="mt-2 mr-4 text-sm font-bold" style={{ color: NAVY }}>Retry</button>
+      <div className="mt-6">
+        <ErrorState message={error || "Order not found."} onRetry={() => reload()} />
         <button onClick={onBack} className="mt-2 text-sm font-bold" style={{ color: BLUE }}>Back to project</button>
       </div>
     );
@@ -66,9 +69,20 @@ export const OrderDetailPage = ({ orderId, onBack, onViewProforma }: {
     <div className="mt-2">
       <button onClick={onBack} className="text-sm font-semibold hover:underline" style={{ color: BLUE }}>&larr; Back to project</button>
 
+      <ConfirmDialog
+        open={confirmCancel}
+        danger
+        title="Cancel this order?"
+        description="This can't be undone."
+        confirmLabel="Cancel order"
+        cancelLabel="Keep order"
+        onCancel={() => setConfirmCancel(false)}
+        onConfirm={() => { setConfirmCancel(false); run(cancelOrder); }}
+      />
+
       <div className={`${cx.card} mt-3`}>
         <div className="flex items-start justify-between gap-2">
-          <h1 className="text-lg font-bold" style={{ color: NAVY }}>Order</h1>
+          <h1 className={cx.h1}>Order</h1>
           <span className={`${cx.badge} ${ORDER_STAGE_BADGE_CLASS[order.stage]}`}>{ORDER_STAGE_LABELS[order.stage]}</span>
         </div>
         <p className={cx.footnote}>Created {new Date(order.created_at).toLocaleString()}</p>
@@ -91,30 +105,19 @@ export const OrderDetailPage = ({ orderId, onBack, onViewProforma }: {
 
         <div className="mt-4 flex flex-wrap gap-2">
           {order.stage === "draft" && (
-            <button onClick={() => run(submitOrder)} disabled={busy}
-              className="rounded-xl px-4 py-2.5 text-sm font-bold disabled:opacity-50" style={{ background: BLUE, color: WHITE }}>
-              Submit order
-            </button>
+            <Button onClick={() => run(submitOrder)} disabled={busy}>Submit order</Button>
           )}
           {order.stage === "submitted" && (
-            <button onClick={() => run(requestProformaInvoice)} disabled={busy}
-              className="rounded-xl px-4 py-2.5 text-sm font-bold disabled:opacity-50" style={{ background: BLUE, color: WHITE }}>
-              Request pro forma invoice
-            </button>
+            <Button onClick={() => run(requestProformaInvoice)} disabled={busy}>Request pro forma invoice</Button>
           )}
           {order.stage === "proforma_requested" && (
             <p className="text-sm" style={{ color: MUTED }}>Waiting on Speedpanel to issue your pro forma invoice.</p>
           )}
           {order.stage === "proforma_issued" && (
-            <button onClick={() => onViewProforma(order.id)} className="rounded-xl px-4 py-2.5 text-sm font-bold" style={{ background: BLUE, color: WHITE }}>
-              View pro forma invoice
-            </button>
+            <Button onClick={() => onViewProforma(order.id)}>View pro forma invoice</Button>
           )}
           {["draft", "submitted", "proforma_requested"].includes(order.stage) && (
-            <button onClick={() => { if (window.confirm("Cancel this order?")) run(cancelOrder); }} disabled={busy}
-              className="rounded-xl px-4 py-2.5 text-sm font-bold text-red-500 disabled:opacity-50">
-              Cancel order
-            </button>
+            <Button variant="danger" disabled={busy} onClick={() => setConfirmCancel(true)}>Cancel order</Button>
           )}
         </div>
       </div>
@@ -156,7 +159,7 @@ export const OrderDetailPage = ({ orderId, onBack, onViewProforma }: {
             <Stat value={nextDelivery ? new Date(nextDelivery).toLocaleDateString() : "—"} label="Next delivery" />
           </div>
           {deliveriesLoading ? (
-            <div className={`${cx.card} mt-2 text-sm`} style={{ color: MUTED }}>Loading...</div>
+            <LoadingState className="mt-2" label="Loading deliveries" />
           ) : deliveriesError ? (
             <p className="mt-2 text-sm text-red-600 dark:text-red-400">{deliveriesError}</p>
           ) : (
@@ -177,9 +180,9 @@ export const OrderDetailPage = ({ orderId, onBack, onViewProforma }: {
                 onCancel={() => setAddingDelivery(false)}
               />
             ) : (
-              <button onClick={() => setAddingDelivery(true)} className="mt-3 text-sm font-bold" style={{ color: BLUE }}>
-                + Request a delivery
-              </button>
+              <Button variant="ghost" icon={<Plus size={14} />} className="mt-3" onClick={() => setAddingDelivery(true)}>
+                Request a delivery
+              </Button>
             )
           )}
         </div>

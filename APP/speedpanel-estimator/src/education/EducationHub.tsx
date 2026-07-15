@@ -14,6 +14,7 @@
 import { useEffect, useState, useMemo } from "react";
 import { Search, FileText } from "lucide-react";
 import { cx, NAVY, MUTED } from "../styleTokens";
+import { LoadingState, ErrorState, EmptyState } from "../ui/states";
 import type { EffectiveLayout } from "../useLayoutMode";
 import { CardGrid, SectionLabel } from "../ui/primitives";
 import { type EduCategory, type EduDocument } from "./catalog";
@@ -67,16 +68,11 @@ export const EducationHub = ({ layoutMode }: { layoutMode: EffectiveLayout }) =>
   const selectedDoc = documents.find(d => d.id === selectedId) ?? documents[0] ?? null;
 
   if (loading) {
-    return <div className={`${cx.card} mt-6 text-sm`} style={{ color: MUTED }}>Loading...</div>;
+    return <LoadingState className="mt-6" label="Loading education hub" />;
   }
 
   if (error) {
-    return (
-      <div className={`${cx.card} mt-6`}>
-        <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
-        <button onClick={() => reload()} className="mt-2 text-sm font-bold" style={{ color: NAVY }}>Retry</button>
-      </div>
-    );
+    return <ErrorState className="mt-6" message={error} onRetry={() => reload()} />;
   }
 
   const gridBody = (
@@ -90,9 +86,7 @@ export const EducationHub = ({ layoutMode }: { layoutMode: EffectiveLayout }) =>
       <RecentlyViewedStrip ids={recentIds} docs={documents} onSelect={selectDoc} />
       <div className="mt-5"><SectionLabel icon={<FileText size={14} />}>All Documents ({filtered.length})</SectionLabel></div>
       {filtered.length === 0 ? (
-        <div className={cx.card + " mt-3 text-center"}>
-          <p className={cx.footnote}>No documents match your search.</p>
-        </div>
+        <EmptyState className={`${cx.card} mt-3 text-center`} message="No documents match your search." />
       ) : (
         <CardGrid layoutMode={layoutMode} minWidth={280}>
           {filtered.map(d => (

@@ -12,9 +12,12 @@
 // =============================================================================
 import { useMemo, useState } from "react";
 import { Plus, Search } from "lucide-react";
-import { BLUE, WHITE, cx, NAVY, MUTED } from "../../styleTokens";
+import { cx, NAVY, MUTED } from "../../styleTokens";
 import type { EffectiveLayout } from "../../useLayoutMode";
 import { CardGrid, SectionLabel } from "../../ui/primitives";
+import { Button } from "../../ui/button";
+import { LoadingState, ErrorState, EmptyState } from "../../ui/states";
+import { ErrorDialog } from "../../ui/confirmDialog";
 import { useProductStore } from "./products/productStore";
 import { ProductCategoryChips } from "./products/productCategoryChips";
 import { ProductCard, type ProductItem } from "./products/productCard";
@@ -31,6 +34,7 @@ export const AdminProductsPage = ({ layoutMode }: { layoutMode: EffectiveLayout 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const list = catalog[CATEGORY_KEY[category]] as ProductItem[];
 
@@ -72,34 +76,29 @@ export const AdminProductsPage = ({ layoutMode }: { layoutMode: EffectiveLayout 
   const handleSave = async (values: Record<string, unknown>) => {
     if (isAdding) {
       const { id, error } = await add(category, values as never);
-      if (error) { window.alert(error); return; }
+      if (error) { setActionError(error); return; }
       setSelectedId(id);
       setIsAdding(false);
     } else if (editingId) {
       const error = await update(category, editingId, values as never);
-      if (error) { window.alert(error); return; }
+      if (error) { setActionError(error); return; }
       setEditingId(null);
     }
   };
 
   const handleDelete = async (id: string) => {
     const error = await remove(category, id);
-    if (error) { window.alert(error); return; }
+    if (error) { setActionError(error); return; }
     if (selectedId === id) setSelectedId(null);
     if (editingId === id) setEditingId(null);
   };
 
   if (loading) {
-    return <div className={`${cx.card} mt-6 text-sm`} style={{ color: MUTED }}>Loading...</div>;
+    return <LoadingState className="mt-6" label="Loading catalog" />;
   }
 
   if (error) {
-    return (
-      <div className={`${cx.card} mt-6`}>
-        <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
-        <button onClick={() => reload()} className="mt-2 text-sm font-bold" style={{ color: NAVY }}>Retry</button>
-      </div>
-    );
+    return <ErrorState className="mt-6" message={error} onRetry={() => reload()} />;
   }
 
   const gridBody = (
@@ -112,14 +111,10 @@ export const AdminProductsPage = ({ layoutMode }: { layoutMode: EffectiveLayout 
       <div className="mt-3"><ProductCategoryChips active={category} onChange={selectCategory} /></div>
       <div className="mt-5 flex items-center justify-between gap-2">
         <SectionLabel icon={<Search size={14} />}>{CATEGORY_LABEL[category]} ({filtered.length})</SectionLabel>
-        <button onClick={startAdd} className="flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold" style={{ background: BLUE, color: WHITE }}>
-          <Plus size={13} /> Add
-        </button>
+        <Button icon={<Plus size={13} />} onClick={startAdd}>Add</Button>
       </div>
       {filtered.length === 0 ? (
-        <div className={cx.card + " mt-3 text-center"}>
-          <p className={cx.footnote}>No items match your search.</p>
-        </div>
+        <EmptyState className={`${cx.card} mt-3 text-center`} message="No items match your search." />
       ) : (
         <CardGrid layoutMode={layoutMode} minWidth={240}>
           {filtered.map(item => (
@@ -143,9 +138,12 @@ export const AdminProductsPage = ({ layoutMode }: { layoutMode: EffectiveLayout 
     />
   );
 
+  const errorDialog = <ErrorDialog message={actionError} onDismiss={() => setActionError(null)} />;
+
   if (layoutMode === "phone") {
     return (
       <div className="mt-2">
+        {errorDialog}
         {gridBody}
         <div className="mt-6">{detailPanel}</div>
       </div>
@@ -154,6 +152,7 @@ export const AdminProductsPage = ({ layoutMode }: { layoutMode: EffectiveLayout 
 
   return (
     <div className="mt-2 grid grid-cols-[1fr_380px] items-start gap-6">
+      {errorDialog}
       <div className="min-w-0">{gridBody}</div>
       <aside className="sticky top-5">{detailPanel}</aside>
     </div>

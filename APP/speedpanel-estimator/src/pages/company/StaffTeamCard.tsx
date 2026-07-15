@@ -46,7 +46,7 @@ export const StaffTeamCard = ({ companyId }: { companyId: string }) => {
 
   return (
     <div className={cx.card}>
-      <h2 className="text-sm font-bold" style={{ color: NAVY }}>Your Speedpanel Team</h2>
+      <h2 className={cx.h3}>Your Speedpanel Team</h2>
       <div className="mt-1 divide-y divide-slate-100 dark:divide-slate-800">
         {STAFF_ROLES.map(role => {
           const members = staff.filter(m => m.role === role);

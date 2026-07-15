@@ -14,6 +14,7 @@
 // those stay camelCase since they're opaque to Postgres, not real columns.
 // =============================================================================
 import { z } from "zod";
+import { tone } from "../../../styleTokens";
 import { OrderLineItemSchema, type OrderLineItem } from "../../../export/priceEstimateReportData";
 
 export const ORDER_STAGES = ["draft", "submitted", "proforma_requested", "proforma_issued", "cancelled"] as const;
@@ -30,11 +31,11 @@ export const ORDER_STAGE_LABELS: Record<OrderStage, string> = {
 // Was local to OrderDetailPage.tsx as STAGE_BADGE_CLASS -- exported here so
 // ProjectDashboard.tsx's orders list can share the same colour convention.
 export const ORDER_STAGE_BADGE_CLASS: Record<OrderStage, string> = {
-  draft: "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400",
-  submitted: "bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400",
-  proforma_requested: "bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400",
-  proforma_issued: "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400",
-  cancelled: "bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400",
+  draft: tone("neutral"),
+  submitted: tone("info"),
+  proforma_requested: tone("warn"),
+  proforma_issued: tone("ok"),
+  cancelled: tone("danger"),
 };
 
 export const OrderRowSchema = z.object({
@@ -103,11 +104,14 @@ export const DELIVERY_STATUS_LABELS: Record<DeliveryStatus, string> = {
   delivered: "Delivered",
 };
 
+// scheduled stays a literal purple -- a fulfilment-pipeline-only distinction
+// (so it doesn't read identically to in_transit's "info"), not one of the
+// five semantic tones.
 export const DELIVERY_STATUS_BADGE_CLASS: Record<DeliveryStatus, string> = {
-  planned: "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400",
+  planned: tone("neutral"),
   scheduled: "bg-purple-50 dark:bg-purple-950/30 text-purple-700 dark:text-purple-400",
-  in_transit: "bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400",
-  delivered: "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400",
+  in_transit: tone("info"),
+  delivered: tone("ok"),
 };
 
 // Approval status governs the delivery request/negotiation phase (customer
@@ -132,15 +136,15 @@ export const DELIVERY_APPROVAL_STATUS_LABELS: Record<DeliveryApprovalStatus, str
 // tile badge), so the two can't drift apart.
 export const DELIVERY_AWAITING_DECISION_STATUSES: DeliveryApprovalStatus[] = ["draft", "pending", "date_proposed"];
 
-// Reuses ORDER_STAGE_BADGE_CLASS's exact palette -- date_proposed is blue,
-// not red, since red means an actual rejection (declined), not just an
-// alternative date being offered.
+// Reuses the shared tone() map -- date_proposed is "info", not "danger",
+// since that means an actual rejection (declined), not just an alternative
+// date being offered.
 export const DELIVERY_APPROVAL_STATUS_BADGE_CLASS: Record<DeliveryApprovalStatus, string> = {
-  draft: "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400",
-  pending: "bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400",
-  accepted: "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400",
-  date_proposed: "bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400",
-  declined: "bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400",
+  draft: tone("neutral"),
+  pending: tone("warn"),
+  accepted: tone("ok"),
+  date_proposed: tone("info"),
+  declined: tone("danger"),
 };
 
 // Deliberately excludes internal_note -- that column is revoked from

@@ -18,10 +18,11 @@
 // link, so that checkbox is hidden and no snapshot is sent.
 // =============================================================================
 import { useState } from "react";
-import { cx, NAVY, BLUE, WHITE } from "../../styleTokens";
+import { cx, NAVY, BLUE } from "../../styleTokens";
 import { submitRequest } from "../../lib/requestsClient";
 import { loadProject, type PersistedProject } from "../../wallStore";
 import { Field, TextAreaField } from "../shared/fields";
+import { Button } from "../../ui/button";
 import { useProject } from "./projectDetailStore";
 
 export const QuoteRequestPage = ({ projectId, onBack }: { projectId?: string; onBack?: () => void }) => {
@@ -68,7 +69,7 @@ export const QuoteRequestPage = ({ projectId, onBack }: { projectId?: string; on
         <button onClick={onBack} className="text-sm font-semibold hover:underline" style={{ color: BLUE }}>&larr; Back</button>
       )}
       <div className={`${cx.card} ${onBack ? "mt-3" : "mt-6"} max-w-sm`}>
-        <h1 className="text-lg font-bold" style={{ color: NAVY }}>Request a Quote</h1>
+        <h1 className={cx.h2}>Request a Quote</h1>
         {projectId && <p className={cx.footnote} style={{ paddingTop: 0 }}>Requesting a quote for: {project?.name ?? "..."}</p>}
         <form onSubmit={handleSubmit} className="mt-4 space-y-3">
           <Field label="Name" value={name} onChange={setName} required />
@@ -91,10 +92,9 @@ export const QuoteRequestPage = ({ projectId, onBack }: { projectId?: string; on
           )}
 
           {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
-          <button type="submit" disabled={submitting}
-            className="w-full rounded-xl py-2.5 text-sm font-bold disabled:opacity-50" style={{ background: BLUE, color: WHITE }}>
+          <Button type="submit" disabled={submitting} className="w-full">
             {submitting ? "Sending..." : "Send request"}
-          </button>
+          </Button>
         </form>
       </div>
     </div>

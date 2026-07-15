@@ -28,8 +28,12 @@
 // =============================================================================
 import { useState } from "react";
 import { UserPlus, Mail } from "lucide-react";
-import { cx, NAVY, BLUE, WHITE } from "../../styleTokens";
+import { cx, NAVY, BLUE } from "../../styleTokens";
 import { Field, SelectField, TextAreaField } from "../shared/fields";
+import { Button } from "../../ui/button";
+import { Badge } from "../../ui/badge";
+import { LoadingState } from "../../ui/states";
+import { ConfirmDialog } from "../../ui/confirmDialog";
 import {
   COMPANY_ROLES, COMPANY_ROLE_LABELS, MEMBERSHIP_STATUS_BADGE_CLASS,
   type CompanyMemberRow, type CompanyRole, type InvitationRow,
@@ -111,10 +115,9 @@ const InviteMemberForm = ({ companyId, onInvited }: {
         {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
         {success && <p className="text-sm font-semibold" style={{ color: BLUE }}>Invitation sent.</p>}
 
-        <button type="submit" disabled={inviting || !email.trim()}
-          className="rounded-xl px-5 py-2.5 text-sm font-bold disabled:opacity-50" style={{ background: BLUE, color: WHITE }}>
+        <Button type="submit" disabled={inviting || !email.trim()}>
           {inviting ? "Sending..." : "Send invitation"}
-        </button>
+        </Button>
       </form>
     </div>
   );
@@ -151,10 +154,9 @@ const AddExistingAccountForm = ({ onAdded }: { onAdded: (input: { email: string;
       <form onSubmit={handleSubmit} className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-end">
         <div className="flex-1"><Field label="Email" value={email} onChange={setEmail} type="email" required autoComplete="email" /></div>
         <div className="sm:w-56"><SelectField label="Role" value={role} options={ROLE_OPTIONS} onChange={v => setRole(v as CompanyRole)} /></div>
-        <button type="submit" disabled={submitting || !email.trim()}
-          className="h-[46px] shrink-0 rounded-xl px-5 text-sm font-bold disabled:opacity-50" style={{ background: BLUE, color: WHITE }}>
+        <Button type="submit" disabled={submitting || !email.trim()} className="h-[46px] shrink-0">
           {submitting ? "Adding..." : "Add"}
-        </button>
+        </Button>
       </form>
       {error && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{error}</p>}
       {success && <p className="mt-2 text-sm font-semibold" style={{ color: BLUE }}>Added -- they now have access to this company.</p>}
@@ -188,11 +190,10 @@ const MemberRow = ({ member, isSelf, canManage, onSetRole, onSetStatus, onRemove
     {canManage && !isSelf ? (
       <div className="mt-3 flex flex-wrap items-end gap-2">
         <div className="w-48"><SelectField label="Role" value={member.role} options={ROLE_OPTIONS} onChange={v => onSetRole(v as CompanyRole)} /></div>
-        <button onClick={() => onSetStatus(member.status === "suspended" ? "active" : "suspended")}
-          className="h-[46px] rounded-xl border border-slate-200 dark:border-slate-700 px-4 text-sm font-bold" style={{ color: NAVY }}>
+        <Button variant="secondary" className="h-[46px]" onClick={() => onSetStatus(member.status === "suspended" ? "active" : "suspended")}>
           {member.status === "suspended" ? "Reactivate" : "Suspend"}
-        </button>
-        <button onClick={onRemove} className="h-[46px] rounded-xl px-4 text-sm font-bold text-red-500">Remove</button>
+        </Button>
+        <Button variant="danger" className="h-[46px]" onClick={onRemove}>Remove</Button>
       </div>
     ) : (
       <p className="mt-3 text-sm font-semibold" style={{ color: NAVY }}>{COMPANY_ROLE_LABELS[member.role]}</p>
@@ -213,12 +214,12 @@ const PendingInvitationRow = ({ invitation, canManage, onResend, onCancel }: {
           {COMPANY_ROLE_LABELS[invitation.role]} &middot; Expires {new Date(invitation.expires_at).toLocaleDateString()}
         </p>
       </div>
-      <span className={`${cx.badge} bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400`}>pending</span>
+      <Badge tone="info">pending</Badge>
     </div>
     {canManage && (
       <div className="mt-3 flex gap-2">
-        <button onClick={onResend} className="text-sm font-bold" style={{ color: BLUE }}>Resend</button>
-        <button onClick={onCancel} className="text-sm font-bold text-red-500">Cancel</button>
+        <Button variant="ghost" onClick={onResend}>Resend</Button>
+        <Button variant="danger" onClick={onCancel}>Cancel</Button>
       </div>
     )}
   </div>
@@ -229,6 +230,7 @@ export const CompanyMemberList = ({ companyId, myUserId, canManage, isSpeedpanel
 }) => {
   const { members, invitations, loading, error, inviteMember, addExistingMember, resendInvitation, cancelInvitation, setRole, setStatus, removeMember, removalWarnings } = useCompanyMembers(companyId);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [removeTarget, setRemoveTarget] = useState<{ member: CompanyMemberRow; note: string } | null>(null);
 
   const run = async (action: () => Promise<string | null>) => {
     setActionError(null);
@@ -245,16 +247,28 @@ export const CompanyMemberList = ({ companyId, myUserId, canManage, isSpeedpanel
       if (warnings.openReviewsAsPm > 0) parts.push(`${warnings.openReviewsAsPm} open review(s)`);
     }
     const note = parts.length > 0 ? ` They're currently ${parts.join(", ")} -- you may want to reassign these first.` : "";
-    if (!window.confirm(`Remove ${member.email ?? "this person"} from the company?${note}`)) return;
-    run(() => removeMember(member.user_id));
+    setRemoveTarget({ member, note });
   };
 
-  if (loading) return <p className={cx.footnote}>Loading...</p>;
+  if (loading) return <LoadingState label="Loading team" />;
 
   return (
     <div>
       {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
       {actionError && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{actionError}</p>}
+
+      <ConfirmDialog
+        open={removeTarget !== null}
+        danger
+        title={`Remove ${removeTarget?.member.email ?? "this person"}?`}
+        description={`They'll lose access to this company workspace.${removeTarget?.note ?? ""}`}
+        confirmLabel="Remove"
+        onCancel={() => setRemoveTarget(null)}
+        onConfirm={() => {
+          if (removeTarget) run(() => removeMember(removeTarget.member.user_id));
+          setRemoveTarget(null);
+        }}
+      />
 
       {isSpeedpanelAdmin && (
         <div className="mt-3">

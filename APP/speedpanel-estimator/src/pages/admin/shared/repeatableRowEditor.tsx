@@ -7,7 +7,10 @@
 // rows, each cell typed per-column.
 // =============================================================================
 import { Plus, Trash2 } from "lucide-react";
-import { BLUE, MUTED, NAVY } from "../../../styleTokens";
+import { NAVY } from "../../../styleTokens";
+import { Button } from "../../../ui/button";
+import { IconButton } from "../../../ui/primitives";
+import { Table, type TableColumn } from "../../../ui/table";
 
 export interface RepeatableColumn<T> {
   key: keyof T;
@@ -41,53 +44,42 @@ export function RepeatableRowEditor<T extends Record<string, unknown>>({
     onChange(rows.map((row, i) => (i === index ? ({ ...row, [col.key]: checked } as T) : row)));
   };
 
+  const tableColumns: TableColumn<T>[] = [
+    ...columns.map(c => ({
+      key: String(c.key),
+      header: c.label,
+      cell: (row: T, i: number) => {
+        const raw = row[c.key];
+        return c.type === "boolean" ? (
+          <input type="checkbox" checked={!!raw} onChange={e => setBoolCell(i, c, e.target.checked)} />
+        ) : c.type === "select" ? (
+          <select value={raw == null ? "" : String(raw)} onChange={e => setCell(i, c, e.target.value)}
+            className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1 text-xs" style={{ color: NAVY }}>
+            {(c.options ?? []).map(o => <option key={o} value={o}>{o}</option>)}
+          </select>
+        ) : (
+          <input type={c.type === "number" ? "number" : "text"} value={raw == null ? "" : String(raw)}
+            onChange={e => setCell(i, c, e.target.value)}
+            className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1 text-xs" style={{ color: NAVY }} />
+        );
+      },
+    })),
+    {
+      key: "remove",
+      header: "",
+      align: "center" as const,
+      cell: (_row: T, i: number) => (
+        <IconButton variant="danger" size="sm" ariaLabel="Remove row" onClick={() => onRemove(i)}>
+          <Trash2 size={14} />
+        </IconButton>
+      ),
+    },
+  ];
+
   return (
     <div className="space-y-2">
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr>
-              {columns.map(c => (
-                <th key={String(c.key)} className="pb-1.5 pr-2 text-left text-xs font-bold uppercase tracking-wide" style={{ color: MUTED }}>{c.label}</th>
-              ))}
-              <th className="pb-1.5 w-8" />
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row, i) => (
-              <tr key={i} className="border-t border-slate-100 dark:border-slate-800">
-                {columns.map(c => {
-                  const raw = row[c.key];
-                  return (
-                    <td key={String(c.key)} className="py-1.5 pr-2 align-middle">
-                      {c.type === "boolean" ? (
-                        <input type="checkbox" checked={!!raw} onChange={e => setBoolCell(i, c, e.target.checked)} />
-                      ) : c.type === "select" ? (
-                        <select value={raw == null ? "" : String(raw)} onChange={e => setCell(i, c, e.target.value)}
-                          className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1 text-xs" style={{ color: NAVY }}>
-                          {(c.options ?? []).map(o => <option key={o} value={o}>{o}</option>)}
-                        </select>
-                      ) : (
-                        <input type={c.type === "number" ? "number" : "text"} value={raw == null ? "" : String(raw)}
-                          onChange={e => setCell(i, c, e.target.value)}
-                          className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1 text-xs" style={{ color: NAVY }} />
-                      )}
-                    </td>
-                  );
-                })}
-                <td className="py-1.5 text-right">
-                  <button onClick={() => onRemove(i)} className="grid h-6 w-6 place-items-center rounded text-slate-400 dark:text-slate-500">
-                    <Trash2 size={12} />
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <button onClick={onAdd} className="flex items-center gap-1.5 text-xs font-bold" style={{ color: BLUE }}>
-        <Plus size={13} /> {addLabel}
-      </button>
+      <Table columns={tableColumns} rows={rows} rowKey={(_row, i) => i} />
+      <Button variant="ghost" icon={<Plus size={13} />} onClick={onAdd}>{addLabel}</Button>
     </div>
   );
 }

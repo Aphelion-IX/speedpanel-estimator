@@ -11,6 +11,7 @@
 // =============================================================================
 import { ClipboardCheck, ClipboardList, Truck, Mail, ChevronRight, ListChecks } from "lucide-react";
 import { cx, NAVY, MUTED } from "../../../styleTokens";
+import { LoadingState, ErrorState, EmptyState } from "../../../ui/states";
 import type { Route } from "../../../appShell/useHashRoute";
 import type { UseAuth } from "../../../lib/useAuth";
 import { useProjects } from "../projectsStore";
@@ -89,7 +90,7 @@ export const MyRequestsPage = ({ auth, navigate, activeCompanyId }: {
 
   return (
     <div className="mt-2">
-      <h1 className="flex items-center gap-2 text-lg font-bold" style={{ color: NAVY }}>
+      <h1 className={`${cx.h1} flex items-center gap-2`}>
         <ListChecks className="h-5 w-5" style={{ color: NAVY }} /> My Requests
       </h1>
       <p className={cx.footnote} style={{ paddingTop: 4 }}>
@@ -97,11 +98,11 @@ export const MyRequestsPage = ({ auth, navigate, activeCompanyId }: {
       </p>
 
       {loading ? (
-        <div className={`${cx.card} mt-4 text-sm`} style={{ color: MUTED }}>Loading...</div>
+        <LoadingState className="mt-4" />
       ) : error ? (
-        <p className="mt-4 text-sm text-red-600 dark:text-red-400">{error}</p>
+        <ErrorState className="mt-4" message={error} />
       ) : items.length === 0 ? (
-        <p className={`${cx.card} mt-4 text-sm`} style={{ color: MUTED }}>No requests yet.</p>
+        <EmptyState className={`${cx.card} mt-4`} message="No requests yet." />
       ) : (
         <section className="mt-4 overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm">
           {items.map((item, i) => (

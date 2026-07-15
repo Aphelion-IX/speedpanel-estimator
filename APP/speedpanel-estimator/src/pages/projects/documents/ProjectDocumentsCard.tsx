@@ -9,15 +9,17 @@
 // =============================================================================
 import { useRef, useState } from "react";
 import { FileText, Upload, Download, Trash2 } from "lucide-react";
-import { cx, NAVY, BLUE, MUTED } from "../../../styleTokens";
-import { Card } from "../../../ui/primitives";
+import { cx, NAVY, MUTED } from "../../../styleTokens";
+import { Card, IconButton } from "../../../ui/primitives";
+import { Button } from "../../../ui/button";
+import { ConfirmDialog } from "../../../ui/confirmDialog";
 import { useProjectDocuments } from "./projectDocumentsStore";
 import { formatFileSize, type ProjectDocumentRow } from "./projectDocumentsTypes";
 
-const DocumentRow = ({ doc, onDownload, onRemove }: {
-  doc: ProjectDocumentRow; onDownload: (doc: ProjectDocumentRow) => Promise<void>; onRemove: (doc: ProjectDocumentRow) => Promise<void>;
+const DocumentRow = ({ doc, onDownload, onRequestRemove }: {
+  doc: ProjectDocumentRow; onDownload: (doc: ProjectDocumentRow) => Promise<void>; onRequestRemove: (doc: ProjectDocumentRow) => void;
 }) => {
-  const [busy, setBusy] = useState<"download" | "delete" | null>(null);
+  const [busy, setBusy] = useState<"download" | null>(null);
 
   return (
     <div className={`flex items-center gap-3 ${cx.rowBorder}`}>
@@ -28,21 +30,25 @@ const DocumentRow = ({ doc, onDownload, onRemove }: {
         <p className="truncate text-sm font-semibold" style={{ color: NAVY }}>{doc.file_name}</p>
         <p className={cx.footnote}>{formatFileSize(doc.file_size)} &middot; {new Date(doc.created_at).toLocaleDateString()}</p>
       </div>
-      <button
+      <IconButton
+        size="sm"
+        title="Download"
+        ariaLabel={`Download ${doc.file_name}`}
         onClick={async () => { setBusy("download"); await onDownload(doc); setBusy(null); }}
-        disabled={busy !== null}
-        className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-slate-200 dark:border-slate-700 disabled:opacity-50"
-        style={{ color: BLUE }}
+        className={busy !== null ? "pointer-events-none opacity-50" : ""}
       >
         <Download size={14} />
-      </button>
-      <button
-        onClick={async () => { if (!window.confirm(`Delete "${doc.file_name}"?`)) return; setBusy("delete"); await onRemove(doc); setBusy(null); }}
-        disabled={busy !== null}
-        className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-slate-200 dark:border-slate-700 text-red-500 disabled:opacity-50"
+      </IconButton>
+      <IconButton
+        size="sm"
+        variant="danger"
+        title="Delete"
+        ariaLabel={`Delete ${doc.file_name}`}
+        onClick={() => onRequestRemove(doc)}
+        className={busy !== null ? "pointer-events-none opacity-50" : ""}
       >
         <Trash2 size={14} />
-      </button>
+      </IconButton>
     </div>
   );
 };
@@ -51,6 +57,7 @@ export const ProjectDocumentsCard = ({ projectId, userId }: { projectId: string;
   const { documents, loading, error, uploadDocument, removeDocument, downloadDocument } = useProjectDocuments(projectId, userId);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [removeTarget, setRemoveTarget] = useState<ProjectDocumentRow | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleFileChosen = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -77,6 +84,16 @@ export const ProjectDocumentsCard = ({ projectId, userId }: { projectId: string;
 
   return (
     <Card title="Documents" icon={<FileText size={14} />}>
+      <ConfirmDialog
+        open={removeTarget !== null}
+        danger
+        title={`Delete "${removeTarget?.file_name}"?`}
+        description="This can't be undone."
+        confirmLabel="Delete"
+        onCancel={() => setRemoveTarget(null)}
+        onConfirm={() => { if (removeTarget) handleRemove(removeTarget); setRemoveTarget(null); }}
+      />
+
       {loading ? (
         <p className={cx.footnote} style={{ paddingTop: 0 }}>Loading...</p>
       ) : error ? (
@@ -90,22 +107,16 @@ export const ProjectDocumentsCard = ({ projectId, userId }: { projectId: string;
         </div>
       ) : (
         <div className="space-y-1">
-          {documents.map(doc => <DocumentRow key={doc.id} doc={doc} onDownload={handleDownload} onRemove={handleRemove} />)}
+          {documents.map(doc => <DocumentRow key={doc.id} doc={doc} onDownload={handleDownload} onRequestRemove={setRemoveTarget} />)}
         </div>
       )}
 
       {uploadError && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{uploadError}</p>}
 
       <input ref={inputRef} type="file" className="hidden" onChange={handleFileChosen} />
-      <button
-        onClick={() => inputRef.current?.click()}
-        disabled={uploading}
-        className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 px-4 py-2.5 text-sm font-bold disabled:opacity-50"
-        style={{ color: NAVY }}
-      >
-        <Upload size={14} />
+      <Button variant="secondary" icon={<Upload size={14} />} onClick={() => inputRef.current?.click()} disabled={uploading} className="mt-3 w-full">
         {uploading ? "Uploading..." : "Upload document"}
-      </button>
+      </Button>
     </Card>
   );
 };

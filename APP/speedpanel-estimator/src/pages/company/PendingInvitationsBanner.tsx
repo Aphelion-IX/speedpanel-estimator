@@ -10,7 +10,8 @@
 // =============================================================================
 import { useState } from "react";
 import { Mail } from "lucide-react";
-import { cx, NAVY, BLUE, WHITE, MUTED } from "../../styleTokens";
+import { cx, NAVY, BLUE } from "../../styleTokens";
+import { Button } from "../../ui/button";
 import { useMyPendingInvitations } from "./companyStore";
 import { COMPANY_ROLE_LABELS } from "./companyTypes";
 
@@ -42,14 +43,8 @@ export const PendingInvitationsBanner = ({ userEmail, onAccepted }: { userEmail:
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={() => handle(inv.id, accept, true)} disabled={busyId === inv.id}
-              className="rounded-xl px-4 py-2 text-sm font-bold disabled:opacity-50" style={{ background: BLUE, color: WHITE }}>
-              Accept
-            </button>
-            <button onClick={() => handle(inv.id, decline, false)} disabled={busyId === inv.id}
-              className="rounded-xl px-4 py-2 text-sm font-bold" style={{ color: MUTED }}>
-              Decline
-            </button>
+            <Button onClick={() => handle(inv.id, accept, true)} disabled={busyId === inv.id}>Accept</Button>
+            <Button variant="secondary" onClick={() => handle(inv.id, decline, false)} disabled={busyId === inv.id}>Decline</Button>
           </div>
         </div>
       ))}

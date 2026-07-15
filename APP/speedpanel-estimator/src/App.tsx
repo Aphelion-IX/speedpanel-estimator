@@ -5,8 +5,11 @@ import { useThemeMode } from "./useThemeMode";
 import { useAuth } from "./lib/useAuth";
 import { useCompanyMemberships } from "./lib/useCompanyMemberships";
 import { useWallStore } from "./wallStore";
-import { NAVY, BLUE, GOLD, MUTED } from "./styleTokens";
+import { NAVY, BLUE, GOLD } from "./styleTokens";
 import { SectionLabel, IconButton } from "./ui/primitives";
+import { Button } from "./ui/button";
+import { ConfirmDialog, ErrorDialog } from "./ui/confirmDialog";
+import { LoadingState } from "./ui/states";
 import { EducationHub } from "./education/EducationHub";
 import { SystemSelector } from "./systemSelector/SystemSelector";
 import { ExternalCalculator } from "./externalCalculator/ExternalCalculator";
@@ -79,6 +82,8 @@ export default function SpeedpanelEstimator() {
   const [openProject, setOpenProject] = useState<{ id: string; name: string } | null>(null);
   const [savingProject, setSavingProject] = useState(false);
   const [saveProjectError, setSaveProjectError] = useState<string | null>(null);
+  const [confirmReset, setConfirmReset] = useState(false);
+  const [pendingCreationError, setPendingCreationError] = useState<string | null>(null);
 
   // Persist the current view on change (skipped while a saved project is open).
   useEffect(() => {
@@ -107,7 +112,7 @@ export default function SpeedpanelEstimator() {
   // project, is what "start over" should mean). The persistence effects
   // immediately re-save the clean default, so a later reload stays clear.
   const resetAll = () => {
-    if (!window.confirm("Reset the estimator? This can't be undone.")) return;
+    setConfirmReset(false);
     resetWalls(); setMode("project"); setSystem("int-vert"); setDimUnit("m"); setOpenProject(null);
   };
   // Switching system no longer clears walls -- the shared store is preserved
@@ -184,7 +189,7 @@ export default function SpeedpanelEstimator() {
     const pending = pendingProjectCreation;
     setPendingProjectCreation(null);
     const run = pending.kind === "system" ? doCreateProjectFromSystem(pending.option, pending.name) : doSaveDraftAsProject(pending.name);
-    run.then(err => { if (err) window.alert(err); });
+    run.then(err => { if (err) setPendingCreationError(err); });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [auth.session]);
 
@@ -205,6 +210,16 @@ export default function SpeedpanelEstimator() {
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans dark:bg-slate-950" style={{ color: NAVY }}>
+      <ConfirmDialog
+        open={confirmReset}
+        danger
+        title="Reset the estimator"
+        description="This can't be undone."
+        confirmLabel="Reset"
+        onConfirm={resetAll}
+        onCancel={() => setConfirmReset(false)}
+      />
+      <ErrorDialog message={pendingCreationError} onDismiss={() => setPendingCreationError(null)} />
       {/* Full-width header bar -- pulled out of the padded content column
           below so it spans edge to edge, with the brand gradient line as
           its own bottom edge rather than a separate divider. */}
@@ -218,7 +233,7 @@ export default function SpeedpanelEstimator() {
               <CompanySwitcher company={company} />
               <ThemeToggle effective={themeMode} onToggle={toggleTheme} />
               <LayoutModeToggle effective={layoutMode} onToggle={toggleLayout} />
-              <IconButton onClick={resetAll}>
+              <IconButton onClick={() => setConfirmReset(true)}>
                 <RotateCcw size={16} />
               </IconButton>
               <AuthStatus auth={auth} onSignInClick={() => navigate({ tab: "home" })}
@@ -264,7 +279,7 @@ export default function SpeedpanelEstimator() {
         )}
 
         {route.tab === "admin" && (
-          <Suspense fallback={<div className="mt-6 text-sm" style={{ color: MUTED }}>Loading...</div>}>
+          <Suspense fallback={<LoadingState className="mt-6" />}>
             <AdminRoot route={route} navigate={navigate} layoutMode={layoutMode} auth={auth} />
           </Suspense>
         )}
@@ -275,10 +290,7 @@ export default function SpeedpanelEstimator() {
             <span className="text-sm font-semibold" style={{ color: NAVY }}>Editing project: {openProject.name}</span>
             <div className="flex items-center gap-3">
               {saveProjectError && <span className="text-sm text-red-600 dark:text-red-400">{saveProjectError}</span>}
-              <button onClick={saveOpenProject} disabled={savingProject}
-                className="rounded-xl px-4 py-2 text-sm font-bold disabled:opacity-50" style={{ background: BLUE, color: "#fff" }}>
-                {savingProject ? "Saving..." : "Save"}
-              </button>
+              <Button onClick={saveOpenProject} disabled={savingProject}>{savingProject ? "Saving..." : "Save"}</Button>
             </div>
           </div>
         )}

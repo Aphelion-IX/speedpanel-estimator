@@ -17,18 +17,21 @@ import {
 import type { Wall, ComputeOut, DimField, EdgeState } from "../estimate/wall.types";
 import type { WallSystemId } from "../App";
 import { Num, ToggleSwitch, ProjectLockNote } from "./primitives";
+import { Table, type TableColumn } from "./table";
 import { makeToM } from "../estimate/computeUtils";
 
 // --- SpanTable ----------------------------------------------------------------
 export const SpanTable = ({ orient, type, wallSystem }: { orient: string; type: number; wallSystem?: WallSystemId }) => {
   const [open, setOpen] = useState(false);
-  const TH = "py-2.5 px-3 text-left text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-800";
-  const TD = "py-2.5 px-3 text-sm text-slate-600 dark:text-slate-300 border-b border-slate-100 dark:border-slate-800 last:border-0";
-  const TDm = "py-2.5 px-3 text-sm font-semibold border-b border-slate-100 dark:border-slate-800 last:border-0";
   const label = orient === "vertical" ? `Span table - P${type}` : `C-track span table - P${type}`;
 
   if (orient === "vertical") {
     const rows = SPAN_TABLE_VERT.filter(r => r.type === `P${type}`);
+    const columns: TableColumn<typeof rows[number]>[] = [
+      { key: "type", header: "Panel", cell: r => <span className="font-semibold" style={{ color: BLUE }}>{r.type}</span> },
+      { key: "maxW", header: "Max W", cell: r => r.maxW },
+      { key: "maxH", header: "Max H", cell: r => r.maxH },
+    ];
     return (
       <div className="mt-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 overflow-hidden shadow-sm">
         <button onClick={() => setOpen(v => !v)} className={cx.accordionInner}>
@@ -37,16 +40,7 @@ export const SpanTable = ({ orient, type, wallSystem }: { orient: string; type: 
         </button>
         {open && (
           <>
-            <table className="w-full border-t border-slate-100 dark:border-slate-800">
-              <thead><tr><th className={TH}>Panel</th><th className={TH}>Max W</th><th className={TH}>Max H</th></tr></thead>
-              <tbody>{rows.map((r, i) => (
-                <tr key={i} className="bg-blue-50/60 dark:bg-blue-950/40">
-                  <td className={TDm} style={{ color: BLUE }}>{r.type}</td>
-                  <td className={TD}>{r.maxW}</td>
-                  <td className={TD}>{r.maxH}</td>
-                </tr>
-              ))}</tbody>
-            </table>
+            <Table columns={columns} rows={rows} rowKey={(_r, i) => i} className="rounded-none border-0 border-t" rowClassName={() => "bg-blue-50/60 dark:bg-blue-950/40"} />
             <div className="px-3.5 py-2.5 text-sm text-slate-400 dark:text-slate-500">Height limits apply without steel structure.</div>
           </>
         )}
@@ -62,6 +56,13 @@ export const SpanTable = ({ orient, type, wallSystem }: { orient: string; type: 
   // actually being ordered. (Corner wall's post has its own separate table,
   // shown inline in the corner-kit card once linked, not here.)
   if (wallSystem === "standard" || wallSystem === "corner") {
+    const rows = [{ maxW: `${MAX_W_HORIZ} m`, maxH: `${MAX_H_HORIZ[type]} m`, cTrack: CTRACK_DIM[type], fix: "1/face" }];
+    const columns: TableColumn<typeof rows[number]>[] = [
+      { key: "maxW", header: "Max W", cell: r => <span className="font-semibold" style={{ color: NAVY }}>{r.maxW}</span> },
+      { key: "maxH", header: "Max H", cell: r => r.maxH },
+      { key: "cTrack", header: "C-track", cell: r => <span style={{ fontFamily: "monospace", fontSize: "11px" }}>{r.cTrack}</span> },
+      { key: "fix", header: "Fix", cell: r => r.fix },
+    ];
     return (
       <div className="mt-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 overflow-hidden shadow-sm">
         <button onClick={() => setOpen(v => !v)} className={cx.accordionInner}>
@@ -70,17 +71,7 @@ export const SpanTable = ({ orient, type, wallSystem }: { orient: string; type: 
         </button>
         {open && (
           <>
-            <table className="w-full border-t border-slate-100 dark:border-slate-800">
-              <thead><tr><th className={TH}>Max W</th><th className={TH}>Max H</th><th className={TH}>C-track</th><th className={TH}>Fix</th></tr></thead>
-              <tbody>
-                <tr>
-                  <td className={TDm} style={{ color: NAVY }}>{MAX_W_HORIZ} m</td>
-                  <td className={TD}>{MAX_H_HORIZ[type]} m</td>
-                  <td className={TD} style={{ fontFamily: "monospace", fontSize: "11px" }}>{CTRACK_DIM[type]}</td>
-                  <td className={TD}>1/face</td>
-                </tr>
-              </tbody>
-            </table>
+            <Table columns={columns} rows={rows} rowKey={(_r, i) => i} className="rounded-none border-0 border-t" />
             <div className="px-3.5 py-2.5 text-sm text-slate-400 dark:text-slate-500">
               {wallSystem === "standard"
                 ? "Standard wall: fixed C-track section, no span-table lookup. All four edges restrained."
@@ -98,6 +89,11 @@ export const SpanTable = ({ orient, type, wallSystem }: { orient: string; type: 
   // as reference; the actual selection (driven by the wall's own floor
   // height) appears in the Vertical track card once floor height is entered.
   if (wallSystem === "shaft") {
+    const columns: TableColumn<typeof SHAFT_TRACK_TABLE[number]>[] = [
+      { key: "maxF", header: "Floor height up to", cell: r => <span className="font-semibold" style={{ color: NAVY }}>{r.maxF} m</span> },
+      { key: "section", header: "Vertical track", cell: r => <span style={{ fontFamily: "monospace", fontSize: "11px" }}>{r.section}</span> },
+      { key: "fixPerCourse", header: "Screws each side", cell: r => `${r.fixPerCourse}/course` },
+    ];
     return (
       <div className="mt-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 overflow-hidden shadow-sm">
         <button onClick={() => setOpen(v => !v)} className={cx.accordionInner}>
@@ -106,16 +102,7 @@ export const SpanTable = ({ orient, type, wallSystem }: { orient: string; type: 
         </button>
         {open && (
           <>
-            <table className="w-full border-t border-slate-100 dark:border-slate-800">
-              <thead><tr><th className={TH}>Floor height up to</th><th className={TH}>Vertical track</th><th className={TH}>Screws each side</th></tr></thead>
-              <tbody>{SHAFT_TRACK_TABLE.map((r, i) => (
-                <tr key={i}>
-                  <td className={TDm} style={{ color: NAVY }}>{r.maxF} m</td>
-                  <td className={TD} style={{ fontFamily: "monospace", fontSize: "11px" }}>{r.section}</td>
-                  <td className={TD}>{r.fixPerCourse}/course</td>
-                </tr>
-              ))}</tbody>
-            </table>
+            <Table columns={columns} rows={SHAFT_TRACK_TABLE} rowKey={(_r, i) => i} className="rounded-none border-0 border-t" />
             <div className="px-3.5 py-2.5 text-sm text-slate-400 dark:text-slate-500">Sized by floor height (slab to soffit), not total shaft height. Total height stacks to any height.</div>
           </>
         )}
@@ -124,6 +111,12 @@ export const SpanTable = ({ orient, type, wallSystem }: { orient: string; type: 
   }
 
   const rows = SPAN_TABLE_HORIZ[type] || SPAN_TABLE_HORIZ[78];
+  const columns: TableColumn<typeof rows[number]>[] = [
+    { key: "maxW", header: "Max W", cell: r => <span className="font-semibold" style={{ color: NAVY }}>{r.maxW}</span> },
+    { key: "maxH", header: "Max H", cell: r => r.maxH },
+    { key: "cTrack", header: "C-track", cell: r => <span style={{ fontFamily: "monospace", fontSize: "11px" }}>{r.cTrack}</span> },
+    { key: "fix", header: "Fix", cell: r => r.fix },
+  ];
   return (
     <div className="mt-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 overflow-hidden shadow-sm">
       <button onClick={() => setOpen(v => !v)} className={cx.accordionInner}>
@@ -132,17 +125,7 @@ export const SpanTable = ({ orient, type, wallSystem }: { orient: string; type: 
       </button>
       {open && (
         <>
-          <table className="w-full border-t border-slate-100 dark:border-slate-800">
-            <thead><tr><th className={TH}>Max W</th><th className={TH}>Max H</th><th className={TH}>C-track</th><th className={TH}>Fix</th></tr></thead>
-            <tbody>{rows.map((r, i) => (
-              <tr key={i} className={r.note ? "bg-amber-50/60 dark:bg-amber-950/20" : ""}>
-                <td className={TDm} style={{ color: NAVY }}>{r.maxW}</td>
-                <td className={TD}>{r.maxH}</td>
-                <td className={TD} style={{ fontFamily: "monospace", fontSize: "11px" }}>{r.cTrack}</td>
-                <td className={TD}>{r.fix}</td>
-              </tr>
-            ))}</tbody>
-          </table>
+          <Table columns={columns} rows={rows} rowKey={(_r, i) => i} className="rounded-none border-0 border-t" rowClassName={r => (r.note ? "bg-amber-50/60 dark:bg-amber-950/20" : undefined)} />
           {type === 78 && <div className="px-3.5 py-2.5 text-sm text-slate-400 dark:text-slate-500">Stacked/shaft condition (W 4.5-5.0 m): height unlimited for material estimating only.</div>}
         </>
       )}

@@ -16,7 +16,9 @@
 // etc.) render once, above the tabs, rather than duplicated on all three.
 // =============================================================================
 import { useEffect, useRef, useState } from "react";
-import { cx, NAVY, BLUE, WHITE, MUTED } from "../../styleTokens";
+import { cx, BLUE, WHITE, MUTED } from "../../styleTokens";
+import { Button } from "../../ui/button";
+import { ErrorDialog } from "../../ui/confirmDialog";
 import { NumField, NumberListField } from "../shared/fields";
 import { MATH_CONSTANT_DEFAULTS, MATH_CONSTANT_FIELDS, type MathConstants, type MathConstantField } from "../../mathConstants";
 import { useMathConstantsStore } from "./maths/mathConstantsStore";
@@ -74,6 +76,7 @@ export const AdminMathsPage = () => {
   const touchedConstants = useRef(false);
   const touchedTables = useRef(false);
   const [tab, setTab] = useState<TabKey>("51");
+  const [actionError, setActionError] = useState<string | null>(null);
 
   // Same "don't clobber an in-progress edit" pattern as before, applied to
   // both stores independently -- see the original comment this replaces.
@@ -110,7 +113,7 @@ export const AdminMathsPage = () => {
   const save = async () => {
     const [constErr, tablesErr] = await Promise.all([mathStore.save(constants), tablesStore.save(tables)]);
     const err = constErr || tablesErr;
-    if (err) window.alert(`Saved on this device, but failed to sync to the server: ${err}\n\nOther devices won't see this change until you save again while online.`);
+    if (err) { setActionError(`Saved on this device, but failed to sync to the server: ${err}\n\nOther devices won't see this change until you save again while online.`); return; }
     window.location.reload();
   };
   const cancel = () => {
@@ -120,7 +123,7 @@ export const AdminMathsPage = () => {
   const resetToDefaults = async () => {
     const [constErr, tablesErr] = await Promise.all([mathStore.save(MATH_CONSTANT_DEFAULTS), tablesStore.save(SYSTEM_TABLES_DEFAULTS)]);
     const err = constErr || tablesErr;
-    if (err) window.alert(`Reset on this device, but failed to sync to the server: ${err}\n\nOther devices won't see this change until you reset again while online.`);
+    if (err) { setActionError(`Reset on this device, but failed to sync to the server: ${err}\n\nOther devices won't see this change until you reset again while online.`); return; }
     window.location.reload();
   };
 
@@ -141,6 +144,7 @@ export const AdminMathsPage = () => {
 
   return (
     <div className="mt-2">
+      <ErrorDialog message={actionError} onDismiss={() => { setActionError(null); window.location.reload(); }} />
       <span className={`${cx.badge} inline-block bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400`}>
         Saving applies these values to every estimate and reloads the app
       </span>
@@ -244,15 +248,9 @@ export const AdminMathsPage = () => {
       )}
 
       <div className="mt-4 flex flex-wrap gap-2">
-        <button onClick={save} className="rounded-xl px-4 py-2.5 text-sm font-semibold shadow-sm active:scale-95 transition-all" style={{ background: BLUE, color: WHITE }}>
-          Save &amp; reload
-        </button>
-        <button onClick={cancel} className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-2.5 text-sm font-semibold active:scale-95 transition-all" style={{ color: NAVY }}>
-          Cancel
-        </button>
-        <button onClick={resetToDefaults} className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-2.5 text-sm font-semibold text-red-600 dark:text-red-400 active:scale-95 transition-all">
-          Reset to defaults
-        </button>
+        <Button onClick={save}>Save &amp; reload</Button>
+        <Button variant="secondary" onClick={cancel}>Cancel</Button>
+        <Button variant="danger" onClick={resetToDefaults}>Reset to defaults</Button>
       </div>
     </div>
   );

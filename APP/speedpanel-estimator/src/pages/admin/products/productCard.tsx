@@ -3,12 +3,14 @@
 // =============================================================================
 // Modeled on src/education/DocumentCard.tsx: touching anywhere on the card
 // selects the item; the delete button stops propagation so it doesn't also
-// fire the card's select handler, and confirms via native window.confirm --
-// no dialog primitive exists in the app, matching the zero-dependency posture
-// already used elsewhere (e.g. the header's reset-all button).
+// fire the card's select handler, and confirms via the shared ConfirmDialog
+// before calling onDelete.
 // =============================================================================
+import { useState } from "react";
 import { Trash2 } from "lucide-react";
 import { cx, BLUE, NAVY, MUTED } from "../../../styleTokens";
+import { IconButton } from "../../../ui/primitives";
+import { ConfirmDialog } from "../../../ui/confirmDialog";
 import type { ProductCategory, AdminPanel, AdminTrack, AdminFixing, AdminSealant, AdminColour } from "./productTypes";
 
 export type ProductItem = AdminPanel | AdminTrack | AdminFixing | AdminSealant | AdminColour;
@@ -43,9 +45,19 @@ export const ProductCard = ({ category, item, selected, onSelect, onDelete }: {
   onSelect: (id: string) => void; onDelete: (id: string) => void;
 }) => {
   const { title, subtitle } = summarize(category, item);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   return (
     <div onClick={() => onSelect(item.id)}
       className={cx.card + " flex cursor-pointer flex-col gap-2"} style={selected ? { borderColor: BLUE, borderWidth: 2 } : undefined}>
+      <ConfirmDialog
+        open={confirmDelete}
+        danger
+        title="Delete item"
+        description={`Delete "${title}"? This can't be undone.`}
+        confirmLabel="Delete"
+        onConfirm={() => { setConfirmDelete(false); onDelete(item.id); }}
+        onCancel={() => setConfirmDelete(false)}
+      />
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           {category === "colour" && (
@@ -55,10 +67,11 @@ export const ProductCard = ({ category, item, selected, onSelect, onDelete }: {
           <div className="truncate text-sm font-bold" style={{ color: NAVY }}>{title}</div>
           <p className="mt-1 truncate text-sm" style={{ color: MUTED }}>{subtitle}</p>
         </div>
-        <button onClick={e => { e.stopPropagation(); if (window.confirm(`Delete "${title}"? This can't be undone.`)) onDelete(item.id); }}
-          className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-slate-200 dark:border-slate-700 text-slate-400 dark:text-slate-500">
-          <Trash2 size={14} />
-        </button>
+        <span onClick={e => e.stopPropagation()} className="shrink-0">
+          <IconButton variant="danger" size="sm" ariaLabel="Delete item" onClick={() => setConfirmDelete(true)}>
+            <Trash2 size={14} />
+          </IconButton>
+        </span>
       </div>
     </div>
   );

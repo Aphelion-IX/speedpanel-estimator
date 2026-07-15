@@ -4,10 +4,34 @@
 // style={{color: NAVY}}-style usage below becomes dark-mode-aware for free --
 // no need to touch each individual usage site.
 export const NAVY      = "var(--navy)";      // primary body/heading text colour
+export const NAVY_2    = "var(--navy-2)";    // heading-weight gradient, H2 mid-step
+export const NAVY_3    = "var(--navy-3)";    // heading-weight gradient, H3 mid-step
 export const BLUE      = "var(--blue)";      // primary brand colour -- selected states, links, key values
 export const GOLD      = "var(--gold)";      // accent colour -- highlights, warnings, custom/special-order badge
 export const WHITE     = "var(--on-fill)";   // text/icon colour on filled (BLUE/GOLD) backgrounds
 export const MUTED     = "var(--muted)";     // inactive/unselected text & icon colour
+
+// --- Status tone -> class string ---------------------------------------------
+// Single source for status-colour classes. Domain files (companyTypes.ts,
+// journeyStage.ts, requestTypes.ts, projectTypes.ts, orderTypes.ts) keep their
+// own status-string -> tone mapping (the vocab differs per domain) and call
+// this instead of hand-typing Tailwind colour classes themselves.
+export type StatusTone = "ok" | "warn" | "danger" | "info" | "neutral";
+
+export const tone = (t: StatusTone): string => {
+  switch (t) {
+    case "ok":      return "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400";
+    // Pale amber, not the solid brand-Gold fill first tried in the design
+    // samples -- that only ever got demonstrated in isolation. In a real
+    // multi-status list (e.g. journeyStage.ts's 8-step ladder) it sits next
+    // to five other pale-bg tones, and a lone solid chip reads as broken,
+    // not "highlighted". Still unambiguously amber/gold, not orange.
+    case "warn":    return "bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400";
+    case "danger":  return "bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400";
+    case "info":    return "bg-cyan-50 dark:bg-cyan-950/30 text-cyan-700 dark:text-cyan-400";
+    case "neutral": return "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400";
+  }
+};
 
 // --- Single source of truth for all text sizes and spacing -------------------
 //
@@ -33,8 +57,24 @@ export const cx = {
   wallName:  "min-w-0 flex-1 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 text-sm font-semibold text-slate-800 dark:text-slate-100 shadow-sm outline-none transition-shadow focus:border-blue-300 dark:focus:border-blue-600 focus:shadow-md",
 
   // -- Layout containers ------------------------------------------------------
-  card:      "rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5 shadow-sm",
-  section:   "rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5 shadow-sm space-y-4",
+  // Raised baseline -- bigger radius + a layered shadow (soft contact shadow
+  // + a wider ambient one), matching the depth already used on the sign-in
+  // card and the signed-in home screen's workspace cards, instead of the
+  // flatter shadow-sm every other page used previously.
+  card:      "rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_20px_40px_-28px_rgba(15,23,42,0.18)] dark:shadow-[0_1px_2px_rgba(0,0,0,0.2),0_20px_40px_-24px_rgba(0,0,0,0.35)]",
+  section:   "rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_20px_40px_-28px_rgba(15,23,42,0.18)] dark:shadow-[0_1px_2px_rgba(0,0,0,0.2),0_20px_40px_-24px_rgba(0,0,0,0.35)] space-y-4",
+
+  // -- Page heading scale -------------------------------------------------------
+  // Colour fades from full-strength Navy (H1) through two mid-steps to the
+  // muted body tone (see --navy-2/--navy-3 in index.css), so hierarchy reads
+  // via colour as well as size/weight. H1 is set to text-3xl rather than the
+  // 44px used in the design-samples reference doc -- that scale reads as a
+  // hero for an isolated spec sheet, but is too large for the app's denser,
+  // information-heavy real pages.
+  eyebrow:   "text-xs font-extrabold uppercase tracking-wide text-[color:var(--blue)]",
+  h1:        "text-3xl font-extrabold tracking-tight text-[color:var(--navy)]",
+  h2:        "text-xl font-bold tracking-tight text-[color:var(--navy-2)]",
+  h3:        "text-base font-bold text-[color:var(--navy-3)]",
 
   // -- Interactive controls ---------------------------------------------------
   // Accordions: collapsible section toggles

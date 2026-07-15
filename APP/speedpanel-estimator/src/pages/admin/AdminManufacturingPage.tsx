@@ -10,7 +10,10 @@
 // editable SelectField instead of the customer-facing read-only badge.
 // =============================================================================
 import { useState } from "react";
-import { cx, NAVY, MUTED, BLUE, WHITE } from "../../styleTokens";
+import { cx, NAVY } from "../../styleTokens";
+import { Button } from "../../ui/button";
+import { LoadingState, ErrorState, EmptyState } from "../../ui/states";
+import { ErrorDialog } from "../../ui/confirmDialog";
 import { Field, NumField } from "../shared/fields";
 import { useAdminManufacturing, type AdminManufacturingOrder } from "./manufacturing/adminManufacturingStore";
 import { DeliveryBatchCard } from "../projects/orders/DeliveryBatchCard";
@@ -28,6 +31,7 @@ const ManufacturingRow = ({ row, onSaveManufacturing, onStatusChange }: {
   const [estCompletion, setEstCompletion] = useState(order.manufacturing_est_completion ?? "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [statusError, setStatusError] = useState<string | null>(null);
 
   const handleSave = async () => {
     setSaving(true);
@@ -39,11 +43,12 @@ const ManufacturingRow = ({ row, onSaveManufacturing, onStatusChange }: {
 
   const handleStatusChange = async (deliveryId: string, status: DeliveryStatus) => {
     const err = await onStatusChange(deliveryId, status);
-    if (err) window.alert(err);
+    if (err) setStatusError(err);
   };
 
   return (
     <div className={`${cx.card} mt-3`}>
+      <ErrorDialog message={statusError} onDismiss={() => setStatusError(null)} />
       <div className="text-sm font-bold" style={{ color: NAVY }}>{projectName}</div>
       <p className={cx.footnote}>
         Confirmed {new Date(order.proforma_issued_at ?? order.created_at).toLocaleDateString()} -- ${order.total_inc_gst.toFixed(2)}
@@ -54,10 +59,7 @@ const ManufacturingRow = ({ row, onSaveManufacturing, onStatusChange }: {
         <div className="flex flex-wrap items-end gap-2">
           <div className="w-48"><NumField label={`Panels manufactured (of ${total})`} value={manufactured} onChange={setManufactured} /></div>
           <div className="w-44"><Field label="Est. completion" value={estCompletion} onChange={setEstCompletion} type="date" /></div>
-          <button onClick={handleSave} disabled={saving}
-            className="h-[46px] rounded-xl px-4 text-sm font-bold disabled:opacity-50" style={{ background: BLUE, color: WHITE }}>
-            {saving ? "Saving..." : "Save"}
-          </button>
+          <Button className="h-[46px]" onClick={handleSave} disabled={saving}>{saving ? "Saving..." : "Save"}</Button>
         </div>
         {error && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{error}</p>}
       </div>
@@ -80,23 +82,14 @@ export const AdminManufacturingPage = ({ userId, staffRole, staffRoleLoading }: 
 }) => {
   const { rows, loading, loadingMore, hasMore, error, reload, loadMore, updateManufacturing, updateDeliveryStatus } = useAdminManufacturing(userId, staffRole, staffRoleLoading);
 
-  if (loading) return <div className={`${cx.card} mt-6 text-sm`} style={{ color: MUTED }}>Loading...</div>;
+  if (loading) return <LoadingState className="mt-6" label="Loading manufacturing queue" />;
 
   if (error) {
-    return (
-      <div className={`${cx.card} mt-6`}>
-        <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
-        <button onClick={() => reload()} className="mt-2 text-sm font-bold" style={{ color: NAVY }}>Retry</button>
-      </div>
-    );
+    return <ErrorState className="mt-6" message={error} onRetry={() => reload()} />;
   }
 
   if (rows.length === 0) {
-    return (
-      <div className={`${cx.card} mt-6 text-center`}>
-        <p className={cx.footnote}>No confirmed orders in production yet.</p>
-      </div>
-    );
+    return <EmptyState className={`${cx.card} mt-6 text-center`} message="No confirmed orders in production yet." />;
   }
 
   return (
@@ -106,10 +99,9 @@ export const AdminManufacturingPage = ({ userId, staffRole, staffRoleLoading }: 
       ))}
 
       {hasMore && (
-        <button onClick={() => loadMore()} disabled={loadingMore}
-          className="mt-3 w-full rounded-xl border border-slate-200 dark:border-slate-700 px-4 py-2.5 text-sm font-bold disabled:opacity-50" style={{ color: NAVY }}>
+        <Button variant="secondary" className="mt-3 w-full" onClick={() => loadMore()} disabled={loadingMore}>
           {loadingMore ? "Loading..." : "Load more"}
-        </button>
+        </Button>
       )}
     </div>
   );

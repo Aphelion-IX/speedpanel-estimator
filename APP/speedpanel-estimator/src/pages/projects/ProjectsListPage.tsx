@@ -22,9 +22,11 @@
 import { useMemo, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import { Building2, Check, FileText, Plus, Search, Settings, Truck } from "lucide-react";
-import { cx, NAVY, BLUE, WHITE, MUTED } from "../../styleTokens";
+import { cx, NAVY, BLUE, MUTED } from "../../styleTokens";
 import { Field } from "../shared/fields";
 import { Stat } from "../../ui/primitives";
+import { Button } from "../../ui/button";
+import { LoadingState, ErrorState } from "../../ui/states";
 import type { EffectiveLayout } from "../../useLayoutMode";
 import { useProjects, useProjectCompanyNames } from "./projectsStore";
 import { useOrdersSummary } from "./dashboardStore";
@@ -63,23 +65,19 @@ const NewProjectPanel = ({ onCreate }: { onCreate: (name: string) => Promise<str
 
   if (!open) {
     return (
-      <button onClick={() => setOpen(true)}
-        className="flex h-10 items-center gap-2 rounded-lg px-4 text-sm font-bold shadow-sm" style={{ background: BLUE, color: WHITE }}>
-        <Plus size={16} />New Project
-      </button>
+      <Button icon={<Plus size={16} />} onClick={() => setOpen(true)}>New Project</Button>
     );
   }
 
   return (
     <form onSubmit={handleCreate} className={`${cx.card} mt-3 flex flex-wrap items-end gap-2`}>
       <div className="min-w-[220px] flex-1"><Field label="Project name" value={name} onChange={setName} required /></div>
-      <button type="submit" disabled={creating || !name.trim()}
-        className="h-[46px] shrink-0 rounded-xl px-4 text-sm font-bold disabled:opacity-50" style={{ background: BLUE, color: WHITE }}>
+      <Button type="submit" disabled={creating || !name.trim()} className="h-[46px] shrink-0">
         {creating ? "Creating..." : "Create"}
-      </button>
-      <button type="button" onClick={() => { setOpen(false); setError(null); }} className="h-[46px] shrink-0 rounded-xl px-3 text-sm font-semibold" style={{ color: MUTED }}>
+      </Button>
+      <Button type="button" variant="secondary" className="h-[46px] shrink-0" onClick={() => { setOpen(false); setError(null); }}>
         Cancel
-      </button>
+      </Button>
       {error && <p className="w-full text-xs text-red-600 dark:text-red-400">{error}</p>}
     </form>
   );
@@ -234,7 +232,7 @@ export const ProjectsListPage = ({ user, onOpenProject, layoutMode, hasCompany, 
       <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
         <div>
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h1 className="text-2xl font-bold" style={{ color: NAVY }}>All Projects</h1>
+            <h1 className={cx.h1}>All Projects</h1>
           </div>
           <p className="mt-1 text-sm" style={{ color: MUTED }}>Track the status of all your projects in one place.</p>
         </div>
@@ -267,13 +265,10 @@ export const ProjectsListPage = ({ user, onOpenProject, layoutMode, hasCompany, 
         ))}
       </div>
 
-      {(loading || journeyLoading) && <div className={`${cx.card} mt-3 text-sm`} style={{ color: MUTED }}>Loading...</div>}
+      {(loading || journeyLoading) && <LoadingState className="mt-3" label="Loading projects" />}
 
       {!loading && error && (
-        <div className={`${cx.card} mt-3`}>
-          <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
-          <button onClick={() => reload()} className="mt-2 text-sm font-bold" style={{ color: NAVY }}>Retry</button>
-        </div>
+        <ErrorState className="mt-3" message={error} onRetry={() => reload()} />
       )}
 
       {!loading && !error && projects.length === 0 && (

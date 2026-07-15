@@ -12,7 +12,8 @@
 // server-side (see supabase/functions/admin-invite-user/index.ts).
 // =============================================================================
 import { useState } from "react";
-import { BLUE, WHITE, MUTED } from "../../../styleTokens";
+import { BLUE, MUTED } from "../../../styleTokens";
+import { Button } from "../../../ui/button";
 import { Field, SelectField } from "../../shared/fields";
 import { COMPANY_ROLES, COMPANY_ROLE_LABELS, type CompanyRole } from "../../company/companyTypes";
 import { adminCreateCompanyUser } from "./companiesStore";
@@ -66,10 +67,9 @@ export const CreateCompanyUserForm = ({ companyId }: { companyId: string }) => {
               <p className="mt-1 text-xs" style={{ color: MUTED }}>At least 8 characters. Share it with them directly -- it's never shown again.</p>
             </div>
           )}
-          <button type="submit" disabled={submitting || !email.trim() || (method === "password" && password.length < 8)}
-            className="h-[46px] shrink-0 rounded-xl px-5 text-sm font-bold disabled:opacity-50" style={{ background: BLUE, color: WHITE }}>
+          <Button type="submit" className="h-[46px] shrink-0" disabled={submitting || !email.trim() || (method === "password" && password.length < 8)}>
             {submitting ? "Adding..." : method === "password" ? "Create" : "Invite"}
-          </button>
+          </Button>
         </div>
       </form>
       {error && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{error}</p>}

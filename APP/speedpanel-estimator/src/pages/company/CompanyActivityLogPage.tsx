@@ -6,7 +6,9 @@
 // owner/admin only (is_company_admin()-gated server-side by
 // company_list_audit_log itself).
 // =============================================================================
-import { cx, NAVY, MUTED, BLUE } from "../../styleTokens";
+import { cx, NAVY, BLUE } from "../../styleTokens";
+import { Button } from "../../ui/button";
+import { LoadingState, ErrorState, EmptyState } from "../../ui/states";
 import { useCompanyAuditLog } from "./companyStore";
 import { EVENT_TYPE_LABELS, type AuditLogRow } from "./companyTypes";
 
@@ -24,21 +26,16 @@ export const CompanyActivityLogPage = ({ companyId, onBack }: { companyId: strin
   return (
     <div className="mt-2">
       <button onClick={onBack} className="text-sm font-semibold hover:underline" style={{ color: BLUE }}>&larr; Back to projects</button>
-      <h1 className="mt-3 text-xl font-bold" style={{ color: NAVY }}>Activity Log</h1>
+      <h1 className={`${cx.h1} mt-3`}>Activity Log</h1>
 
-      {loading && <div className={`${cx.card} mt-3 text-sm`} style={{ color: MUTED }}>Loading...</div>}
+      {loading && <LoadingState className="mt-3" label="Loading activity" />}
 
       {!loading && error && (
-        <div className={`${cx.card} mt-3`}>
-          <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
-          <button onClick={() => reload()} className="mt-2 text-sm font-bold" style={{ color: NAVY }}>Retry</button>
-        </div>
+        <ErrorState className="mt-3" message={error} onRetry={() => reload()} />
       )}
 
       {!loading && !error && events.length === 0 && (
-        <div className={`${cx.card} mt-3 text-center`}>
-          <p className={cx.footnote}>No activity yet.</p>
-        </div>
+        <EmptyState className="mt-3 text-center" message="No activity yet." />
       )}
 
       {!loading && !error && events.map(event => (
@@ -51,10 +48,9 @@ export const CompanyActivityLogPage = ({ companyId, onBack }: { companyId: strin
       ))}
 
       {!loading && !error && hasMore && (
-        <button onClick={() => loadMore()} disabled={loadingMore}
-          className="mt-3 w-full rounded-xl border border-slate-200 dark:border-slate-700 px-4 py-2.5 text-sm font-bold disabled:opacity-50" style={{ color: NAVY }}>
+        <Button variant="secondary" onClick={() => loadMore()} disabled={loadingMore} className="mt-3 w-full">
           {loadingMore ? "Loading..." : "Load more"}
-        </button>
+        </Button>
       )}
     </div>
   );

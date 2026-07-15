@@ -13,9 +13,12 @@
 // =============================================================================
 import { useMemo, useState } from "react";
 import { Plus, Search } from "lucide-react";
-import { BLUE, WHITE, cx, NAVY, MUTED } from "../../styleTokens";
+import { cx, NAVY, MUTED } from "../../styleTokens";
 import type { EffectiveLayout } from "../../useLayoutMode";
 import { CardGrid, SectionLabel } from "../../ui/primitives";
+import { Button } from "../../ui/button";
+import { LoadingState, ErrorState, EmptyState } from "../../ui/states";
+import { ErrorDialog } from "../../ui/confirmDialog";
 import { FilterChips } from "../../education/FilterChips";
 import type { EduCategory } from "../../education/catalog";
 import { useDocumentStore } from "./documents/documentStore";
@@ -33,6 +36,7 @@ export const AdminDocumentsPage = ({ layoutMode }: { layoutMode: EffectiveLayout
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -69,34 +73,29 @@ export const AdminDocumentsPage = ({ layoutMode }: { layoutMode: EffectiveLayout
   const handleSave = async (values: Record<string, unknown>) => {
     if (isAdding) {
       const { id, error } = await add(values as never);
-      if (error) { window.alert(error); return; }
+      if (error) { setActionError(error); return; }
       setSelectedId(id);
       setIsAdding(false);
     } else if (editingId) {
       const error = await update(editingId, values as never);
-      if (error) { window.alert(error); return; }
+      if (error) { setActionError(error); return; }
       setEditingId(null);
     }
   };
 
   const handleDelete = async (id: string) => {
     const error = await remove(id);
-    if (error) { window.alert(error); return; }
+    if (error) { setActionError(error); return; }
     if (selectedId === id) setSelectedId(null);
     if (editingId === id) setEditingId(null);
   };
 
   if (loading) {
-    return <div className={`${cx.card} mt-6 text-sm`} style={{ color: MUTED }}>Loading...</div>;
+    return <LoadingState className="mt-6" label="Loading documents" />;
   }
 
   if (error) {
-    return (
-      <div className={`${cx.card} mt-6`}>
-        <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
-        <button onClick={() => reload()} className="mt-2 text-sm font-bold" style={{ color: NAVY }}>Retry</button>
-      </div>
-    );
+    return <ErrorState className="mt-6" message={error} onRetry={() => reload()} />;
   }
 
   const gridBody = (
@@ -109,14 +108,10 @@ export const AdminDocumentsPage = ({ layoutMode }: { layoutMode: EffectiveLayout
       <div className="mt-3"><FilterChips active={category} onChange={selectCategory} /></div>
       <div className="mt-5 flex items-center justify-between gap-2">
         <SectionLabel icon={<Search size={14} />}>Documents ({filtered.length})</SectionLabel>
-        <button onClick={startAdd} className="flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold" style={{ background: BLUE, color: WHITE }}>
-          <Plus size={13} /> Add
-        </button>
+        <Button icon={<Plus size={13} />} onClick={startAdd}>Add</Button>
       </div>
       {filtered.length === 0 ? (
-        <div className={cx.card + " mt-3 text-center"}>
-          <p className={cx.footnote}>No documents match your search.</p>
-        </div>
+        <EmptyState className={`${cx.card} mt-3 text-center`} message="No documents match your search." />
       ) : (
         <CardGrid layoutMode={layoutMode} minWidth={240}>
           {filtered.map(item => (
@@ -139,9 +134,12 @@ export const AdminDocumentsPage = ({ layoutMode }: { layoutMode: EffectiveLayout
     />
   );
 
+  const errorDialog = <ErrorDialog message={actionError} onDismiss={() => setActionError(null)} />;
+
   if (layoutMode === "phone") {
     return (
       <div className="mt-2">
+        {errorDialog}
         {gridBody}
         <div className="mt-6">{detailPanel}</div>
       </div>
@@ -150,6 +148,7 @@ export const AdminDocumentsPage = ({ layoutMode }: { layoutMode: EffectiveLayout
 
   return (
     <div className="mt-2 grid grid-cols-[1fr_380px] items-start gap-6">
+      {errorDialog}
       <div className="min-w-0">{gridBody}</div>
       <aside className="sticky top-5">{detailPanel}</aside>
     </div>

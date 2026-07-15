@@ -6,7 +6,9 @@
 // price_lists + Save -> admin_set_company_price_list.
 // =============================================================================
 import { useEffect, useState } from "react";
-import { cx, BLUE, WHITE, MUTED } from "../../../styleTokens";
+import { MUTED } from "../../../styleTokens";
+import { Button } from "../../../ui/button";
+import { LoadingState, ErrorState } from "../../../ui/states";
 import { SelectField } from "../../shared/fields";
 import { usePriceListPicker, useCompanyPriceListAssignment } from "./priceListsStore";
 
@@ -19,8 +21,8 @@ export const CompanyPriceListCard = ({ companyId }: { companyId: string }) => {
 
   useEffect(() => { setDraft(priceListId); }, [priceListId]);
 
-  if (pickerLoading || assignmentLoading) return <p className={cx.footnote} style={{ paddingTop: 0 }}>Loading...</p>;
-  if (pickerError || assignmentError) return <p className="text-sm text-red-600 dark:text-red-400">{pickerError || assignmentError}</p>;
+  if (pickerLoading || assignmentLoading) return <LoadingState label="Loading price lists" />;
+  if (pickerError || assignmentError) return <ErrorState message={(pickerError || assignmentError)!} />;
 
   const dirty = draft !== priceListId;
 
@@ -44,10 +46,9 @@ export const CompanyPriceListCard = ({ companyId }: { companyId: string }) => {
       {saveError && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{saveError}</p>}
       {saved && !dirty && <p className="mt-2 text-sm" style={{ color: MUTED }}>Saved.</p>}
       {dirty && (
-        <button onClick={handleSave} disabled={saving}
-          className="mt-3 rounded-xl px-4 py-2 text-sm font-bold disabled:opacity-50" style={{ background: BLUE, color: WHITE }}>
+        <Button className="mt-3" onClick={handleSave} disabled={saving}>
           {saving ? "Saving..." : "Save"}
-        </button>
+        </Button>
       )}
     </div>
   );

@@ -28,8 +28,10 @@
 // =============================================================================
 import { useMemo, useState } from "react";
 import { Search } from "lucide-react";
-import { cx, NAVY, MUTED, BLUE, WHITE } from "../../styleTokens";
+import { cx, NAVY, MUTED, BLUE } from "../../styleTokens";
 import type { UseAuth } from "../../lib/useAuth";
+import { Button } from "../../ui/button";
+import { LoadingState, ErrorState, EmptyState } from "../../ui/states";
 import { Field, SelectField } from "../shared/fields";
 import { useAdminUsers } from "./users/usersStore";
 import type { AdminUserRow } from "./users/userTypes";
@@ -70,7 +72,7 @@ const CreateStaffForm = ({ onCreate }: { onCreate: (email: string, staffRole: In
 
   return (
     <div className={cx.card}>
-      <h1 className="text-sm font-bold" style={{ color: NAVY }}>Add Speedpanel staff</h1>
+      <h2 className={cx.h3}>Add Speedpanel staff</h2>
       <form onSubmit={handleSubmit} className="mt-3 space-y-2">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
           <div className="sm:w-56"><SelectField label="Method" value={method} options={CREATE_METHOD_OPTIONS} onChange={v => setMethod(v as CreateMethod)} /></div>
@@ -84,10 +86,9 @@ const CreateStaffForm = ({ onCreate }: { onCreate: (email: string, staffRole: In
               <p className="mt-1 text-xs" style={{ color: MUTED }}>At least 8 characters. Share it with them directly -- it's never shown again.</p>
             </div>
           )}
-          <button type="submit" disabled={submitting || !email.trim() || (method === "password" && password.length < 8)}
-            className="h-[46px] shrink-0 rounded-xl px-5 text-sm font-bold disabled:opacity-50" style={{ background: BLUE, color: WHITE }}>
+          <Button type="submit" className="h-[46px] shrink-0" disabled={submitting || !email.trim() || (method === "password" && password.length < 8)}>
             {submitting ? "Adding..." : method === "password" ? "Create" : "Invite"}
-          </button>
+          </Button>
         </div>
       </form>
       {error && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{error}</p>}
@@ -124,15 +125,14 @@ const PromoteUserForm = ({ onPromote }: { onPromote: (email: string, staffRole: 
 
   return (
     <div className={`${cx.card} mt-3`}>
-      <h1 className="text-sm font-bold" style={{ color: NAVY }}>Promote an existing account to staff</h1>
+      <h2 className={cx.h3}>Promote an existing account to staff</h2>
       <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">For an account that already exists (e.g. created directly in Supabase) rather than a brand-new hire. No email is sent -- their existing login already works.</p>
       <form onSubmit={handleSubmit} className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-end">
         <div className="flex-1"><Field label="Email" value={email} onChange={setEmail} type="email" required autoComplete="email" /></div>
         <div className="sm:w-56"><SelectField label="Role" value={staffRole} options={STAFF_ROLE_OPTIONS} onChange={v => setStaffRole(v as InternalRole)} /></div>
-        <button type="submit" disabled={promoting || !email.trim()}
-          className="h-[46px] shrink-0 rounded-xl border border-slate-200 dark:border-slate-700 px-5 text-sm font-bold disabled:opacity-50" style={{ color: BLUE }}>
+        <Button type="submit" variant="secondary" className="h-[46px] shrink-0" disabled={promoting || !email.trim()}>
           {promoting ? "Promoting..." : "Promote"}
-        </button>
+        </Button>
       </form>
       {error && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{error}</p>}
       {success && <p className="mt-2 text-sm font-semibold" style={{ color: BLUE }}>Promoted -- they now appear in the staff list below.</p>}
@@ -180,48 +180,51 @@ const UserTableRow = ({ item, isSelf, onSetStaffRole, onSaveStaffProfile }: {
   };
 
   return (
-    <tr className="border-t border-slate-100 dark:border-slate-800 align-top">
-      <td className="py-2.5 pr-3">
+    <tr className="border-t border-slate-100 align-top transition-colors hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800/60">
+      <td className="px-4 py-3">
         <div className="text-sm font-bold" style={{ color: NAVY }}>
           {item.display_name || item.email || "(no email)"}{isSelf && <span className={cx.footnote}> (you)</span>}
         </div>
         <p className={cx.footnote}>Joined {new Date(item.created_at).toLocaleDateString()}</p>
         {error && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{error}</p>}
       </td>
-      <td className="py-2.5 pr-3 w-48">
+      <td className="px-4 py-3 w-48">
         <select value={item.staff_role ?? ""} onChange={e => e.target.value && handleSetStaffRole(e.target.value as InternalRole)} className={cellInputCx} style={{ color: NAVY }}>
           {!item.staff_role && <option value="">Choose a role...</option>}
           {STAFF_ROLE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
       </td>
-      <td className="py-2.5 pr-3"><input value={displayName} onChange={e => setDisplayName(e.target.value)} className={cellInputCx} style={{ color: NAVY }} /></td>
-      <td className="py-2.5 pr-3"><input value={title} onChange={e => setTitle(e.target.value)} className={cellInputCx} style={{ color: NAVY }} /></td>
-      <td className="py-2.5 pr-3"><input value={phone} onChange={e => setPhone(e.target.value)} className={cellInputCx} style={{ color: NAVY }} /></td>
-      <td className="py-2.5 text-right">
-        <button onClick={handleSave} disabled={saving}
-          className="rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-1.5 text-xs font-bold disabled:opacity-50" style={{ color: BLUE }}>
-          {saving ? "Saving..." : "Save"}
-        </button>
+      <td className="px-4 py-3"><input value={displayName} onChange={e => setDisplayName(e.target.value)} className={cellInputCx} style={{ color: NAVY }} /></td>
+      <td className="px-4 py-3"><input value={title} onChange={e => setTitle(e.target.value)} className={cellInputCx} style={{ color: NAVY }} /></td>
+      <td className="px-4 py-3"><input value={phone} onChange={e => setPhone(e.target.value)} className={cellInputCx} style={{ color: NAVY }} /></td>
+      <td className="px-4 py-3 text-right">
+        <Button variant="secondary" onClick={handleSave} disabled={saving}>{saving ? "Saving..." : "Save"}</Button>
       </td>
     </tr>
   );
 };
 
+// Not built on the shared <Table> primitive -- each row holds its own
+// uncommitted draft state (name/title/phone) shared across several cells
+// plus a Save button, which doesn't fit Table's per-cell render-prop model
+// without prop-drilling a bespoke stateful row component through it anyway.
+// Styled to match Table's recipe (rounded wrapper, uppercase header, row
+// hover) so it still reads as the same table language.
 const UsersTable = ({ items, myUserId, onSetStaffRole, onSaveStaffProfile }: {
   items: AdminUserRow[]; myUserId: string | null;
   onSetStaffRole: (item: AdminUserRow, staffRole: InternalRole) => Promise<string | null>;
   onSaveStaffProfile: (item: AdminUserRow, input: { displayName: string; title: string; phone: string }) => Promise<string | null>;
 }) => (
-  <div className={`${cx.card} mt-3 overflow-x-auto`}>
-    <table className="w-full text-sm">
+  <div className="mt-3 overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-700">
+    <table className="w-full border-collapse text-sm">
       <thead>
-        <tr>
-          <th className="pb-1.5 pr-3 text-left text-xs font-bold uppercase tracking-wide" style={{ color: MUTED }}>Person</th>
-          <th className="pb-1.5 pr-3 text-left text-xs font-bold uppercase tracking-wide" style={{ color: MUTED }}>Staff role</th>
-          <th className="pb-1.5 pr-3 text-left text-xs font-bold uppercase tracking-wide" style={{ color: MUTED }}>Display name</th>
-          <th className="pb-1.5 pr-3 text-left text-xs font-bold uppercase tracking-wide" style={{ color: MUTED }}>Title</th>
-          <th className="pb-1.5 pr-3 text-left text-xs font-bold uppercase tracking-wide" style={{ color: MUTED }}>Phone</th>
-          <th className="pb-1.5 w-16" />
+        <tr className="bg-slate-50 dark:bg-slate-900/60">
+          <th className="border-b border-slate-200 px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500 dark:border-slate-700 dark:text-slate-400">Person</th>
+          <th className="border-b border-slate-200 px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500 dark:border-slate-700 dark:text-slate-400">Staff role</th>
+          <th className="border-b border-slate-200 px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500 dark:border-slate-700 dark:text-slate-400">Display name</th>
+          <th className="border-b border-slate-200 px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500 dark:border-slate-700 dark:text-slate-400">Title</th>
+          <th className="border-b border-slate-200 px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500 dark:border-slate-700 dark:text-slate-400">Phone</th>
+          <th className="border-b border-slate-200 px-4 py-3 w-16 dark:border-slate-700" />
         </tr>
       </thead>
       <tbody>
@@ -260,19 +263,12 @@ export const AdminUsersPage = ({ auth }: { auth: UseAuth }) => {
       <CreateStaffForm onCreate={handleCreate} />
       <PromoteUserForm onPromote={handlePromote} />
 
-      {loading && <div className={`${cx.card} mt-3 text-sm`} style={{ color: MUTED }}>Loading...</div>}
+      {loading && <LoadingState className="mt-3" label="Loading staff" />}
 
-      {!loading && error && (
-        <div className={`${cx.card} mt-3`}>
-          <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
-          <button onClick={() => reload()} className="mt-2 text-sm font-bold" style={{ color: NAVY }}>Retry</button>
-        </div>
-      )}
+      {!loading && error && <ErrorState className="mt-3" message={error} onRetry={() => reload()} />}
 
       {!loading && !error && users.length === 0 && (
-        <div className={`${cx.card} mt-3 text-center`}>
-          <p className={cx.footnote}>No Speedpanel staff accounts yet.</p>
-        </div>
+        <EmptyState className={`${cx.card} mt-3 text-center`} message="No Speedpanel staff accounts yet." />
       )}
 
       {!loading && !error && users.length > 0 && (
@@ -292,18 +288,15 @@ export const AdminUsersPage = ({ auth }: { auth: UseAuth }) => {
           )}
 
           {filtered.length === 0 ? (
-            <div className={`${cx.card} mt-3 text-center`}>
-              <p className={cx.footnote}>No staff match your search.</p>
-            </div>
+            <EmptyState className={`${cx.card} mt-3 text-center`} message="No staff match your search." />
           ) : (
             <UsersTable items={filtered} myUserId={auth.user?.id ?? null} onSetStaffRole={handleSetStaffRole} onSaveStaffProfile={handleSaveStaffProfile} />
           )}
 
           {hasMore && (
-            <button onClick={() => loadMore()} disabled={loadingMore}
-              className="mt-3 w-full rounded-xl border border-slate-200 dark:border-slate-700 px-4 py-2.5 text-sm font-bold disabled:opacity-50" style={{ color: NAVY }}>
+            <Button variant="secondary" className="mt-3 w-full" onClick={() => loadMore()} disabled={loadingMore}>
               {loadingMore ? "Loading..." : "Load more"}
-            </button>
+            </Button>
           )}
         </>
       )}

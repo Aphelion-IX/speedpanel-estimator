@@ -11,9 +11,11 @@
 // posture than AdminOrdersPage.tsx's shrinking queue.
 // =============================================================================
 import { useState } from "react";
-import { cx, NAVY, MUTED, BLUE, WHITE } from "../../../styleTokens";
+import { cx, NAVY, MUTED, BLUE } from "../../../styleTokens";
 import { Field, TextAreaField } from "../../shared/fields";
 import { AccordionCard } from "../../../ui/primitives";
+import { Button } from "../../../ui/button";
+import { LoadingState, ErrorState, EmptyState } from "../../../ui/states";
 import {
   useAdminDeliveryRequests, type AdminDeliveryRequestRow,
 } from "./adminDeliveryRequestsStore";
@@ -99,37 +101,28 @@ const DeliveryRequestRow = ({ request, allForOrder, onAccept, onPropose, onDecli
 
       {awaitingDecision && (
         <div className="mt-3 flex flex-wrap items-center gap-2">
-          <button onClick={() => run(() => onAccept(request.id))} disabled={busy}
-            className="rounded-xl bg-emerald-600 px-3 py-2 text-xs font-bold text-white disabled:opacity-50">
-            Accept date
-          </button>
+          <Button onClick={() => run(() => onAccept(request.id))} disabled={busy}>Accept date</Button>
           {proposing ? (
             <>
               <input type="date" value={proposedDate} onChange={e => setProposedDate(e.target.value)} className={cx.input + " w-auto !py-1.5"} style={{ color: NAVY }} />
-              <button onClick={() => run(() => onPropose(request.id, proposedDate)).then(() => setProposing(false))} disabled={busy || !proposedDate}
-                className="rounded-xl px-3 py-2 text-xs font-bold disabled:opacity-50" style={{ background: BLUE, color: WHITE }}>
+              <Button onClick={() => run(() => onPropose(request.id, proposedDate)).then(() => setProposing(false))} disabled={busy || !proposedDate}>
                 Send proposed date
-              </button>
-              <button onClick={() => setProposing(false)} className="text-xs font-semibold" style={{ color: MUTED }}>Cancel</button>
+              </Button>
+              <Button variant="ghost" onClick={() => setProposing(false)}>Cancel</Button>
             </>
           ) : (
-            <button onClick={() => setProposing(true)} disabled={busy} className="rounded-xl border border-slate-200 dark:border-slate-700 px-3 py-2 text-xs font-bold disabled:opacity-50" style={{ color: NAVY }}>
-              Propose a different date
-            </button>
+            <Button variant="secondary" onClick={() => setProposing(true)} disabled={busy}>Propose a different date</Button>
           )}
           {declining ? (
             <div className="mt-2 flex w-full flex-wrap items-center gap-2">
               <div className="w-full max-w-sm"><Field label="Reason for the customer (optional)" value={declineNote} onChange={setDeclineNote} /></div>
-              <button onClick={() => run(() => onDecline(request.id, declineNote)).then(() => setDeclining(false))} disabled={busy}
-                className="rounded-xl bg-red-600 px-3 py-2 text-xs font-bold text-white disabled:opacity-50">
+              <Button variant="danger" onClick={() => run(() => onDecline(request.id, declineNote)).then(() => setDeclining(false))} disabled={busy}>
                 Confirm decline
-              </button>
-              <button onClick={() => setDeclining(false)} className="text-xs font-semibold" style={{ color: MUTED }}>Cancel</button>
+              </Button>
+              <Button variant="ghost" onClick={() => setDeclining(false)}>Cancel</Button>
             </div>
           ) : (
-            <button onClick={() => setDeclining(true)} disabled={busy} className="rounded-xl px-3 py-2 text-xs font-bold text-red-600 disabled:opacity-50">
-              Decline
-            </button>
+            <Button variant="danger" onClick={() => setDeclining(true)} disabled={busy}>Decline</Button>
           )}
         </div>
       )}
@@ -139,11 +132,11 @@ const DeliveryRequestRow = ({ request, allForOrder, onAccept, onPropose, onDecli
           <div className="space-y-3">
             <div>
               <TextAreaField label="Internal note (staff only)" value={internalNote} onChange={setInternalNoteDraft} />
-              <button onClick={() => run(() => onSetInternalNote(request.id, internalNote))} disabled={busy} className="mt-1 text-xs font-bold disabled:opacity-50" style={{ color: BLUE }}>Save internal note</button>
+              <Button variant="ghost" className="mt-1" onClick={() => run(() => onSetInternalNote(request.id, internalNote))} disabled={busy}>Save internal note</Button>
             </div>
             <div>
               <TextAreaField label="Customer-facing note" value={customerNote} onChange={setCustomerNoteDraft} />
-              <button onClick={() => run(() => onSetCustomerNote(request.id, customerNote))} disabled={busy} className="mt-1 text-xs font-bold disabled:opacity-50" style={{ color: BLUE }}>Save customer note</button>
+              <Button variant="ghost" className="mt-1" onClick={() => run(() => onSetCustomerNote(request.id, customerNote))} disabled={busy}>Save customer note</Button>
             </div>
             <div>
               {splitting ? (
@@ -155,7 +148,7 @@ const DeliveryRequestRow = ({ request, allForOrder, onAccept, onPropose, onDecli
                   onCancel={() => setSplitting(false)}
                 />
               ) : (
-                <button onClick={() => setSplitting(true)} className="text-xs font-bold" style={{ color: BLUE }}>+ Split into another delivery</button>
+                <Button variant="ghost" onClick={() => setSplitting(true)}>+ Split into another delivery</Button>
               )}
             </div>
           </div>
@@ -171,23 +164,14 @@ export const AdminDeliveryRequestsPage = ({ userId, staffRole, staffRoleLoading 
   const { requests, loading, error, reload, acceptDate, proposeDate, declineRequest, setInternalNote, setCustomerNote, createDelivery } =
     useAdminDeliveryRequests(userId, staffRole, staffRoleLoading);
 
-  if (loading) return <div className={`${cx.card} mt-6 text-sm`} style={{ color: MUTED }}>Loading...</div>;
+  if (loading) return <LoadingState className="mt-6" label="Loading delivery requests" />;
 
   if (error) {
-    return (
-      <div className={`${cx.card} mt-6`}>
-        <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
-        <button onClick={() => reload()} className="mt-2 text-sm font-bold" style={{ color: NAVY }}>Retry</button>
-      </div>
-    );
+    return <ErrorState className="mt-6" message={error} onRetry={() => reload()} />;
   }
 
   if (requests.length === 0) {
-    return (
-      <div className={`${cx.card} mt-6 text-center`}>
-        <p className={cx.footnote}>No delivery requests yet.</p>
-      </div>
-    );
+    return <EmptyState className={`${cx.card} mt-6 text-center`} message="No delivery requests yet." />;
   }
 
   return (

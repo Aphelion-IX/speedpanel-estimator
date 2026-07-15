@@ -25,7 +25,7 @@
 // QuoteRequestPage itself stays in active use by the anonymous, no-id case
 // above.
 // =============================================================================
-import { cx, MUTED } from "../../styleTokens";
+import { LoadingState } from "../../ui/states";
 import type { EffectiveLayout } from "../../useLayoutMode";
 import type { UseAuth } from "../../lib/useAuth";
 import type { UseCompanyMemberships } from "../../lib/useCompanyMemberships";
@@ -48,7 +48,7 @@ export const ProjectsRouter = ({ route, navigate, auth, company, onOpenEstimator
   pendingNote?: string;
   layoutMode: EffectiveLayout;
 }) => {
-  if (auth.loading) return <div className={`${cx.card} mt-6 text-sm`} style={{ color: MUTED }}>Loading...</div>;
+  if (auth.loading) return <LoadingState className="mt-6" />;
   if (!route.id && route.request) {
     return <QuoteRequestPage onBack={() => navigate({ tab: "projects" })} />;
   }

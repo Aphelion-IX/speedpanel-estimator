@@ -19,6 +19,7 @@
 // is producing a human sub-label when no order exists yet (see
 // estimatingSubLabel()) -- it never changes which of the 8 steps is lit.
 // =============================================================================
+import { tone } from "../../styleTokens";
 import type { ProjectRow } from "./projectTypes";
 import { totalPanelCount, type OrderRow } from "./orders/orderTypes";
 import type { OrderDeliveryRow } from "./orders/orderTypes";
@@ -40,17 +41,20 @@ export const JOURNEY_STAGE_LABELS: Record<JourneyStage, string> = {
   completed: "Completed",
 };
 
-// Same slate/blue/amber/emerald convention as projectTypes.ts's
-// PROJECT_STAGE_BADGE_CLASS / orders/orderTypes.ts's ORDER_STAGE_BADGE_CLASS.
+// Same shared tone() map as projectTypes.ts's PROJECT_STAGE_BADGE_CLASS /
+// orders/orderTypes.ts's ORDER_STAGE_BADGE_CLASS. ready_for_delivery stays a
+// literal violet -- it's a progress-ladder-only distinction (so it doesn't
+// read identically to processing/manufacturing's "warn"), not a semantic
+// status tone the shared map has a slot for.
 export const JOURNEY_STAGE_BADGE_CLASS: Record<JourneyStage, string> = {
-  estimating: "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400",
-  quote_submitted: "bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400",
-  quote_accepted: "bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400",
-  processing: "bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400",
-  manufacturing: "bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400",
+  estimating: tone("neutral"),
+  quote_submitted: tone("info"),
+  quote_accepted: tone("info"),
+  processing: tone("warn"),
+  manufacturing: tone("warn"),
   ready_for_delivery: "bg-violet-50 dark:bg-violet-950/30 text-violet-700 dark:text-violet-400",
-  delivered: "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400",
-  completed: "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400",
+  delivered: tone("ok"),
+  completed: tone("ok"),
 };
 
 // Only the columns this function actually reads -- keeps the mapping's

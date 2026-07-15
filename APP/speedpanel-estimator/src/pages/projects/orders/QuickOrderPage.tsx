@@ -24,9 +24,12 @@
 // clamped to a whole number here.
 // =============================================================================
 import { useMemo, useState } from "react";
-import { Trash2 } from "lucide-react";
-import { cx, NAVY, BLUE, WHITE, MUTED, GOLD } from "../../../styleTokens";
-import { Row } from "../../../ui/primitives";
+import { Trash2, Plus } from "lucide-react";
+import { cx, NAVY, BLUE, MUTED, GOLD } from "../../../styleTokens";
+import { Row, IconButton } from "../../../ui/primitives";
+import { Button } from "../../../ui/button";
+import { LoadingState, ErrorState, EmptyState } from "../../../ui/states";
+import { Table, type TableColumn } from "../../../ui/table";
 import { StockBadge, PackNote } from "../../../ui/scheduleCards";
 import { SelectField, NumField } from "../../shared/fields";
 import type { UseAuth } from "../../../lib/useAuth";
@@ -76,58 +79,42 @@ const panelGroupKey = (panelType: number, lengthM: number) => `panel:${panelType
 const QuickOrderItemsTable = ({ items, onQtyChange, onRemove }: {
   items: OrderLineItem[]; onQtyChange: (id: string, qty: number) => void; onRemove: (item: OrderLineItem) => void;
 }) => {
-  if (items.length === 0) return <p className={cx.footnote} style={{ paddingTop: 0 }}>No items added yet -- use the picker above to add products.</p>;
+  if (items.length === 0) return <EmptyState message="No items added yet -- use the picker above to add products." />;
 
-  return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm">
-        <thead>
-          <tr>
-            <th className="pb-1.5 pr-2 text-left text-xs font-bold uppercase tracking-wide" style={{ color: MUTED }}>Item</th>
-            <th className="pb-1.5 pr-2 text-right text-xs font-bold uppercase tracking-wide" style={{ color: MUTED }}>Qty</th>
-            <th className="pb-1.5 pr-2 text-left text-xs font-bold uppercase tracking-wide" style={{ color: MUTED }}>Unit</th>
-            <th className="pb-1.5 pr-2 text-right text-xs font-bold uppercase tracking-wide" style={{ color: MUTED }}>Unit price</th>
-            <th className="pb-1.5 pr-2 text-right text-xs font-bold uppercase tracking-wide" style={{ color: MUTED }}>Total (ex GST)</th>
-            <th className="w-8 pb-1.5" />
-          </tr>
-        </thead>
-        <tbody>
-          {items.map(item => {
-            // Panel qty is derived (pack-rounded from panelGroups) -- edit
-            // via "+ Add" at the same length, not by hand-editing the
-            // already-rounded billed count.
-            const editableQty = item.category !== "panel";
-            return (
-              <tr key={item.id} className="border-t border-slate-100 dark:border-slate-800">
-                <td className="py-1.5 pr-2" style={{ color: NAVY }}>
-                  {item.label}
-                  {!item.matched && (
-                    <span className="ml-2 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase" style={{ background: GOLD, color: NAVY }}>Not priced</span>
-                  )}
-                </td>
-                <td className="py-1.5 pr-2 text-right">
-                  {editableQty ? (
-                    <input type="number" min={1} value={item.qty} onChange={e => onQtyChange(item.id, Math.max(1, Number(e.target.value)))}
-                      className="w-20 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1 text-right text-xs" style={{ color: NAVY }} />
-                  ) : (
-                    <span style={{ color: NAVY }}>{item.qty}</span>
-                  )}
-                </td>
-                <td className="py-1.5 pr-2" style={{ color: MUTED }}>{item.unit}</td>
-                <td className="py-1.5 pr-2 text-right" style={{ color: MUTED }}>{item.unitPriceExGst != null ? `$${item.unitPriceExGst.toFixed(2)}` : "--"}</td>
-                <td className="py-1.5 pr-2 text-right font-semibold" style={{ color: NAVY }}>${item.lineTotalExGst.toFixed(2)}</td>
-                <td className="py-1.5 text-right">
-                  <button onClick={() => onRemove(item)} title="Remove" className="text-red-500">
-                    <Trash2 size={14} />
-                  </button>
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
-  );
+  const columns: TableColumn<OrderLineItem>[] = [
+    {
+      key: "item", header: "Item", cell: item => (
+        <span style={{ color: NAVY }}>
+          {item.label}
+          {!item.matched && <span className="ml-2 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase" style={{ background: GOLD, color: NAVY }}>Not priced</span>}
+        </span>
+      ),
+    },
+    {
+      key: "qty", header: "Qty", align: "right", cell: item => {
+        // Panel qty is derived (pack-rounded from panelGroups) -- edit via
+        // "+ Add" at the same length, not by hand-editing the already-
+        // rounded billed count.
+        const editableQty = item.category !== "panel";
+        return editableQty ? (
+          <input type="number" min={1} value={item.qty} onChange={e => onQtyChange(item.id, Math.max(1, Number(e.target.value)))}
+            className="w-20 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1 text-right text-xs" style={{ color: NAVY }} />
+        ) : <span style={{ color: NAVY }}>{item.qty}</span>;
+      },
+    },
+    { key: "unit", header: "Unit", cell: item => <span style={{ color: MUTED }}>{item.unit}</span> },
+    { key: "unitPrice", header: "Unit price", align: "right", cell: item => <span style={{ color: MUTED }}>{item.unitPriceExGst != null ? `$${item.unitPriceExGst.toFixed(2)}` : "--"}</span> },
+    { key: "total", header: "Total (ex GST)", align: "right", cell: item => <span className="font-semibold" style={{ color: NAVY }}>${item.lineTotalExGst.toFixed(2)}</span> },
+    {
+      key: "remove", header: "", cell: item => (
+        <IconButton size="sm" variant="danger" title="Remove" ariaLabel={`Remove ${item.label}`} onClick={() => onRemove(item)}>
+          <Trash2 size={14} />
+        </IconButton>
+      ),
+    },
+  ];
+
+  return <Table columns={columns} rows={items} rowKey={item => item.id} />;
 };
 
 export const QuickOrderPage = ({ projectId, auth, onBack, onCreated }: {
@@ -223,13 +210,13 @@ export const QuickOrderPage = ({ projectId, auth, onBack, onCreated }: {
   };
 
   if (projectLoading || catalogLoading || pricingLoading) {
-    return <div className={`${cx.card} mt-6 text-sm`} style={{ color: MUTED }}>Loading...</div>;
+    return <LoadingState className="mt-6" label="Loading catalog" />;
   }
 
   if (projectError || !project) {
     return (
-      <div className={`${cx.card} mt-6`}>
-        <p className="text-sm text-red-600 dark:text-red-400">{projectError || "Project not found."}</p>
+      <div className="mt-6">
+        <ErrorState message={projectError || "Project not found."} />
         <button onClick={onBack} className="mt-2 text-sm font-bold" style={{ color: BLUE }}>Back to project</button>
       </div>
     );
@@ -237,8 +224,8 @@ export const QuickOrderPage = ({ projectId, auth, onBack, onCreated }: {
 
   if (catalogError || pricingError) {
     return (
-      <div className={`${cx.card} mt-6`}>
-        <p className="text-sm text-red-600 dark:text-red-400">{catalogError || pricingError}</p>
+      <div className="mt-6">
+        <ErrorState message={catalogError || pricingError || "Something went wrong."} />
         <button onClick={onBack} className="mt-2 text-sm font-bold" style={{ color: BLUE }}>Back to project</button>
       </div>
     );
@@ -249,7 +236,7 @@ export const QuickOrderPage = ({ projectId, auth, onBack, onCreated }: {
       <button onClick={onBack} className="text-sm font-semibold hover:underline" style={{ color: BLUE }}>&larr; Back to project</button>
 
       <div className={`${cx.card} mt-3`}>
-        <h1 className="text-lg font-bold" style={{ color: NAVY }}>Quick Order -- {project.name}</h1>
+        <h1 className={cx.h1}>Quick Order -- {project.name}</h1>
         <p className={cx.footnote}>Add products directly, without using the Estimator.</p>
 
         <div className={`mt-4 grid gap-2 sm:items-end ${category === "panel" ? "sm:grid-cols-[1fr_1fr_90px_90px_auto]" : "sm:grid-cols-[1fr_1fr_100px_auto]"}`}>
@@ -263,10 +250,9 @@ export const QuickOrderPage = ({ projectId, auth, onBack, onCreated }: {
             onChange={setProductId} />
           {category === "panel" && <NumField label="Length (m)" value={lengthM} onChange={setLengthM} />}
           <NumField label={category === "panel" ? "Pieces" : "Qty"} value={qty} onChange={setQty} />
-          <button onClick={addItem} disabled={!productId || qty <= 0 || (category === "panel" && lengthM <= 0)}
-            className="h-[46px] shrink-0 rounded-xl px-4 text-sm font-bold disabled:opacity-50" style={{ background: BLUE, color: WHITE }}>
-            + Add
-          </button>
+          <Button icon={<Plus size={15} />} className="h-[46px] shrink-0" disabled={!productId || qty <= 0 || (category === "panel" && lengthM <= 0)} onClick={addItem}>
+            Add
+          </Button>
         </div>
 
         {category === "panel" && panelPreview && (
@@ -298,10 +284,9 @@ export const QuickOrderPage = ({ projectId, auth, onBack, onCreated }: {
 
         {createError && <p className="mt-3 text-sm text-red-600 dark:text-red-400">{createError}</p>}
 
-        <button onClick={handleCreate} disabled={creating || items.length === 0}
-          className="mt-4 w-full rounded-xl py-3 text-sm font-bold disabled:opacity-50" style={{ background: BLUE, color: WHITE }}>
+        <Button onClick={handleCreate} disabled={creating || items.length === 0} className="mt-4 w-full">
           {creating ? "Creating..." : "Create order"}
-        </button>
+        </Button>
       </div>
     </div>
   );

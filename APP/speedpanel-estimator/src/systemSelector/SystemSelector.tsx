@@ -19,7 +19,7 @@
 // active.orient === "horizontal", not sys.orient). "View Guide" remains an
 // inert stub.
 // =============================================================================
-import { NAVY, MUTED, cx } from "../styleTokens";
+import { MUTED, cx } from "../styleTokens";
 import type { EffectiveLayout } from "../useLayoutMode";
 import { CardGrid } from "../ui/primitives";
 import type { WallSystemId } from "../App";
@@ -51,7 +51,7 @@ export const SystemSelector = ({ layoutMode, system, activeWallSystem, onCreateP
   const mainNode = (
     <>
       <div>
-        <h1 className="text-2xl font-bold" style={{ color: NAVY }}>What type of wall are you estimating?</h1>
+        <h1 className={cx.h1}>What type of wall are you estimating?</h1>
         <p className="mt-1 text-sm" style={{ color: MUTED }}>Start by selecting how the panels will be installed.</p>
       </div>
       {/* Two clearly separated groups: the 4 core wall-type systems together in one
