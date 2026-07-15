@@ -7,8 +7,9 @@
 // submit_order/request_proforma_invoice RPCs.
 // =============================================================================
 import { useState } from "react";
+import { History } from "lucide-react";
 import { cx, NAVY, BLUE, WHITE, MUTED } from "../../../styleTokens";
-import { Row, WarningsList, Stat } from "../../../ui/primitives";
+import { Row, WarningsList, Stat, Card } from "../../../ui/primitives";
 import { useOrder } from "./orderDetailStore";
 import { useOrderDeliveries } from "./orderDeliveriesStore";
 import { OrderLineItemsTable, type DraftLineItem } from "./OrderLineItemsTable";
@@ -17,12 +18,15 @@ import { AddDeliveryForm } from "./AddDeliveryForm";
 import { ManufacturingProgress } from "./ManufacturingProgress";
 import { ORDER_STAGE_LABELS, ORDER_STAGE_BADGE_CLASS } from "./orderTypes";
 import { nextDeliveryDate } from "../journeyCopy";
+import { useOrderRevisions } from "./orderRevisionsStore";
+import { relativeTime } from "../projectActivityStore";
 
 export const OrderDetailPage = ({ orderId, onBack, onViewProforma }: {
   orderId: string; onBack: () => void; onViewProforma: (orderId: string) => void;
 }) => {
   const { order, loading, error, reload, submitOrder, requestProformaInvoice, cancelOrder } = useOrder(orderId);
   const { deliveries, loading: deliveriesLoading, error: deliveriesError, addDelivery, removeDelivery, requestDateChange, acceptProposedDate } = useOrderDeliveries(orderId);
+  const { revisions } = useOrderRevisions(orderId);
   const [addingDelivery, setAddingDelivery] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -114,6 +118,24 @@ export const OrderDetailPage = ({ orderId, onBack, onViewProforma }: {
           )}
         </div>
       </div>
+
+      {revisions.length > 0 && (
+        <Card title="Revision History" icon={<History size={14} />}>
+          <div className="space-y-3">
+            {revisions.map(r => (
+              <div key={r.id} className={cx.rowBorder}>
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="text-sm font-semibold" style={{ color: NAVY }}>
+                    ${r.old_total_inc_gst.toFixed(2)} &rarr; ${r.new_total_inc_gst.toFixed(2)}
+                  </span>
+                  <span className={cx.footnote} style={{ paddingTop: 0 }}>{relativeTime(r.created_at)}</span>
+                </div>
+                <p className={cx.footnote}>{r.note}</p>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
 
       {order.stage === "proforma_issued" && (
         <div className="mt-5">

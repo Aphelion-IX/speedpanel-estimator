@@ -3666,3 +3666,147 @@ create policy "Owners, company, and admins can read their own requests" on reque
         and public.can_view_project(p.owner_id, p.company_id, p.id)
     )
   );
+
+-- =============================================================================
+-- Quote revisions -- staff correcting a submitted order's line items/pricing
+-- =============================================================================
+-- Order pricing was fully immutable everywhere until now (create-once at
+-- submission, never editable by anyone). Adds the correction capability
+-- itself (revise_order below) plus a lightweight audit trail -- NOT full
+-- snapshots, just old total -> new total + a required note, same
+-- "insert-only, RPC-written, RLS-read" convention as order_stage_events,
+-- but a dedicated table rather than a 5th order_stage_events event_type:
+-- that table's single free-text `note` can't hold structured "was $X, now
+-- $Y" data the way a UI wants to display/diff it, and its event_type enum
+-- is closed around pure stage transitions, which a revision isn't.
+--
+-- Scope of this pass: STAFF revising an already-submitted order only
+-- (stage 'submitted' or 'proforma_requested'). Customers editing their own
+-- still-draft order before submitting is a deliberately separate,
+-- deferred follow-up -- draft edits aren't "revisions" in the same sense
+-- (nothing has been formally submitted/committed to yet).
+create table if not exists order_revisions (
+  id uuid primary key default gen_random_uuid(),
+  order_id uuid not null references orders (id) on delete cascade,
+  actor_id uuid references auth.users (id),
+  -- Only 'staff' is ever written in this pass -- column exists so a future
+  -- customer-draft-edit-logging decision doesn't require a migration.
+  actor_kind text not null check (actor_kind in ('customer', 'staff')),
+  old_total_inc_gst numeric not null,
+  new_total_inc_gst numeric not null,
+  note text not null,
+  created_at timestamptz not null default now()
+);
+
+alter table order_revisions enable row level security;
+
+create policy "Owners, company, and admins can read order revisions" on order_revisions
+  for select using (
+    exists (
+      select 1 from orders o where o.id = order_id
+        and public.can_view_project(o.owner_id, o.company_id, o.project_id)
+    )
+  );
+-- No insert/update/delete policy -- rows are only ever created by
+-- revise_order() below, a security definer function that bypasses RLS.
+
+create index if not exists idx_order_revisions_order_id on order_revisions (order_id);
+
+insert into public.permissions (key, description, category) values
+  ('orders.revise_order', 'Correct a submitted order''s line items/pricing', 'orders')
+on conflict (key) do nothing;
+
+insert into public.role_permissions (role, permission_key) values
+  ('internal_sales', 'orders.revise_order')
+on conflict (role, permission_key) do nothing;
+
+-- Mirrors issue_proforma_invoice's permission-gating shape and submit_order's
+-- row-lock pattern. p_note is REQUIRED (unlike issue_proforma_invoice's
+-- optional note) -- staff must say what changed and why; that prose is the
+-- intended substitute for structured per-line-item diffs in this
+-- deliberately lightweight audit trail.
+--
+-- Recomputes subtotal/gst/total server-side from p_line_items rather than
+-- trusting client-sent totals (same "server is the real gate" convention
+-- as every other order-mutating RPC) -- this defends against ARITHMETIC
+-- tampering/staleness only, not against a fabricated unitPriceExGst/
+-- lineTotalExGst per item not matching the real price-list-resolved price;
+-- that's a pre-existing gap shared with plain order creation (createOrder()
+-- is a bare insert too), not a new regression introduced here.
+--
+-- Rejects (rather than silently shrinking) a revision that would drop a
+-- line item's quantity below what's already allocated across this order's
+-- deliveries -- order_deliveries.item_allocations can reference today's
+-- line_items by id once an order reaches 'submitted' (a customer can
+-- request a delivery at any non-draft stage), so a careless revision could
+-- otherwise orphan an allocation silently.
+create or replace function public.revise_order(p_order_id uuid, p_line_items jsonb, p_note text)
+returns void
+language plpgsql security definer
+set search_path = public
+as $$
+declare
+  v_stage text;
+  v_gst_rate numeric;
+  v_old_total numeric;
+  v_subtotal numeric;
+  v_gst numeric;
+  v_total numeric;
+  v_unpriced_count int;
+begin
+  if not public.has_permission('orders.revise_order') then raise exception 'Not authorized'; end if;
+  if coalesce(trim(p_note), '') = '' then raise exception 'A note is required when revising an order'; end if;
+  if jsonb_typeof(p_line_items) is distinct from 'array' or jsonb_array_length(p_line_items) = 0 then
+    raise exception 'Order must have at least one line item';
+  end if;
+
+  select stage, gst_rate, total_inc_gst into v_stage, v_gst_rate, v_old_total
+    from orders where id = p_order_id for update;
+  if v_stage is null then raise exception 'Order not found'; end if;
+  if v_stage not in ('submitted', 'proforma_requested') then
+    raise exception 'Order can only be revised while Submitted or awaiting a pro forma invoice';
+  end if;
+
+  if exists (
+    select 1
+    from (
+      select (alloc->>'lineItemId') as line_item_id, sum((alloc->>'qty')::numeric) as allocated_qty
+      from order_deliveries od, jsonb_array_elements(od.item_allocations) as alloc
+      where od.order_id = p_order_id
+      group by (alloc->>'lineItemId')
+    ) a
+    left join lateral (
+      select (li->>'qty')::numeric as qty
+      from jsonb_array_elements(p_line_items) as li
+      where (li->>'id') = a.line_item_id
+      limit 1
+    ) l on true
+    where l.qty is null or l.qty < a.allocated_qty
+  ) then
+    raise exception 'Cannot reduce a line item below the quantity already allocated to a delivery';
+  end if;
+
+  select
+    coalesce(round(sum((elem->>'lineTotalExGst')::numeric), 2), 0),
+    coalesce(count(*) filter (where (elem->>'matched')::boolean is false), 0)
+    into v_subtotal, v_unpriced_count
+    from jsonb_array_elements(p_line_items) as elem;
+  v_gst := round(v_subtotal * v_gst_rate, 2);
+  v_total := v_subtotal + v_gst;
+
+  update orders set
+    line_items = p_line_items,
+    subtotal_ex_gst = v_subtotal,
+    gst_amount = v_gst,
+    total_inc_gst = v_total,
+    unpriced_item_count = v_unpriced_count,
+    updated_at = now()
+  where id = p_order_id;
+
+  insert into order_revisions (order_id, actor_id, actor_kind, old_total_inc_gst, new_total_inc_gst, note)
+    values (p_order_id, auth.uid(), 'staff', v_old_total, v_total, p_note);
+end;
+$$;
+
+revoke execute on function public.revise_order(uuid, jsonb, text) from public, anon;
+grant execute on function public.revise_order(uuid, jsonb, text) to authenticated;
