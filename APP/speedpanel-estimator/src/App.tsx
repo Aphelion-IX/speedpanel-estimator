@@ -224,7 +224,7 @@ export default function SpeedpanelEstimator() {
           below so it spans edge to edge, with the brand gradient line as
           its own bottom edge rather than a separate divider. */}
       <header className="bg-white/95 backdrop-blur dark:bg-slate-950/95">
-        <div className={layoutMode === "web" ? "mx-auto w-full max-w-[1400px] px-6 py-3" : "mx-auto w-full max-w-md px-3 sm:px-4 py-3"}>
+        <div className={layoutMode === "web" ? "mx-auto w-full max-w-[1520px] px-6 py-3" : "mx-auto w-full max-w-md px-3 sm:px-4 py-3"}>
           <TopNav
             activeTab={route.tab}
             onTabChange={switchTab}
@@ -244,7 +244,7 @@ export default function SpeedpanelEstimator() {
         <div className="h-[2px] w-full" style={{ background: `linear-gradient(90deg, ${NAVY} 0%, ${BLUE} 55%, ${GOLD} 100%)` }} />
       </header>
 
-      <div className={layoutMode === "web" ? "mx-auto w-full max-w-[1400px] px-6 pb-16 pt-6" : "mx-auto w-full max-w-md px-3 sm:px-4 pb-24 pt-5"}>
+      <div className={layoutMode === "web" ? "mx-auto w-full max-w-[1520px] px-6 pb-16 pt-6" : "mx-auto w-full max-w-md px-3 sm:px-4 pb-24 pt-5"}>
 
         {/* Renders nothing when there's no pending invitation -- safe to
             mount unconditionally on every tab, not just Projects, since it's

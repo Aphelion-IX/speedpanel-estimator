@@ -26,6 +26,7 @@ import type { Wall } from "../estimate/wall.types";
 import type { EffectiveLayout } from "../useLayoutMode";
 import {
   SectionLabel, WarningsList, EstimateModeSelector, UnitToggle, CalculatorShell,
+  CollapsibleSection, SectionNav,
 } from "../ui/primitives";
 import { LockedDataInt, LockedDataFooter } from "../ui/lockedData";
 import { PanelLengthSection } from "../ui/lengthExplorer";
@@ -94,43 +95,45 @@ export function InternalCalculator({ store, orient, dimUnit, setDimUnit, systemS
       />
 
       {/* Profile and dimensions */}
-      <SectionLabel icon={<Frame size={13} />}>Wall geometry</SectionLabel>
-      <div className={cx.section}>
-        <ProfileSection profile={active.profile} onChange={id => update({ profile: id })} />
-        <div className="border-t border-slate-100 dark:border-slate-800 pt-3">
-          <div className="mb-2 flex items-center justify-between">
-            <span className={cx.cardHd} style={{marginBottom:0}}>Dimensions</span>
-            <div className="flex items-center gap-2">
-              <UnitToggle unit={dimUnit} setUnit={switchDimUnit} />
+      <CollapsibleSection icon={<Frame size={13} />} label="Wall geometry" defaultOpen>
+        <div className={cx.section}>
+          <ProfileSection profile={active.profile} onChange={id => update({ profile: id })} />
+          <div className="border-t border-slate-100 dark:border-slate-800 pt-3">
+            <div className="mb-2 flex items-center justify-between">
+              <span className={cx.cardHd} style={{marginBottom:0}}>Dimensions</span>
+              <div className="flex items-center gap-2">
+                <UnitToggle unit={dimUnit} setUnit={switchDimUnit} />
+              </div>
             </div>
+            <DimensionInputs active={active} toDisp={toDisp} updDim={updDim} out={out} orient={orient} />
+            <SpanTable orient={orient} type={active.type} wallSystem={active.wallSystem} />
           </div>
-          <DimensionInputs active={active} toDisp={toDisp} updDim={updDim} out={out} orient={orient} />
-          <SpanTable orient={orient} type={active.type} wallSystem={active.wallSystem} />
+          <PanelLengthSection
+            dimUnit={dimUnit} out={out} active={active} walls={walls}
+            projectLock={projectLock} projectStock={projectStock}
+            customLengthInput={customLengthInput} customActive={customActive}
+            stocks={STOCK_LENGTHS} packType={active.type}
+            update={update} setProjectLength={setProjectLength}
+            commitCustomLength={commitCustomLength} toggleCustom={toggleCustom} clearCustomLength={clearCustomLength}
+          />
         </div>
-        <PanelLengthSection
-          dimUnit={dimUnit} out={out} active={active} walls={walls}
-          projectLock={projectLock} projectStock={projectStock}
-          customLengthInput={customLengthInput} customActive={customActive}
-          stocks={STOCK_LENGTHS} packType={active.type}
-          update={update} setProjectLength={setProjectLength}
-          commitCustomLength={commitCustomLength} toggleCustom={toggleCustom} clearCustomLength={clearCustomLength}
-        />
-      </div>
+      </CollapsibleSection>
 
       {/* Tracks and flashing */}
-      <SectionLabel icon={<Lock size={13} />}>TRACKS AND FLASHING</SectionLabel>
-      <EdgeRestraintSelector
-        edges={active.edges}
-        onEdgeToggle={k => update({ edges: { ...active.edges, [k]: !active.edges[k] } })}
-        options={[{ key: "headFlash", label: HEAD_FLASH_LABEL, sublabel: HEAD_FLASH_SUBLABEL, value: active.headFlash, onToggle: () => update({ headFlash: !active.headFlash }) }]}
-        orient={orient}
-        locked={orient === "horizontal" && active.wallSystem === "standard"}
-        showTrackFinish={showTrackFinish}
-        setShowTrackFinish={setShowTrackFinish}
-        activeFinishes={{ headFinish: active.headFinish, bottomFinish: active.bottomFinish, leftFinish: active.leftFinish, rightFinish: active.rightFinish }}
-        onFinishChange={(field, val) => update({ [field]: val } as Pick<Wall, FinishKey>)}
-        corners={{ intCorners: active.intCorners, extCorners: active.extCorners, onChange: (f: CornersField, v: string) => update({ [f]: v } as Pick<Wall, CornersField>) }}
-      />
+      <CollapsibleSection icon={<Lock size={13} />} label="Tracks and flashing" defaultOpen={false}>
+        <EdgeRestraintSelector
+          edges={active.edges}
+          onEdgeToggle={k => update({ edges: { ...active.edges, [k]: !active.edges[k] } })}
+          options={[{ key: "headFlash", label: HEAD_FLASH_LABEL, sublabel: HEAD_FLASH_SUBLABEL, value: active.headFlash, onToggle: () => update({ headFlash: !active.headFlash }) }]}
+          orient={orient}
+          locked={orient === "horizontal" && active.wallSystem === "standard"}
+          showTrackFinish={showTrackFinish}
+          setShowTrackFinish={setShowTrackFinish}
+          activeFinishes={{ headFinish: active.headFinish, bottomFinish: active.bottomFinish, leftFinish: active.leftFinish, rightFinish: active.rightFinish }}
+          onFinishChange={(field, val) => update({ [field]: val } as Pick<Wall, FinishKey>)}
+          corners={{ intCorners: active.intCorners, extCorners: active.extCorners, onChange: (f: CornersField, v: string) => update({ [f]: v } as Pick<Wall, CornersField>) }}
+        />
+      </CollapsibleSection>
 
       <WarningsList warnings={!out.empty ? out.warnings : null} />
       <EstimateModeSelector visible={!out.empty} mode={mode} setMode={setMode} />
@@ -152,26 +155,38 @@ export function InternalCalculator({ store, orient, dimUnit, setDimUnit, systemS
       {project && (
         <>
           <ProjectSeparator />
+          <SectionNav sections={[
+            ...(layoutMode === "web" ? [{ id: "wall-list", label: "Wall list" }] : []),
+            { id: "system-breakdown", label: "System breakdown" },
+            { id: "connection-breakdown", label: "Connection breakdown" },
+            { id: "easy-to-order", label: "Easy to order" },
+          ]} />
 
           {layoutMode === "web" && (
-            <>
+            <div id="wall-list">
               <SectionLabel icon={<Frame size={13} />}>Wall list</SectionLabel>
               <WallsSummaryTable results={results} activeId={activeId} setActiveId={setActiveId} warnById={warnById} toDisp={toDisp} dimUnit={dimUnit} />
-            </>
+            </div>
           )}
 
           {/* System Breakdown: shows HOW the estimate was built, wall by wall */}
-          <SystemBreakdownSection layoutMode={layoutMode} results={results} walls={walls} ScheduleComp={ScheduleComp} />
+          <div id="system-breakdown">
+            <SystemBreakdownSection layoutMode={layoutMode} results={results} walls={walls} ScheduleComp={ScheduleComp} />
+          </div>
 
           {/* Connection Breakdown: shows WHY extra materials were added */}
-          <SectionLabel icon={<Frame size={13} />}>Connection breakdown</SectionLabel>
-          <ConnectionBreakdownCard connections={combinedEstimate.connections} />
+          <div id="connection-breakdown">
+            <SectionLabel icon={<Frame size={13} />}>Connection breakdown</SectionLabel>
+            <ConnectionBreakdownCard connections={combinedEstimate.connections} />
+          </div>
 
           {/* Easy to Order: shows WHAT needs to be ordered -- one combined material list */}
-          <EasyToOrderSection
-            layoutMode={layoutMode} projChosenAgg={projChosenAgg} panelType={active.type}
-            combinedEstimate={combinedEstimate} results={results}
-          />
+          <div id="easy-to-order">
+            <EasyToOrderSection
+              layoutMode={layoutMode} projChosenAgg={projChosenAgg} panelType={active.type}
+              combinedEstimate={combinedEstimate} results={results}
+            />
+          </div>
         </>
       )}
     </>
