@@ -7,7 +7,7 @@
 // wall tabs, name/duplicate/delete), and the read-only project-wide
 // WallsSummaryTable.
 // =============================================================================
-import { Copy, Frame, Plus, Trash2 } from "lucide-react";
+import { Copy, Frame, Trash2 } from "lucide-react";
 import { cx, NAVY, BLUE, GOLD, MUTED } from "../styleTokens";
 import { TYPES } from "../data";
 import { IconButton } from "./primitives";
@@ -224,63 +224,35 @@ const PanelTypeSelector = ({ active, update, topBorder }: {
   </div>
 );
 
-// --- WallTabsAndActions -----------------------------------------------------------
-// Wall tab strip (+ Add) and the active wall's name/duplicate/delete toolbar.
-const WallTabsAndActions = ({ walls, results, activeId, setActiveId, active, update, addBlankWall, duplicateWall, deleteWall, warnById, topBorder }: {
-  walls: Wall[]; results: WallResult[]; activeId: number; setActiveId: (id: number) => void;
-  active: Wall; update: (patch: Partial<Wall>) => void;
-  addBlankWall: () => void; duplicateWall: () => void; deleteWall: () => void;
-  warnById: Record<number, boolean>; topBorder: boolean;
+// --- WallNameAndActions -----------------------------------------------------------
+// The active wall's name input + duplicate/delete toolbar -- split out from
+// WallTabsAndActions so a caller that hides the tab strip (Internal's
+// Estimate Structure nav supersedes it, see WallsCard's hideWallTabs prop)
+// can still keep rename/duplicate/delete available.
+const WallNameAndActions = ({ walls, active, update, duplicateWall, deleteWall }: {
+  walls: Wall[]; active: Wall; update: (patch: Partial<Wall>) => void;
+  duplicateWall: () => void; deleteWall: () => void;
 }) => (
-  <div className={topBorder ? "border-t border-slate-100 dark:border-slate-800 pt-3" : ""}>
-    <div className={cx.cardHd}>Walls ({walls.length})</div>
-    <div className="flex flex-wrap gap-2 pb-1">
-      {results.map(({ wall: w, out: r }) => {
-        const on = w.id === activeId;
-        return (
-          <button key={w.id} onClick={() => setActiveId(w.id)}
-            className={"relative rounded-xl border-2 px-3.5 py-3 text-left active:scale-95 transition-all " + (on ? "" : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800")}
-            style={on ? { borderColor: BLUE, background: BLUE } : undefined}>
-            {warnById[w.id] && <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full" style={{ background: GOLD }} />}
-            <div className="max-w-[80px] overflow-hidden text-ellipsis whitespace-nowrap text-sm font-bold" style={{ color: on ? "#fff" : NAVY }}>{w.name}</div>
-            <div className="mt-1 text-xs font-medium" style={{ color: on ? "rgba(255,255,255,0.7)" : MUTED }}>
-              {w.orient === "vertical" ? "Vert" : "Horiz"} · P{w.type}{r.empty ? "" : ` · ${r.area} m2`}
-            </div>
-          </button>
-        );
-      })}
-      <button onClick={addBlankWall}
-        className="shrink-0 rounded-xl border-2 border-dashed px-3.5 py-3 text-left active:scale-95 transition-all bg-white dark:bg-slate-800"
-        style={{ borderColor: BLUE }}>
-        <div className="flex items-center gap-1">
-          <Plus size={14} style={{ color: BLUE }} />
-          <span className="text-sm font-bold" style={{ color: BLUE }}>Add</span>
-        </div>
-        <div className="mt-1 text-xs font-medium text-transparent">-</div>
-      </button>
-    </div>
-    <div className="flex items-center gap-2 mt-2">
-      <input value={active.name} onChange={e => update({ name: e.target.value })} maxLength={32} className={cx.wallName} style={{ color: NAVY }} />
-      <IconButton onClick={duplicateWall} title="Duplicate"><Copy size={15} /></IconButton>
-      <IconButton onClick={deleteWall} disabled={walls.length === 1} variant="danger" title="Delete"><Trash2 size={15} /></IconButton>
-    </div>
+  <div className="flex items-center gap-2 mt-2">
+    <input value={active.name} onChange={e => update({ name: e.target.value })} maxLength={32} className={cx.wallName} style={{ color: NAVY }} />
+    <IconButton onClick={duplicateWall} title="Duplicate"><Copy size={15} /></IconButton>
+    <IconButton onClick={deleteWall} disabled={walls.length === 1} variant="danger" title="Delete"><Trash2 size={15} /></IconButton>
   </div>
 );
 
 // --- WallsCard ----------------------------------------------------------------
 export interface WallsCardProps {
-  walls: Wall[]; results: WallResult[];
-  activeId: number; setActiveId: (id: number) => void;
+  walls: Wall[];
   active: Wall; update: (patch: Partial<Wall>) => void;
-  addBlankWall: () => void; duplicateWall: () => void; deleteWall: () => void;
-  warnById: Record<number, boolean>; showTypes?: boolean;
+  duplicateWall: () => void; deleteWall: () => void;
+  showTypes?: boolean;
   systemSelector?: React.ReactNode; // optional system buttons rendered at the top
   orient?: "vertical" | "horizontal"; // gates the horizontal-only wall system dropdown
   onCornerLink?: (targetId: number | null) => void; // Corner wall run linking (internal only)
   onShaftLink?: (targetId: number | null) => void; // Shaft wall primary/secondary linking (internal only)
   onJunctionLink?: (targetId: number | null) => void; // Generic adjoining-wall linking -- any orient/wallSystem, Internal or External
 }
-export const WallsCard = ({ walls, results, activeId, setActiveId, active, update, addBlankWall, duplicateWall, deleteWall, warnById, showTypes = true, systemSelector, orient, onCornerLink, onShaftLink, onJunctionLink }: WallsCardProps) => (
+export const WallsCard = ({ walls, active, update, duplicateWall, deleteWall, showTypes = true, systemSelector, orient, onCornerLink, onShaftLink, onJunctionLink }: WallsCardProps) => (
   <div className={cx.section}>
     {/* 1 -- System selector */}
     {systemSelector && (
@@ -320,13 +292,12 @@ export const WallsCard = ({ walls, results, activeId, setActiveId, active, updat
     {showTypes && (
       <PanelTypeSelector active={active} update={update} topBorder={!!systemSelector} />
     )}
-    {/* 3 -- Wall tabs + name + actions */}
-    <WallTabsAndActions
-      walls={walls} results={results} activeId={activeId} setActiveId={setActiveId}
-      active={active} update={update} addBlankWall={addBlankWall}
-      duplicateWall={duplicateWall} deleteWall={deleteWall} warnById={warnById}
-      topBorder={showTypes || !!systemSelector}
-    />
+    {/* 3 -- Name/duplicate/delete toolbar for whichever wall is active.
+        Both calculators' Estimate Structure nav is the wall picker + add-wall
+        entry point, so the old tab-strip (once rendered here too) is gone. */}
+    <div className={(showTypes || !!systemSelector) ? "border-t border-slate-100 dark:border-slate-800 pt-3" : ""}>
+      <WallNameAndActions walls={walls} active={active} update={update} duplicateWall={duplicateWall} deleteWall={deleteWall} />
+    </div>
   </div>
 );
 

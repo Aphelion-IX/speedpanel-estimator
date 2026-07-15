@@ -8,7 +8,7 @@
 // layout shell both calculators compose their content into. No dependency on
 // Wall or the compute engine; pure props in, JSX out.
 // =============================================================================
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { r1 } from "../estimate/mathUtils";
 import { cx, BLUE, GOLD, WHITE, NAVY } from "../styleTokens";
 import type { EffectiveLayout } from "../useLayoutMode";
@@ -188,6 +188,15 @@ export const Stat = ({ value, label }: { value: string | number; label: string }
   </div>
 );
 
+/** Arbitrary-length stats grid (unlike StatsRow's fixed 3) -- for contexts
+ * needing more than area/panels/type at once, e.g. a project-wide overview
+ * (area, panels, wall count, kit count, waste%, warnings). */
+export const StatsGrid = ({ stats }: { stats: { value: string | number; label: string }[] }) => (
+  <div className="grid grid-cols-2 sm:grid-cols-3 items-end gap-1.5">
+    {stats.map((s, i) => <Stat key={i} value={s.value} label={s.label} />)}
+  </div>
+);
+
 export const Card = ({ title, icon, children }: { title: string; icon: React.ReactNode; children: React.ReactNode }) => (
   <div className={`mt-3 ${cx.card}`}>
     <div className={cx.cardTitle} style={{ color: NAVY }}>
@@ -255,8 +264,9 @@ export const WarningsList = ({ warnings }: { warnings?: string[] | null }) => {
 // layout mode. Phone reproduces today's stacked order exactly (byte-for-byte
 // equivalent JSX, just relocated into variables); web arranges it as a sticky
 // sidebar + wider main column.
-export const CalculatorShell = ({ sidebar, main, footer }: {
+export const CalculatorShell = ({ sidebar, main, footer, sidebarWidth = 400 }: {
   sidebar: React.ReactNode; main: React.ReactNode; footer: React.ReactNode;
+  sidebarWidth?: number; // narrower once a sidebar is nav-only (see InternalCalculator's Estimate Structure nav) -- default keeps every existing caller byte-identical
 }) => (
   // No space-y-* here: every child component already carries its own correct
   // top margin (mt-3/mt-5/etc., matching phone layout exactly). space-y-*'s
@@ -264,53 +274,9 @@ export const CalculatorShell = ({ sidebar, main, footer }: {
   // specificity than a plain utility class like mt-5, so it was silently
   // overriding every child's real margin down to a flat 4px -- the actual
   // cause of web layout's spacing looking compressed/inconsistent vs phone.
-  <div className="grid grid-cols-[400px_1fr] items-start gap-8">
+  <div className="grid items-start gap-8" style={{ gridTemplateColumns: `${sidebarWidth}px 1fr` }}>
     <aside className="sticky top-5">{sidebar}</aside>
     <div className="min-w-0">{main}{footer}</div>
   </div>
 );
 
-// --- SectionNav ---------------------------------------------------------------
-// Sticky jump-nav for project mode's long main column (Wall list -> System
-// breakdown -> Connection breakdown -> Easy to order): click a pill to
-// smooth-scroll to that section's id, current pill highlights via
-// IntersectionObserver as the matching section crosses a band near the top
-// of the viewport. Purely a navigation aid -- doesn't read or affect any
-// estimate state.
-export const SectionNav = ({ sections }: { sections: { id: string; label: string }[] }) => {
-  const [activeId, setActiveId] = useState(sections[0]?.id);
-
-  useEffect(() => {
-    const els = sections
-      .map(s => document.getElementById(s.id))
-      .filter((el): el is HTMLElement => el !== null);
-    if (els.length === 0) return;
-    const observer = new IntersectionObserver(
-      entries => {
-        const visible = entries.filter(e => e.isIntersecting);
-        if (visible.length > 0) setActiveId(visible[0].target.id);
-      },
-      { rootMargin: "-15% 0px -70% 0px" }
-    );
-    els.forEach(el => observer.observe(el));
-    return () => observer.disconnect();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sections.map(s => s.id).join(",")]);
-
-  if (sections.length === 0) return null;
-  return (
-    <div className="sticky top-5 z-10 mt-4 -mx-1 flex gap-1.5 overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-white/90 dark:bg-slate-800/90 p-1.5 shadow-sm backdrop-blur">
-      {sections.map(s => {
-        const on = s.id === activeId;
-        return (
-          <button key={s.id}
-            onClick={() => document.getElementById(s.id)?.scrollIntoView({ behavior: "smooth", block: "start" })}
-            className="shrink-0 rounded-lg px-3 py-2 text-xs font-bold uppercase tracking-wide whitespace-nowrap transition-all"
-            style={on ? { background: BLUE, color: WHITE } : { color: "#94a3b8" }}>
-            {s.label}
-          </button>
-        );
-      })}
-    </div>
-  );
-};

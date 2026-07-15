@@ -1,0 +1,130 @@
+// =============================================================================
+// Estimate Results card
+// =============================================================================
+// Replaces project mode's old SectionNav + four stacked full-width sections
+// (Wall list / System breakdown / Connection breakdown / Easy to order) with
+// one card, tabbed Overview / Selected Wall / Connections / Order --
+// secondary navigation inside this card, not top-level buttons, per the
+// user's spec. "System breakdown" (every wall's own card, stacked) isn't
+// ported here -- it's superseded by the Estimate Structure nav + Selected
+// Wall tab (click a wall in the nav, read its own breakdown).
+// =============================================================================
+import { useState } from "react";
+import { Frame } from "lucide-react";
+import { NAVY } from "../styleTokens";
+import { r1 } from "../estimate/mathUtils";
+import { aggregate } from "../estimate/aggregate";
+import type { CombinedEstimate } from "../estimate/calculateCombinedEstimate";
+import type { CornerPairResult, ShaftPairResult } from "../estimate/cornerShaftKits";
+import type { KitEntry } from "../estimate/synthesizeKits";
+import type { ComputeOut, Wall, WallResult } from "../estimate/wall.types";
+import type { EffectiveLayout } from "../useLayoutMode";
+import { Card, CardGrid, Row, StatsGrid, WarningsList } from "../ui/primitives";
+import { Button } from "../ui/button";
+import { Tabs, TabPanel } from "../ui/tabs";
+import { WallsSummaryTable } from "../ui/wallsCard";
+import { ConnectionBreakdownCard, PanelScheduleCard } from "../ui/scheduleCards";
+import { CornerKitCard, ShaftJunctionCard } from "./kitCards";
+import { WallEstimateCards } from "./mainSections";
+import { OrderContent } from "./orderContent";
+
+function collectProjectWarnings(results: WallResult[], kits: KitEntry[], combinedEstimate: CombinedEstimate): string[] {
+  return [
+    ...results.flatMap(r => r.out.warnings ?? []),
+    ...kits.flatMap(k => k.result.warnings),
+    ...combinedEstimate.connectionWarnings,
+  ];
+}
+
+export const EstimateResultsCard = ({
+  layoutMode, results, walls, kits, activeId, onSelectWall, warnById, toDisp, dimUnit,
+  projChosenAgg, combinedEstimate,
+  active, out, orient, cornerPair, shaftPair, ScheduleComp,
+  onReviewOrder, orderLineItemCount,
+}: {
+  layoutMode: EffectiveLayout;
+  results: WallResult[]; walls: Wall[]; kits: KitEntry[];
+  activeId: number; onSelectWall: (id: number) => void;
+  warnById: Record<number, boolean>; toDisp: (m: string) => string; dimUnit: string;
+  projChosenAgg: ReturnType<typeof aggregate>; combinedEstimate: CombinedEstimate;
+  active: Wall; out: ComputeOut; orient: "vertical" | "horizontal";
+  cornerPair: CornerPairResult | null; shaftPair: ShaftPairResult | null;
+  ScheduleComp: typeof PanelScheduleCard;
+  // Opens the Order Review drawer (src/internalCalculator/orderReviewDrawer.tsx)
+  // -- rendered next to the tab pills so it's reachable from every tab, not
+  // just the Order one.
+  onReviewOrder: () => void; orderLineItemCount: number;
+}) => {
+  const [activeTab, setActiveTab] = useState("overview");
+  const projectWarnings = collectProjectWarnings(results, kits, combinedEstimate);
+
+  return (
+    <div className="mt-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <Tabs
+          tabs={[
+            { id: "overview", label: "Overview" },
+            { id: "wall", label: "Selected Wall" },
+            { id: "connections", label: "Connections" },
+            { id: "order", label: "Order" },
+          ]}
+          activeId={activeTab}
+          onChange={setActiveTab}
+        />
+        <Button variant="secondary" onClick={onReviewOrder}>
+          Review order · {orderLineItemCount} item{orderLineItemCount === 1 ? "" : "s"}
+        </Button>
+      </div>
+
+      <TabPanel id="overview" activeId={activeTab}>
+        <StatsGrid stats={[
+          { value: `${projChosenAgg.totalArea} m2`, label: "Total area" },
+          { value: projChosenAgg.totalPanels, label: "Total panels" },
+          { value: results.length, label: "Walls" },
+          { value: kits.length, label: "Connection kits" },
+          { value: `${r1(projChosenAgg.wastePct)}%`, label: "Est. waste" },
+          { value: projectWarnings.length, label: "Warnings" },
+        ]} />
+        <div className="mt-3">
+          <WallsSummaryTable results={results} activeId={activeId} setActiveId={onSelectWall} warnById={warnById} toDisp={toDisp} dimUnit={dimUnit} />
+        </div>
+        <WarningsList warnings={projectWarnings} />
+      </TabPanel>
+
+      <TabPanel id="wall" activeId={activeTab}>
+        <p className="mb-3 text-sm font-semibold" style={{ color: NAVY }}>Selected wall: {active.name}</p>
+        {out.empty ? (
+          <Row k="Enter width and height to estimate this wall" v="--" dim />
+        ) : (
+          <WallEstimateCards
+            active={active} out={out} orient={orient} layoutMode={layoutMode}
+            ScheduleComp={ScheduleComp} walls={walls} cornerPair={cornerPair} shaftPair={shaftPair}
+          />
+        )}
+      </TabPanel>
+
+      <TabPanel id="connections" activeId={activeTab}>
+        <ConnectionBreakdownCard connections={combinedEstimate.connections} />
+        <div className="mt-3">
+          {kits.length === 0 ? (
+            <Card title="Corner/shaft kits" icon={<Frame size={14} />}>
+              <Row k="No corner/shaft kits linked yet" v="--" dim />
+            </Card>
+          ) : (
+            <CardGrid layoutMode={layoutMode} minWidth={360}>
+              {kits.map(k => (
+                k.kind === "corner"
+                  ? <CornerKitCard key={k.id} kit={k.result as CornerPairResult} partnerName={k.wallBName} />
+                  : <ShaftJunctionCard key={k.id} kit={k.result as ShaftPairResult} partnerName={k.wallBName} />
+              ))}
+            </CardGrid>
+          )}
+        </div>
+      </TabPanel>
+
+      <TabPanel id="order" activeId={activeTab}>
+        <OrderContent layoutMode={layoutMode} projChosenAgg={projChosenAgg} combinedEstimate={combinedEstimate} results={results} />
+      </TabPanel>
+    </div>
+  );
+};
