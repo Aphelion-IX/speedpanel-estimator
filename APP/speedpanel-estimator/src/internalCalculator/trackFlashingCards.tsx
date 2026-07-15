@@ -75,8 +75,12 @@ export const TrackFlashingCardInt = ({ out, headFlashActive, wall }: { out: Comp
 };
 
 // --- TrackFlashingCardIntProj -------------------------------------------------
-export const TrackFlashingCardIntProj = ({ agg, connectionLM = 0, connectionPieces = 0 }: {
-  agg: ReturnType<typeof aggregate>; connectionLM?: number; connectionPieces?: number;
+// Per-wall C/J-track + head flashing + shaft vertical track only -- Corner/
+// Shaft kit materials and junction-link "extra track" live in
+// ConnectionMaterialsCardInt below (split for the Order tab's five-bucket
+// grouping: Tracks and flashings vs. Connection materials).
+export const TrackFlashingCardIntProj = ({ agg }: {
+  agg: ReturnType<typeof aggregate>;
 }) => (
   <Card title="Track and flashing" icon={<Frame size={14} />}>
     {agg && agg.cTracks.map((c: CTrackAggEntry, i: number) => (
@@ -106,8 +110,20 @@ export const TrackFlashingCardIntProj = ({ agg, connectionLM = 0, connectionPiec
     {agg && agg.vertTrackLM > 0 && (
       <LMLineItem
         label="Shaft vertical track (both edges, all shaft walls)"
-        pieces={agg.vertTrackPieces} lm={agg.vertTrackLM} stockLabel={`stocked @ ${r1(HORIZ_CTRACK_STOCK)} m`} />
+        pieces={agg.vertTrackPieces} lm={agg.vertTrackLM} stockLabel={`stocked @ ${r1(HORIZ_CTRACK_STOCK)} m`} bordered={false} />
     )}
+    {(!agg || (agg.cTracks.length === 0 && agg.jLM === 0 && agg.flashLM === 0 && agg.vertTrackLM === 0)) && <Row k="No track yet" v="--" dim />}
+  </Card>
+);
+
+// --- ConnectionMaterialsCardInt ------------------------------------------------
+// Corner/Shaft kit materials (posts, back-to-back junctions, protection
+// strips) plus junction-link "extra track" -- everything a linked pair of
+// walls needs that a single wall's own track/flashing doesn't cover.
+export const ConnectionMaterialsCardInt = ({ agg, connectionLM = 0, connectionPieces = 0 }: {
+  agg: ReturnType<typeof aggregate>; connectionLM?: number; connectionPieces?: number;
+}) => (
+  <Card title="Connection materials" icon={<Frame size={14} />}>
     {agg && agg.cornerPostLM > 0 && (
       <LMLineItem
         label="Corner posts (linked pairs)"
@@ -128,6 +144,6 @@ export const TrackFlashingCardIntProj = ({ agg, connectionLM = 0, connectionPiec
         label="Extra C/J track (combined wall junctions)"
         pieces={connectionPieces} lm={connectionLM} stockLabel={`stocked @ ${r1(HORIZ_CTRACK_STOCK)} m`} bordered={false} />
     )}
-    {(!agg || (agg.cTracks.length === 0 && agg.jLM === 0 && agg.flashLM === 0 && agg.vertTrackLM === 0 && agg.cornerPostLM === 0 && agg.junctionLM === 0)) && connectionPieces === 0 && <Row k="No track yet" v="--" dim />}
+    {(!agg || (agg.cornerPostLM === 0 && agg.junctionLM === 0 && agg.stripLM === 0)) && connectionPieces === 0 && <Row k="No connection materials yet" v="--" dim />}
   </Card>
 );

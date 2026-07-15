@@ -29,19 +29,20 @@ import type { Wall } from "../estimate/wall.types";
 import type { EffectiveLayout } from "../useLayoutMode";
 import {
   SectionLabel, WarningsList, EstimateModeSelector, UnitToggle, CalculatorShell,
-  CollapsibleSection, SectionNav, StatsGrid,
+  CollapsibleSection, StatsGrid,
 } from "../ui/primitives";
 import { LockedDataInt, LockedDataFooter } from "../ui/lockedData";
 import { PanelLengthSection } from "../ui/lengthExplorer";
-import { WallsCard, WallsSummaryTable } from "../ui/wallsCard";
+import { WallsCard } from "../ui/wallsCard";
 import { EstimateStructureNav } from "./estimateStructureNav";
 import { KitWorkspace } from "./kitWorkspace";
 import {
   ProfileSection, DimensionInputs, SpanTable, EdgeRestraintSelector, ProjectSeparator,
 } from "../ui/wallConfig";
 import type { FinishKey, CornersField } from "../ui/wallConfig";
-import { PanelScheduleCard, PanelScheduleTable, ConnectionBreakdownCard } from "../ui/scheduleCards";
-import { SingleWallEstimateSection, SystemBreakdownSection, EasyToOrderSection } from "./mainSections";
+import { PanelScheduleCard, PanelScheduleTable } from "../ui/scheduleCards";
+import { SingleWallEstimateSection } from "./mainSections";
+import { EstimateResultsCard } from "./estimateResultsCard";
 import { buildInternalReportData } from "../export/buildInternalReportData";
 import { exportEstimateToExcel } from "../export/exportEstimateToExcel";
 
@@ -216,42 +217,18 @@ export function InternalCalculator({ store, orient, dimUnit, setDimUnit, systemS
         />
       )}
 
-      {/* Combined estimate: System Breakdown -> Connection Breakdown -> Easy to Order */}
+      {/* Estimate Results: Overview / Selected Wall / Connections / Order tabs */}
       {project && (
         <>
           <ProjectSeparator />
-          <SectionNav sections={[
-            ...(layoutMode === "web" ? [{ id: "wall-list", label: "Wall list" }] : []),
-            { id: "system-breakdown", label: "System breakdown" },
-            { id: "connection-breakdown", label: "Connection breakdown" },
-            { id: "easy-to-order", label: "Easy to order" },
-          ]} />
-
-          {layoutMode === "web" && (
-            <div id="wall-list">
-              <SectionLabel icon={<Frame size={13} />}>Wall list</SectionLabel>
-              <WallsSummaryTable results={results} activeId={activeId} setActiveId={setActiveId} warnById={warnById} toDisp={toDisp} dimUnit={dimUnit} />
-            </div>
-          )}
-
-          {/* System Breakdown: shows HOW the estimate was built, wall by wall */}
-          <div id="system-breakdown">
-            <SystemBreakdownSection layoutMode={layoutMode} results={results} walls={walls} ScheduleComp={ScheduleComp} />
-          </div>
-
-          {/* Connection Breakdown: shows WHY extra materials were added */}
-          <div id="connection-breakdown">
-            <SectionLabel icon={<Frame size={13} />}>Connection breakdown</SectionLabel>
-            <ConnectionBreakdownCard connections={combinedEstimate.connections} />
-          </div>
-
-          {/* Easy to Order: shows WHAT needs to be ordered -- one combined material list */}
-          <div id="easy-to-order">
-            <EasyToOrderSection
-              layoutMode={layoutMode} projChosenAgg={projChosenAgg} panelType={active.type}
-              combinedEstimate={combinedEstimate} results={results}
-            />
-          </div>
+          <EstimateResultsCard
+            layoutMode={layoutMode} results={results} walls={walls} kits={kits}
+            activeId={activeId} onSelectWall={wallId => handleSelectNavItem({ type: "wall", wallId })}
+            warnById={warnById} toDisp={toDisp} dimUnit={dimUnit}
+            projChosenAgg={projChosenAgg} combinedEstimate={combinedEstimate}
+            active={active} out={out} orient={orient} cornerPair={cornerPair} shaftPair={shaftPair}
+            ScheduleComp={ScheduleComp}
+          />
         </>
       )}
     </>
