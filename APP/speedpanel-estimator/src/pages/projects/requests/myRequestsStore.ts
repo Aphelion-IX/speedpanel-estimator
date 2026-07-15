@@ -40,6 +40,15 @@ export type MyRequestItem =
 
 interface MyRequestsState { items: MyRequestItem[]; loading: boolean; error: string | null; }
 
+// "Open" for the header bell's badge count -- unresolved items only, not
+// the full history the page itself shows. Distinct per source since each
+// has its own status vocabulary (see this file's header comment).
+export function isOpenRequest(item: MyRequestItem): boolean {
+  if (item.source === "review") return item.status === "pending" || item.status === "changes_requested";
+  if (item.source === "delivery") return item.delivery.approval_status === "pending" || item.delivery.approval_status === "date_proposed";
+  return item.request.status === "new" || item.request.status === "contacted";
+}
+
 export function useMyRequests(user: User | null, projects: ProjectRow[]) {
   const [state, setState] = useState<MyRequestsState>(() =>
     !supabase || !user ? { items: [], loading: false, error: !supabase ? NOT_CONFIGURED : null }

@@ -6,6 +6,7 @@
 // =============================================================================
 import { Smartphone, Monitor, Sun, Moon, Bell } from "lucide-react";
 import { IconButton } from "../ui/primitives";
+import { GOLD } from "../styleTokens";
 import type { EffectiveLayout } from "../useLayoutMode";
 import type { EffectiveTheme } from "../useThemeMode";
 
@@ -21,10 +22,21 @@ export const ThemeToggle = ({ effective, onToggle }: { effective: EffectiveTheme
   </IconButton>
 );
 
-// Decorative only -- no notifications backend exists yet, so there's no
-// real unread count to badge and nothing to open on click.
-export const NotificationBell = () => (
-  <IconButton title="Notifications">
-    <Bell size={16} />
-  </IconButton>
+// Opens My Requests; the badge counts this customer's OPEN requests
+// (pending reviews, pending/proposed deliveries, new/contacted quote
+// requests) -- see myRequestsStore.ts's isOpenRequest(). Not shown at all
+// for a count of 0, same "safe to mount unconditionally, renders nothing
+// extra when there's nothing to show" posture as WarningsList/
+// NextActionsCallout elsewhere in this app.
+export const NotificationBell = ({ count, onClick }: { count: number; onClick: () => void }) => (
+  <span className="relative inline-block">
+    <IconButton onClick={onClick} title={count > 0 ? `${count} open request${count !== 1 ? "s" : ""}` : "My Requests"}>
+      <Bell size={16} />
+    </IconButton>
+    {count > 0 && (
+      <span className="absolute -top-1 -right-1 grid h-4 min-w-[16px] place-items-center rounded-full px-1 text-[10px] font-bold text-white" style={{ background: GOLD }}>
+        {count > 9 ? "9+" : count}
+      </span>
+    )}
+  </span>
 );

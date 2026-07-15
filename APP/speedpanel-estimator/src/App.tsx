@@ -25,12 +25,13 @@ import { ProjectsRouter } from "./pages/projects/ProjectsRouter";
 import { LandingPage } from "./pages/home/LandingPage";
 import { OverviewDashboardPage } from "./pages/home/OverviewDashboardPage";
 import { saveProjectSnapshot } from "./pages/projects/saveProjectSnapshot";
-import { insertProject, seedSnapshotForSystem } from "./pages/projects/projectsStore";
+import { insertProject, seedSnapshotForSystem, useProjects } from "./pages/projects/projectsStore";
 import { SaveDraftBanner } from "./pages/projects/SaveDraftBanner";
 import type { ProjectRow, SavedProjectData } from "./pages/projects/projectTypes";
 import { ProformaInvoicePage } from "./pages/projects/orders/ProformaInvoicePage";
 import { CompanyRouter } from "./pages/company/CompanyRouter";
 import { MyRequestsPage } from "./pages/projects/requests/MyRequestsPage";
+import { useMyRequests, isOpenRequest } from "./pages/projects/requests/myRequestsStore";
 import { PendingInvitationsBanner } from "./pages/company/PendingInvitationsBanner";
 import type { WallSystemOption } from "./systemSelector/systemOptions";
 
@@ -58,6 +59,18 @@ export default function SpeedpanelEstimator() {
   const auth = useAuth();
   const company = useCompanyMemberships(auth);
   const { isInternalStaff, staffRole } = useMyInternalRole(auth.user?.id ?? null);
+
+  // Header bell's badge count -- customer-only (staff have no personal
+  // request history), so `user` is passed as null for a staff account,
+  // which both hooks' own `if (!user) return;` guards already turn into a
+  // zero-network-call no-op, same pattern NextActionsCallout relies on.
+  // Runs on every route (the header renders everywhere), independent of
+  // and in addition to OverviewDashboardPage's own NextActionsCallout
+  // fetch on the Home tab -- an accepted, explicit double-fetch tradeoff,
+  // this app has no query-caching layer to share results through.
+  const { projects: myProjects } = useProjects(isInternalStaff ? null : auth.user, company.activeCompanyId);
+  const { items: myRequestItems } = useMyRequests(isInternalStaff ? null : auth.user, myProjects);
+  const openRequestsCount = isInternalStaff ? 0 : myRequestItems.filter(isOpenRequest).length;
 
   // Which saved (Supabase) project, if any, is currently open in the
   // Estimator tab -- see wallStore.ts's persistLocally/loadFrom/exportSnapshot.
@@ -201,7 +214,7 @@ export default function SpeedpanelEstimator() {
             activeTab={route.tab}
             onTabChange={switchTab}
             right={<>
-              <NotificationBell />
+              <NotificationBell count={openRequestsCount} onClick={() => navigate({ tab: "myRequests" })} />
               <CompanySwitcher company={company} />
               <ThemeToggle effective={themeMode} onToggle={toggleTheme} />
               <LayoutModeToggle effective={layoutMode} onToggle={toggleLayout} />
