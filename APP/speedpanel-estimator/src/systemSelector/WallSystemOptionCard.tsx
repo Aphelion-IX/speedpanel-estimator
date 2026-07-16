@@ -36,7 +36,7 @@ export const WallSystemOptionCard = ({ option, selected, onCreateProject }: {
   };
 
   return (
-    <div className={cx.card + " h-full flex flex-col gap-3"} style={selected ? { borderColor: BLUE, borderWidth: 2 } : undefined}>
+    <div className={"mt-3 " + cx.card + " h-full flex flex-col gap-3"} style={selected ? { borderColor: BLUE, borderWidth: 2 } : undefined}>
       <div className="relative">
         <div className="h-20 rounded-lg grid place-items-center border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/40">
           <Icon size={28} style={{ color: BLUE }} />

@@ -24,8 +24,8 @@ export const HowToChooseSidebar = () => (
           { n: 3, title: "Enter Measurements", sub: "Complete the form to calculate your estimate", current: false },
         ].map(step => (
           <div key={step.n} className="flex items-start gap-3">
-            <div className="grid h-6 w-6 shrink-0 place-items-center rounded-full text-xs font-bold"
-              style={step.current ? { background: BLUE, color: WHITE } : { color: MUTED, border: "1px solid #cbd5e1" }}>
+            <div className={`grid h-6 w-6 shrink-0 place-items-center rounded-full text-xs font-bold ${step.current ? "" : "border border-slate-300 dark:border-slate-600"}`}
+              style={step.current ? { background: BLUE, color: WHITE } : { color: MUTED }}>
               {step.n}
             </div>
             <div>
