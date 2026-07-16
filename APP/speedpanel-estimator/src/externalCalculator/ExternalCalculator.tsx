@@ -21,6 +21,8 @@ import { useWallResults } from "../wallStore";
 import type { WallStore } from "../wallStore";
 import { computeExternal } from "../estimate/computeWall";
 import { buildExtProjAgg } from "../estimate/aggregate";
+import { r1 } from "../estimate/mathUtils";
+import { stockLengthLabel } from "../estimate/computeUtils";
 import { useCombinedEstimateCalc } from "../estimate/useCombinedEstimateCalc";
 import { HEAD_FLASH_LABEL, HEAD_FLASH_SUBLABEL, EXT_STOCK, EXT_STOCKED_COLOURS } from "../data";
 import type { Wall } from "../estimate/wall.types";
@@ -42,6 +44,7 @@ import { WallPreviewSection } from "../ui/wallPreview";
 import { PanelScheduleCard, PanelScheduleTable } from "../ui/scheduleCards";
 import { PanelColourSection } from "./panelColourSection";
 import { SingleWallMaterialsSection } from "./mainSections";
+import { WallWorkspaceTabs } from "./wallWorkspaceTabs";
 import { EstimateResultsCard } from "./estimateResultsCard";
 import { OrderReviewDrawer } from "./orderReviewDrawer";
 import { buildExternalReportData } from "../export/buildExternalReportData";
@@ -85,6 +88,8 @@ export function ExternalCalculator({ store, orient, dimUnit, setDimUnit, systemS
     { value: out.empty ? "--" : (out.result?.panels ?? "--"), label: "Panels" },
     { value: colourLabel, label: "Colour" },
     { value: active.orient === "vertical" ? "Vertical" : "Horizontal", label: "Config" },
+    { value: out.empty ? "--" : stockLengthLabel(out.result?.groups), label: "Length" },
+    { value: out.empty ? "--" : `${r1(out.result?.wastePct ?? 0)}%`, label: "Waste" },
   ];
   const stickyProjectStats = [
     { value: `${projAgg.totalArea} m2`, label: "Project area" },
@@ -96,6 +101,7 @@ export function ExternalCalculator({ store, orient, dimUnit, setDimUnit, systemS
     <EstimateStructureNav
       walls={walls} results={results} activeId={activeId} onSelectWall={setActiveId}
       warnById={warnById} addBlankWall={addBlankWall}
+      layoutMode={layoutMode}
     />
   );
 
@@ -141,7 +147,11 @@ export function ExternalCalculator({ store, orient, dimUnit, setDimUnit, systemS
               </div>
             </div>
             <DimensionInputs active={active} toDisp={toDisp} updDim={updDim} out={out} orient={orient} />
-            <WallPreviewSection active={active} walls={walls} out={out} dimUnit={dimUnit} toDisp={toDisp} />
+            {/* Pulled out into WallWorkspaceTabs's Preview tab on phone, but
+                only in single-wall mode -- project mode's own tabbed
+                EstimateResultsCard has no preview tab of its own, so this
+                stays inline there rather than disappearing entirely. */}
+            {(layoutMode !== "phone" || project) && <WallPreviewSection active={active} walls={walls} out={out} dimUnit={dimUnit} toDisp={toDisp} />}
             <SpanTable orient={orient} type={78} />
           </div>
         </div>
@@ -157,7 +167,19 @@ export function ExternalCalculator({ store, orient, dimUnit, setDimUnit, systemS
         />
       </CollapsibleSection>
 
-      <WarningsList warnings={!out.empty ? out.warnings : null} />
+      {/* WallWorkspaceTabs only replaces this in single-wall mode -- project
+          mode's EstimateResultsCard (below, in mainNode) already has its own
+          Selected Wall/Connections/Order tabs covering the same per-wall
+          content, so showing both would stack two redundant tab strips on
+          one phone screen. */}
+      {layoutMode === "phone" && !project ? (
+        <WallWorkspaceTabs
+          active={active} out={out} orient={orient} layoutMode={layoutMode}
+          walls={walls} ScheduleComp={ScheduleComp} dimUnit={dimUnit} toDisp={toDisp}
+        />
+      ) : (
+        <WarningsList warnings={!out.empty ? out.warnings : null} />
+      )}
     </>
   );
 
@@ -165,7 +187,8 @@ export function ExternalCalculator({ store, orient, dimUnit, setDimUnit, systemS
     <>
       {workspaceNode}
 
-      {!project && (
+      {/* Superseded by WallWorkspaceTabs's Schedule tab on phone -- web only. */}
+      {!project && layoutMode !== "phone" && (
         <SingleWallMaterialsSection
           active={active} out={out} orient={orient} layoutMode={layoutMode}
           showTakeoff={showTakeoff} setShowTakeoff={setShowTakeoff} ScheduleComp={ScheduleComp}
@@ -206,8 +229,11 @@ export function ExternalCalculator({ store, orient, dimUnit, setDimUnit, systemS
       onExport={handleExport} exportDisabled={!hasExportData}
     />
   );
-  // Mobile-only sticky summary bar -- project mode only, mirrors Internal's.
-  const stickyBarNode = project && layoutMode === "phone" && (
+  // Mobile-only sticky summary bar -- shown regardless of single-wall/project
+  // mode (projAgg/orderDrawerNode are already computed unconditionally, so
+  // this degrades correctly to that one wall's own totals outside project
+  // mode). Mirrors Internal's.
+  const stickyBarNode = layoutMode === "phone" && (
     <StickyBar
       view="project" wallStats={[]} projectStats={stickyProjectStats}
       onReviewOrder={() => setOrderDrawerOpen(true)} lineItemCount={orderLineItemCount}

@@ -23,6 +23,7 @@ import { useCombinedEstimateCalc } from "../estimate/useCombinedEstimateCalc";
 import { computeCornerPair, computeShaftPair } from "../estimate/cornerShaftKits";
 import { synthesizeKits, kitLabel } from "../estimate/synthesizeKits";
 import { r1 } from "../estimate/mathUtils";
+import { stockLengthLabel } from "../estimate/computeUtils";
 import type { SelectedNavItem } from "../estimate/navSelection";
 import { HEAD_FLASH_LABEL, HEAD_FLASH_SUBLABEL, STOCK_LENGTHS, INT_CONFIG } from "../data";
 import type { Wall } from "../estimate/wall.types";
@@ -36,6 +37,8 @@ import { PanelLengthSection } from "../ui/lengthExplorer";
 import { WallsCard } from "../ui/wallsCard";
 import { EstimateStructureNav } from "./estimateStructureNav";
 import { KitWorkspace } from "./kitWorkspace";
+import { KitWorkspacePhone } from "./kitWorkspacePhone";
+import { WallWorkspaceTabs } from "./wallWorkspaceTabs";
 import {
   ProfileSection, DimensionInputs, SpanTable, EdgeRestraintSelector, ProjectSeparator,
 } from "../ui/wallConfig";
@@ -132,6 +135,8 @@ export function InternalCalculator({ store, orient, dimUnit, setDimUnit, systemS
         { value: out.empty ? "--" : (out.chosen?.panels ?? out.result?.panels ?? "--"), label: "Panels" },
         { value: `P${active.type}`, label: "Panel type" },
         { value: active.orient === "vertical" ? "Vertical" : "Horizontal", label: "Config" },
+        { value: out.empty ? "--" : stockLengthLabel(out.chosen?.groups), label: "Length" },
+        { value: out.empty ? "--" : `${r1(out.chosen?.wastePct ?? 0)}%`, label: "Waste" },
       ];
 
   const sidebarNode = (
@@ -140,6 +145,7 @@ export function InternalCalculator({ store, orient, dimUnit, setDimUnit, systemS
       selected={selectedNavItem} onSelect={handleSelectNavItem}
       warnById={warnById}
       addBlankWall={addBlankWall} addCornerWall={addCornerWall} addShaftWall={addShaftWall}
+      layoutMode={layoutMode}
     />
   );
 
@@ -152,7 +158,9 @@ export function InternalCalculator({ store, orient, dimUnit, setDimUnit, systemS
 
       <SectionLabel icon={<Settings size={13} />}>{`Calculator workspace — ${workspaceTitle}`}</SectionLabel>
       {selectedKit ? (
-        <KitWorkspace kit={selectedKit} onSelect={handleSelectNavItem} />
+        layoutMode === "phone"
+          ? <KitWorkspacePhone kit={selectedKit} onSelect={handleSelectNavItem} />
+          : <KitWorkspace kit={selectedKit} onSelect={handleSelectNavItem} />
       ) : (
         <>
           <WallsCard
@@ -177,7 +185,11 @@ export function InternalCalculator({ store, orient, dimUnit, setDimUnit, systemS
                   </div>
                 </div>
                 <DimensionInputs active={active} toDisp={toDisp} updDim={updDim} out={out} orient={orient} />
-                <WallPreviewSection active={active} walls={walls} out={out} dimUnit={dimUnit} toDisp={toDisp} />
+                {/* Pulled out into WallWorkspaceTabs's Preview tab on phone, but
+                    only in single-wall mode -- project mode's own tabbed
+                    EstimateResultsCard has no preview tab of its own, so this
+                    stays inline there rather than disappearing entirely. */}
+                {(layoutMode !== "phone" || project) && <WallPreviewSection active={active} walls={walls} out={out} dimUnit={dimUnit} toDisp={toDisp} />}
                 <SpanTable orient={orient} type={active.type} wallSystem={active.wallSystem} />
               </div>
               <PanelLengthSection
@@ -210,7 +222,21 @@ export function InternalCalculator({ store, orient, dimUnit, setDimUnit, systemS
             />
           </CollapsibleSection>
 
-          <WarningsList warnings={!out.empty ? out.warnings : null} />
+          {/* WallWorkspaceTabs only replaces this in single-wall mode -- project
+              mode's EstimateResultsCard (below, in mainNode) already has its
+              own Selected Wall/Connections/Order tabs covering the same
+              per-wall content, so showing both would stack two redundant tab
+              strips (and two differently-scoped "Connections" tabs) on one
+              phone screen. */}
+          {layoutMode === "phone" && !project ? (
+            <WallWorkspaceTabs
+              active={active} out={out} orient={orient} layoutMode={layoutMode}
+              walls={walls} cornerPair={cornerPair} shaftPair={shaftPair} ScheduleComp={ScheduleComp}
+              dimUnit={dimUnit} toDisp={toDisp}
+            />
+          ) : (
+            <WarningsList warnings={!out.empty ? out.warnings : null} />
+          )}
         </>
       )}
     </>
@@ -220,8 +246,9 @@ export function InternalCalculator({ store, orient, dimUnit, setDimUnit, systemS
     <>
       {workspaceNode}
 
-      {/* Single wall estimate */}
-      {!project && (
+      {/* Single wall estimate -- superseded by WallWorkspaceTabs's Schedule
+          tab on phone (see workspaceNode above), so only rendered on web. */}
+      {!project && layoutMode !== "phone" && (
         <SingleWallEstimateSection
           active={active} out={out} orient={orient} layoutMode={layoutMode}
           showWall={showWall} setShowWall={setShowWall} ScheduleComp={ScheduleComp}
@@ -265,10 +292,11 @@ export function InternalCalculator({ store, orient, dimUnit, setDimUnit, systemS
       onExport={handleExport} exportDisabled={!hasExportData}
     />
   );
-  // Mobile-only sticky summary bar -- project mode only, since Review Order
-  // opens the project-wide order the drawer above shows; single-wall mode's
-  // existing footer Export button is untouched.
-  const stickyBarNode = project && layoutMode === "phone" && (
+  // Mobile-only sticky summary bar -- shown regardless of single-wall/project
+  // mode (projChosenAgg/orderDrawerNode are already computed unconditionally,
+  // so this degrades correctly to that one wall's own totals outside project
+  // mode); single-wall mode's existing footer Export button is untouched.
+  const stickyBarNode = layoutMode === "phone" && (
     <StickyBar
       view="project" wallStats={[]} projectStats={stickyProjectStats}
       onReviewOrder={() => setOrderDrawerOpen(true)} lineItemCount={orderLineItemCount}

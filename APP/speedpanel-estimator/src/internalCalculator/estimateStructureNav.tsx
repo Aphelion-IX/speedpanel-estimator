@@ -13,6 +13,26 @@ import { cx, BLUE, GOLD, NAVY, MUTED } from "../styleTokens";
 import type { Wall, WallResult } from "../estimate/wall.types";
 import { kitLabel, type KitEntry } from "../estimate/synthesizeKits";
 import type { SelectedNavItem } from "../estimate/navSelection";
+import type { EffectiveLayout } from "../useLayoutMode";
+import { ItemPillScroller, type PillItem } from "../ui/itemPillScroller";
+
+// String <-> SelectedNavItem encoding for the phone pill scroller, which
+// only knows about opaque string ids (see itemPillScroller.tsx's header).
+const wallPillId = (id: number) => `wall-${id}`;
+const kitPillId = (k: KitEntry) => `kit-${k.kind}-${k.wallAId}-${k.wallBId}`;
+const decodePillId = (id: string, kits: KitEntry[]): SelectedNavItem => {
+  if (id.startsWith("wall-")) return { type: "wall", wallId: Number(id.slice(5)) };
+  const kit = kits.find(k => kitPillId(k) === id);
+  return kit ? { type: "kit", kind: kit.kind, wallAId: kit.wallAId, wallBId: kit.wallBId } : { type: "wall", wallId: -1 };
+};
+
+const AddPill = ({ label, onClick }: { label: string; onClick: () => void }) => (
+  <button onClick={onClick}
+    className="flex min-w-[100px] shrink-0 snap-start items-center justify-center gap-1.5 rounded-xl border-2 border-dashed px-3 py-3 text-sm font-bold active:scale-95 transition-all bg-white dark:bg-slate-800"
+    style={{ borderColor: BLUE, color: BLUE }}>
+    <Plus size={14} />{label}
+  </button>
+);
 
 const NavRow = ({ on, warn, title, subtitle, onClick }: {
   on: boolean; warn: boolean; title: string; subtitle: string; onClick: () => void;
@@ -28,13 +48,46 @@ const NavRow = ({ on, warn, title, subtitle, onClick }: {
 
 export const EstimateStructureNav = ({
   walls, results, kits, selected, onSelect, warnById,
-  addBlankWall, addCornerWall, addShaftWall,
+  addBlankWall, addCornerWall, addShaftWall, layoutMode,
 }: {
   walls: Wall[]; results: WallResult[]; kits: KitEntry[];
   selected: SelectedNavItem; onSelect: (item: SelectedNavItem) => void;
   warnById: Record<number, boolean>;
   addBlankWall: () => void; addCornerWall: () => void; addShaftWall: () => void;
+  layoutMode?: EffectiveLayout;
 }) => {
+  if (layoutMode === "phone") {
+    const items: PillItem[] = [
+      ...results.map(({ wall: w, out: r }) => ({
+        id: wallPillId(w.id),
+        label: w.name,
+        sublabel: `${w.orient === "vertical" ? "Vert" : "Horiz"} · P${w.type}${r.empty ? "" : ` · ${r.area} m2`}`,
+        active: selected.type === "wall" && selected.wallId === w.id,
+        warn: !!warnById[w.id],
+      })),
+      ...kits.map(k => ({
+        id: kitPillId(k),
+        label: kitLabel(k, kits),
+        sublabel: `Links ${k.wallAName} ↔ ${k.wallBName}`,
+        active: selected.type === "kit" && selected.wallAId === k.wallAId && selected.wallBId === k.wallBId,
+        warn: k.result.warnings.length > 0,
+      })),
+    ];
+    return (
+      <ItemPillScroller
+        items={items}
+        onSelect={id => onSelect(decodePillId(id, kits))}
+        trailing={
+          <>
+            <AddPill label="Wall" onClick={addBlankWall} />
+            <AddPill label="Corner" onClick={addCornerWall} />
+            <AddPill label="Shaft" onClick={addShaftWall} />
+          </>
+        }
+      />
+    );
+  }
+
   return (
     <div className={`mt-3 ${cx.section}`}>
       <div className={cx.cardHd} style={{ marginTop: 0 }}>Estimate structure ({walls.length + kits.length})</div>

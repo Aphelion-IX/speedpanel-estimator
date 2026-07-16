@@ -99,9 +99,12 @@ export function useProjects(user: User | null, activeCompanyId?: string | null) 
 
   useEffect(() => { load(); }, [load]);
 
-  const createProject = async (name: string): Promise<{ id: string | null; error: string | null }> => {
+  const createProject = async (
+    name: string,
+    meta?: { reference?: string; siteAddress?: string; customerName?: string; description?: string },
+  ): Promise<{ id: string | null; error: string | null }> => {
     if (!user) return { id: null, error: NOT_SIGNED_IN };
-    const { project, error } = await insertProject(user.id, name, blankSnapshot(), activeCompanyId);
+    const { project, error } = await insertProject(user.id, name, { ...blankSnapshot(), ...meta }, activeCompanyId);
     if (error || !project) return { id: null, error };
     setState(s => ({ ...s, projects: [project, ...s.projects] }));
     return { id: project.id, error: null };
