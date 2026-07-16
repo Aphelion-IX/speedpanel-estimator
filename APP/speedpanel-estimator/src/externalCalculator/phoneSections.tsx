@@ -49,16 +49,29 @@ import { PanelColourSection } from "./panelColourSection";
 // that shade is invisible as a track here; dark:bg-slate-900 keeps it one
 // step darker/recessed, same relationship light mode already has (slate-100
 // track vs white card).
+//
+// The pill is one shared absolutely-positioned div that slides between slots
+// (translateX in multiples of its own width, so no gap-vs-percentage math is
+// needed) rather than each button toggling its own background -- flex, not
+// grid, so every slot is an equal fraction of the track with no gaps to
+// account for (unselected buttons are transparent anyway, so removing the
+// old gap-1 between them is visually identical).
 export function SegPhone<T extends string>({ options, value, onChange, columns }: {
   options: { id: T; label: string }[]; value: T; onChange: (id: T) => void; columns?: number;
 }) {
+  const cols = columns ?? options.length;
+  const activeIndex = Math.max(0, options.findIndex(o => o.id === value));
   return (
-    <div className={`grid gap-1 rounded-[10px] p-1 bg-slate-100 dark:bg-slate-900`} style={{ gridTemplateColumns: `repeat(${columns ?? options.length}, 1fr)` }}>
+    <div className="relative flex rounded-[10px] p-1 bg-slate-100 dark:bg-slate-900">
+      <div
+        className="absolute inset-y-1 rounded-lg bg-white dark:bg-slate-800 shadow-sm transition-transform duration-200 ease-out"
+        style={{ width: `${100 / cols}%`, transform: `translateX(${activeIndex * 100}%)` }}
+      />
       {options.map(o => {
         const on = o.id === value;
         return (
           <button key={o.id} type="button" onClick={() => onChange(o.id)}
-            className={`min-h-[44px] rounded-lg text-xs font-extrabold uppercase tracking-wide transition-all active:scale-95 ${on ? "bg-white dark:bg-slate-800 shadow-sm" : ""}`}
+            className="relative z-10 min-h-[44px] flex-1 rounded-lg text-xs font-extrabold uppercase tracking-wide transition-colors active:scale-95"
             style={{ color: on ? BLUE : NAVY }}>
             {o.label}
           </button>
@@ -117,7 +130,7 @@ export const WarningsListPhone = ({ warnings, emptyLabel = "No active warnings f
 
 // --- Sheet card / section --------------------------------------------------
 export const SheetCardPhone = ({ children }: { children: React.ReactNode }) => (
-  <div className="mt-3 overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_20px_40px_-28px_rgba(15,23,42,0.18)] dark:shadow-[0_1px_2px_rgba(0,0,0,0.2),0_20px_40px_-24px_rgba(0,0,0,0.35)]">
+  <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_20px_40px_-28px_rgba(15,23,42,0.18)] dark:shadow-[0_1px_2px_rgba(0,0,0,0.2),0_20px_40px_-24px_rgba(0,0,0,0.35)]">
     {children}
   </div>
 );
@@ -128,7 +141,11 @@ export const SheetSectionPhone = ({ icon, label, noDivider, children }: {
   <div className={noDivider ? "px-4 py-4" : "border-b border-slate-100 dark:border-slate-700 px-4 py-4"}>
     {label && (
       <div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-widest" style={{ color: MUTED }}>
-        {icon && <span style={{ color: BLUE }}>{icon}</span>}{label}
+        {icon && (
+          <span className="grid h-6 w-6 shrink-0 place-items-center rounded-lg bg-blue-50/60 dark:bg-blue-900/55" style={{ color: BLUE }}>
+            {icon}
+          </span>
+        )}{label}
       </div>
     )}
     {children}
