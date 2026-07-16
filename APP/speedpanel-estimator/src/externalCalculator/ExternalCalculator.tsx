@@ -38,6 +38,7 @@ import {
   ProfileSection, DimensionInputs, SpanTable, EdgeRestraintSelector, ProjectSeparator,
 } from "../ui/wallConfig";
 import type { CornersField } from "../ui/wallConfig";
+import { WallPreviewSection } from "../ui/wallPreview";
 import { PanelScheduleCard, PanelScheduleTable } from "../ui/scheduleCards";
 import { PanelColourSection } from "./panelColourSection";
 import { SingleWallMaterialsSection } from "./mainSections";
@@ -140,6 +141,7 @@ export function ExternalCalculator({ store, orient, dimUnit, setDimUnit, systemS
               </div>
             </div>
             <DimensionInputs active={active} toDisp={toDisp} updDim={updDim} out={out} orient={orient} />
+            <WallPreviewSection active={active} walls={walls} out={out} dimUnit={dimUnit} toDisp={toDisp} />
             <SpanTable orient={orient} type={78} />
           </div>
         </div>
