@@ -177,7 +177,7 @@ export function InternalCalculator({ store, orient, dimUnit, setDimUnit, systemS
                   </div>
                 </div>
                 <DimensionInputs active={active} toDisp={toDisp} updDim={updDim} out={out} orient={orient} />
-                <WallPreviewSection active={active} walls={walls} out={out} />
+                <WallPreviewSection active={active} walls={walls} out={out} dimUnit={dimUnit} toDisp={toDisp} />
                 <SpanTable orient={orient} type={active.type} wallSystem={active.wallSystem} />
               </div>
               <PanelLengthSection

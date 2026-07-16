@@ -23,12 +23,13 @@ export interface PreviewGrid {
   ok: boolean;              // false => nothing sensible to draw
   W: number; maxH: number;  // drawing extents, metres
   leftH: number; rightH: number; // height of the left/right vertical edges (== maxH for standard)
+  apex: number; apexX: number;   // gable only: ridge height and its x-offset from the left
   outline: [number, number][]; // polygon points, floor-up cartesian
   cells: PreviewCell[];        // one rect per panel
   floorLines?: number[];       // shaft only: y-values of slab crossings
 }
 
-const EMPTY_GRID = (W: number): PreviewGrid => ({ ok: false, W, maxH: 0, leftH: 0, rightH: 0, outline: [], cells: [] });
+const EMPTY_GRID = (W: number): PreviewGrid => ({ ok: false, W, maxH: 0, leftH: 0, rightH: 0, apex: 0, apexX: 0, outline: [], cells: [] });
 
 /** X-bounds of a horizontal row band at height y, per profile. Mirrors rowWidthBandMax's
  * own width formula but returns both edges (not centred) since a sloped wall's row isn't
@@ -91,7 +92,7 @@ export function buildPreviewGrid(wall: Wall): PreviewGrid {
     }
   }
 
-  const grid: PreviewGrid = { ok: true, W, maxH, leftH, rightH, outline, cells };
+  const grid: PreviewGrid = { ok: true, W, maxH, leftH, rightH, apex, apexX, outline, cells };
 
   if (wall.wallSystem === "shaft") {
     const F = numOr0(wall.floorHeight || "");
