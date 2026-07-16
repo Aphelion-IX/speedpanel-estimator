@@ -126,15 +126,11 @@ export const cx = {
   tabInactive: "shrink-0 rounded-lg px-3.5 py-2 text-xs font-bold uppercase tracking-wide whitespace-nowrap text-slate-400 dark:text-slate-500 hover:text-[color:var(--blue)]",
 
   // -- Drawer / slide-over ------------------------------------------------------
-  // src/ui/drawer.tsx -- right-side panel on web layout, bottom sheet on phone
-  // layout (rounded top corners, capped at 82vh, scrolls internally), same
-  // backdrop feel as ConfirmDialog's centered modal. Phone gets its own overlay
-  // alignment (bottom-anchored) since the web overlay's justify-end
-  // (right-anchored) doesn't fit a bottom sheet.
-  drawerOverlay:      "fixed inset-0 z-50 flex justify-end bg-slate-900/40 backdrop-blur-sm",
-  drawerOverlaySheet: "fixed inset-0 z-50 flex items-end justify-center bg-slate-900/40 backdrop-blur-sm",
+  // src/ui/drawer.tsx -- right-side panel on web layout, full-screen sheet on
+  // phone layout, same backdrop feel as ConfirmDialog's centered modal.
+  drawerOverlay: "fixed inset-0 z-50 flex justify-end bg-slate-900/40 backdrop-blur-sm",
   drawerPanel:   "flex h-full w-full max-w-md flex-col bg-white dark:bg-slate-800 shadow-[-30px_0_60px_-24px_rgba(15,23,42,0.4)] outline-none dark:shadow-[-30px_0_60px_-24px_rgba(0,0,0,0.6)]",
-  drawerSheet:   "flex max-h-[82vh] w-full flex-col rounded-t-2xl bg-white dark:bg-slate-800 shadow-[0_-20px_60px_-24px_rgba(15,23,42,0.4)] outline-none dark:shadow-[0_-20px_60px_-24px_rgba(0,0,0,0.6)]",
+  drawerSheet:   "flex h-full w-full flex-col bg-white dark:bg-slate-800 outline-none",
 
   // -- Mobile sticky summary bar -------------------------------------------------
   // src/ui/stickyBar.tsx -- fixed bottom bar, no equivalent existed anywhere

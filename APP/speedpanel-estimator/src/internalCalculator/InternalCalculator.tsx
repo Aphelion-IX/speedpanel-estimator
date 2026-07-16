@@ -11,20 +11,10 @@
 // local UI-only state, and results/aggregate/corner-shaft-pair/combined
 // estimate are computed independently here, mirroring ExternalCalculator's
 // own independent compute calls on the same shared `walls` array.
-//
-// Phone layout (mockup-matched, see phoneShell.tsx/wallCanvasPhone.tsx/
-// advancedSetupSheet.tsx/wallTabsPhone.tsx) diverges structurally from web
-// below mode/kit-selection: web keeps the original WallsCard + Wall geometry
-// + Tracks-and-flashing accordion stack, phone replaces it with the
-// mockup's command card / rail / canvas / advanced-setup sheet / live
-// result / 4-tab composition. EstimateModeSelector (single-wall vs project)
-// is web-only now -- the phone layout's per-wall tabs and sticky project
-// totals no longer change with `mode`, so showing the toggle on phone would
-// promise behaviour it no longer has.
 // =============================================================================
 import { useState, useEffect, useMemo } from "react";
 import { Frame, Gauge, Lock, Settings } from "lucide-react";
-import { cx, NAVY } from "../styleTokens";
+import { cx } from "../styleTokens";
 import { useWallResults } from "../wallStore";
 import type { WallStore } from "../wallStore";
 import { compute } from "../estimate/computeWall";
@@ -43,43 +33,35 @@ import {
   CollapsibleSection, StatsGrid,
 } from "../ui/primitives";
 import { LockedDataInt, LockedDataFooter } from "../ui/lockedData";
-import { PanelLengthSection, type PanelLengthSectionProps } from "../ui/lengthExplorer";
+import { PanelLengthSection } from "../ui/lengthExplorer";
 import { WallsCard } from "../ui/wallsCard";
 import { EstimateStructureNav } from "./estimateStructureNav";
 import { KitWorkspace } from "./kitWorkspace";
 import { KitWorkspacePhone } from "./kitWorkspacePhone";
-import {
-  CommandCardPhone, SheetHeaderPhone, StickyBarPhone, LiveWallResultPhone,
-  deriveWallStatus, countActionsNeeded,
-} from "./phoneShell";
-import { WallCanvasPhone } from "./wallCanvasPhone";
-import { AdvancedSetupSheetPhone } from "./advancedSetupSheet";
-import { WallTabsPhone } from "./wallTabsPhone";
+import { WallWorkspaceTabs } from "./wallWorkspaceTabs";
 import {
   ProfileSection, DimensionInputs, SpanTable, EdgeRestraintSelector, ProjectSeparator,
-  type EdgeRestraintProps, type FinishKey, type CornersField,
 } from "../ui/wallConfig";
+import type { FinishKey, CornersField } from "../ui/wallConfig";
 import { WallPreviewSection } from "../ui/wallPreview";
 import { PanelScheduleCard, PanelScheduleTable } from "../ui/scheduleCards";
 import { SingleWallEstimateSection } from "./mainSections";
 import { EstimateResultsCard } from "./estimateResultsCard";
 import { OrderReviewDrawer } from "./orderReviewDrawer";
+import { StickyBar } from "../ui/stickyBar";
 import { buildInternalReportData } from "../export/buildInternalReportData";
 import { exportEstimateToExcel } from "../export/exportEstimateToExcel";
 
-export function InternalCalculator({ store, orient, dimUnit, setDimUnit, systemSelector, layoutMode, mode, setMode, showWall, setShowWall, linkCornerPartner, linkShaftPartner, projectName, onSwitchToExternal }: {
+export function InternalCalculator({ store, orient, dimUnit, setDimUnit, systemSelector, layoutMode, mode, setMode, showWall, setShowWall, linkCornerPartner, linkShaftPartner }: {
   store: WallStore; orient: "vertical" | "horizontal"; dimUnit: string;
   setDimUnit: (u: string) => void; systemSelector?: React.ReactNode; layoutMode: EffectiveLayout;
   mode: string; setMode: (m: string) => void;
   showWall: boolean; setShowWall: (v: boolean) => void;
   linkCornerPartner: (targetId: number | null) => void;
   linkShaftPartner: (targetId: number | null) => void;
-  projectName?: string;
-  onSwitchToExternal?: () => void;
 }) {
   const [showTrackFinish, setShowTrackFinish] = useState(false);
   const [orderDrawerOpen, setOrderDrawerOpen] = useState(false);
-  const [advancedOpen, setAdvancedOpen] = useState(false);
 
   const {
     walls, activeId, setActiveId,
@@ -111,6 +93,11 @@ export function InternalCalculator({ store, orient, dimUnit, setDimUnit, systemS
   // Rough "line item" count for the Review Order trigger/sticky bar -- stock
   // panel groups + custom-length groups, not every card's every row.
   const orderLineItemCount = projChosenAgg.panels.length + projChosenAgg.customPanels.length;
+  const stickyProjectStats = [
+    { value: `${projChosenAgg.totalArea} m2`, label: "Project area" },
+    { value: projChosenAgg.totalPanels, label: "Panels" },
+    { value: results.length, label: "Walls" },
+  ];
 
   const cornerPair = useMemo(() => {
     if (orient !== "horizontal" || active.wallSystem !== "corner" || !active.cornerPartnerId) return null;
@@ -136,13 +123,6 @@ export function InternalCalculator({ store, orient, dimUnit, setDimUnit, systemS
   const workspaceTitle = selectedKit
     ? kitLabel(selectedKit, kits)
     : `${active.name} — ${active.orient === "vertical" ? "Vertical" : "Horizontal"} · P${active.type}`;
-  // Phone-only sheet header: same underlying data as workspaceTitle above,
-  // just split into a title/crumb/status shape for SheetHeaderPhone.
-  const sheetTitle = selectedKit ? kitLabel(selectedKit, kits) : active.name;
-  const sheetCrumb = selectedKit
-    ? `${selectedKit.wallAName} ↔ ${selectedKit.wallBName}`
-    : `${active.orient === "vertical" ? "Vertical" : "Horizontal"} · P${active.type}`;
-  const sheetStatus = selectedKit ? "linked" as const : deriveWallStatus(active, out);
   const selectedItemStats = selectedKit
     ? [
         { value: selectedKit.kind === "corner" ? "Corner" : "Shaft", label: "Kit type" },
@@ -158,40 +138,6 @@ export function InternalCalculator({ store, orient, dimUnit, setDimUnit, systemS
         { value: out.empty ? "--" : stockLengthLabel(out.chosen?.groups), label: "Length" },
         { value: out.empty ? "--" : `${r1(out.chosen?.wastePct ?? 0)}%`, label: "Waste" },
       ];
-  // Phone-only 4-stat row (matches the mockup exactly: area/panels/length/
-  // waste) -- kept separate from the 6-stat web version above rather than
-  // trimming it, since web's extra Panel type/Config stats stay useful there.
-  const phoneWallStats = out.empty
-    ? [{ value: "--", label: "m2" }, { value: "--", label: "Panels" }, { value: "--", label: "Length" }, { value: "--", label: "Waste" }]
-    : [
-        { value: `${out.area} m2`, label: "m2" },
-        { value: out.chosen?.panels ?? out.result?.panels ?? "--", label: "Panels" },
-        { value: stockLengthLabel(out.chosen?.groups), label: "Length" },
-        { value: `${r1(out.chosen?.wastePct ?? 0)}%`, label: "Waste" },
-      ];
-
-  // Shared prop objects for the panel-length and edge-restraint blocks --
-  // built once so web's inline sections and phone's Advanced setup sheet
-  // render the exact same live-wired controls, not two copies that could
-  // drift apart.
-  const onEdgeToggle = (k: keyof Wall["edges"]) => update({ edges: { ...active.edges, [k]: !active.edges[k] } });
-  const edgeRestraintProps: EdgeRestraintProps = {
-    edges: active.edges,
-    onEdgeToggle,
-    options: [{ key: "headFlash", label: HEAD_FLASH_LABEL, sublabel: HEAD_FLASH_SUBLABEL, value: active.headFlash, onToggle: () => update({ headFlash: !active.headFlash }) }],
-    orient,
-    locked: orient === "horizontal" && active.wallSystem === "standard",
-    showTrackFinish, setShowTrackFinish,
-    activeFinishes: { headFinish: active.headFinish, bottomFinish: active.bottomFinish, leftFinish: active.leftFinish, rightFinish: active.rightFinish },
-    onFinishChange: (field, val) => update({ [field]: val } as Pick<Wall, FinishKey>),
-    corners: { intCorners: active.intCorners, extCorners: active.extCorners, onChange: (f: CornersField, v: string) => update({ [f]: v } as Pick<Wall, CornersField>) },
-  };
-  const panelLengthSectionProps: PanelLengthSectionProps = {
-    dimUnit, out, active, walls,
-    projectLock, projectStock, customLengthInput, customActive,
-    stocks: STOCK_LENGTHS, packType: active.type,
-    update, setProjectLength, commitCustomLength, toggleCustom, clearCustomLength,
-  };
 
   const sidebarNode = (
     <EstimateStructureNav
@@ -205,58 +151,16 @@ export function InternalCalculator({ store, orient, dimUnit, setDimUnit, systemS
 
   const workspaceNode = (
     <>
-      {layoutMode !== "phone" && <EstimateModeSelector visible={!out.empty} mode={mode} setMode={setMode} />}
+      <EstimateModeSelector visible={!out.empty} mode={mode} setMode={setMode} />
 
-      {layoutMode === "phone" ? (
-        <SheetHeaderPhone title={sheetTitle} crumb={sheetCrumb} status={sheetStatus}
-          stats={selectedKit ? selectedItemStats : phoneWallStats} statsColumns={4} />
-      ) : (
-        <>
-          <SectionLabel icon={<Gauge size={13} />}>Selected item metrics</SectionLabel>
-          <StatsGrid stats={selectedItemStats} />
-          <SectionLabel icon={<Settings size={13} />}>{`Calculator workspace — ${workspaceTitle}`}</SectionLabel>
-        </>
-      )}
+      <SectionLabel icon={<Gauge size={13} />}>Selected item metrics</SectionLabel>
+      <StatsGrid stats={selectedItemStats} />
 
+      <SectionLabel icon={<Settings size={13} />}>{`Calculator workspace — ${workspaceTitle}`}</SectionLabel>
       {selectedKit ? (
         layoutMode === "phone"
           ? <KitWorkspacePhone kit={selectedKit} onSelect={handleSelectNavItem} />
           : <KitWorkspace kit={selectedKit} onSelect={handleSelectNavItem} />
-      ) : layoutMode === "phone" ? (
-        <>
-          <WallCanvasPhone
-            active={active} out={out} dimUnit={dimUnit} switchDimUnit={switchDimUnit}
-            toDisp={toDisp} updDim={updDim}
-            onProfileChange={id => update({ profile: id })}
-            onEdgeToggle={onEdgeToggle}
-          />
-
-          <div className="mt-3">
-            <WallsCard
-              walls={walls}
-              active={active} update={update}
-              duplicateWall={duplicateWall} deleteWall={deleteWall}
-              showTypes={true} systemSelector={systemSelector} orient={orient}
-              onCornerLink={linkCornerPartner}
-              onShaftLink={linkShaftPartner}
-              onJunctionLink={linkJunctionPartner}
-            />
-          </div>
-
-          <button onClick={() => setAdvancedOpen(true)}
-            className="mt-3 flex w-full min-h-[52px] items-center gap-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3.5 py-3 text-left active:scale-[0.99] transition-all">
-            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-slate-800 text-white"><Settings size={15} /></span>
-            <span className="min-w-0 flex-1">
-              <span className="block text-xs font-bold" style={{ color: NAVY }}>Advanced setup</span>
-              <span className="mt-0.5 block text-[10px] text-slate-400 dark:text-slate-500">Optimisation, finishes, fixings and project rules</span>
-            </span>
-            <span className="shrink-0 text-lg text-slate-400 dark:text-slate-500">›</span>
-          </button>
-
-          <LiveWallResultPhone out={out} />
-
-          <WallTabsPhone active={active} out={out} orient={orient} walls={walls} ScheduleComp={ScheduleComp} />
-        </>
       ) : (
         <>
           <WallsCard
@@ -281,19 +185,58 @@ export function InternalCalculator({ store, orient, dimUnit, setDimUnit, systemS
                   </div>
                 </div>
                 <DimensionInputs active={active} toDisp={toDisp} updDim={updDim} out={out} orient={orient} />
-                {project && <WallPreviewSection active={active} walls={walls} out={out} dimUnit={dimUnit} toDisp={toDisp} />}
+                {/* Pulled out into WallWorkspaceTabs's Preview tab on phone, but
+                    only in single-wall mode -- project mode's own tabbed
+                    EstimateResultsCard has no preview tab of its own, so this
+                    stays inline there rather than disappearing entirely. */}
+                {(layoutMode !== "phone" || project) && <WallPreviewSection active={active} walls={walls} out={out} dimUnit={dimUnit} toDisp={toDisp} />}
                 <SpanTable orient={orient} type={active.type} wallSystem={active.wallSystem} />
               </div>
-              <PanelLengthSection {...panelLengthSectionProps} />
+              <PanelLengthSection
+                dimUnit={dimUnit} out={out} active={active} walls={walls}
+                projectLock={projectLock} projectStock={projectStock}
+                customLengthInput={customLengthInput} customActive={customActive}
+                stocks={STOCK_LENGTHS} packType={active.type}
+                update={update} setProjectLength={setProjectLength}
+                commitCustomLength={commitCustomLength} toggleCustom={toggleCustom} clearCustomLength={clearCustomLength}
+              />
             </div>
           </CollapsibleSection>
 
-          {/* Tracks and flashing */}
+          {/* Tracks and flashing -- defaults open now that this lives in the
+              wider main-column workspace, not the space-constrained sidebar
+              (see Phase B's CollapsibleSection doc comment for that original
+              rationale, which no longer applies here). */}
           <CollapsibleSection icon={<Lock size={13} />} label="Tracks and flashing" defaultOpen>
-            <EdgeRestraintSelector {...edgeRestraintProps} />
+            <EdgeRestraintSelector
+              edges={active.edges}
+              onEdgeToggle={k => update({ edges: { ...active.edges, [k]: !active.edges[k] } })}
+              options={[{ key: "headFlash", label: HEAD_FLASH_LABEL, sublabel: HEAD_FLASH_SUBLABEL, value: active.headFlash, onToggle: () => update({ headFlash: !active.headFlash }) }]}
+              orient={orient}
+              locked={orient === "horizontal" && active.wallSystem === "standard"}
+              showTrackFinish={showTrackFinish}
+              setShowTrackFinish={setShowTrackFinish}
+              activeFinishes={{ headFinish: active.headFinish, bottomFinish: active.bottomFinish, leftFinish: active.leftFinish, rightFinish: active.rightFinish }}
+              onFinishChange={(field, val) => update({ [field]: val } as Pick<Wall, FinishKey>)}
+              corners={{ intCorners: active.intCorners, extCorners: active.extCorners, onChange: (f: CornersField, v: string) => update({ [f]: v } as Pick<Wall, CornersField>) }}
+            />
           </CollapsibleSection>
 
-          <WarningsList warnings={!out.empty ? out.warnings : null} />
+          {/* WallWorkspaceTabs only replaces this in single-wall mode -- project
+              mode's EstimateResultsCard (below, in mainNode) already has its
+              own Selected Wall/Connections/Order tabs covering the same
+              per-wall content, so showing both would stack two redundant tab
+              strips (and two differently-scoped "Connections" tabs) on one
+              phone screen. */}
+          {layoutMode === "phone" && !project ? (
+            <WallWorkspaceTabs
+              active={active} out={out} orient={orient} layoutMode={layoutMode}
+              walls={walls} cornerPair={cornerPair} shaftPair={shaftPair} ScheduleComp={ScheduleComp}
+              dimUnit={dimUnit} toDisp={toDisp}
+            />
+          ) : (
+            <WarningsList warnings={!out.empty ? out.warnings : null} />
+          )}
         </>
       )}
     </>
@@ -303,7 +246,8 @@ export function InternalCalculator({ store, orient, dimUnit, setDimUnit, systemS
     <>
       {workspaceNode}
 
-      {/* Single wall estimate -- web-only; phone's WallTabsPhone Schedule tab covers this. */}
+      {/* Single wall estimate -- superseded by WallWorkspaceTabs's Schedule
+          tab on phone (see workspaceNode above), so only rendered on web. */}
       {!project && layoutMode !== "phone" && (
         <SingleWallEstimateSection
           active={active} out={out} orient={orient} layoutMode={layoutMode}
@@ -312,10 +256,8 @@ export function InternalCalculator({ store, orient, dimUnit, setDimUnit, systemS
         />
       )}
 
-      {/* Estimate Results: Overview / Selected Wall / Connections / Order tabs --
-          web-only; on phone this is superseded by the sticky bar's project
-          totals, the Review Order sheet, and WallTabsPhone's per-wall tabs. */}
-      {project && layoutMode !== "phone" && (
+      {/* Estimate Results: Overview / Selected Wall / Connections / Order tabs */}
+      {project && (
         <>
           <ProjectSeparator />
           <EstimateResultsCard
@@ -350,32 +292,18 @@ export function InternalCalculator({ store, orient, dimUnit, setDimUnit, systemS
       onExport={handleExport} exportDisabled={!hasExportData}
     />
   );
-  const advancedSheetNode = layoutMode === "phone" && (
-    <AdvancedSetupSheetPhone
-      open={advancedOpen} onClose={() => setAdvancedOpen(false)} layoutMode={layoutMode}
-      active={active} orient={orient}
-      panelLength={panelLengthSectionProps} edgeRestraint={edgeRestraintProps}
-    />
-  );
   // Mobile-only sticky summary bar -- shown regardless of single-wall/project
-  // mode (projChosenAgg is already computed unconditionally, so this
-  // degrades correctly to that one wall's own totals outside project mode).
+  // mode (projChosenAgg/orderDrawerNode are already computed unconditionally,
+  // so this degrades correctly to that one wall's own totals outside project
+  // mode); single-wall mode's existing footer Export button is untouched.
   const stickyBarNode = layoutMode === "phone" && (
-    <StickyBarPhone
-      areaLabel={`${projChosenAgg.totalArea} m2`} panelsLabel={`${projChosenAgg.totalPanels} panels`}
-      materialLines={orderLineItemCount} actionsCount={countActionsNeeded(results)}
-      onReviewOrder={() => setOrderDrawerOpen(true)}
-    />
-  );
-  const commandCardNode = layoutMode === "phone" && (
-    <CommandCardPhone
-      projectName={projectName} results={results} kits={kits}
-      addBlankWall={addBlankWall}
-      onSwitchToExternal={onSwitchToExternal ?? (() => {})}
+    <StickyBar
+      view="project" wallStats={[]} projectStats={stickyProjectStats}
+      onReviewOrder={() => setOrderDrawerOpen(true)} lineItemCount={orderLineItemCount}
     />
   );
 
-  if (layoutMode === "phone") return <>{commandCardNode}{sidebarNode}{mainNode}{stickyBarNode}{orderDrawerNode}{advancedSheetNode}</>;
+  if (layoutMode === "phone") return <>{sidebarNode}{mainNode}{footerNode}{stickyBarNode}{orderDrawerNode}</>;
   return (
     <>
       <CalculatorShell sidebar={sidebarNode} main={mainNode} footer={footerNode} sidebarWidth={320} />

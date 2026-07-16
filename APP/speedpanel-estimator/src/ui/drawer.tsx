@@ -1,11 +1,11 @@
 // =============================================================================
 // Drawer
 // =============================================================================
-// Slide-over primitive: a right-side panel on "web" layout, a bottom sheet
-// (rounded top corners, capped height, slides up from the bottom) on "phone"
-// layout -- same backdrop/focus/Escape-key conventions as ConfirmDialog
-// (src/ui/confirmDialog.tsx), the first modal-shaped primitive in the app,
-// just a different panel geometry per layout.
+// Slide-over primitive for the future Order Review drawer: a right-side
+// panel on "web" layout, a full-screen sheet on "phone" layout -- same
+// backdrop/focus/Escape-key conventions as ConfirmDialog (src/ui/confirmDialog.tsx),
+// the first modal-shaped primitive in the app, just a different panel
+// geometry (slide-over instead of centered card).
 // =============================================================================
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
@@ -33,7 +33,7 @@ export const Drawer = ({ open, onClose, layoutMode, title, children }: {
   if (!open) return null;
 
   return createPortal(
-    <div className={layoutMode === "phone" ? cx.drawerOverlaySheet : cx.drawerOverlay} onClick={onClose}>
+    <div className={cx.drawerOverlay} onClick={onClose}>
       <div
         ref={panelRef}
         role="dialog"
