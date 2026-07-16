@@ -117,10 +117,10 @@ export const SheetCardPhone = ({ children }: { children: React.ReactNode }) => (
   </div>
 );
 
-export const SheetSectionPhone = ({ icon, label, children }: {
-  icon?: React.ReactNode; label?: string; children: React.ReactNode;
+export const SheetSectionPhone = ({ icon, label, noDivider, children }: {
+  icon?: React.ReactNode; label?: string; noDivider?: boolean; children: React.ReactNode;
 }) => (
-  <div className="border-b border-slate-100 dark:border-slate-700 px-4 py-4">
+  <div className={noDivider ? "px-4 py-4" : "border-b border-slate-100 dark:border-slate-700 px-4 py-4"}>
     {label && (
       <div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-widest" style={{ color: MUTED }}>
         {icon && <span style={{ color: BLUE }}>{icon}</span>}{label}
@@ -147,7 +147,8 @@ export const SystemConfigSectionPhone = ({
   switchOrient: (o: "vertical" | "horizontal") => void;
   switchToInternal: () => void;
 }) => (
-  <SheetSectionPhone icon={<Settings size={13} />} label="System configuration">
+  <SheetCardPhone>
+  <SheetSectionPhone icon={<Settings size={13} />} label="System configuration" noDivider>
     <div className={cx.cardHd}>Orientation</div>
     <SegPhone
       options={[{ id: "vertical" as const, label: "Vertical" }, { id: "horizontal" as const, label: "Horizontal" }]}
@@ -174,6 +175,7 @@ export const SystemConfigSectionPhone = ({
       <WallNameAndActions walls={walls} active={active} update={update} duplicateWall={duplicateWall} deleteWall={deleteWall} />
     </div>
   </SheetSectionPhone>
+  </SheetCardPhone>
 );
 
 // --- Wall geometry -----------------------------------------------------------
@@ -189,7 +191,8 @@ export const GeometrySectionPhone = ({
   // same gate Internal's uses (this component only ever renders on phone).
   project: boolean;
 }) => (
-  <SheetSectionPhone icon={<Frame size={13} />} label="Wall geometry">
+  <SheetCardPhone>
+  <SheetSectionPhone icon={<Frame size={13} />} label="Wall geometry" noDivider>
     <div className={cx.cardHd}>Profile</div>
     <SegPhone
       columns={3}
@@ -212,13 +215,16 @@ export const GeometrySectionPhone = ({
 
     <div className="mt-3"><SpanTable orient={orient} type={78} /></div>
   </SheetSectionPhone>
+  </SheetCardPhone>
 );
 
 // --- Panel length & optimisation ---------------------------------------------
 export const PanelLengthSectionPhone = (props: PanelLengthSectionProps) => (
-  <SheetSectionPhone icon={<Ruler size={13} />} label="Panel length & optimisation">
+  <SheetCardPhone>
+  <SheetSectionPhone icon={<Ruler size={13} />} label="Panel length & optimisation" noDivider>
     <PanelLengthSection {...props} />
   </SheetSectionPhone>
+  </SheetCardPhone>
 );
 
 // --- Tracks, flashing & restraint ---------------------------------------------
@@ -236,7 +242,8 @@ export const TracksFlashingSectionPhone = ({ active, update }: {
     onToggle: () => update({ headFlash: !active.headFlash }),
   };
   return (
-    <SheetSectionPhone icon={<Lock size={13} />} label="Tracks, flashing & restraint">
+    <SheetCardPhone>
+    <SheetSectionPhone icon={<Lock size={13} />} label="Tracks, flashing & restraint" noDivider>
       <EdgeGridPhone
         edges={active.edges}
         onEdgeToggle={k => update({ edges: { ...active.edges, [k]: !active.edges[k] } })}
@@ -249,5 +256,6 @@ export const TracksFlashingSectionPhone = ({ active, update }: {
         }} />
       </div>
     </SheetSectionPhone>
+    </SheetCardPhone>
   );
 };

@@ -174,8 +174,10 @@ export function ExternalCalculator({ store, orient, dimUnit, setDimUnit, systemS
   );
 
   const phoneWorkspaceNode = (
-    <SheetCardPhone>
-      <SheetHeaderPhone title={active.name} crumb={sheetCrumb} status={deriveWallStatus(active, out)} stats={selectedItemStats} />
+    <>
+      <SheetCardPhone>
+        <SheetHeaderPhone title={active.name} crumb={sheetCrumb} status={deriveWallStatus(active, out)} stats={selectedItemStats} />
+      </SheetCardPhone>
       <SystemConfigSectionPhone
         walls={walls} active={active} update={update}
         duplicateWall={duplicateWall} deleteWall={deleteWall} orient={orient}
@@ -207,11 +209,13 @@ export function ExternalCalculator({ store, orient, dimUnit, setDimUnit, systemS
           walls={walls} ScheduleComp={ScheduleComp} dimUnit={dimUnit} toDisp={toDisp}
         />
       ) : (
-        <SheetSectionPhone label="Warnings">
-          <WarningsListPhone warnings={!out.empty ? out.warnings : null} />
-        </SheetSectionPhone>
+        <SheetCardPhone>
+          <SheetSectionPhone label="Warnings" noDivider>
+            <WarningsListPhone warnings={!out.empty ? out.warnings : null} />
+          </SheetSectionPhone>
+        </SheetCardPhone>
       )}
-    </SheetCardPhone>
+    </>
   );
 
   const webWorkspaceNode = (

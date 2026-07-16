@@ -18,7 +18,7 @@ import { NAVY } from "../styleTokens";
 import { WallPreviewSection } from "../ui/wallPreview";
 import { ConnectionsSummary } from "../ui/connectionsSummary";
 import { WallEstimateCards } from "./mainSections";
-import { WarningsListPhone } from "./phoneSections";
+import { WarningsListPhone, SheetCardPhone } from "./phoneSections";
 import type { CornerPairResult, ShaftPairResult } from "../estimate/cornerShaftKits";
 import type { ComputeOut, Wall } from "../estimate/wall.types";
 import type { EffectiveLayout } from "../useLayoutMode";
@@ -41,8 +41,9 @@ export const WallWorkspaceTabs = ({
 }) => {
   const [tab, setTab] = useState<TabId>("preview");
   return (
-    // No own top margin -- nested flush as the last section inside
-    // SheetCardPhone, right after Tracks (see InternalCalculator.tsx).
+    // Its own SheetCardPhone -- Tracks (the last of the four config
+    // sections) is now its own separate card too, see InternalCalculator.tsx.
+    <SheetCardPhone>
     <div className="px-4 py-4">
       <div className="flex gap-1.5 overflow-x-auto pb-1" style={{ scrollbarWidth: "none" }}>
         {TABS.map(t => {
@@ -77,5 +78,6 @@ export const WallWorkspaceTabs = ({
         <div className="mt-4"><WarningsListPhone warnings={!out.empty ? out.warnings : null} /></div>
       )}
     </div>
+    </SheetCardPhone>
   );
 };
