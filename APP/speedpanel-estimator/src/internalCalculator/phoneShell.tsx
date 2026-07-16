@@ -15,6 +15,12 @@ import { cx, tone, BLUE, NAVY, MUTED, WHITE, type StatusTone } from "../styleTok
 import type { Wall, WallResult, ComputeOut } from "../estimate/wall.types";
 import type { KitEntry } from "../estimate/synthesizeKits";
 
+// Cyan tint for the External-wall add-tile -- same tone as the "info"/Custom
+// status chip (tone("info")), used here as raw classes since AddTile needs
+// separate icon-badge/border colours, not a single badge background.
+const EXTERNAL_ICON_CX = "bg-cyan-50 dark:bg-cyan-950/40 text-cyan-700 dark:text-cyan-400";
+const EXTERNAL_BORDER_CX = "border-cyan-200 dark:border-cyan-900/60";
+
 // --- Derived item status ------------------------------------------------------
 // No persisted "status" field exists on Wall/KitEntry -- this derives a
 // mockup-style status chip from fields that already exist, so it can't drift
@@ -45,11 +51,15 @@ export const deriveWallStatus = (wall: Wall, out: ComputeOut): ItemStatusKey => 
 
 // --- Project card ------------------------------------------------------------
 export const ProjectCardPhone = ({
-  projectName, results, kits, addBlankWall, addCornerWall, addShaftWall,
+  projectName, results, kits, addBlankWall, onAddExternalWall,
 }: {
   projectName?: string;
   results: WallResult[]; kits: KitEntry[];
-  addBlankWall: () => void; addCornerWall: () => void; addShaftWall: () => void;
+  addBlankWall: () => void;
+  // Adds a wall then switches the whole project over to the External
+  // calculator -- see App.tsx's addExternalWall (no per-wall internal/
+  // external flag exists, External-ness is a project-level system choice).
+  onAddExternalWall: () => void;
 }) => {
   const totalItems = results.length + kits.length;
   const configuredCount = results.filter(r => isConfigured(deriveWallStatus(r.wall, r.out))).length + kits.length;
@@ -72,21 +82,26 @@ export const ProjectCardPhone = ({
       <div className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
         <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: BLUE }} />
       </div>
-      <div className="mt-3 grid grid-cols-3 gap-2">
-        <AddTile label="Add Wall" onClick={addBlankWall} />
-        <AddTile label="Add Corner" onClick={addCornerWall} />
-        <AddTile label="Add Shaft" onClick={addShaftWall} />
+      <div className="mt-3 grid grid-cols-2 gap-2.5">
+        <AddTile label="Internal Wall" sublabel="Add a new internal estimate" onClick={addBlankWall} />
+        <AddTile label="External Wall" sublabel="Add a weather-exposed wall" onClick={onAddExternalWall} external />
       </div>
     </div>
   );
 };
 
-const AddTile = ({ label, onClick }: { label: string; onClick: () => void }) => (
+const AddTile = ({ label, sublabel, onClick, external = false }: {
+  label: string; sublabel: string; onClick: () => void; external?: boolean;
+}) => (
   <button onClick={onClick}
-    className="flex min-h-[64px] flex-col items-center justify-center gap-1.5 rounded-xl border bg-white dark:bg-slate-800 px-2 py-2.5 text-center shadow-sm active:scale-95 transition-all"
-    style={{ borderColor: BLUE }}>
-    <span className="grid h-6 w-6 place-items-center rounded-lg text-sm font-black leading-none" style={{ background: BLUE, color: WHITE }}>+</span>
-    <span className="text-[11px] font-bold leading-tight" style={{ color: NAVY }}>{label}</span>
+    className={`flex min-h-[76px] items-center gap-2.5 rounded-xl border bg-white dark:bg-slate-800 px-3 py-2.5 text-left shadow-sm active:scale-95 transition-all ${external ? EXTERNAL_BORDER_CX : ""}`}
+    style={external ? undefined : { borderColor: BLUE }}>
+    <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-[11px] text-base font-black leading-none ${external ? EXTERNAL_ICON_CX : ""}`}
+      style={external ? undefined : { background: BLUE, color: WHITE }}>+</span>
+    <span className="min-w-0">
+      <span className="block text-[13px] font-bold leading-tight" style={{ color: NAVY }}>{label}</span>
+      <span className="mt-0.5 block text-[10px] leading-tight text-slate-400 dark:text-slate-500">{sublabel}</span>
+    </span>
   </button>
 );
 

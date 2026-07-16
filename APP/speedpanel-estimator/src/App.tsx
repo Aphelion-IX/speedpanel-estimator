@@ -120,6 +120,11 @@ export default function SpeedpanelEstimator() {
   const switchSystem = (id: string) => { setSystem(id); setShowWall(true); };
   const findSys = (orientVal: "vertical" | "horizontal", ext: boolean) =>
     SYSTEMS.find(s => s.orient === orientVal && s.ext === ext)!;
+  // Phone "External Wall" add-tile: add a wall to the shared store, then
+  // switch the whole project over to the External calculator -- there's no
+  // per-wall internal/external flag, External-ness is a project-level system
+  // choice (see isExt above), so "add an external wall" means both at once.
+  const addExternalWall = () => { store.addBlankWall(); switchSystem(findSys(orient, true).id); };
 
   // Opening a saved project from Projects loads its snapshot into the shared
   // wall store/view state and switches to the Estimator tab -- the builder UI
@@ -317,6 +322,7 @@ export default function SpeedpanelEstimator() {
               showWall={showWall} setShowWall={setShowWall}
               linkCornerPartner={linkCornerPartner} linkShaftPartner={linkShaftPartner}
               projectName={openProject?.name}
+              onAddExternalWall={addExternalWall}
             />
           )
         )}
