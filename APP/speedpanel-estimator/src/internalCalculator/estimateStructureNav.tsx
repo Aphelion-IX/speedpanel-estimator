@@ -52,8 +52,9 @@ export const EstimateStructureNav = ({
     // Add-wall/corner/shaft actions live on ProjectCardPhone (rendered above
     // this nav in InternalCalculator.tsx) on phone, not as trailing pills here.
     const items: PhonePillItem[] = [
-      ...results.map(({ wall: w, out: r }) => ({
+      ...results.map(({ wall: w, out: r }, i) => ({
         id: wallPillId(w.id),
+        eyebrow: `Wall ${String(i + 1).padStart(2, "0")}`,
         label: w.name,
         sublabel: `${w.orient === "vertical" ? "Vert" : "Horiz"} · P${w.type}${r.empty ? "" : ` · ${r.area} m2`}`,
         active: selected.type === "wall" && selected.wallId === w.id,
@@ -61,6 +62,7 @@ export const EstimateStructureNav = ({
       })),
       ...kits.map(k => ({
         id: kitPillId(k),
+        eyebrow: "Linked kit",
         label: kitLabel(k, kits),
         sublabel: `Links ${k.wallAName} ↔ ${k.wallBName}`,
         active: selected.type === "kit" && selected.wallAId === k.wallAId && selected.wallBId === k.wallBId,

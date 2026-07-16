@@ -317,6 +317,7 @@ export default function SpeedpanelEstimator() {
               showWall={showWall} setShowWall={setShowWall}
               linkCornerPartner={linkCornerPartner} linkShaftPartner={linkShaftPartner}
               projectName={openProject?.name}
+              onSwitchToExternal={() => switchSystem(findSys(orient, true).id)}
             />
           )
         )}
