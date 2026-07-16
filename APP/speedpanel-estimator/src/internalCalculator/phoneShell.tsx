@@ -11,32 +11,37 @@
 // shared components -- is untouched. See kitWorkspacePhone.tsx for the same
 // fork-not-branch precedent.
 // =============================================================================
-import { cx, tone, BLUE, NAVY, MUTED, WHITE, type StatusTone } from "../styleTokens";
+import { cx, tone, BLUE, NAVY, MUTED, WHITE } from "../styleTokens";
 import type { Wall, WallResult, ComputeOut } from "../estimate/wall.types";
 import type { KitEntry } from "../estimate/synthesizeKits";
-
-// Cyan tint for the External-wall add-tile -- same tone as the "info"/Custom
-// status chip (tone("info")), used here as raw classes since AddTile needs
-// separate icon-badge/border colours, not a single badge background.
-const EXTERNAL_ICON_CX = "bg-cyan-50 dark:bg-cyan-950/40 text-cyan-700 dark:text-cyan-400";
-const EXTERNAL_BORDER_CX = "border-cyan-200 dark:border-cyan-900/60";
 
 // --- Derived item status ------------------------------------------------------
 // No persisted "status" field exists on Wall/KitEntry -- this derives a
 // mockup-style status chip from fields that already exist, so it can't drift
 // out of sync with the actual compute/link state.
+//
+// Colour rule (per the approved mockup's visual rules -- blue/neutral/cyan/
+// red only, no yellow or gold): the mockup's own item-pill markup only ever
+// uses 3 chip colours -- default blue (Complete/Needs input/Linked), cyan
+// (Custom/special-order, `.status.cyan`), and red (Not linked, `.status.red`).
+// tone() has no blue entry (its "ok"/"warn" emerald/amber cases don't exist
+// in this palette), so BLUE_CHIP_CX borrows the exact blue-tint classes
+// styleTokens.ts's cx.infoBox/cx.accordionInner already use elsewhere in the
+// app, rather than inventing a new colour.
 export type ItemStatusKey = "complete" | "needsInput" | "custom" | "linked" | "notLinked";
 
-const STATUS: Record<ItemStatusKey, { label: string; tone: StatusTone }> = {
-  complete:   { label: "Complete",    tone: "ok" },
-  needsInput: { label: "Needs input", tone: "warn" },
-  custom:     { label: "Custom",      tone: "info" },
-  linked:     { label: "Linked",      tone: "ok" },
-  notLinked:  { label: "Not linked",  tone: "danger" },
+const BLUE_CHIP_CX = "bg-blue-50 dark:bg-blue-950/40 text-[color:var(--blue)]";
+
+const STATUS: Record<ItemStatusKey, { label: string; chipCx: string }> = {
+  complete:   { label: "Complete",    chipCx: BLUE_CHIP_CX },
+  needsInput: { label: "Needs input", chipCx: BLUE_CHIP_CX },
+  custom:     { label: "Custom",      chipCx: tone("info") },
+  linked:     { label: "Linked",      chipCx: BLUE_CHIP_CX },
+  notLinked:  { label: "Not linked",  chipCx: tone("danger") },
 };
 
 export const statusLabel = (key: ItemStatusKey) => STATUS[key].label;
-export const statusChipCx = (key: ItemStatusKey) => `${cx.badge} ${tone(STATUS[key].tone)}`;
+export const statusChipCx = (key: ItemStatusKey) => `${cx.badge} ${STATUS[key].chipCx}`;
 export const isConfigured = (key: ItemStatusKey) => key !== "needsInput" && key !== "notLinked";
 
 // A corner/shaft wall only ever appears in `kits` once BOTH partners are
@@ -90,13 +95,18 @@ export const ProjectCardPhone = ({
   );
 };
 
+// External tile's icon badge reuses tone("info") -- the same cyan classes
+// already backing the Custom status chip -- rather than hand-rolled cyan
+// classes; its border stays the same neutral slate every other unselected
+// card in the app uses (no cyan border token exists in styleTokens.ts to
+// borrow instead).
 const AddTile = ({ label, sublabel, onClick, external = false }: {
   label: string; sublabel: string; onClick: () => void; external?: boolean;
 }) => (
   <button onClick={onClick}
-    className={`flex min-h-[76px] items-center gap-2.5 rounded-xl border bg-white dark:bg-slate-800 px-3 py-2.5 text-left shadow-sm active:scale-95 transition-all ${external ? EXTERNAL_BORDER_CX : ""}`}
+    className={`flex min-h-[76px] items-center gap-2.5 rounded-xl border bg-white dark:bg-slate-800 px-3 py-2.5 text-left shadow-sm active:scale-95 transition-all ${external ? "border-slate-200 dark:border-slate-700" : ""}`}
     style={external ? undefined : { borderColor: BLUE }}>
-    <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-[11px] text-base font-black leading-none ${external ? EXTERNAL_ICON_CX : ""}`}
+    <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-[11px] text-base font-black leading-none ${external ? tone("info") : ""}`}
       style={external ? undefined : { background: BLUE, color: WHITE }}>+</span>
     <span className="min-w-0">
       <span className="block text-[13px] font-bold leading-tight" style={{ color: NAVY }}>{label}</span>
@@ -140,20 +150,28 @@ export const MetricsGridPhone = ({ stats }: { stats: { value: string | number; l
   </div>
 );
 
+// No longer self-wraps in its own card (mt-3/cx.section) -- it's now always
+// nested flush as the first two blocks of SheetCardPhone (see
+// phoneSections.tsx), matching the mockup's single continuous "sheet" (one
+// outer card, thin dividers between groups) instead of a separate floating
+// card. Only consumer is InternalCalculator.tsx, so changing this contract
+// is safe.
 export const SheetHeaderPhone = ({ title, crumb, status, stats }: {
   title: string; crumb: string; status: ItemStatusKey;
   stats: { value: string | number; label: string }[];
 }) => (
-  <div className={`mt-3 ${cx.section}`}>
-    <div className="flex items-start justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3.5">
+  <>
+    <div className="flex items-start justify-between gap-3 border-b border-slate-100 dark:border-slate-800 px-4 py-4">
       <div className="min-w-0">
         <div className="truncate text-lg font-extrabold" style={{ color: NAVY }}>{title}</div>
         <div className="mt-0.5 truncate text-xs font-medium text-slate-400 dark:text-slate-500">{crumb}</div>
       </div>
       <span className={`shrink-0 ${statusChipCx(status)}`}>{statusLabel(status)}</span>
     </div>
-    <div className="mt-3.5"><MetricsGridPhone stats={stats} /></div>
-  </div>
+    <div className="border-b border-slate-100 dark:border-slate-800 px-2 py-3.5">
+      <MetricsGridPhone stats={stats} />
+    </div>
+  </>
 );
 
 // --- Sticky bottom bar (tiled) -------------------------------------------------

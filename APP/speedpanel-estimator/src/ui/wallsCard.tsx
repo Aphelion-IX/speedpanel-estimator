@@ -195,7 +195,7 @@ export const JunctionLinkSelector = ({ active, walls, onLink }: {
 // "Panel configuration" block: the 3-way P51/P64/P78 button grid, or (for
 // Shaft wall, which is always 78 mm -- not a user choice) a static badge
 // instead of a disabled grid.
-const PanelTypeSelector = ({ active, update, topBorder }: {
+export const PanelTypeSelector = ({ active, update, topBorder }: {
   active: Wall; update: (patch: Partial<Wall>) => void; topBorder: boolean;
 }) => (
   <div className={topBorder ? "border-t border-slate-100 dark:border-slate-800 pt-3" : ""}>
@@ -229,7 +229,7 @@ const PanelTypeSelector = ({ active, update, topBorder }: {
 // WallTabsAndActions so a caller that hides the tab strip (Internal's
 // Estimate Structure nav supersedes it, see WallsCard's hideWallTabs prop)
 // can still keep rename/duplicate/delete available.
-const WallNameAndActions = ({ walls, active, update, duplicateWall, deleteWall }: {
+export const WallNameAndActions = ({ walls, active, update, duplicateWall, deleteWall }: {
   walls: Wall[]; active: Wall; update: (patch: Partial<Wall>) => void;
   duplicateWall: () => void; deleteWall: () => void;
 }) => (

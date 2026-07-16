@@ -125,6 +125,10 @@ export default function SpeedpanelEstimator() {
   // per-wall internal/external flag, External-ness is a project-level system
   // choice (see isExt above), so "add an external wall" means both at once.
   const addExternalWall = () => { store.addBlankWall(); switchSystem(findSys(orient, true).id); };
+  // Phone SystemConfigSectionPhone's "Wall type -> External" segment: same
+  // switch as above but WITHOUT adding a wall, mirroring SystemRows' real
+  // "Wall type" toggle exactly (see systemRows.tsx).
+  const switchToExternal = () => switchSystem(findSys(orient, true).id);
 
   // Opening a saved project from Projects loads its snapshot into the shared
   // wall store/view state and switches to the Estimator tab -- the builder UI
@@ -323,6 +327,7 @@ export default function SpeedpanelEstimator() {
               linkCornerPartner={linkCornerPartner} linkShaftPartner={linkShaftPartner}
               projectName={openProject?.name}
               onAddExternalWall={addExternalWall}
+              switchOrient={switchOrient} switchToExternal={switchToExternal}
             />
           )
         )}

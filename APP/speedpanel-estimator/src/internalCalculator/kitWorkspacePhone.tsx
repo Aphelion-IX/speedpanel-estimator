@@ -12,7 +12,7 @@
 // own workspace, not here).
 // =============================================================================
 import { AlertTriangle, ChevronRight } from "lucide-react";
-import { cx, NAVY, BLUE, MUTED } from "../styleTokens";
+import { cx, tone, NAVY, BLUE, MUTED } from "../styleTokens";
 import { r1 } from "../estimate/mathUtils";
 import type { KitEntry } from "../estimate/synthesizeKits";
 import type { CornerPairResult, ShaftPairResult } from "../estimate/cornerShaftKits";
@@ -35,11 +35,15 @@ const FieldRow = ({ label, value, onClick }: { label: string; value: string; onC
   );
 };
 
+// No longer self-wraps in its own cx.section card -- it's now nested flush
+// inside SheetCardPhone (see phoneSections.tsx / InternalCalculator.tsx),
+// matching the mockup's single continuous "sheet" instead of a separate
+// floating card, same treatment as SheetHeaderPhone got.
 export const KitWorkspacePhone = ({ kit, onSelect }: {
   kit: KitEntry;
   onSelect: (item: SelectedNavItem) => void;
 }) => (
-  <div className={`${cx.section} space-y-2.5`}>
+  <div className="space-y-2.5">
     <FieldRow label="Connection type" value={kit.kind === "corner" ? "Corner kit" : "Shaft kit"} />
     <FieldRow label="Wall A" value={kit.wallAName} onClick={() => onSelect({ type: "wall", wallId: kit.wallAId })} />
     <FieldRow label="Wall B" value={kit.wallBName} onClick={() => onSelect({ type: "wall", wallId: kit.wallBId })} />
@@ -49,7 +53,7 @@ export const KitWorkspacePhone = ({ kit, onSelect }: {
 
     <FieldRow label="Connection height" value={`${r1(kit.result.H)} m`} />
     {kit.result.heightMismatch && (
-      <p className="flex gap-1.5 text-sm leading-relaxed text-amber-700 dark:text-amber-400">
+      <p className={`flex gap-1.5 rounded-xl border border-red-200 dark:border-red-800/60 p-3 text-sm leading-relaxed ${tone("danger")}`}>
         <AlertTriangle size={13} className="mt-0.5 shrink-0" />
         Linked runs have different heights -- sized to {kit.wallAName}'s height. Confirm on site.
       </p>

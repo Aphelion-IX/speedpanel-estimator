@@ -218,7 +218,7 @@ const TrackSwitch = ({ field, label, activeFinishes, onFinishChange }: {
   );
 };
 
-const TrackFinishBlock = ({ edges, orient, activeFinishes, onFinishChange, showTrackFinish, setShowTrackFinish }: {
+export const TrackFinishBlock = ({ edges, orient, activeFinishes, onFinishChange, showTrackFinish, setShowTrackFinish }: {
   edges: EdgeState; orient: string; activeFinishes?: ActiveFinishes; onFinishChange?: (field: FinishKey, val: string) => void;
   showTrackFinish: boolean; setShowTrackFinish: (fn: (v: boolean) => boolean) => void;
 }) => (
@@ -248,7 +248,7 @@ const TrackFinishBlock = ({ edges, orient, activeFinishes, onFinishChange, showT
 );
 
 // --- HeadFlashingToggle -----------------------------------------------------------
-const HeadFlashingToggle = ({ flashOption }: { flashOption: EdgeOption }) => (
+export const HeadFlashingToggle = ({ flashOption }: { flashOption: EdgeOption }) => (
   <div className="flex w-full items-center justify-between rounded-xl border border-blue-100 dark:border-blue-900/60 bg-blue-50/60 dark:bg-blue-950/40 px-4 py-2">
     <span className={cx.cardHd} style={{marginBottom:0,display:"inline"}}>Head track flashing</span>
     <button onClick={flashOption.onToggle}
@@ -267,7 +267,7 @@ const HeadFlashingToggle = ({ flashOption }: { flashOption: EdgeOption }) => (
 );
 
 // --- OtherOptionsBlock -----------------------------------------------------------
-const OtherOptionsBlock = ({ options }: { options: EdgeOption[] }) => (
+export const OtherOptionsBlock = ({ options }: { options: EdgeOption[] }) => (
   <div className="space-y-2">
     {options.map(({ key, label, sublabel, value, onToggle }) => (
       <button key={key} onClick={onToggle}
@@ -281,7 +281,7 @@ const OtherOptionsBlock = ({ options }: { options: EdgeOption[] }) => (
 );
 
 // --- CornerAnglesBlock -----------------------------------------------------------
-const CornerAnglesBlock = ({ corners }: { corners: CornersValue }) => (
+export const CornerAnglesBlock = ({ corners }: { corners: CornersValue }) => (
   <div className="border-t border-slate-100 dark:border-slate-800 pt-3">
     <div className={cx.cardHd}>Corner angles</div>
     <div className="grid grid-cols-2 items-end gap-2">
