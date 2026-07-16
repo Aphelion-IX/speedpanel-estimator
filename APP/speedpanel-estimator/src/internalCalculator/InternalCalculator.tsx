@@ -33,8 +33,8 @@ import {
   CollapsibleSection, StatsGrid,
 } from "../ui/primitives";
 import { LockedDataInt, LockedDataFooter } from "../ui/lockedData";
-import { PanelLengthSection } from "../ui/lengthExplorer";
-import { WallsCard } from "../ui/wallsCard";
+import { PanelLengthSection } from "./lengthExplorer";
+import { WallsCard } from "./wallsCard";
 import { EstimateStructureNav } from "./estimateStructureNav";
 import { KitWorkspace } from "./kitWorkspace";
 import { KitWorkspacePhone } from "./kitWorkspacePhone";
@@ -46,8 +46,8 @@ import {
 } from "./phoneSections";
 import {
   ProfileSection, DimensionInputs, SpanTable, EdgeRestraintSelector, ProjectSeparator,
-} from "../ui/wallConfig";
-import type { FinishKey, CornersField } from "../ui/wallConfig";
+} from "./wallConfig";
+import type { FinishKey, CornersField } from "./wallConfig";
 import { WallPreviewSection } from "../ui/wallPreview";
 import { PanelScheduleCard, PanelScheduleTable } from "../ui/scheduleCards";
 import { SingleWallEstimateSection } from "./mainSections";

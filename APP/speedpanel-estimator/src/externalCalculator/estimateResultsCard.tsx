@@ -14,7 +14,7 @@ import { NAVY } from "../styleTokens";
 import { Row, StatsGrid, WarningsList } from "../ui/primitives";
 import { Button } from "../ui/button";
 import { Tabs, TabPanel } from "../ui/tabs";
-import { WallsSummaryTable } from "../ui/wallsCard";
+import { WallsSummaryTable } from "./wallsCard";
 import { ConnectionBreakdownCard, type PanelScheduleCard } from "../ui/scheduleCards";
 import { buildExtProjAgg } from "../estimate/aggregate";
 import type { CombinedEstimate } from "../estimate/calculateCombinedEstimate";

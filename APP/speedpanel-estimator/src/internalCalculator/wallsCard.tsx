@@ -1,17 +1,24 @@
 // =============================================================================
-// Walls card
+// Walls card (Internal Calculator only)
 // =============================================================================
-// Wall-list management UI shared by both calculators: horizontal-only wall
-// system selector (Standard/Corner/Shaft) plus its Corner/Shaft/generic
-// junction link pickers, the WallsCard itself (system buttons, panel type,
-// wall tabs, name/duplicate/delete), and the read-only project-wide
-// WallsSummaryTable.
+// Wall-list management UI: horizontal-only wall system selector (Standard/
+// Corner/Shaft) plus its Corner/Shaft/generic junction link pickers, the
+// WallsCard itself (system buttons, panel type, name/duplicate/delete), and
+// the read-only project-wide WallsSummaryTable.
+//
+// Forked from what used to be a single file shared with ExternalCalculator
+// (see externalCalculator/wallsCard.tsx for its own, independent copy) --
+// External never used the Corner/Shaft/panel-type pieces here (it always
+// called WallsCard with showTypes=false and no onCornerLink/onShaftLink), so
+// keeping one shared file meant every Internal-only change (colours, new
+// controls) had to be checked against "does this leak into External" first.
+// Splitting them means each calculator can now evolve its own UI freely.
 // =============================================================================
 import { Copy, Frame, Trash2 } from "lucide-react";
-import { cx, NAVY, BLUE, GOLD, MUTED } from "../styleTokens";
+import { cx, NAVY, BLUE, MUTED } from "../styleTokens";
 import { TYPES } from "../data";
-import { IconButton } from "./primitives";
-import { Table, type TableColumn } from "./table";
+import { IconButton } from "../ui/primitives";
+import { Table, type TableColumn } from "../ui/table";
 import type { Wall, WallResult } from "../estimate/wall.types";
 import type { WallSystemId } from "../App";
 
@@ -248,9 +255,9 @@ export interface WallsCardProps {
   showTypes?: boolean;
   systemSelector?: React.ReactNode; // optional system buttons rendered at the top
   orient?: "vertical" | "horizontal"; // gates the horizontal-only wall system dropdown
-  onCornerLink?: (targetId: number | null) => void; // Corner wall run linking (internal only)
-  onShaftLink?: (targetId: number | null) => void; // Shaft wall primary/secondary linking (internal only)
-  onJunctionLink?: (targetId: number | null) => void; // Generic adjoining-wall linking -- any orient/wallSystem, Internal or External
+  onCornerLink?: (targetId: number | null) => void; // Corner wall run linking
+  onShaftLink?: (targetId: number | null) => void; // Shaft wall primary/secondary linking
+  onJunctionLink?: (targetId: number | null) => void; // Generic adjoining-wall linking -- any orient/wallSystem
 }
 export const WallsCard = ({ walls, active, update, duplicateWall, deleteWall, showTypes = true, systemSelector, orient, onCornerLink, onShaftLink, onJunctionLink }: WallsCardProps) => (
   <div className={cx.section}>
@@ -260,8 +267,7 @@ export const WallsCard = ({ walls, active, update, duplicateWall, deleteWall, sh
         {systemSelector}
       </div>
     )}
-    {/* 1b -- Horizontal-only wall system dropdown (Standard / Corner / Shaft). Internal
-        only -- Standard/Corner/Shaft wall calculation logic doesn't apply to External. */}
+    {/* 1b -- Horizontal-only wall system dropdown (Standard / Corner / Shaft). */}
     {showTypes && orient === "horizontal" && (
       <>
         <WallSystemSelector
@@ -281,20 +287,19 @@ export const WallsCard = ({ walls, active, update, duplicateWall, deleteWall, sh
       </>
     )}
     {/* 1c -- Generic adjoining-wall junction link. Not gated by showTypes/
-        orient/wallSystem -- available on every wall in either calculator
-        (Internal or External), since a junction can occur between any two
-        walls in the project (see JunctionLinkSelector). */}
+        orient/wallSystem -- available on every wall in the project (see
+        JunctionLinkSelector). */}
     {onJunctionLink && walls.length > 1 && (
       <JunctionLinkSelector active={active} walls={walls} onLink={onJunctionLink} />
     )}
-    {/* 2 -- Panel configuration (internal only). Shaft wall is always 78 mm --
-        hidden rather than shown-but-disabled, since it's not a user choice. */}
+    {/* 2 -- Panel configuration. Shaft wall is always 78 mm -- hidden rather
+        than shown-but-disabled, since it's not a user choice. */}
     {showTypes && (
       <PanelTypeSelector active={active} update={update} topBorder={!!systemSelector} />
     )}
     {/* 3 -- Name/duplicate/delete toolbar for whichever wall is active.
-        Both calculators' Estimate Structure nav is the wall picker + add-wall
-        entry point, so the old tab-strip (once rendered here too) is gone. */}
+        The Estimate Structure nav is the wall picker + add-wall entry point,
+        so the old tab-strip (once rendered here too) is gone. */}
     <div className={(showTypes || !!systemSelector) ? "border-t border-slate-100 dark:border-slate-800 pt-3" : ""}>
       <WallNameAndActions walls={walls} active={active} update={update} duplicateWall={duplicateWall} deleteWall={deleteWall} />
     </div>
@@ -315,7 +320,12 @@ export const WallsSummaryTable = ({ results, activeId, setActiveId, warnById, to
       key: "wall", header: "Wall",
       cell: ({ wall }) => (
         <span className="font-semibold" style={{ color: NAVY }}>
-          {warnById[wall.id] && <span className="mr-1.5 inline-block h-2 w-2 rounded-full align-middle" style={{ background: GOLD }} />}
+          {/* Red, not gold -- "Red: warnings and errors" per the approved
+              phone mockup's colour rule, applied here since this table is
+              now Internal's own copy (no longer shared with External). Same
+              red family tone("danger") uses elsewhere (bg-red-50/text-red-600),
+              just a solid fill since this is a small dot, not a text badge. */}
+          {warnById[wall.id] && <span className="mr-1.5 inline-block h-2 w-2 rounded-full align-middle bg-red-600 dark:bg-red-500" />}
           {wall.name}
         </span>
       ),

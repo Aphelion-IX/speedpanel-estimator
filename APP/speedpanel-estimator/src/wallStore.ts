@@ -167,7 +167,7 @@ export function useWallStore({ dimUnit, onWallAdded, persistLocally = true }: { 
   // the same setWalls call, since update() closes over activeId from
   // render-time state and can't safely be chained right after this (the new
   // wall's setActiveId hasn't re-rendered yet). addBlankWall itself keeps its
-  // existing zero-arg signature -- src/ui/wallsCard.tsx passes it directly as
+  // existing zero-arg signature -- callers pass it directly as
   // `onClick={addBlankWall}`, so it must never take an argument the DOM
   // MouseEvent could be mistaken for.
   const addWall = (patch?: Partial<Wall>) => {

@@ -22,7 +22,7 @@ import type { EffectiveLayout } from "../useLayoutMode";
 import { Card, CardGrid, Row, StatsGrid, WarningsList } from "../ui/primitives";
 import { Button } from "../ui/button";
 import { Tabs, TabPanel } from "../ui/tabs";
-import { WallsSummaryTable } from "../ui/wallsCard";
+import { WallsSummaryTable } from "./wallsCard";
 import { ConnectionBreakdownCard, PanelScheduleCard } from "../ui/scheduleCards";
 import { CornerKitCard, ShaftJunctionCard } from "./kitCards";
 import { WallEstimateCards } from "./mainSections";

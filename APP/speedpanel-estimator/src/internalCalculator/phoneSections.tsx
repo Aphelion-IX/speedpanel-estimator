@@ -35,13 +35,13 @@ import { RAKE_NOTE } from "../data";
 import type { Wall, ComputeOut, DimField, EdgeState } from "../estimate/wall.types";
 import type { WallSystemId } from "../App";
 import { UnitToggle } from "../ui/primitives";
-import { WALL_SYSTEMS, PanelTypeSelector, CornerLinkSelector, ShaftLinkSelector, JunctionLinkSelector, WallNameAndActions } from "../ui/wallsCard";
+import { WALL_SYSTEMS, PanelTypeSelector, CornerLinkSelector, ShaftLinkSelector, JunctionLinkSelector, WallNameAndActions } from "./wallsCard";
 import {
   DimensionInputs, SpanTable, TrackFinishBlock, HeadFlashingToggle, CornerAnglesBlock,
   type ProfileId, type FinishKey, type CornersField, type EdgeOption,
-} from "../ui/wallConfig";
+} from "./wallConfig";
 import { WallPreviewSection } from "../ui/wallPreview";
-import { PanelLengthSection, type PanelLengthSectionProps } from "../ui/lengthExplorer";
+import { PanelLengthSection, type PanelLengthSectionProps } from "./lengthExplorer";
 
 // --- SegPhone -------------------------------------------------------------
 // The mockup's ".seg" pattern: grey track, unselected = transparent/navy

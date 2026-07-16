@@ -32,14 +32,14 @@ import {
   CollapsibleSection, StatsGrid,
 } from "../ui/primitives";
 import { LockedDataExt, LockedDataFooter } from "../ui/lockedData";
-import { PanelLengthSection } from "../ui/lengthExplorer";
-import { WallsCard } from "../ui/wallsCard";
+import { PanelLengthSection } from "./lengthExplorer";
+import { WallsCard } from "./wallsCard";
 import { StickyBar } from "../ui/stickyBar";
 import { EstimateStructureNav } from "./estimateStructureNav";
 import {
   ProfileSection, DimensionInputs, SpanTable, EdgeRestraintSelector, ProjectSeparator,
-} from "../ui/wallConfig";
-import type { CornersField } from "../ui/wallConfig";
+} from "./wallConfig";
+import type { CornersField } from "./wallConfig";
 import { WallPreviewSection } from "../ui/wallPreview";
 import { PanelScheduleCard, PanelScheduleTable } from "../ui/scheduleCards";
 import { PanelColourSection } from "./panelColourSection";
@@ -116,8 +116,8 @@ export function ExternalCalculator({ store, orient, dimUnit, setDimUnit, systemS
       <WallsCard
         walls={walls}
         active={active} update={update}
-        duplicateWall={duplicateWall} deleteWall={deleteWall} showTypes={false}
-        systemSelector={systemSelector} orient={orient}
+        duplicateWall={duplicateWall} deleteWall={deleteWall}
+        systemSelector={systemSelector}
         onJunctionLink={linkJunctionPartner}
       />
 
@@ -162,7 +162,6 @@ export function ExternalCalculator({ store, orient, dimUnit, setDimUnit, systemS
           edges={active.edges}
           onEdgeToggle={k => update({ edges: { ...active.edges, [k]: !active.edges[k] } })}
           options={edgeOptions}
-          orient={orient}
           corners={{ intCorners: active.intCorners, extCorners: active.extCorners, onChange: (f: CornersField, v: string) => update({ [f]: v } as Pick<Wall, CornersField>) }}
         />
       </CollapsibleSection>
