@@ -39,6 +39,7 @@ import { EstimateStructureNav } from "./estimateStructureNav";
 import { KitWorkspace } from "./kitWorkspace";
 import { KitWorkspacePhone } from "./kitWorkspacePhone";
 import { WallWorkspaceTabs } from "./wallWorkspaceTabs";
+import { ProjectCardPhone, SheetHeaderPhone, StickyBarTilesPhone, deriveWallStatus } from "./phoneShell";
 import {
   ProfileSection, DimensionInputs, SpanTable, EdgeRestraintSelector, ProjectSeparator,
 } from "../ui/wallConfig";
@@ -48,17 +49,17 @@ import { PanelScheduleCard, PanelScheduleTable } from "../ui/scheduleCards";
 import { SingleWallEstimateSection } from "./mainSections";
 import { EstimateResultsCard } from "./estimateResultsCard";
 import { OrderReviewDrawer } from "./orderReviewDrawer";
-import { StickyBar } from "../ui/stickyBar";
 import { buildInternalReportData } from "../export/buildInternalReportData";
 import { exportEstimateToExcel } from "../export/exportEstimateToExcel";
 
-export function InternalCalculator({ store, orient, dimUnit, setDimUnit, systemSelector, layoutMode, mode, setMode, showWall, setShowWall, linkCornerPartner, linkShaftPartner }: {
+export function InternalCalculator({ store, orient, dimUnit, setDimUnit, systemSelector, layoutMode, mode, setMode, showWall, setShowWall, linkCornerPartner, linkShaftPartner, projectName }: {
   store: WallStore; orient: "vertical" | "horizontal"; dimUnit: string;
   setDimUnit: (u: string) => void; systemSelector?: React.ReactNode; layoutMode: EffectiveLayout;
   mode: string; setMode: (m: string) => void;
   showWall: boolean; setShowWall: (v: boolean) => void;
   linkCornerPartner: (targetId: number | null) => void;
   linkShaftPartner: (targetId: number | null) => void;
+  projectName?: string;
 }) {
   const [showTrackFinish, setShowTrackFinish] = useState(false);
   const [orderDrawerOpen, setOrderDrawerOpen] = useState(false);
@@ -123,6 +124,13 @@ export function InternalCalculator({ store, orient, dimUnit, setDimUnit, systemS
   const workspaceTitle = selectedKit
     ? kitLabel(selectedKit, kits)
     : `${active.name} — ${active.orient === "vertical" ? "Vertical" : "Horizontal"} · P${active.type}`;
+  // Phone-only sheet header: same underlying data as workspaceTitle above,
+  // just split into a title/crumb/status shape for SheetHeaderPhone.
+  const sheetTitle = selectedKit ? kitLabel(selectedKit, kits) : active.name;
+  const sheetCrumb = selectedKit
+    ? `${selectedKit.wallAName} ↔ ${selectedKit.wallBName}`
+    : `${active.orient === "vertical" ? "Vertical" : "Horizontal"} · P${active.type}`;
+  const sheetStatus = selectedKit ? "linked" as const : deriveWallStatus(active, out);
   const selectedItemStats = selectedKit
     ? [
         { value: selectedKit.kind === "corner" ? "Corner" : "Shaft", label: "Kit type" },
@@ -153,10 +161,15 @@ export function InternalCalculator({ store, orient, dimUnit, setDimUnit, systemS
     <>
       <EstimateModeSelector visible={!out.empty} mode={mode} setMode={setMode} />
 
-      <SectionLabel icon={<Gauge size={13} />}>Selected item metrics</SectionLabel>
-      <StatsGrid stats={selectedItemStats} />
-
-      <SectionLabel icon={<Settings size={13} />}>{`Calculator workspace — ${workspaceTitle}`}</SectionLabel>
+      {layoutMode === "phone" ? (
+        <SheetHeaderPhone title={sheetTitle} crumb={sheetCrumb} status={sheetStatus} stats={selectedItemStats} />
+      ) : (
+        <>
+          <SectionLabel icon={<Gauge size={13} />}>Selected item metrics</SectionLabel>
+          <StatsGrid stats={selectedItemStats} />
+          <SectionLabel icon={<Settings size={13} />}>{`Calculator workspace — ${workspaceTitle}`}</SectionLabel>
+        </>
+      )}
       {selectedKit ? (
         layoutMode === "phone"
           ? <KitWorkspacePhone kit={selectedKit} onSelect={handleSelectNavItem} />
@@ -297,13 +310,19 @@ export function InternalCalculator({ store, orient, dimUnit, setDimUnit, systemS
   // so this degrades correctly to that one wall's own totals outside project
   // mode); single-wall mode's existing footer Export button is untouched.
   const stickyBarNode = layoutMode === "phone" && (
-    <StickyBar
-      view="project" wallStats={[]} projectStats={stickyProjectStats}
+    <StickyBarTilesPhone
+      stats={stickyProjectStats}
       onReviewOrder={() => setOrderDrawerOpen(true)} lineItemCount={orderLineItemCount}
     />
   );
+  const projectCardNode = layoutMode === "phone" && (
+    <ProjectCardPhone
+      projectName={projectName} results={results} kits={kits}
+      addBlankWall={addBlankWall} addCornerWall={addCornerWall} addShaftWall={addShaftWall}
+    />
+  );
 
-  if (layoutMode === "phone") return <>{sidebarNode}{mainNode}{footerNode}{stickyBarNode}{orderDrawerNode}</>;
+  if (layoutMode === "phone") return <>{projectCardNode}{sidebarNode}{mainNode}{footerNode}{stickyBarNode}{orderDrawerNode}</>;
   return (
     <>
       <CalculatorShell sidebar={sidebarNode} main={mainNode} footer={footerNode} sidebarWidth={320} />

@@ -316,6 +316,7 @@ export default function SpeedpanelEstimator() {
               mode={mode} setMode={setMode}
               showWall={showWall} setShowWall={setShowWall}
               linkCornerPartner={linkCornerPartner} linkShaftPartner={linkShaftPartner}
+              projectName={openProject?.name}
             />
           )
         )}
