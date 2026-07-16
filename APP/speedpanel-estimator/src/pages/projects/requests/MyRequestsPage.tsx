@@ -70,11 +70,11 @@ const RequestRow = ({ item, navigate }: { item: MyRequestItem; navigate: (route:
   );
 
   return onClick ? (
-    <button onClick={onClick} className="flex w-full items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 px-5 py-4 text-left last:border-b-0">
+    <button onClick={onClick} className="flex w-full items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-700 px-5 py-4 text-left last:border-b-0">
       {content}
     </button>
   ) : (
-    <div className="flex items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 px-5 py-4 last:border-b-0">
+    <div className="flex items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-700 px-5 py-4 last:border-b-0">
       {content}
     </div>
   );
@@ -104,7 +104,7 @@ export const MyRequestsPage = ({ auth, navigate, activeCompanyId }: {
       ) : items.length === 0 ? (
         <EmptyState className={`${cx.card} mt-4`} message="No requests yet." />
       ) : (
-        <section className="mt-4 overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm">
+        <section className="mt-4 overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 shadow-sm">
           {items.map((item, i) => (
             <RequestRow key={`${item.source}-${item.source === "review" ? `${item.project.id}-${item.kind}` : item.source === "delivery" ? item.delivery.id : item.request.id}-${i}`} item={item} navigate={navigate} />
           ))}

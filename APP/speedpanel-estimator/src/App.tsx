@@ -299,10 +299,10 @@ export default function SpeedpanelEstimator() {
 
         {/* Open-project banner + Save -- only shown while editing a saved project */}
         {route.tab === "estimator" && openProject && (
-          <div className={`mt-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-blue-100 dark:border-blue-900/60 bg-blue-50/70 dark:bg-blue-950/40 px-4 py-3`}>
+          <div className={`mt-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-blue-100 dark:border-blue-800/80 bg-blue-50/70 dark:bg-blue-900/55 px-4 py-3`}>
             <span className="text-sm font-semibold" style={{ color: NAVY }}>Editing project: {openProject.name}</span>
             <div className="flex items-center gap-3">
-              {saveProjectError && <span className="text-sm text-red-600 dark:text-red-400">{saveProjectError}</span>}
+              {saveProjectError && <span className="text-sm text-red-600 dark:text-red-300">{saveProjectError}</span>}
               <Button onClick={saveOpenProject} disabled={savingProject}>{savingProject ? "Saving..." : "Save"}</Button>
             </div>
           </div>
@@ -340,8 +340,8 @@ export default function SpeedpanelEstimator() {
         )}
 
         {route.tab === "estimator" && (
-          <div className="mt-8 flex gap-3 rounded-xl border border-amber-200 dark:border-amber-800/60 bg-amber-50/80 dark:bg-amber-950/30 px-4 py-3.5">
-            <AlertTriangle size={14} className="mt-0.5 shrink-0 text-amber-500 dark:text-amber-400" />
+          <div className="mt-8 flex gap-3 rounded-xl border border-amber-200 dark:border-amber-700/80 bg-amber-50/80 dark:bg-amber-900/50 px-4 py-3.5">
+            <AlertTriangle size={14} className="mt-0.5 shrink-0 text-amber-500 dark:text-amber-300" />
             <p className="text-sm leading-relaxed text-amber-800 dark:text-amber-300">
               By using this calculator you acknowledge quantities are estimates only and you will not hold Speedpanel liable for over- or under-ordering. Does not confirm compliance, FRL, engineering, restraint, certification or approval.
             </p>

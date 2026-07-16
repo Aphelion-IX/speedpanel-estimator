@@ -52,7 +52,7 @@ export const AdminDashboard = ({ onNavigate, auth }: { onNavigate: (sub: AdminSu
                   <div className="flex items-center gap-2 text-sm font-bold" style={{ color: NAVY }}>
                     <span style={{ color: BLUE }}>{section.icon}</span>{section.label}
                   </div>
-                  <p className="mt-1.5 text-sm text-slate-500 dark:text-slate-400">{section.description}</p>
+                  <p className="mt-1.5 text-sm text-slate-500 dark:text-slate-300">{section.description}</p>
                 </button>
               );
             })}

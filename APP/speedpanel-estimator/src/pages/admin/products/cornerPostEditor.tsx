@@ -25,12 +25,12 @@ export const CornerPostEditor = ({ value, onChange }: { value: CornerPost; onCha
   return (
     <div className="space-y-3">
       {value.map((band, i) => (
-        <div key={i} className="rounded-lg border border-slate-200 dark:border-slate-700 p-3">
+        <div key={i} className="rounded-lg border border-slate-200 dark:border-slate-600 p-3">
           <div className="flex items-center justify-between gap-2">
             <label className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide" style={{ color: MUTED }}>
               Max width (m)
               <input type="number" value={band.maxW} onChange={e => setMaxW(i, Number(e.target.value))}
-                className="w-20 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1 text-xs" style={{ color: NAVY }} />
+                className="w-20 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-2 py-1 text-xs" style={{ color: NAVY }} />
             </label>
             <IconButton size="sm" variant="danger" ariaLabel="Remove width band" onClick={() => removeBand(i)}>
               <Trash2 size={13} />

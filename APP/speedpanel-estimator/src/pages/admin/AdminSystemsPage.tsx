@@ -29,7 +29,7 @@ const SystemToggle = ({ active, onChange }: { active: SystemId; onChange: (s: Sy
       const on = active === s;
       return (
         <button key={s} onClick={() => onChange(s)}
-          className={"w-full rounded-xl border-2 py-3 px-4 text-sm font-semibold text-center active:scale-95 transition-all " + (on ? "" : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800")}
+          className={"w-full rounded-xl border-2 py-3 px-4 text-sm font-semibold text-center active:scale-95 transition-all " + (on ? "" : "border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800")}
           style={on ? { borderColor: BLUE, background: BLUE, color: WHITE } : { color: BLUE }}>{SYSTEM_LABEL[s]}</button>
       );
     })}
@@ -60,7 +60,7 @@ export const AdminSystemsPage = ({ layoutMode }: { layoutMode: EffectiveLayout }
   const editor = (
     <>
       {isDirty && (
-        <span className={`${cx.badge} mt-4 inline-block bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400`}>
+        <span className={`${cx.badge} mt-4 inline-block bg-amber-50 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300`}>
           Unsaved changes
         </span>
       )}

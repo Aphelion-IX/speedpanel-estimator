@@ -30,7 +30,7 @@ import type { KitEntry } from "../estimate/synthesizeKits";
 // app, rather than inventing a new colour.
 export type ItemStatusKey = "complete" | "needsInput" | "custom" | "linked" | "notLinked";
 
-const BLUE_CHIP_CX = "bg-blue-50 dark:bg-blue-950/40 text-[color:var(--blue)]";
+const BLUE_CHIP_CX = "bg-blue-50 dark:bg-blue-900/55 text-[color:var(--blue)]";
 
 const STATUS: Record<ItemStatusKey, { label: string; chipCx: string }> = {
   complete:   { label: "Complete",    chipCx: BLUE_CHIP_CX },
@@ -76,11 +76,11 @@ export const ProjectCardPhone = ({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="truncate text-base font-extrabold" style={{ color: NAVY }}>{projectName ?? "Draft estimate"}</div>
-          <div className="mt-0.5 text-xs font-medium text-slate-400 dark:text-slate-500">
+          <div className="mt-0.5 text-xs font-medium text-slate-400 dark:text-slate-400">
             {pct}% configured · {warningsCount} warning{warningsCount === 1 ? "" : "s"}
           </div>
         </div>
-        <div className="shrink-0 text-xs font-medium text-slate-400 dark:text-slate-500">
+        <div className="shrink-0 text-xs font-medium text-slate-400 dark:text-slate-400">
           {totalItems} item{totalItems === 1 ? "" : "s"}
         </div>
       </div>
@@ -104,13 +104,13 @@ const AddTile = ({ label, sublabel, onClick, external = false }: {
   label: string; sublabel: string; onClick: () => void; external?: boolean;
 }) => (
   <button onClick={onClick}
-    className={`flex min-h-[76px] items-center gap-2.5 rounded-xl border bg-white dark:bg-slate-800 px-3 py-2.5 text-left shadow-sm active:scale-95 transition-all ${external ? "border-slate-200 dark:border-slate-700" : ""}`}
+    className={`flex min-h-[76px] items-center gap-2.5 rounded-xl border bg-white dark:bg-slate-800 px-3 py-2.5 text-left shadow-sm active:scale-95 transition-all ${external ? "border-slate-200 dark:border-slate-600" : ""}`}
     style={external ? undefined : { borderColor: BLUE }}>
     <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-[11px] text-base font-black leading-none ${external ? tone("info") : ""}`}
       style={external ? undefined : { background: BLUE, color: WHITE }}>+</span>
     <span className="min-w-0">
       <span className="block text-[13px] font-bold leading-tight" style={{ color: NAVY }}>{label}</span>
-      <span className="mt-0.5 block text-[10px] leading-tight text-slate-400 dark:text-slate-500">{sublabel}</span>
+      <span className="mt-0.5 block text-[10px] leading-tight text-slate-400 dark:text-slate-400">{sublabel}</span>
     </span>
   </button>
 );
@@ -127,7 +127,7 @@ export const WallPillStripPhone = ({ items, onSelect }: {
       {items.map(item => (
         <button key={item.id} onClick={() => onSelect(item.id)}
           className={"min-w-[168px] shrink-0 snap-start rounded-xl border bg-white dark:bg-slate-800 px-3.5 py-3 text-left active:scale-95 transition-all " +
-            (item.active ? "border-2 shadow-[0_0_0_2px_rgba(0,103,185,0.12)]" : "border-slate-200 dark:border-slate-700")}
+            (item.active ? "border-2 shadow-[0_0_0_2px_rgba(0,103,185,0.12)]" : "border-slate-200 dark:border-slate-600")}
           style={item.active ? { borderColor: BLUE } : undefined}>
           <div className="truncate text-sm font-bold" style={{ color: NAVY }}>{item.label}</div>
           {item.sublabel && <div className="mt-1 truncate text-xs font-medium" style={{ color: MUTED }}>{item.sublabel}</div>}
@@ -142,9 +142,9 @@ export const WallPillStripPhone = ({ items, onSelect }: {
 export const MetricsGridPhone = ({ stats }: { stats: { value: string | number; label: string }[] }) => (
   <div className="grid grid-cols-3 divide-x divide-slate-100 dark:divide-slate-800">
     {stats.map((s, i) => (
-      <div key={i} className={`px-2 text-center ${i >= 3 ? "mt-3 border-t border-slate-100 dark:border-slate-800 pt-3" : ""}`}>
+      <div key={i} className={`px-2 text-center ${i >= 3 ? "mt-3 border-t border-slate-100 dark:border-slate-700 pt-3" : ""}`}>
         <div className="text-base font-extrabold" style={{ color: NAVY }}>{s.value}</div>
-        <div className="mt-1 text-[9px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">{s.label}</div>
+        <div className="mt-1 text-[9px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-400">{s.label}</div>
       </div>
     ))}
   </div>
@@ -161,14 +161,14 @@ export const SheetHeaderPhone = ({ title, crumb, status, stats }: {
   stats: { value: string | number; label: string }[];
 }) => (
   <>
-    <div className="flex items-start justify-between gap-3 border-b border-slate-100 dark:border-slate-800 px-4 py-4">
+    <div className="flex items-start justify-between gap-3 border-b border-slate-100 dark:border-slate-700 px-4 py-4">
       <div className="min-w-0">
         <div className="truncate text-lg font-extrabold" style={{ color: NAVY }}>{title}</div>
-        <div className="mt-0.5 truncate text-xs font-medium text-slate-400 dark:text-slate-500">{crumb}</div>
+        <div className="mt-0.5 truncate text-xs font-medium text-slate-400 dark:text-slate-400">{crumb}</div>
       </div>
       <span className={`shrink-0 ${statusChipCx(status)}`}>{statusLabel(status)}</span>
     </div>
-    <div className="border-b border-slate-100 dark:border-slate-800 px-2 py-3.5">
+    <div className="border-b border-slate-100 dark:border-slate-700 px-2 py-3.5">
       <MetricsGridPhone stats={stats} />
     </div>
   </>
@@ -178,11 +178,11 @@ export const SheetHeaderPhone = ({ title, crumb, status, stats }: {
 export const StickyBarTilesPhone = ({ stats, onReviewOrder, lineItemCount }: {
   stats: { value: string | number; label: string }[]; onReviewOrder: () => void; lineItemCount?: number;
 }) => (
-  <div className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-[1fr_1fr_1.3fr] gap-2 border-t border-slate-200 dark:border-slate-700 bg-white/95 dark:bg-slate-800/95 px-3 pt-2.5 pb-[max(0.625rem,env(safe-area-inset-bottom))] shadow-[0_-20px_40px_-28px_rgba(15,23,42,0.35)] backdrop-blur dark:shadow-[0_-20px_40px_-24px_rgba(0,0,0,0.5)]">
+  <div className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-[1fr_1fr_1.3fr] gap-2 border-t border-slate-200 dark:border-slate-600 bg-white/95 dark:bg-slate-800/95 px-3 pt-2.5 pb-[max(0.625rem,env(safe-area-inset-bottom))] shadow-[0_-20px_40px_-28px_rgba(15,23,42,0.35)] backdrop-blur dark:shadow-[0_-20px_40px_-24px_rgba(0,0,0,0.5)]">
     {stats.slice(0, 2).map((s, i) => (
-      <div key={i} className="flex min-h-[50px] flex-col items-center justify-center rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+      <div key={i} className="flex min-h-[50px] flex-col items-center justify-center rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800">
         <div className="text-sm font-extrabold" style={{ color: NAVY }}>{s.value}</div>
-        <div className="mt-0.5 text-[9px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">{s.label}</div>
+        <div className="mt-0.5 text-[9px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-400">{s.label}</div>
       </div>
     ))}
     <button onClick={onReviewOrder} className="rounded-xl text-sm font-bold text-white transition-colors active:scale-[0.99]" style={{ background: BLUE }}>

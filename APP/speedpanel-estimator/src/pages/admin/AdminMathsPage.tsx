@@ -66,7 +66,7 @@ const shaftTrackWarning = (rows: ShaftTrackRow[]): string | null =>
   isAscending(rows.map(r => r.maxF)) ? null : "Floor-height rows should be in ascending order.";
 
 const TableWarning = ({ message }: { message: string | null }) =>
-  message ? <p className="mt-2 text-xs font-semibold text-amber-600 dark:text-amber-400">{message}</p> : null;
+  message ? <p className="mt-2 text-xs font-semibold text-amber-600 dark:text-amber-300">{message}</p> : null;
 
 export const AdminMathsPage = () => {
   const mathStore = useMathConstantsStore();
@@ -134,7 +134,7 @@ export const AdminMathsPage = () => {
       ) : (
         <NumberListField label={f.label} value={constants[f.key] as number[]} onChange={v => setConst(f.key, v as MathConstants[typeof f.key])} />
       )}
-      <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{f.helpText}</p>
+      <p className="mt-1 text-xs text-slate-500 dark:text-slate-300">{f.helpText}</p>
     </div>
   );
 
@@ -145,11 +145,11 @@ export const AdminMathsPage = () => {
   return (
     <div className="mt-2">
       <ErrorDialog message={actionError} onDismiss={() => { setActionError(null); window.location.reload(); }} />
-      <span className={`${cx.badge} inline-block bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400`}>
+      <span className={`${cx.badge} inline-block bg-amber-50 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300`}>
         Saving applies these values to every estimate and reloads the app
       </span>
       {(mathStore.error || tablesStore.error) && (
-        <p className="mt-2 text-xs text-red-600 dark:text-red-400">{mathStore.error || tablesStore.error} (showing this device's last-saved values)</p>
+        <p className="mt-2 text-xs text-red-600 dark:text-red-300">{mathStore.error || tablesStore.error} (showing this device's last-saved values)</p>
       )}
       {(mathStore.loading || tablesStore.loading) && <p className="mt-2 text-xs" style={{ color: MUTED }}>Loading latest saved values...</p>}
 
@@ -158,7 +158,7 @@ export const AdminMathsPage = () => {
           const on = tab === t.key;
           return (
             <button key={t.key} onClick={() => setTab(t.key)}
-              className={"w-full rounded-xl border-2 py-3 px-2 text-sm font-semibold text-center active:scale-95 transition-all " + (on ? "" : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800")}
+              className={"w-full rounded-xl border-2 py-3 px-2 text-sm font-semibold text-center active:scale-95 transition-all " + (on ? "" : "border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800")}
               style={on ? { borderColor: BLUE, background: BLUE, color: WHITE } : { color: BLUE }}>
               {t.label}
             </button>
@@ -169,7 +169,7 @@ export const AdminMathsPage = () => {
       {tab !== "external" && (
         <div className={`${cx.card} mt-4`}>
           <div className={cx.cardHd}>Internal — shared constants</div>
-          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Applies across all internal panel types (P51/P64/P78).</p>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-300">Applies across all internal panel types (P51/P64/P78).</p>
           <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
             {sharedInternalFields.map(renderField)}
           </div>
@@ -194,7 +194,7 @@ export const AdminMathsPage = () => {
 
           <div className={`${cx.card} mt-4`}>
             <div className={cx.cardHd}>Corner post table</div>
-            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Section used for Corner wall posts, by width band and height.</p>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-300">Section used for Corner wall posts, by width band and height.</p>
             <TableWarning message={cornerPostWarning(tables.cornerPost[tab] ?? [])} />
             <div className="mt-3">
               <CornerPostEditor value={tables.cornerPost[tab] ?? []} onChange={bands => setCornerPost(tab, bands)} />
@@ -203,7 +203,7 @@ export const AdminMathsPage = () => {
 
           <div className={`${cx.card} mt-4`}>
             <div className={cx.cardHd}>Horizontal C-track table</div>
-            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Section used for horizontal walls, by width/height band. Leave "Max H" blank for the unbounded (outside-table) row.</p>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-300">Section used for horizontal walls, by width/height band. Leave "Max H" blank for the unbounded (outside-table) row.</p>
             <TableWarning message={horizCtrackWarning(tables.horizCtrack[tab] ?? [])} />
             <div className="mt-3">
               <RepeatableRowEditor<HorizCtrackBand>
@@ -226,7 +226,7 @@ export const AdminMathsPage = () => {
           {tab === "78" && (
             <div className={`${cx.card} mt-4`}>
               <div className={cx.cardHd}>Shaft wall vertical track (by floor height)</div>
-              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Shaft walls are always P78, so this table isn't split per panel type.</p>
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-300">Shaft walls are always P78, so this table isn't split per panel type.</p>
               <TableWarning message={shaftWarning} />
               <div className="mt-3">
                 <RepeatableRowEditor<ShaftTrackRow>

@@ -41,7 +41,7 @@ export const StaffTeamCard = ({ companyId }: { companyId: string }) => {
   const { staff, loading, error } = useCompanyStaffTeam(companyId);
 
   if (loading) return null;
-  if (error) return <p className="text-sm text-red-600 dark:text-red-400">{error}</p>;
+  if (error) return <p className="text-sm text-red-600 dark:text-red-300">{error}</p>;
   if (staff.length === 0) return null;
 
   return (

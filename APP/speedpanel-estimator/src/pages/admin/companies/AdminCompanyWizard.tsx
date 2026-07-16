@@ -67,7 +67,7 @@ const CompanyDetailsStep = ({ onCreated }: { onCreated: (companyId: string) => v
       <Field label="Phone (optional)" value={phone} onChange={setPhone} />
       <Field label="Address (optional)" value={address} onChange={setAddress} />
 
-      {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+      {error && <p className="text-sm text-red-600 dark:text-red-300">{error}</p>}
 
       <Button type="submit" className="w-full" disabled={submitting || !legalName.trim()}>
         {submitting ? "Creating..." : "Create company & continue"}
@@ -121,7 +121,7 @@ const CustomerUsersStep = ({ companyId, onNext }: { companyId: string; onNext: (
           {inviting ? "Adding..." : "Add"}
         </Button>
       </form>
-      {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+      {error && <p className="text-sm text-red-600 dark:text-red-300">{error}</p>}
       {added.length > 0 && (
         <ul className="text-sm" style={{ color: NAVY }}>
           {added.map(e => <li key={e}>Added {e}</li>)}

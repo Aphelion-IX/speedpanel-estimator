@@ -100,7 +100,7 @@ export const AdminDocumentsPage = ({ layoutMode }: { layoutMode: EffectiveLayout
 
   const gridBody = (
     <>
-      <div className="mt-4 flex items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 shadow-sm">
+      <div className="mt-4 flex items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-4 py-3 shadow-sm">
         <Search size={16} className="shrink-0" style={{ color: MUTED }} />
         <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search documents..."
           className="w-full bg-transparent text-sm outline-none" style={{ color: NAVY }} />

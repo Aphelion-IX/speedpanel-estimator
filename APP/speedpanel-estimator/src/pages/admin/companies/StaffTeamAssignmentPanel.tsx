@@ -34,12 +34,12 @@ export const StaffTeamAssignmentPanel = ({ companyId }: { companyId: string }) =
   };
 
   if (staffLoading || candidatesLoading) return <p className={cx.footnote}>Loading...</p>;
-  if (staffError || candidatesError) return <p className="text-sm text-red-600 dark:text-red-400">{staffError || candidatesError}</p>;
+  if (staffError || candidatesError) return <p className="text-sm text-red-600 dark:text-red-300">{staffError || candidatesError}</p>;
   if (candidates.length === 0) return <p className={cx.footnote}>No Speedpanel admin accounts to assign yet.</p>;
 
   return (
     <div className="space-y-4">
-      {actionError && <p className="text-sm text-red-600 dark:text-red-400">{actionError}</p>}
+      {actionError && <p className="text-sm text-red-600 dark:text-red-300">{actionError}</p>}
       {STAFF_ROLES.map(role => {
         const assigned = staff.filter(m => m.role === role);
         const multi = STAFF_ROLE_MULTI[role];
@@ -48,7 +48,7 @@ export const StaffTeamAssignmentPanel = ({ companyId }: { companyId: string }) =
         return (
           <div key={role}>
             <label className={cx.lbl}>{STAFF_ROLE_LABELS[role]} -- {multi ? "choose one or more" : "choose one"}</label>
-            <div className="mt-1 max-h-48 space-y-1 overflow-auto rounded-xl border border-slate-200 dark:border-slate-700 p-2">
+            <div className="mt-1 max-h-48 space-y-1 overflow-auto rounded-xl border border-slate-200 dark:border-slate-600 p-2">
               {roleCandidates.length === 0 && <p className="text-xs" style={{ color: MUTED }}>No staff with this internal role yet.</p>}
               {roleCandidates.map(c => {
                 const isAssigned = assigned.some(a => a.staff_user_id === c.id);

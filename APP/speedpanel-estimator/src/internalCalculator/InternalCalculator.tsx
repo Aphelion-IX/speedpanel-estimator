@@ -177,7 +177,7 @@ export function InternalCalculator({ store, orient, dimUnit, setDimUnit, systemS
   const geometryContent = (
     <>
       <ProfileSection profile={active.profile} onChange={id => update({ profile: id })} />
-      <div className="border-t border-slate-100 dark:border-slate-800 pt-3">
+      <div className="border-t border-slate-100 dark:border-slate-700 pt-3">
         <div className="mb-2 flex items-center justify-between">
           <span className={cx.cardHd} style={{marginBottom:0}}>Dimensions</span>
           <div className="flex items-center gap-2">

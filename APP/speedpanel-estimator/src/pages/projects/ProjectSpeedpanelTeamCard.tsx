@@ -45,12 +45,12 @@ export const ProjectSpeedpanelTeamCard = ({ companyId }: { companyId: string }) 
                 </div>
                 <div className="flex items-center gap-2">
                   {contact.email && (
-                    <a href={`mailto:${contact.email}`} title="Email" className="rounded-lg border border-slate-200 dark:border-slate-700 p-2" style={{ color: BLUE }}>
+                    <a href={`mailto:${contact.email}`} title="Email" className="rounded-lg border border-slate-200 dark:border-slate-600 p-2" style={{ color: BLUE }}>
                       <Mail size={14} />
                     </a>
                   )}
                   {contact.phone && (
-                    <a href={`tel:${contact.phone}`} title="Call" className="rounded-lg border border-slate-200 dark:border-slate-700 p-2" style={{ color: BLUE }}>
+                    <a href={`tel:${contact.phone}`} title="Call" className="rounded-lg border border-slate-200 dark:border-slate-600 p-2" style={{ color: BLUE }}>
                       <Phone size={14} />
                     </a>
                   )}

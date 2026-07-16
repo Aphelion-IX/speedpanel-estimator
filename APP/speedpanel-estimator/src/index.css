@@ -40,7 +40,9 @@ body {
   --blue: #3AA8FF;      /* brightened tint of the new brand blue, same lightening ratio as before */
   --gold: #F0C152;      /* brightened tint of the new brand gold, same lightening ratio as before */
   --on-fill: #FFFFFF;
-  --muted: #94A3B8;
+  --muted: #CBD5E1;     /* brighter than the light-mode value -- #94A3B8 read as
+                            washed-out/low-contrast against the very dark page
+                            background, this lifts it roughly slate-400 -> slate-300 */
   --navy-2: #D3D9E8;
   --navy-3: #BEC6DA;
 }

@@ -32,13 +32,13 @@ export const SaveDraftBanner = ({ onSave }: { onSave: (name: string) => Promise<
   };
 
   return (
-    <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-blue-100 dark:border-blue-900/60 bg-blue-50/70 dark:bg-blue-950/40 px-4 py-3">
+    <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-blue-100 dark:border-blue-800/80 bg-blue-50/70 dark:bg-blue-900/55 px-4 py-3">
       <span className="text-sm font-semibold" style={{ color: NAVY }}>Working on an unsaved draft</span>
       {naming ? (
         <form onSubmit={handleSave} className="flex flex-wrap items-center gap-2">
           <input value={name} onChange={e => setName(e.target.value)} placeholder="Project name" required autoFocus
             className={cx.input + " w-48 !py-2"} style={{ color: NAVY }} />
-          {error && <span className="text-sm text-red-600 dark:text-red-400">{error}</span>}
+          {error && <span className="text-sm text-red-600 dark:text-red-300">{error}</span>}
           <Button type="submit" disabled={saving || !name.trim()}>{saving ? "Saving..." : "Save"}</Button>
           <Button type="button" variant="ghost" onClick={() => { setNaming(false); setError(null); }}>Cancel</Button>
         </form>

@@ -101,7 +101,7 @@ export const OrderDetailPage = ({ orderId, onBack, onViewProforma }: {
           <Row k="Total (inc GST)" v={`$${order.total_inc_gst.toFixed(2)}`} hl />
         </div>
 
-        {actionError && <p className="mt-3 text-sm text-red-600 dark:text-red-400">{actionError}</p>}
+        {actionError && <p className="mt-3 text-sm text-red-600 dark:text-red-300">{actionError}</p>}
 
         <div className="mt-4 flex flex-wrap gap-2">
           {order.stage === "draft" && (
@@ -161,7 +161,7 @@ export const OrderDetailPage = ({ orderId, onBack, onViewProforma }: {
           {deliveriesLoading ? (
             <LoadingState className="mt-2" label="Loading deliveries" />
           ) : deliveriesError ? (
-            <p className="mt-2 text-sm text-red-600 dark:text-red-400">{deliveriesError}</p>
+            <p className="mt-2 text-sm text-red-600 dark:text-red-300">{deliveriesError}</p>
           ) : (
             visibleDeliveries.map(d => (
               <DeliveryRequestCard key={d.id} delivery={d} lineItems={order.line_items}

@@ -41,7 +41,7 @@ export const DocumentDetailPanel = ({ doc, allDocs, tab, onTabChange, onSelectRe
       <div className="mb-3 flex items-center justify-between gap-2">
         <span className="truncate text-xs font-bold uppercase tracking-widest" style={{ color: MUTED }}>Document viewer</span>
         <button onClick={onToggleExpand} title={expanded ? "Exit full screen" : "Full screen"}
-          className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-slate-200 dark:border-slate-700 text-slate-400 dark:text-slate-500">
+          className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-slate-200 dark:border-slate-600 text-slate-400 dark:text-slate-400">
           {expanded ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
         </button>
       </div>
@@ -62,17 +62,17 @@ export const DocumentDetailPanel = ({ doc, allDocs, tab, onTabChange, onSelectRe
         ) : (
           <button className="flex-1 rounded-xl py-2.5 text-sm font-bold" style={{ background: BLUE, color: WHITE }}>Open PDF</button>
         )}
-        <button className="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 dark:border-slate-700 text-slate-400 dark:text-slate-500"><Share2 size={15} /></button>
-        <button className="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 dark:border-slate-700 text-slate-400 dark:text-slate-500"><MoreVertical size={15} /></button>
+        <button className="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 dark:border-slate-600 text-slate-400 dark:text-slate-400"><Share2 size={15} /></button>
+        <button className="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 dark:border-slate-600 text-slate-400 dark:text-slate-400"><MoreVertical size={15} /></button>
       </div>
     </>
   );
 
   const tabsNav = (
-    <div className="mt-4 grid grid-cols-3 gap-1 rounded-xl border border-slate-200 dark:border-slate-700 p-1">
+    <div className="mt-4 grid grid-cols-3 gap-1 rounded-xl border border-slate-200 dark:border-slate-600 p-1">
       {DETAIL_TABS.map(t => (
         <button key={t.key} onClick={() => onTabChange(t.key)}
-          className={"rounded-lg py-2 text-xs font-bold transition-all " + (tab === t.key ? "" : "text-slate-400 dark:text-slate-500")}
+          className={"rounded-lg py-2 text-xs font-bold transition-all " + (tab === t.key ? "" : "text-slate-400 dark:text-slate-400")}
           style={tab === t.key ? { background: BLUE, color: WHITE } : undefined}>
           {t.label}
         </button>
@@ -130,7 +130,7 @@ export const DocumentDetailPanel = ({ doc, allDocs, tab, onTabChange, onSelectRe
             : <div className="space-y-2">
                 {related.map(d => (
                   <button key={d.id} onClick={() => onSelectRelated(d.id)}
-                    className="w-full rounded-xl border border-slate-200 dark:border-slate-700 px-3.5 py-2.5 text-left text-sm font-semibold" style={{ color: NAVY }}>
+                    className="w-full rounded-xl border border-slate-200 dark:border-slate-600 px-3.5 py-2.5 text-left text-sm font-semibold" style={{ color: NAVY }}>
                     {d.title}
                   </button>
                 ))}

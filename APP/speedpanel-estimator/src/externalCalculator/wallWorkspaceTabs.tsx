@@ -46,7 +46,7 @@ export const WallWorkspaceTabs = ({ active, out, orient, layoutMode, walls, Sche
           return (
             <button key={t.id} onClick={() => setTab(t.id)}
               className={"shrink-0 rounded-lg border px-3.5 py-2 text-xs font-bold uppercase tracking-wide whitespace-nowrap transition-colors " +
-                (on ? "text-white" : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400")}
+                (on ? "text-white" : "border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-300")}
               style={on ? { background: NAVY, borderColor: NAVY } : undefined}>
               {t.label}
             </button>

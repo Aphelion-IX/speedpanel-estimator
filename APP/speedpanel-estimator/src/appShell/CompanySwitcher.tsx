@@ -17,7 +17,7 @@ export const CompanySwitcher = ({ company }: { company: UseCompanyMemberships })
       value={company.activeCompanyId ?? ""}
       onChange={e => company.setActiveCompanyId(e.target.value)}
       title="Active company"
-      className="h-10 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 text-sm font-semibold shadow-sm"
+      className="h-10 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-2 text-sm font-semibold shadow-sm"
       style={{ color: NAVY }}
     >
       {company.memberships.map(m => (

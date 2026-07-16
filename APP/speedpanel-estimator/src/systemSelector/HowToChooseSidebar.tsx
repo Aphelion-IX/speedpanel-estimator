@@ -40,7 +40,7 @@ export const HowToChooseSidebar = () => (
       <div className={cx.cardTitle}><HelpCircle size={13} style={{ color: BLUE }} />Need help choosing?</div>
       <p className="text-sm leading-relaxed" style={{ color: MUTED }}>View our quick guide to understand each system type.</p>
       {/* Inert stub -- no destination wired yet, see SystemSelector.tsx's file-level note. */}
-      <button className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 py-2.5 text-sm font-bold active:scale-95 transition-all" style={{ color: BLUE }}>
+      <button className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-xl border-2 border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 py-2.5 text-sm font-bold active:scale-95 transition-all" style={{ color: BLUE }}>
         View Guide <ChevronRight size={14} />
       </button>
       <p className="mt-3 text-center text-xs" style={{ color: MUTED }}>Or contact Speedpanel</p>

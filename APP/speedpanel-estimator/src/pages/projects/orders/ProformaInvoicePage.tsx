@@ -29,7 +29,7 @@ export const ProformaInvoicePage = ({ orderId, onBack }: { orderId: string; onBa
   if (orderError || !order) {
     return (
       <div className="p-8">
-        <p className="text-sm text-red-600 dark:text-red-400">{orderError || "Order not found."}</p>
+        <p className="text-sm text-red-600 dark:text-red-300">{orderError || "Order not found."}</p>
         <button onClick={onBack} className="mt-2 text-sm font-bold" style={{ color: BLUE }}>Back</button>
       </div>
     );

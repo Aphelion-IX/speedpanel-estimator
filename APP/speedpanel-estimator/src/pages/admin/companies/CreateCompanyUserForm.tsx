@@ -72,7 +72,7 @@ export const CreateCompanyUserForm = ({ companyId }: { companyId: string }) => {
           </Button>
         </div>
       </form>
-      {error && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{error}</p>}
+      {error && <p className="mt-2 text-sm text-red-600 dark:text-red-300">{error}</p>}
       {success && <p className="mt-2 text-sm font-semibold" style={{ color: BLUE }}>{success}</p>}
     </div>
   );

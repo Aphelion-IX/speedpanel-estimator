@@ -57,7 +57,7 @@ export const SignInGate = ({ auth, onRequestQuote, pendingNote }: { auth: UseAut
         <Field label="Email" value={email} onChange={setEmail} type="email" required autoComplete="email" />
         <Field label="Password" value={password} onChange={setPassword} type="password" required
           autoComplete={mode === "signIn" ? "current-password" : "new-password"} />
-        {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+        {error && <p className="text-sm text-red-600 dark:text-red-300">{error}</p>}
         <Button type="submit" disabled={submitting} className="w-full">
           {submitting ? "Please wait..." : mode === "signIn" ? "Sign in" : "Sign up"}
         </Button>

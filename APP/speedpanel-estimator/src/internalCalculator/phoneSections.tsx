@@ -90,7 +90,7 @@ export const EdgeGridPhone = ({ edges, onEdgeToggle, locked }: {
         const on = locked || edges[key];
         return (
           <button key={key} type="button" disabled={locked} onClick={locked ? undefined : () => onEdgeToggle(key)}
-            className={`min-h-[44px] rounded-lg border text-sm font-semibold transition-all ${locked ? "cursor-default" : "active:scale-95"} ${on ? "border-blue-100 dark:border-blue-900/60 bg-blue-50/60 dark:bg-blue-950/40" : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800"}`}
+            className={`min-h-[44px] rounded-lg border text-sm font-semibold transition-all ${locked ? "cursor-default" : "active:scale-95"} ${on ? "border-blue-100 dark:border-blue-800/80 bg-blue-50/60 dark:bg-blue-900/55" : "border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800"}`}
             style={{ color: on ? BLUE : NAVY }}>
             {on ? "✓ " : ""}{label}
           </button>
@@ -118,7 +118,7 @@ export const WarningsListPhone = ({ warnings, emptyLabel = "No active warnings f
   return (
     <div className="space-y-2.5">
       {warnings.map((w, i) => (
-        <div key={i} className={`flex gap-2.5 rounded-xl border border-red-200 dark:border-red-800/60 p-3.5 text-sm leading-relaxed ${tone("danger")}`}>
+        <div key={i} className={`flex gap-2.5 rounded-xl border border-red-200 dark:border-red-700/80 p-3.5 text-sm leading-relaxed ${tone("danger")}`}>
           <span className="mt-0.5 shrink-0">!</span>
           <span>{w}</span>
         </div>
@@ -133,7 +133,7 @@ export const WarningsListPhone = ({ warnings, emptyLabel = "No active warnings f
 // ".sheet" wrapping sheet-head + metrics + every config section + the tabs,
 // instead of Round 1's separate floating cx.section cards with gaps.
 export const SheetCardPhone = ({ children }: { children: React.ReactNode }) => (
-  <div className="mt-3 overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_20px_40px_-28px_rgba(15,23,42,0.18)] dark:shadow-[0_1px_2px_rgba(0,0,0,0.2),0_20px_40px_-24px_rgba(0,0,0,0.35)]">
+  <div className="mt-3 overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_20px_40px_-28px_rgba(15,23,42,0.18)] dark:shadow-[0_1px_2px_rgba(0,0,0,0.2),0_20px_40px_-24px_rgba(0,0,0,0.35)]">
     {children}
   </div>
 );
@@ -141,7 +141,7 @@ export const SheetCardPhone = ({ children }: { children: React.ReactNode }) => (
 export const SheetSectionPhone = ({ icon, label, children }: {
   icon?: React.ReactNode; label?: string; children: React.ReactNode;
 }) => (
-  <div className="border-b border-slate-100 dark:border-slate-800 px-4 py-4">
+  <div className="border-b border-slate-100 dark:border-slate-700 px-4 py-4">
     {label && (
       <div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-widest" style={{ color: MUTED }}>
         {icon && <span style={{ color: BLUE }}>{icon}</span>}{label}

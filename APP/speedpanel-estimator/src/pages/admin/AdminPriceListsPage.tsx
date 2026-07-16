@@ -66,7 +66,7 @@ const PriceRow = ({ item, category, currentPrice, priceRowId, onSave, onClear }:
           onFocus={() => setEditing(true)}
           onChange={e => { setEditing(true); setDraft(e.target.value); }}
           placeholder="Not set"
-          className="w-24 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1.5 text-sm text-right"
+          className="w-24 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-2 py-1.5 text-sm text-right"
           style={{ color: NAVY }}
         />
         {dirty && (
@@ -178,7 +178,7 @@ const PriceListDetail = ({ pl, layoutMode, onRenamed, onDuplicated, onDeleted }:
         </div>
       </div>
 
-      <div className="mt-4 flex items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 shadow-sm">
+      <div className="mt-4 flex items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-4 py-3 shadow-sm">
         <Search size={16} className="shrink-0" style={{ color: MUTED }} />
         <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search products..."
           className="w-full bg-transparent text-sm outline-none" style={{ color: NAVY }} />
@@ -188,7 +188,7 @@ const PriceListDetail = ({ pl, layoutMode, onRenamed, onDuplicated, onDeleted }:
           const on = category === c;
           return (
             <button key={c} onClick={() => setCategory(c)}
-              className={"rounded-full border px-3.5 py-1.5 text-xs font-bold transition-all active:scale-95 " + (on ? "" : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800")}
+              className={"rounded-full border px-3.5 py-1.5 text-xs font-bold transition-all active:scale-95 " + (on ? "" : "border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800")}
               style={on ? { borderColor: BLUE, background: BLUE, color: WHITE } : { color: BLUE }}>
               {CATEGORY_LABEL[c]}
             </button>
@@ -197,7 +197,7 @@ const PriceListDetail = ({ pl, layoutMode, onRenamed, onDuplicated, onDeleted }:
       </div>
       <div className="mt-5"><SectionLabel icon={<Search size={14} />}>{CATEGORY_LABEL[category]} ({filtered.length})</SectionLabel></div>
 
-      {pricesError && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{pricesError}</p>}
+      {pricesError && <p className="mt-2 text-sm text-red-600 dark:text-red-300">{pricesError}</p>}
 
       {catalogLoading || pricesLoading ? (
         <LoadingState className="mt-3" label="Loading products" />
@@ -257,7 +257,7 @@ export const AdminPriceListsPage = ({ layoutMode }: { layoutMode: EffectiveLayou
       {creating && (
         <div className={`${cx.card} mt-3`}>
           <Field label="Name" value={newName} onChange={setNewName} />
-          {createError && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{createError}</p>}
+          {createError && <p className="mt-2 text-sm text-red-600 dark:text-red-300">{createError}</p>}
           <div className="mt-3 flex items-center gap-2">
             <Button onClick={handleCreate}>Create</Button>
             <Button variant="secondary" onClick={() => { setCreating(false); setNewName(""); setCreateError(null); }}>Cancel</Button>

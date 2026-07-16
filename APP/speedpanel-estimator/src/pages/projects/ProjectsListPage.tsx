@@ -79,7 +79,7 @@ const NewProjectPanel = ({ onCreate, layoutMode }: {
     if (layoutMode === "phone") {
       return (
         <button onClick={() => setOpen(true)} className={`${cx.card} flex w-full items-center gap-3 text-left`}>
-          <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-blue-50 dark:bg-blue-950/40 text-xl font-extrabold" style={{ color: BLUE }}>+</div>
+          <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-blue-50 dark:bg-blue-900/55 text-xl font-extrabold" style={{ color: BLUE }}>+</div>
           <div className="min-w-0 flex-1">
             <div className="text-sm font-extrabold" style={{ color: NAVY }}>Create New Project</div>
             <div className="mt-0.5 text-xs" style={{ color: MUTED }}>Create a project, then begin its Speedpanel estimate.</div>
@@ -110,7 +110,7 @@ const NewProjectPanel = ({ onCreate, layoutMode }: {
           Cancel
         </Button>
       </div>
-      {error && <p className="w-full text-xs text-red-600 dark:text-red-400">{error}</p>}
+      {error && <p className="w-full text-xs text-red-600 dark:text-red-300">{error}</p>}
     </form>
   );
 };
@@ -134,12 +134,12 @@ const ListRowTimeline = ({ stage }: { stage: JourneyStage }) => {
               <div className={[
                 "mx-auto grid h-6 w-6 place-items-center rounded-full border bg-white dark:bg-slate-800",
                 done && "border-emerald-500 bg-emerald-500 text-white",
-                current && "border-blue-600 text-blue-700 dark:text-blue-400 ring-2 ring-blue-100 dark:ring-blue-900/40",
-                !done && !current && "border-slate-200 dark:border-slate-700",
+                current && "border-blue-600 text-blue-700 dark:text-blue-300 ring-2 ring-blue-100 dark:ring-blue-900/40",
+                !done && !current && "border-slate-200 dark:border-slate-600",
               ].filter(Boolean).join(" ")}>
                 {done && <Check className="h-3 w-3" />}
               </div>
-              <p className={`mt-1.5 px-0.5 text-[9px] leading-3 ${current ? "font-semibold text-blue-700 dark:text-blue-400" : "text-slate-500 dark:text-slate-400"}`}>
+              <p className={`mt-1.5 px-0.5 text-[9px] leading-3 ${current ? "font-semibold text-blue-700 dark:text-blue-300" : "text-slate-500 dark:text-slate-300"}`}>
                 {JOURNEY_STAGE_LABELS[s]}
               </p>
             </div>
@@ -186,7 +186,7 @@ const ProjectListRow = ({ item, journey, companyName, onOpen, layoutMode }: {
             <span className={`${cx.badge} ${tone("danger")}`}>{phoneStats.warnings} warning{phoneStats.warnings !== 1 ? "s" : ""}</span>
           </div>
         )}
-        <div className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-xl border border-blue-200 dark:border-blue-800 bg-blue-50/70 dark:bg-blue-950/40 py-2.5 text-sm font-bold" style={{ color: BLUE }}>
+        <div className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-xl border border-blue-200 dark:border-blue-800 bg-blue-50/70 dark:bg-blue-900/55 py-2.5 text-sm font-bold" style={{ color: BLUE }}>
           {ctaLabel}
         </div>
       </button>
@@ -195,9 +195,9 @@ const ProjectListRow = ({ item, journey, companyName, onOpen, layoutMode }: {
 
   return (
     <article onClick={onOpen}
-      className="grid cursor-pointer gap-5 border-b border-slate-100 dark:border-slate-800 p-4 transition hover:bg-slate-50/70 dark:hover:bg-slate-800/40 last:border-b-0 xl:grid-cols-[2.3fr_3.2fr_.9fr_1.25fr_.85fr] xl:items-center">
+      className="grid cursor-pointer gap-5 border-b border-slate-100 dark:border-slate-700 p-4 transition hover:bg-slate-50/70 dark:hover:bg-slate-800/40 last:border-b-0 xl:grid-cols-[2.3fr_3.2fr_.9fr_1.25fr_.85fr] xl:items-center">
       <div className="flex min-w-0 items-center gap-3">
-        <div className="grid h-14 w-14 shrink-0 place-items-center rounded-lg bg-blue-50 dark:bg-blue-950/40">
+        <div className="grid h-14 w-14 shrink-0 place-items-center rounded-lg bg-blue-50 dark:bg-blue-900/55">
           <Building2 size={22} style={{ color: BLUE }} />
         </div>
         <div className="min-w-0">
@@ -284,7 +284,7 @@ export const ProjectsListPage = ({ user, onOpenProject, layoutMode, hasCompany, 
         </div>
       </div>
 
-      <label className="mt-4 flex h-10 max-w-sm items-center gap-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 shadow-sm">
+      <label className="mt-4 flex h-10 max-w-sm items-center gap-3 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 shadow-sm">
         <Search className="h-4 w-4" style={{ color: MUTED }} />
         <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search projects..."
           className="w-full bg-transparent text-sm outline-none placeholder:text-slate-400" style={{ color: NAVY }} />
@@ -292,14 +292,14 @@ export const ProjectsListPage = ({ user, onOpenProject, layoutMode, hasCompany, 
 
       <div className="mt-4 flex gap-2 overflow-x-auto pb-2">
         <button onClick={() => setActiveTab("all")}
-          className={`flex shrink-0 items-center gap-3 rounded-lg border bg-white dark:bg-slate-800 px-4 py-2.5 text-sm font-semibold shadow-sm ${activeTab === "all" ? "border-blue-200 dark:border-blue-800" : "border-slate-200 dark:border-slate-700"}`}
+          className={`flex shrink-0 items-center gap-3 rounded-lg border bg-white dark:bg-slate-800 px-4 py-2.5 text-sm font-semibold shadow-sm ${activeTab === "all" ? "border-blue-200 dark:border-blue-800" : "border-slate-200 dark:border-slate-600"}`}
           style={{ color: NAVY }}>
           All Projects
           <span className="grid min-w-6 place-items-center rounded-full bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 text-xs" style={{ color: MUTED }}>{projects.length}</span>
         </button>
         {JOURNEY_STAGES.map(s => (
           <button key={s} onClick={() => setActiveTab(s)}
-            className={`flex shrink-0 items-center gap-3 rounded-lg border bg-white dark:bg-slate-800 px-4 py-2.5 text-sm font-semibold shadow-sm ${activeTab === s ? "border-blue-200 dark:border-blue-800" : "border-slate-200 dark:border-slate-700"}`}
+            className={`flex shrink-0 items-center gap-3 rounded-lg border bg-white dark:bg-slate-800 px-4 py-2.5 text-sm font-semibold shadow-sm ${activeTab === s ? "border-blue-200 dark:border-blue-800" : "border-slate-200 dark:border-slate-600"}`}
             style={{ color: NAVY }}>
             {JOURNEY_STAGE_LABELS[s]}
             <span className={`grid min-w-6 place-items-center rounded-full px-1.5 py-0.5 text-xs ${JOURNEY_STAGE_BADGE_CLASS[s]}`}>{journeyCounts[s]}</span>
@@ -327,8 +327,8 @@ export const ProjectsListPage = ({ user, onOpenProject, layoutMode, hasCompany, 
             {filtered.length === 0 && <p className={cx.footnote}>No projects match your search.</p>}
           </div>
         ) : (
-          <section className="mt-3 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm">
-            <div className="hidden grid-cols-[2.3fr_3.2fr_.9fr_1.25fr_.85fr] border-b border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-900/40 px-4 py-3 text-[11px] font-bold uppercase tracking-wide xl:grid" style={{ color: MUTED }}>
+          <section className="mt-3 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 shadow-sm">
+            <div className="hidden grid-cols-[2.3fr_3.2fr_.9fr_1.25fr_.85fr] border-b border-slate-200 dark:border-slate-600 bg-slate-50/70 dark:bg-slate-900/40 px-4 py-3 text-[11px] font-bold uppercase tracking-wide xl:grid" style={{ color: MUTED }}>
               <div>Project</div><div>Stage</div><div>Progress</div><div>Next Milestone</div><div>Last Updated</div>
             </div>
             {filtered.map(item => (

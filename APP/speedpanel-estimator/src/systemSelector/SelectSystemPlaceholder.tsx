@@ -7,7 +7,7 @@ import { FileText } from "lucide-react";
 import { NAVY, BLUE, MUTED, cx } from "../styleTokens";
 
 export const SelectSystemPlaceholder = () => (
-  <div className="mt-5 rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-700 p-6 flex items-center justify-between gap-6">
+  <div className="mt-5 rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-600 p-6 flex items-center justify-between gap-6">
     <div className="flex items-start gap-3">
       <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full" style={{ background: "rgba(37,99,235,0.12)" }}>
         <FileText size={18} style={{ color: BLUE }} />

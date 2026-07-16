@@ -42,14 +42,14 @@ const WebStepTracker = ({ steps, activeIndex }: { steps: TrackerStep[]; activeIn
           <div key={s.label} className="relative z-10 text-center">
             <div className={[
               "mx-auto grid h-14 w-14 place-items-center rounded-full border-2 bg-white dark:bg-slate-800",
-              done && "border-emerald-300 dark:border-emerald-700 text-emerald-600 dark:text-emerald-400",
-              current && "border-blue-600 dark:border-blue-500 text-blue-700 dark:text-blue-400 ring-4 ring-blue-100 dark:ring-blue-900/40",
-              !done && !current && "border-slate-200 dark:border-slate-700 text-slate-400 dark:text-slate-500",
+              done && "border-emerald-300 dark:border-emerald-700 text-emerald-600 dark:text-emerald-300",
+              current && "border-blue-600 dark:border-blue-500 text-blue-700 dark:text-blue-300 ring-4 ring-blue-100 dark:ring-blue-900/40",
+              !done && !current && "border-slate-200 dark:border-slate-600 text-slate-400 dark:text-slate-400",
             ].filter(Boolean).join(" ")}>
               {done ? <Check className="h-6 w-6" /> : <Icon className="h-6 w-6" />}
             </div>
             <p className="mt-3 text-sm font-semibold text-slate-700 dark:text-slate-200">{s.label}</p>
-            <p className={`mt-1 text-xs ${current ? "font-semibold text-blue-700 dark:text-blue-400" : done ? "text-emerald-600 dark:text-emerald-400" : ""}`} style={!current && !done ? { color: MUTED } : undefined}>
+            <p className={`mt-1 text-xs ${current ? "font-semibold text-blue-700 dark:text-blue-300" : done ? "text-emerald-600 dark:text-emerald-300" : ""}`} style={!current && !done ? { color: MUTED } : undefined}>
               {current ? "Current Stage" : done ? "Complete" : ""}
             </p>
           </div>

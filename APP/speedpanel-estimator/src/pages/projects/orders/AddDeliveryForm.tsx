@@ -87,7 +87,7 @@ export const AddDeliveryForm = ({ lineItems, remaining, onAdd, onCancel }: {
       <div className={cx.cardHd + " mt-4"}>Products / order sections required</div>
       <LineItemAllocationTable items={lineItems} remaining={remaining} allocations={allocations} onChange={setAllocation} />
 
-      {error && <p className="mt-3 text-sm text-red-600 dark:text-red-400">{error}</p>}
+      {error && <p className="mt-3 text-sm text-red-600 dark:text-red-300">{error}</p>}
 
       <div className="mt-4 flex gap-2">
         <Button onClick={handleSubmit} disabled={submitting}>{submitting ? "Submitting..." : "Submit"}</Button>

@@ -60,7 +60,7 @@ export const LandingPage = ({ auth, pendingNote }: { auth: UseAuth; pendingNote?
                 <span className="text-6xl font-black tracking-[-0.04em] text-slate-950 dark:text-white sm:text-7xl">SPEED</span>
                 <span className="text-6xl font-black tracking-[-0.04em] sm:text-7xl" style={{ color: BLUE }}>HUB</span>
               </div>
-              <p className="mt-2 text-xl font-semibold tracking-wide text-slate-500 dark:text-slate-400 sm:text-2xl">by SPEEDPANEL</p>
+              <p className="mt-2 text-xl font-semibold tracking-wide text-slate-500 dark:text-slate-300 sm:text-2xl">by SPEEDPANEL</p>
             </div>
 
             <h1 className="mt-12 max-w-xl text-3xl font-bold leading-tight tracking-tight text-slate-950 dark:text-white sm:text-4xl">
@@ -76,18 +76,18 @@ export const LandingPage = ({ auth, pendingNote }: { auth: UseAuth; pendingNote?
         {/* Login panel */}
         <section className="flex items-center justify-center px-6 py-12 sm:px-10 lg:px-12">
           <div className="w-full max-w-xl">
-            <div className="rounded-[28px] border border-white/80 bg-white/95 p-7 pb-9 shadow-[0_24px_80px_rgba(15,23,42,0.12)] backdrop-blur-xl dark:border-slate-800 dark:bg-slate-900/95 sm:p-10 sm:pb-12">
+            <div className="rounded-[28px] border border-white/80 bg-white/95 p-7 pb-9 shadow-[0_24px_80px_rgba(15,23,42,0.12)] backdrop-blur-xl dark:border-slate-700 dark:bg-slate-900/95 sm:p-10 sm:pb-12">
               <div>
                 <p className="text-sm font-bold uppercase tracking-[0.18em]" style={{ color: BLUE }}>Welcome back</p>
                 <h2 className="mt-2 text-3xl font-extrabold tracking-tight text-slate-950 dark:text-white">Log in to SPEEDHUB</h2>
-                <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Access your projects, estimates, orders and documents.</p>
+                <p className="mt-2 text-sm text-slate-500 dark:text-slate-300">Access your projects, estimates, orders and documents.</p>
                 {pendingNote && <p className="mt-2 text-sm" style={{ color: MUTED }}>{pendingNote}</p>}
               </div>
 
               <form onSubmit={handleSubmit} className="mt-8 space-y-5">
                 <div>
                   <label htmlFor="email" className="mb-2 block text-sm font-semibold text-slate-800 dark:text-slate-200">Email</label>
-                  <div className="flex h-12 items-center rounded-xl border border-slate-200 bg-white px-4 shadow-sm transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-50 dark:border-slate-700 dark:bg-slate-800 dark:focus-within:ring-blue-950/40">
+                  <div className="flex h-12 items-center rounded-xl border border-slate-200 bg-white px-4 shadow-sm transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-50 dark:border-slate-600 dark:bg-slate-800 dark:focus-within:ring-blue-950/40">
                     <UserRound className="h-5 w-5 text-slate-400" />
                     <input
                       id="email" type="email" autoComplete="email" required
@@ -100,7 +100,7 @@ export const LandingPage = ({ auth, pendingNote }: { auth: UseAuth; pendingNote?
 
                 <div>
                   <label htmlFor="password" className="mb-2 block text-sm font-semibold text-slate-800 dark:text-slate-200">Password</label>
-                  <div className="flex h-12 items-center rounded-xl border border-slate-200 bg-white px-4 shadow-sm transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-50 dark:border-slate-700 dark:bg-slate-800 dark:focus-within:ring-blue-950/40">
+                  <div className="flex h-12 items-center rounded-xl border border-slate-200 bg-white px-4 shadow-sm transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-50 dark:border-slate-600 dark:bg-slate-800 dark:focus-within:ring-blue-950/40">
                     <LockKeyhole className="h-5 w-5 text-slate-400" />
                     <input
                       id="password" type={showPassword ? "text" : "password"} autoComplete="current-password" required
@@ -119,7 +119,7 @@ export const LandingPage = ({ auth, pendingNote }: { auth: UseAuth; pendingNote?
                 </div>
 
                 <div className="flex flex-wrap items-center justify-between gap-3">
-                  <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+                  <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
                     <input
                       type="checkbox" checked={remember} onChange={e => setRemember(e.target.checked)}
                       className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
@@ -138,7 +138,7 @@ export const LandingPage = ({ auth, pendingNote }: { auth: UseAuth; pendingNote?
                   <p className="text-sm" style={{ color: MUTED }}>Contact your SPEEDPANEL representative to reset your password.</p>
                 )}
 
-                {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+                {error && <p className="text-sm text-red-600 dark:text-red-300">{error}</p>}
 
                 <button
                   type="submit" disabled={submitting}
@@ -151,16 +151,16 @@ export const LandingPage = ({ auth, pendingNote }: { auth: UseAuth; pendingNote?
 
               <div className="mt-8 mb-5 flex items-center gap-4">
                 <div className="h-px flex-1 bg-slate-200 dark:bg-slate-700" />
-                <span className="text-xs font-medium uppercase tracking-wider text-slate-400 dark:text-slate-500">Need access?</span>
+                <span className="text-xs font-medium uppercase tracking-wider text-slate-400 dark:text-slate-400">Need access?</span>
                 <div className="h-px flex-1 bg-slate-200 dark:bg-slate-700" />
               </div>
 
-              <p className="w-full text-center text-sm text-slate-500 dark:text-slate-400">
+              <p className="w-full text-center text-sm text-slate-500 dark:text-slate-300">
                 Contact your <span className="font-semibold" style={{ color: BLUE }}>SPEEDPANEL representative</span>
               </p>
             </div>
 
-            <footer className="mt-6 flex flex-col items-center justify-between gap-3 px-2 text-xs text-slate-500 dark:text-slate-500 sm:flex-row">
+            <footer className="mt-6 flex flex-col items-center justify-between gap-3 px-2 text-xs text-slate-500 dark:text-slate-400 sm:flex-row">
               <span>&copy; {new Date().getFullYear()} SPEEDPANEL. All rights reserved.</span>
               <div className="flex items-center gap-4">
                 <button className="hover:text-slate-800 dark:hover:text-slate-300">Privacy Policy</button>
@@ -177,12 +177,12 @@ export const LandingPage = ({ auth, pendingNote }: { auth: UseAuth; pendingNote?
 function Feature({ icon: Icon, title, description }: { icon: React.ElementType; title: string; description: string }) {
   return (
     <div className="flex items-start gap-4">
-      <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl border border-blue-100 bg-white/80 shadow-sm backdrop-blur dark:border-blue-900/40 dark:bg-slate-900/60" style={{ color: BLUE }}>
+      <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl border border-blue-100 bg-white/80 shadow-sm backdrop-blur dark:border-blue-800/60 dark:bg-slate-900/60" style={{ color: BLUE }}>
         <Icon className="h-6 w-6" />
       </span>
       <div>
         <p className="text-base font-bold text-slate-900 dark:text-slate-100">{title}</p>
-        <p className="mt-1 max-w-md text-sm leading-6 text-slate-500 dark:text-slate-400">{description}</p>
+        <p className="mt-1 max-w-md text-sm leading-6 text-slate-500 dark:text-slate-300">{description}</p>
       </div>
     </div>
   );

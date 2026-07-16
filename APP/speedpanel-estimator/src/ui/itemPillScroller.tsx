@@ -22,7 +22,7 @@ export const ItemPillScroller = ({ items, onSelect, trailing }: {
         <button
           key={item.id}
           onClick={() => onSelect(item.id)}
-          className={"relative min-w-[168px] shrink-0 snap-start rounded-xl border-2 px-3.5 py-3 text-left active:scale-95 transition-all " + (item.active ? "" : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800")}
+          className={"relative min-w-[168px] shrink-0 snap-start rounded-xl border-2 px-3.5 py-3 text-left active:scale-95 transition-all " + (item.active ? "" : "border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800")}
           style={item.active ? { borderColor: BLUE, background: BLUE } : undefined}
         >
           {item.warn && <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full" style={{ background: GOLD }} />}

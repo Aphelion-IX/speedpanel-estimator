@@ -119,7 +119,7 @@ export const AdminSplitDeliveryForm = ({ orderId, existingAllocations, onCreate,
       <div className={cx.cardHd + " mt-4"}>Allocate items to this delivery</div>
       <LineItemAllocationTable items={lineItems} remaining={remaining} allocations={allocations} onChange={setAllocation} />
 
-      {error && <p className="mt-3 text-sm text-red-600 dark:text-red-400">{error}</p>}
+      {error && <p className="mt-3 text-sm text-red-600 dark:text-red-300">{error}</p>}
 
       <div className="mt-4 flex gap-2">
         <Button onClick={handleSubmit} disabled={submitting}>{submitting ? "Creating..." : "Create delivery"}</Button>

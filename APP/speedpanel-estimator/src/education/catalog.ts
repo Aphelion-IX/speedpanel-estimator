@@ -57,4 +57,4 @@ export const eduSearchIndex = MiniSearch.loadJSON(eduSearchIndexJson, {
 
 // Shared "category" badge look -- reuses the app's existing hardcoded info-badge
 // convention (see cx.infoNote/cx.infoBox) rather than inventing a new token.
-export const eduBadgeCx = cx.badge + " bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300";
+export const eduBadgeCx = cx.badge + " bg-blue-50 dark:bg-blue-900/55 text-blue-700 dark:text-blue-300";

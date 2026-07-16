@@ -35,11 +35,11 @@ const WallLinkSelector = ({ heading, walls, active, filter, partnerId, onLink, l
   const linkable = walls.filter(w => w.id !== active.id && filter(w));
   const partner = walls.find(w => w.id === partnerId);
   return (
-    <div className="border-t border-slate-100 dark:border-slate-800 pt-3">
+    <div className="border-t border-slate-100 dark:border-slate-700 pt-3">
       <div className={cx.cardHd}>{heading}</div>
       <div className="space-y-1.5">
         <button onClick={() => onLink(null)}
-          className={"w-full rounded-xl border-2 py-3 px-4 text-sm font-semibold text-left active:scale-95 transition-all " + (!partner ? "" : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800")}
+          className={"w-full rounded-xl border-2 py-3 px-4 text-sm font-semibold text-left active:scale-95 transition-all " + (!partner ? "" : "border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800")}
           style={!partner ? { borderColor: BLUE, background: BLUE, color: "#fff" } : { color: BLUE }}>
           Not linked
         </button>
@@ -47,7 +47,7 @@ const WallLinkSelector = ({ heading, walls, active, filter, partnerId, onLink, l
           const on = partner?.id === w.id;
           return (
             <button key={w.id} onClick={() => onLink(w.id)}
-              className={"w-full rounded-xl border-2 py-3 px-4 text-sm font-semibold text-left active:scale-95 transition-all " + (on ? "" : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800")}
+              className={"w-full rounded-xl border-2 py-3 px-4 text-sm font-semibold text-left active:scale-95 transition-all " + (on ? "" : "border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800")}
               style={on ? { borderColor: BLUE, background: BLUE, color: "#fff" } : { color: BLUE }}>
               {label ? label(w, on) : w.name}
             </button>
@@ -78,7 +78,7 @@ export const JunctionLinkSelector = ({ active, walls, onLink }: {
     onLink={onLink}
     label={(w, on) => <>{w.name} <span className="font-normal" style={{ color: on ? "rgba(255,255,255,0.7)" : MUTED }}>({w.orient === "vertical" ? "Vert" : "Horiz"})</span></>}
     note={partner => (
-      <p className="mt-1.5 text-xs leading-relaxed text-slate-400 dark:text-slate-500">
+      <p className="mt-1.5 text-xs leading-relaxed text-slate-400 dark:text-slate-400">
         {partner
           ? partner.orient !== active.orient
             ? <>Linked to <span className="font-semibold">{partner.name}</span>. Combined estimate includes an extra C/J track allowance where these two walls meet.</>
@@ -124,7 +124,7 @@ export const WallsCard = ({ walls, active, update, duplicateWall, deleteWall, sy
     {/* Name/duplicate/delete toolbar for whichever wall is active. The
         Estimate Structure nav is the wall picker + add-wall entry point, so
         the old tab-strip (once rendered here too) is gone. */}
-    <div className={systemSelector ? "border-t border-slate-100 dark:border-slate-800 pt-3" : ""}>
+    <div className={systemSelector ? "border-t border-slate-100 dark:border-slate-700 pt-3" : ""}>
       <WallNameAndActions walls={walls} active={active} update={update} duplicateWall={duplicateWall} deleteWall={deleteWall} />
     </div>
   </div>
@@ -167,7 +167,7 @@ export const WallsSummaryTable = ({ results, activeId, setActiveId, warnById, to
           rows={results}
           rowKey={({ wall }) => wall.id}
           onRowClick={({ wall }) => setActiveId(wall.id)}
-          rowClassName={({ wall }) => (wall.id === activeId ? "bg-blue-50/60 dark:bg-blue-950/40" : undefined)}
+          rowClassName={({ wall }) => (wall.id === activeId ? "bg-blue-50/60 dark:bg-blue-900/55" : undefined)}
         />
       </div>
     </div>

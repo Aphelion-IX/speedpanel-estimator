@@ -112,7 +112,7 @@ export const OrderBuilderPage = ({ projectId, auth, onBack, onCreated }: {
         <p className={cx.footnote}>Review the priced line items below, then continue to arrange delivery.</p>
 
         {totals.unpricedItemCount > 0 && (
-          <div className="mt-3 rounded-xl border border-amber-200 dark:border-amber-800/60 bg-amber-50/80 dark:bg-amber-950/30 px-4 py-3 text-sm text-amber-800 dark:text-amber-300">
+          <div className="mt-3 rounded-xl border border-amber-200 dark:border-amber-700/80 bg-amber-50/80 dark:bg-amber-900/50 px-4 py-3 text-sm text-amber-800 dark:text-amber-300">
             {totals.unpricedItemCount} item{totals.unpricedItemCount !== 1 ? "s" : ""} couldn't be priced automatically -- included at $0, Speedpanel will confirm pricing for these separately.
           </div>
         )}
@@ -127,7 +127,7 @@ export const OrderBuilderPage = ({ projectId, auth, onBack, onCreated }: {
           <Row k="Total (inc GST)" v={`$${totals.totalIncGst.toFixed(2)}`} hl />
         </div>
 
-        {createError && <p className="mt-3 text-sm text-red-600 dark:text-red-400">{createError}</p>}
+        {createError && <p className="mt-3 text-sm text-red-600 dark:text-red-300">{createError}</p>}
 
         <Button onClick={handleCreate} disabled={creating} className="mt-4 w-full">
           {creating ? "Creating..." : "Continue to deliveries"}

@@ -59,7 +59,7 @@ export function sealantView(s: AdminSealant) {
 export function colourView(c: AdminColour) {
   return (
     <div className="flex items-center gap-3">
-      <span className="h-10 w-10 shrink-0 rounded-full border border-slate-200 dark:border-slate-700" style={{ background: c.hex }} />
+      <span className="h-10 w-10 shrink-0 rounded-full border border-slate-200 dark:border-slate-600" style={{ background: c.hex }} />
       <div className="space-y-1">
         <Row k="Label" v={c.label} dim /><Row k="Code" v={c.code} dim /><Row k="Hex" v={c.hex} dim />
       </div>

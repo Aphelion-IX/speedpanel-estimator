@@ -54,12 +54,12 @@ import { ProjectSpeedpanelTeamCard } from "./ProjectSpeedpanelTeamCard";
 import type { ProjectRow } from "./projectTypes";
 
 const EVENT_ICON: Record<StageEventType, { Icon: typeof Send; className: string }> = {
-  install_review_requested: { Icon: Send, className: "bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400" },
-  technical_review_requested: { Icon: Send, className: "bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400" },
-  install_review_approved: { Icon: CheckCircle2, className: "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400" },
-  technical_review_approved: { Icon: CheckCircle2, className: "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400" },
-  install_review_changes_requested: { Icon: AlertCircle, className: "bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400" },
-  technical_review_changes_requested: { Icon: AlertCircle, className: "bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400" },
+  install_review_requested: { Icon: Send, className: "bg-blue-50 dark:bg-blue-900/50 text-blue-600 dark:text-blue-300" },
+  technical_review_requested: { Icon: Send, className: "bg-blue-50 dark:bg-blue-900/50 text-blue-600 dark:text-blue-300" },
+  install_review_approved: { Icon: CheckCircle2, className: "bg-emerald-50 dark:bg-emerald-900/50 text-emerald-600 dark:text-emerald-300" },
+  technical_review_approved: { Icon: CheckCircle2, className: "bg-emerald-50 dark:bg-emerald-900/50 text-emerald-600 dark:text-emerald-300" },
+  install_review_changes_requested: { Icon: AlertCircle, className: "bg-amber-50 dark:bg-amber-900/50 text-amber-600 dark:text-amber-300" },
+  technical_review_changes_requested: { Icon: AlertCircle, className: "bg-amber-50 dark:bg-amber-900/50 text-amber-600 dark:text-amber-300" },
 };
 
 const QuickAction = ({ icon: Icon, label, onClick, disabled, tone = "blue" }: {
@@ -67,13 +67,13 @@ const QuickAction = ({ icon: Icon, label, onClick, disabled, tone = "blue" }: {
   tone?: "blue" | "green" | "purple" | "orange" | "cyan";
 }) => {
   const tones: Record<string, string> = {
-    blue: "text-blue-600 dark:text-blue-400", green: "text-emerald-600 dark:text-emerald-400",
+    blue: "text-blue-600 dark:text-blue-300", green: "text-emerald-600 dark:text-emerald-300",
     purple: "text-violet-600 dark:text-violet-400", orange: "text-orange-500 dark:text-orange-400",
-    cyan: "text-cyan-600 dark:text-cyan-400",
+    cyan: "text-cyan-600 dark:text-cyan-300",
   };
   return (
     <button onClick={onClick} disabled={disabled}
-      className="flex min-h-16 items-center gap-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-blue-200 dark:hover:border-blue-800 hover:shadow-md disabled:opacity-40 disabled:hover:translate-y-0">
+      className="flex min-h-16 items-center gap-3 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-blue-200 dark:hover:border-blue-800 hover:shadow-md disabled:opacity-40 disabled:hover:translate-y-0">
       <Icon className={`h-6 w-6 shrink-0 ${tones[tone]}`} />
       <span className="text-sm font-semibold" style={{ color: NAVY }}>{label}</span>
     </button>
@@ -217,7 +217,7 @@ export const ProjectDetailPage = ({ id, userId, onBack, onOpenEstimator, onCreat
           </form>
         ) : (
           <div className="flex flex-col gap-4 sm:flex-row">
-            <div className="grid h-24 w-full shrink-0 place-items-center rounded-xl bg-blue-50 dark:bg-blue-950/40 sm:w-24">
+            <div className="grid h-24 w-full shrink-0 place-items-center rounded-xl bg-blue-50 dark:bg-blue-900/55 sm:w-24">
               <Building2 size={36} style={{ color: BLUE }} />
             </div>
             <div className="min-w-0 flex-1">
@@ -249,7 +249,7 @@ export const ProjectDetailPage = ({ id, userId, onBack, onOpenEstimator, onCreat
           </div>
         )}
 
-        {actionError && <p className="mt-3 text-sm text-red-600 dark:text-red-400">{actionError}</p>}
+        {actionError && <p className="mt-3 text-sm text-red-600 dark:text-red-300">{actionError}</p>}
 
         <div className="mt-4 flex flex-wrap gap-2">
           <Button onClick={() => onOpenEstimator(project)}>Open in Estimator</Button>
@@ -276,7 +276,7 @@ export const ProjectDetailPage = ({ id, userId, onBack, onOpenEstimator, onCreat
       </div>
 
       <div className="mt-4 grid gap-4 xl:grid-cols-[2fr_1fr]">
-        <section className="flex min-h-32 items-center justify-between overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 shadow-sm">
+        <section className="flex min-h-32 items-center justify-between overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 p-6 shadow-sm">
           <div className="flex items-start gap-5">
             <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full" style={{ background: BLUE, color: WHITE }}>
               <CalendarDays className="h-6 w-6" />
@@ -290,7 +290,7 @@ export const ProjectDetailPage = ({ id, userId, onBack, onOpenEstimator, onCreat
           <Building2 className="hidden h-20 w-20 text-blue-100 dark:text-blue-950 sm:block" />
         </section>
 
-        <section className="flex items-center gap-5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 shadow-sm">
+        <section className="flex items-center gap-5 rounded-2xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 p-6 shadow-sm">
           <span className="grid h-12 w-12 place-items-center rounded-full bg-violet-600 text-white">
             <ShoppingCart className="h-6 w-6" />
           </span>
@@ -323,7 +323,7 @@ export const ProjectDetailPage = ({ id, userId, onBack, onOpenEstimator, onCreat
 
       <div className="mt-4 grid gap-4 xl:grid-cols-[1.65fr_1fr]">
         <div className="space-y-4">
-          <section className="overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm">
+          <section className="overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 shadow-sm">
             <div className="flex items-center justify-between px-5 py-4">
               <h2 className={cx.h3}>Orders</h2>
             </div>
@@ -335,7 +335,7 @@ export const ProjectDetailPage = ({ id, userId, onBack, onOpenEstimator, onCreat
                 const progress = o.stage === "cancelled" ? 0 : journeyProgressPercent(orderStage, o);
                 return (
                   <button key={o.id} onClick={() => onOpenOrder(project.id, o.id)}
-                    className="grid w-full gap-3 border-b border-slate-100 dark:border-slate-800 px-5 py-4 text-left last:border-b-0 lg:grid-cols-[1.1fr_1.3fr_24px] lg:items-center">
+                    className="grid w-full gap-3 border-b border-slate-100 dark:border-slate-700 px-5 py-4 text-left last:border-b-0 lg:grid-cols-[1.1fr_1.3fr_24px] lg:items-center">
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="text-sm font-bold" style={{ color: NAVY }}>Order {o.id.slice(0, 8).toUpperCase()}</span>
@@ -367,7 +367,7 @@ export const ProjectDetailPage = ({ id, userId, onBack, onOpenEstimator, onCreat
             {activityLoading ? (
               <LoadingState label="Loading activity" />
             ) : activityError ? (
-              <p className="text-sm text-red-600 dark:text-red-400">{activityError}</p>
+              <p className="text-sm text-red-600 dark:text-red-300">{activityError}</p>
             ) : events.length === 0 ? (
               <p className={cx.footnote} style={{ paddingTop: 0 }}>No activity yet.</p>
             ) : (

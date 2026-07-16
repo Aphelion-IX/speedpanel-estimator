@@ -14,8 +14,8 @@ import { INT_LOCKED, EXT_LOCKED } from "../data";
 // --- Locked system data -------------------------------------------------------
 // INT_LOCKED / EXT_LOCKED (display-only reference tables) now live in ./data.
 export const DataRow = ({ k, v }: { k: string; v: string }) => (
-  <div className="flex justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-2.5 last:border-0">
-    <span className="shrink-0 text-sm font-medium text-slate-400 dark:text-slate-500">{k}</span>
+  <div className="flex justify-between gap-2 border-b border-slate-100 dark:border-slate-700 pb-2.5 last:border-0">
+    <span className="shrink-0 text-sm font-medium text-slate-400 dark:text-slate-400">{k}</span>
     <span className="text-right text-sm font-semibold text-slate-700 dark:text-slate-200">{v}</span>
   </div>
 );
@@ -39,7 +39,7 @@ export const LockedDataFooter = ({ title, table, onExport, disabled }: {
   return (
     <>
       <button onClick={() => setOpen(v => !v)} className={cx.accordion}>
-        <span className="flex items-center gap-2"><Lock size={13} className="text-slate-400 dark:text-slate-500" /> {title}</span>
+        <span className="flex items-center gap-2"><Lock size={13} className="text-slate-400 dark:text-slate-400" /> {title}</span>
         <ChevronDown size={16} className={`text-blue-300 dark:text-blue-700 transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
       {open && table}
