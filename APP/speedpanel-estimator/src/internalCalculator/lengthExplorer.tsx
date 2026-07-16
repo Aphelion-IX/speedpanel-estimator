@@ -109,7 +109,7 @@ export const LengthExplorer = ({
                   <span className="text-sm font-bold text-slate-500 dark:text-slate-300">{opt.offcutPct}% cut</span>
                 </div>
                 {/* Waste bar — wider = more cut off, scaled to 50% max */}
-                <div className="h-2 w-full rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+                <div className="h-2 w-full rounded-full bg-slate-100 dark:bg-slate-900 overflow-hidden">
                   <div
                     className="h-full rounded-full transition-all"
                     style={{ width: `${Math.min(100, opt.offcutPct * 2)}%`, background: BLUE, opacity: 0.35 }}

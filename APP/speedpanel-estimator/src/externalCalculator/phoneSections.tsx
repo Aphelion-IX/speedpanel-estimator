@@ -44,11 +44,16 @@ import { PanelColourSection } from "./panelColourSection";
 // text, selected = white pill + blue text (NOT a solid blue fill -- that's
 // the app's existing button-grid style, and also the mockup's DIFFERENT
 // ".unit-toggle" pattern already matched by ui/primitives.tsx's UnitToggle).
+// Track background is a literal bg-slate-100/900, not tone("neutral")
+// (dark:bg-slate-800) -- every phone card is itself dark:bg-slate-800, so
+// that shade is invisible as a track here; dark:bg-slate-900 keeps it one
+// step darker/recessed, same relationship light mode already has (slate-100
+// track vs white card).
 export function SegPhone<T extends string>({ options, value, onChange, columns }: {
   options: { id: T; label: string }[]; value: T; onChange: (id: T) => void; columns?: number;
 }) {
   return (
-    <div className={`grid gap-1 rounded-[10px] p-1 ${tone("neutral")}`} style={{ gridTemplateColumns: `repeat(${columns ?? options.length}, 1fr)` }}>
+    <div className={`grid gap-1 rounded-[10px] p-1 bg-slate-100 dark:bg-slate-900`} style={{ gridTemplateColumns: `repeat(${columns ?? options.length}, 1fr)` }}>
       {options.map(o => {
         const on = o.id === value;
         return (
