@@ -10,6 +10,18 @@
     <meta name="theme-color" content="#0B1233" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="Speedpanel" />
+    <script>
+      // Apply the "dark" class before first paint so a reload/deep-link doesn't
+      // flash the light theme -- mirrors useThemeMode.ts's own preference/auto
+      // logic exactly, since that hook can't run until after React mounts.
+      (function () {
+        try {
+          var pref = window.localStorage.getItem("speedpanel:themePreference");
+          var isDark = pref === "dark" || (pref !== "light" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+          if (isDark) document.documentElement.classList.add("dark");
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
