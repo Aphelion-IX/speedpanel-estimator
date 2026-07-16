@@ -1,11 +1,17 @@
 // =============================================================================
-// Wall configuration inputs
+// Wall configuration inputs (Internal Calculator only)
 // =============================================================================
-// Shared wall-configuration form pieces used by both calculators: the span
-// table lookup display, panel profile selector/section, edge restraint (head/
-// base/left/right + J/C track finish) selector, project-length separator, and
-// the custom-length section. No dependency on WallsCard/WallsSummaryTable --
-// those compose this file's pieces at the call site, not the other way round.
+// Wall-configuration form pieces: the span table lookup display, panel
+// profile selector/section, edge restraint (head/base/left/right + J/C track
+// finish) selector, project-length separator, and the custom-length section.
+// No dependency on WallsCard/WallsSummaryTable -- those compose this file's
+// pieces at the call site, not the other way round.
+//
+// Forked from what used to be a single file shared with ExternalCalculator
+// (see externalCalculator/wallConfig.tsx for its own, independent, trimmed
+// copy -- External never used TrackFinishBlock/OtherOptionsBlock or
+// SpanTable's Standard/Corner/Shaft-specific branches, so that copy simply
+// doesn't carry them).
 // =============================================================================
 import { useState } from "react";
 import { ChevronDown, AlertTriangle } from "lucide-react";
@@ -16,8 +22,8 @@ import {
 } from "../data";
 import type { Wall, ComputeOut, DimField, EdgeState } from "../estimate/wall.types";
 import type { WallSystemId } from "../App";
-import { Num, ToggleSwitch, ProjectLockNote } from "./primitives";
-import { Table, type TableColumn } from "./table";
+import { Num, ToggleSwitch, ProjectLockNote } from "../ui/primitives";
+import { Table, type TableColumn } from "../ui/table";
 import { makeToM } from "../estimate/computeUtils";
 
 // --- SpanTable ----------------------------------------------------------------
@@ -218,7 +224,7 @@ const TrackSwitch = ({ field, label, activeFinishes, onFinishChange }: {
   );
 };
 
-const TrackFinishBlock = ({ edges, orient, activeFinishes, onFinishChange, showTrackFinish, setShowTrackFinish }: {
+export const TrackFinishBlock = ({ edges, orient, activeFinishes, onFinishChange, showTrackFinish, setShowTrackFinish }: {
   edges: EdgeState; orient: string; activeFinishes?: ActiveFinishes; onFinishChange?: (field: FinishKey, val: string) => void;
   showTrackFinish: boolean; setShowTrackFinish: (fn: (v: boolean) => boolean) => void;
 }) => (
@@ -248,7 +254,7 @@ const TrackFinishBlock = ({ edges, orient, activeFinishes, onFinishChange, showT
 );
 
 // --- HeadFlashingToggle -----------------------------------------------------------
-const HeadFlashingToggle = ({ flashOption }: { flashOption: EdgeOption }) => (
+export const HeadFlashingToggle = ({ flashOption }: { flashOption: EdgeOption }) => (
   <div className="flex w-full items-center justify-between rounded-xl border border-blue-100 dark:border-blue-900/60 bg-blue-50/60 dark:bg-blue-950/40 px-4 py-2">
     <span className={cx.cardHd} style={{marginBottom:0,display:"inline"}}>Head track flashing</span>
     <button onClick={flashOption.onToggle}
@@ -267,7 +273,7 @@ const HeadFlashingToggle = ({ flashOption }: { flashOption: EdgeOption }) => (
 );
 
 // --- OtherOptionsBlock -----------------------------------------------------------
-const OtherOptionsBlock = ({ options }: { options: EdgeOption[] }) => (
+export const OtherOptionsBlock = ({ options }: { options: EdgeOption[] }) => (
   <div className="space-y-2">
     {options.map(({ key, label, sublabel, value, onToggle }) => (
       <button key={key} onClick={onToggle}
@@ -281,7 +287,7 @@ const OtherOptionsBlock = ({ options }: { options: EdgeOption[] }) => (
 );
 
 // --- CornerAnglesBlock -----------------------------------------------------------
-const CornerAnglesBlock = ({ corners }: { corners: CornersValue }) => (
+export const CornerAnglesBlock = ({ corners }: { corners: CornersValue }) => (
   <div className="border-t border-slate-100 dark:border-slate-800 pt-3">
     <div className={cx.cardHd}>Corner angles</div>
     <div className="grid grid-cols-2 items-end gap-2">
@@ -333,7 +339,7 @@ export const EdgeRestraintSelector = ({
 };
 // --- Shared layout components -------------------------------------------------
 
-/** Decorative "Project quantities" section divider used in both calculators. */
+/** Decorative "Project quantities" section divider. */
 export const ProjectSeparator = () => (
   <div className="mt-4 mb-2 flex items-center gap-2">
     <div className="h-px flex-1 bg-blue-200 dark:bg-blue-900/50" />
@@ -352,7 +358,7 @@ export interface CustomLengthSectionProps {
   toggleCustom: () => void;
 }
 
-/** Custom-length input + toggle, shared between internal and external calculators. */
+/** Custom-length input + toggle. */
 export const CustomLengthSection = ({ dimUnit, customLengthInput, customActive, projectLock, projectStock, wallCount, commitCustomLength, toggleCustom }: CustomLengthSectionProps) => {
   const parsedM = makeToM(dimUnit)(customLengthInput);
   const numM = parseFloat(parsedM);
@@ -391,7 +397,7 @@ export const CustomLengthSection = ({ dimUnit, customLengthInput, customActive, 
 // Profile selector (Standard/Raked/Gable) plus its contextual info note.
 // Renders without its own card wrapper -- callers nest this inside the same
 // cx.section card as the Dimensions block that follows it. Only the change
-// callback differs between the internal and external calculator call sites.
+// callback differs per call site.
 export type ProfileId = "standard" | "rake" | "gable";
 export const ProfileSection = ({ profile, onChange }: { profile: ProfileId; onChange: (id: ProfileId) => void }) => (
   <>

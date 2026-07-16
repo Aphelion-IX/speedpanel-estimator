@@ -1,34 +1,32 @@
 // =============================================================================
-// Phone shell (Internal Calculator only)
+// Phone shell (External Calculator only)
 // =============================================================================
-// Presentational components for Internal Calculator's phone layout, styled to
-// match the SpeedHub phone-estimator mockup: a project summary card (name,
-// %-configured/warnings, progress bar, add-wall tiles), a restyled wall/kit
-// pill strip, a combined title/crumb/status + metrics-grid header, and a
-// tiled sticky bottom bar. Deliberately forked from the shared
-// ItemPillScroller/StatsGrid/StickyBar components (rather than edited in
-// place) so External Calculator's phone view -- which still uses those
-// shared components -- is untouched. See kitWorkspacePhone.tsx for the same
-// fork-not-branch precedent.
+// Presentational components for External Calculator's phone layout, mirroring
+// internalCalculator/phoneShell.tsx's mockup-matched visual language (project
+// summary card with add-wall tiles, restyled wall pill strip, combined
+// title/crumb/status + metrics-grid header, tiled sticky bottom bar) but
+// simplified for External's domain: no Corner/Shaft/kit concept at all, so
+// no KitEntry, no "linked"/"notLinked" status, no kit rows in the pill strip.
+//
+// Deliberately its OWN copy, not imported from internalCalculator/ -- kept
+// fully self-contained per calculator, same reasoning as the wallsCard/
+// wallConfig/lengthExplorer fork (each calculator owns everything it
+// renders, so a change to one can never accidentally affect the other).
 // =============================================================================
 import { cx, tone, BLUE, NAVY, MUTED, WHITE } from "../styleTokens";
 import type { Wall, WallResult, ComputeOut } from "../estimate/wall.types";
-import type { KitEntry } from "../estimate/synthesizeKits";
 
 // --- Derived item status ------------------------------------------------------
-// No persisted "status" field exists on Wall/KitEntry -- this derives a
-// mockup-style status chip from fields that already exist, so it can't drift
-// out of sync with the actual compute/link state.
+// No persisted "status" field exists on Wall -- this derives a mockup-style
+// status chip from fields that already exist, so it can't drift out of sync
+// with the actual compute state. Narrower than Internal's ItemStatusKey --
+// External has no kit-linking concept, so no "linked"/"notLinked".
 //
-// Colour rule (per the approved mockup's visual rules -- blue/neutral/cyan/
-// red only, no yellow or gold): the mockup's own item-pill markup only ever
-// uses 3 chip colours -- default blue (Complete/Needs input/Linked), cyan
-// (Custom/special-order, `.status.cyan`), and red (Not linked, `.status.red`).
-// tone() has no blue entry (its "ok"/"warn" emerald/amber cases don't exist
-// in this palette), so BLUE_CHIP_CX borrows the exact blue-tint classes
-// styleTokens.ts's cx.infoBox/cx.accordionInner already use elsewhere in the
-// app, rather than inventing a new colour.
-export type ItemStatusKey = "complete" | "needsInput" | "custom" | "linked" | "notLinked";
+// Colour rule (blue/neutral/cyan/red only, no yellow or gold, same as
+// Internal's phone rework): tone() has no blue entry, so BLUE_CHIP_CX
+// borrows the exact blue-tint classes styleTokens.ts's cx.infoBox already
+// uses elsewhere, rather than inventing a new colour.
+export type ItemStatusKey = "complete" | "needsInput" | "custom";
 
 const BLUE_CHIP_CX = "bg-blue-50 dark:bg-blue-950/40 text-[color:var(--blue)]";
 
@@ -36,39 +34,34 @@ const STATUS: Record<ItemStatusKey, { label: string; chipCx: string }> = {
   complete:   { label: "Complete",    chipCx: BLUE_CHIP_CX },
   needsInput: { label: "Needs input", chipCx: BLUE_CHIP_CX },
   custom:     { label: "Custom",      chipCx: tone("info") },
-  linked:     { label: "Linked",      chipCx: BLUE_CHIP_CX },
-  notLinked:  { label: "Not linked",  chipCx: tone("danger") },
 };
 
 export const statusLabel = (key: ItemStatusKey) => STATUS[key].label;
 export const statusChipCx = (key: ItemStatusKey) => `${cx.badge} ${STATUS[key].chipCx}`;
-export const isConfigured = (key: ItemStatusKey) => key !== "needsInput" && key !== "notLinked";
+export const isConfigured = (key: ItemStatusKey) => key !== "needsInput";
 
-// A corner/shaft wall only ever appears in `kits` once BOTH partners are
-// linked (see synthesizeKits.ts) -- an unlinked corner/shaft wall instead
-// shows up standalone in `results`, which is what "notLinked" surfaces here.
 export const deriveWallStatus = (wall: Wall, out: ComputeOut): ItemStatusKey => {
   if (out.empty) return "needsInput";
-  if ((wall.wallSystem === "corner" && !wall.cornerPartnerId) || (wall.wallSystem === "shaft" && !wall.shaftPartnerId)) return "notLinked";
   if (wall.forcedStock) return "custom";
   return "complete";
 };
 
 // --- Project card ------------------------------------------------------------
 export const ProjectCardPhone = ({
-  projectName, results, kits, addBlankWall, onAddExternalWall,
+  projectName, results, addBlankWall, onAddInternalWall,
 }: {
   projectName?: string;
-  results: WallResult[]; kits: KitEntry[];
+  results: WallResult[];
   addBlankWall: () => void;
-  // Adds a wall then switches the whole project over to the External
-  // calculator -- see App.tsx's addExternalWall (no per-wall internal/
-  // external flag exists, External-ness is a project-level system choice).
-  onAddExternalWall: () => void;
+  // Adds a wall then switches the whole project over to the Internal
+  // calculator -- see App.tsx's addInternalWall (no per-wall internal/
+  // external flag exists, Internal-ness is a project-level system choice).
+  // Mirror image of Internal's own onAddExternalWall.
+  onAddInternalWall: () => void;
 }) => {
-  const totalItems = results.length + kits.length;
-  const configuredCount = results.filter(r => isConfigured(deriveWallStatus(r.wall, r.out))).length + kits.length;
-  const warningsCount = results.filter(r => r.out.warnings.length > 0).length + kits.filter(k => k.result.warnings.length > 0).length;
+  const totalItems = results.length;
+  const configuredCount = results.filter(r => isConfigured(deriveWallStatus(r.wall, r.out))).length;
+  const warningsCount = results.filter(r => r.out.warnings.length > 0).length;
   const pct = totalItems ? Math.round((configuredCount / totalItems) * 100) : 0;
 
   return (
@@ -88,8 +81,8 @@ export const ProjectCardPhone = ({
         <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: BLUE }} />
       </div>
       <div className="mt-3 grid grid-cols-2 gap-2.5">
-        <AddTile label="Internal Wall" sublabel="Add a new internal estimate" onClick={addBlankWall} />
-        <AddTile label="External Wall" sublabel="Add a weather-exposed wall" onClick={onAddExternalWall} external />
+        <AddTile label="External Wall" sublabel="Add a weather-exposed wall" onClick={addBlankWall} external />
+        <AddTile label="Internal Wall" sublabel="Add a new internal estimate" onClick={onAddInternalWall} />
       </div>
     </div>
   );
@@ -115,7 +108,7 @@ const AddTile = ({ label, sublabel, onClick, external = false }: {
   </button>
 );
 
-// --- Wall/kit pill strip -------------------------------------------------------
+// --- Wall pill strip -------------------------------------------------------
 export interface PhonePillItem { id: string; label: string; sublabel?: string; active: boolean; status: ItemStatusKey; }
 
 export const WallPillStripPhone = ({ items, onSelect }: {
@@ -150,12 +143,9 @@ export const MetricsGridPhone = ({ stats }: { stats: { value: string | number; l
   </div>
 );
 
-// No longer self-wraps in its own card (mt-3/cx.section) -- it's now always
-// nested flush as the first two blocks of SheetCardPhone (see
-// phoneSections.tsx), matching the mockup's single continuous "sheet" (one
-// outer card, thin dividers between groups) instead of a separate floating
-// card. Only consumer is InternalCalculator.tsx, so changing this contract
-// is safe.
+// No self-wrapping card (mt-3/cx.section) -- nested flush as the first two
+// blocks of SheetCardPhone (see phoneSections.tsx), matching the mockup's
+// single continuous "sheet". Only consumer is ExternalCalculator.tsx.
 export const SheetHeaderPhone = ({ title, crumb, status, stats }: {
   title: string; crumb: string; status: ItemStatusKey;
   stats: { value: string | number; label: string }[];

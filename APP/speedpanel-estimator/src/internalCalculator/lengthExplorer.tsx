@@ -1,5 +1,10 @@
 // =============================================================================
-// Length Explorer
+// Length Explorer (Internal Calculator only)
+// =============================================================================
+// Forked from what used to be a single file shared with ExternalCalculator
+// (see externalCalculator/lengthExplorer.tsx for its own, independent copy)
+// -- identical logic, just no longer a shared file to check for leakage
+// against every time either calculator's panel-length UI changes.
 // =============================================================================
 import { useState, useMemo } from "react";
 import { ChevronDown } from "lucide-react";
@@ -7,7 +12,7 @@ import { r1 } from "../estimate/mathUtils";
 import { packPanels, buildOption } from "../estimate/packPanels";
 import { cx, NAVY, BLUE } from "../styleTokens";
 import type { ComputeOut, Wall } from "../estimate/wall.types";
-import { ToggleSwitch, ProjectLockNote } from "./primitives";
+import { ToggleSwitch, ProjectLockNote } from "../ui/primitives";
 import { CustomLengthSection } from "./wallConfig";
 
 // --- LengthExplorer -----------------------------------------------------------
@@ -123,11 +128,8 @@ export const LengthExplorer = ({
 };
 
 // --- PanelLengthSection ---------------------------------------------------
-// "Panel length" sidebar block shared by InternalCalculator and
-// ExternalCalculator: project-lock toggle, this LengthExplorer dropdown,
-// the custom-length input, and the project-lock confirmation note. The two
-// calculators differ only in which stock lengths/pack type they explore
-// (stocks/packType) -- everything else is identical.
+// "Panel length" sidebar block: project-lock toggle, this LengthExplorer
+// dropdown, the custom-length input, and the project-lock confirmation note.
 export interface PanelLengthSectionProps {
   dimUnit: string;
   out: ComputeOut;
