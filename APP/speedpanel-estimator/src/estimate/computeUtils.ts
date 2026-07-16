@@ -34,3 +34,10 @@ export const makeToDisp = (dimUnit: string) => (m: string) =>
   !m || m === "0" || m === "" ? "" : dimUnit === "mm" ? String(Math.round(parseFloat(m) * 1000)) : m;
 export const makeToM = (dimUnit: string) => (d: string) =>
   dimUnit === "mm" ? String(r3(parseFloat(d || "0") / 1000)) : d;
+
+// Short "Length" stat label for a wall's chosen pack -- one stock length's
+// own label if the whole wall is a single length, otherwise a count summary.
+// Used by both calculators' phone metrics grid; groups is PanelGroup[] from
+// either PackResult.groups (Internal) or ExtResult.groups (External).
+export const stockLengthLabel = (groups: { label: string }[] | undefined): string =>
+  !groups || groups.length === 0 ? "--" : groups.length === 1 ? groups[0].label : `${groups.length} lengths`;

@@ -21,9 +21,10 @@
 // =============================================================================
 import { useMemo, useState } from "react";
 import type { User } from "@supabase/supabase-js";
-import { Building2, Check, FileText, Plus, Search, Settings, Truck } from "lucide-react";
-import { cx, NAVY, BLUE, MUTED } from "../../styleTokens";
-import { Field } from "../shared/fields";
+import { Building2, Check, ChevronDown, FileText, Plus, Search, Settings, Truck } from "lucide-react";
+import { cx, tone, NAVY, BLUE, MUTED } from "../../styleTokens";
+import { r1 } from "../../estimate/mathUtils";
+import { Field, TextAreaField } from "../shared/fields";
 import { Stat } from "../../ui/primitives";
 import { Button } from "../../ui/button";
 import { LoadingState, ErrorState } from "../../ui/states";
@@ -31,6 +32,7 @@ import type { EffectiveLayout } from "../../useLayoutMode";
 import { useProjects, useProjectCompanyNames } from "./projectsStore";
 import { useOrdersSummary } from "./dashboardStore";
 import { useProjectsJourney, type ProjectJourneyInfo } from "./projectsJourneyStore";
+import { useProjectPhoneStats } from "./projectPhoneStats";
 import { journeyMilestone, nextDeliveryDate } from "./journeyCopy";
 import { JOURNEY_STAGES, JOURNEY_STAGE_LABELS, JOURNEY_STAGE_BADGE_CLASS, type JourneyStage } from "./journeyStage";
 import { STAGES, STAGE_LABELS } from "./projectTypes";
@@ -45,39 +47,69 @@ const milestoneIcon = (stage: JourneyStage) => {
   return Settings;
 };
 
-const NewProjectPanel = ({ onCreate }: { onCreate: (name: string) => Promise<string | null> }) => {
+export interface NewProjectMeta { reference: string; siteAddress: string; customerName: string; description: string; }
+
+const NewProjectPanel = ({ onCreate, layoutMode }: {
+  onCreate: (name: string, meta: NewProjectMeta) => Promise<string | null>; layoutMode: EffectiveLayout;
+}) => {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
+  const [reference, setReference] = useState("");
+  const [siteAddress, setSiteAddress] = useState("");
+  const [customerName, setCustomerName] = useState("");
+  const [description, setDescription] = useState("");
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const reset = () => { setName(""); setReference(""); setSiteAddress(""); setCustomerName(""); setDescription(""); };
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
     setCreating(true);
     setError(null);
-    const err = await onCreate(name.trim());
+    const err = await onCreate(name.trim(), { reference, siteAddress, customerName, description });
     setCreating(false);
     if (err) { setError(err); return; }
     setOpen(false);
-    setName("");
+    reset();
   };
 
   if (!open) {
+    if (layoutMode === "phone") {
+      return (
+        <button onClick={() => setOpen(true)} className={`${cx.card} flex w-full items-center gap-3 text-left`}>
+          <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-blue-50 dark:bg-blue-950/40 text-xl font-extrabold" style={{ color: BLUE }}>+</div>
+          <div className="min-w-0 flex-1">
+            <div className="text-sm font-extrabold" style={{ color: NAVY }}>Create New Project</div>
+            <div className="mt-0.5 text-xs" style={{ color: MUTED }}>Create a project, then begin its Speedpanel estimate.</div>
+          </div>
+          <ChevronDown size={18} className="shrink-0 -rotate-90" style={{ color: MUTED }} />
+        </button>
+      );
+    }
     return (
       <Button icon={<Plus size={16} />} onClick={() => setOpen(true)}>New Project</Button>
     );
   }
 
   return (
-    <form onSubmit={handleCreate} className={`${cx.card} mt-3 flex flex-wrap items-end gap-2`}>
-      <div className="min-w-[220px] flex-1"><Field label="Project name" value={name} onChange={setName} required /></div>
-      <Button type="submit" disabled={creating || !name.trim()} className="h-[46px] shrink-0">
-        {creating ? "Creating..." : "Create"}
-      </Button>
-      <Button type="button" variant="secondary" className="h-[46px] shrink-0" onClick={() => { setOpen(false); setError(null); }}>
-        Cancel
-      </Button>
+    <form onSubmit={handleCreate} className={`${cx.card} mt-3 flex flex-col gap-3`}>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label="Project name" value={name} onChange={setName} required />
+        <Field label="Project reference" value={reference} onChange={setReference} />
+        <Field label="Site address" value={siteAddress} onChange={setSiteAddress} />
+        <Field label="Customer or company" value={customerName} onChange={setCustomerName} />
+        <div className="sm:col-span-2"><TextAreaField label="Description" value={description} onChange={setDescription} /></div>
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button type="submit" disabled={creating || !name.trim()} className="h-[46px] shrink-0">
+          {creating ? "Creating..." : "Create"}
+        </Button>
+        <Button type="button" variant="secondary" className="h-[46px] shrink-0" onClick={() => { setOpen(false); setError(null); reset(); }}>
+          Cancel
+        </Button>
+      </div>
       {error && <p className="w-full text-xs text-red-600 dark:text-red-400">{error}</p>}
     </form>
   );
@@ -130,22 +162,32 @@ const ProjectListRow = ({ item, journey, companyName, onOpen, layoutMode }: {
     nextDeliveryDate: journey ? nextDeliveryDate(journey.representativeDeliveries) : null,
   });
   const MilestoneIcon = milestoneIcon(stage);
+  const phoneStats = useProjectPhoneStats(item);
 
   if (layoutMode === "phone") {
+    const ctaLabel = item.stage === "draft" ? "Continue Estimate" : "Open Estimate";
     return (
       <button onClick={onOpen} className={`${cx.card} mt-3 block w-full text-left`}>
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
             <div className="truncate text-sm font-bold" style={{ color: NAVY }}>{item.name}</div>
-            <div className="text-xs" style={{ color: MUTED }}>Ref: {item.id.slice(0, 8).toUpperCase()}{companyName ? ` · ${companyName}` : ""}</div>
+            <div className="text-xs" style={{ color: MUTED }}>Ref: {item.data.reference || item.id.slice(0, 8).toUpperCase()}{companyName ? ` · ${companyName}` : ""}</div>
           </div>
           <span className={`${cx.badge} shrink-0 ${JOURNEY_STAGE_BADGE_CLASS[stage]}`}>{JOURNEY_STAGE_LABELS[stage]}</span>
         </div>
-        <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-700">
-          <div className="h-full rounded-full transition-all" style={{ width: `${progress}%`, background: BLUE }} />
+        <div className="mt-3 grid grid-cols-3 gap-1.5">
+          <Stat value={phoneStats.wallCount} label="Walls" />
+          <Stat value={`${r1(phoneStats.area)} m²`} label="Area" />
+          <Stat value={phoneStats.panels} label="Panels" />
         </div>
-        <div className="mt-2 flex items-center gap-1.5 text-xs" style={{ color: MUTED }}>
-          <MilestoneIcon size={12} />{milestone.label} &middot; {milestone.note}
+        {phoneStats.warnings > 0 && (
+          <div className="mt-2.5 flex items-center justify-between gap-2 text-xs" style={{ color: MUTED }}>
+            <span>{Math.round(progress)}% complete</span>
+            <span className={`${cx.badge} ${tone("danger")}`}>{phoneStats.warnings} warning{phoneStats.warnings !== 1 ? "s" : ""}</span>
+          </div>
+        )}
+        <div className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-xl border border-blue-200 dark:border-blue-800 bg-blue-50/70 dark:bg-blue-950/40 py-2.5 text-sm font-bold" style={{ color: BLUE }}>
+          {ctaLabel}
         </div>
       </button>
     );
@@ -238,7 +280,7 @@ export const ProjectsListPage = ({ user, onOpenProject, layoutMode, hasCompany, 
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {hasCompany && <button onClick={onTeam} className="text-sm font-bold" style={{ color: BLUE }}>Team &rarr;</button>}
-          <NewProjectPanel onCreate={async name => { const { id, error: err } = await createProject(name); if (id) onOpenProject(id); return err; }} />
+          <NewProjectPanel layoutMode={layoutMode} onCreate={async (name, meta) => { const { id, error: err } = await createProject(name, meta); if (id) onOpenProject(id); return err; }} />
         </div>
       </div>
 

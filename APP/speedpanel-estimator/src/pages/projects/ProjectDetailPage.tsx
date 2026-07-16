@@ -28,7 +28,7 @@ import {
   Trash2, Pencil,
 } from "lucide-react";
 import { cx, NAVY, BLUE, WHITE, MUTED } from "../../styleTokens";
-import { Field } from "../shared/fields";
+import { Field, TextAreaField } from "../shared/fields";
 import { Card, WarningsList, Stat, IconButton } from "../../ui/primitives";
 import { Button } from "../../ui/button";
 import { LoadingState, ErrorState } from "../../ui/states";
@@ -89,9 +89,13 @@ export const ProjectDetailPage = ({ id, userId, onBack, onOpenEstimator, onCreat
   const orderIds = useMemo(() => orders.filter(o => o.stage !== "cancelled").map(o => o.id), [orders]);
   const { deliveriesByOrder } = useOrderDeliveriesForOrders(orderIds);
   const { events, loading: activityLoading, error: activityError } = useProjectActivity(id);
-  const { project, loading, error, reload, rename, deleteProject, requestInstallReview, requestTechnicalReview } = useProject(id);
+  const { project, loading, error, reload, rename, saveSnapshot, deleteProject, requestInstallReview, requestTechnicalReview } = useProject(id);
   const companyNames = useProjectCompanyNames(useMemo(() => (project?.company_id ? [project.company_id] : []), [project?.company_id]));
   const [name, setName] = useState("");
+  const [reference, setReference] = useState("");
+  const [siteAddress, setSiteAddress] = useState("");
+  const [customerName, setCustomerName] = useState("");
+  const [description, setDescription] = useState("");
   const [editingName, setEditingName] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -125,14 +129,23 @@ export const ProjectDetailPage = ({ id, userId, onBack, onOpenEstimator, onCreat
     );
   }
 
-  const startRename = () => { setName(project.name); setEditingName(true); };
+  const startRename = () => {
+    setName(project.name);
+    setReference(project.data.reference ?? "");
+    setSiteAddress(project.data.siteAddress ?? "");
+    setCustomerName(project.data.customerName ?? "");
+    setDescription(project.data.description ?? "");
+    setEditingName(true);
+  };
   const submitRename = async (e: React.FormEvent) => {
     e.preventDefault();
     setRenaming(true);
     setActionError(null);
-    const err = await rename(name.trim() || project.name);
+    const renameErr = await rename(name.trim() || project.name);
+    if (renameErr) { setRenaming(false); setActionError(renameErr); return; }
+    const snapshotErr = await saveSnapshot({ ...project.data, reference, siteAddress, customerName, description });
     setRenaming(false);
-    if (err) { setActionError(err); return; }
+    if (snapshotErr) { setActionError(snapshotErr); return; }
     setEditingName(false);
   };
 
@@ -189,10 +202,18 @@ export const ProjectDetailPage = ({ id, userId, onBack, onOpenEstimator, onCreat
 
       <div className={`${cx.card} mt-3`}>
         {editingName ? (
-          <form onSubmit={submitRename} className="flex items-end gap-2">
-            <div className="flex-1"><Field label="Project name" value={name} onChange={setName} required /></div>
-            <Button type="submit" disabled={renaming} className="h-[46px] shrink-0">Save</Button>
-            <Button type="button" variant="ghost" onClick={() => setEditingName(false)}>Cancel</Button>
+          <form onSubmit={submitRename} className="flex flex-col gap-3">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="Project name" value={name} onChange={setName} required />
+              <Field label="Project reference" value={reference} onChange={setReference} />
+              <Field label="Site address" value={siteAddress} onChange={setSiteAddress} />
+              <Field label="Customer or company" value={customerName} onChange={setCustomerName} />
+              <div className="sm:col-span-2"><TextAreaField label="Description" value={description} onChange={setDescription} /></div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button type="submit" disabled={renaming} className="h-[46px] shrink-0">Save</Button>
+              <Button type="button" variant="ghost" onClick={() => setEditingName(false)}>Cancel</Button>
+            </div>
           </form>
         ) : (
           <div className="flex flex-col gap-4 sm:flex-row">
@@ -204,8 +225,16 @@ export const ProjectDetailPage = ({ id, userId, onBack, onOpenEstimator, onCreat
                 <div>
                   <h1 className={cx.h1}>{project.name}</h1>
                   <p className="mt-1 text-xs" style={{ color: MUTED }}>
-                    Ref: {project.id.slice(0, 8).toUpperCase()}{companyName ? ` · ${companyName}` : ""}
+                    Ref: {project.data.reference || project.id.slice(0, 8).toUpperCase()}{companyName ? ` · ${companyName}` : ""}
                   </p>
+                  {(project.data.siteAddress || project.data.customerName) && (
+                    <p className="mt-1 text-xs" style={{ color: MUTED }}>
+                      {project.data.customerName}{project.data.customerName && project.data.siteAddress ? " · " : ""}{project.data.siteAddress}
+                    </p>
+                  )}
+                  {project.data.description && (
+                    <p className="mt-1 max-w-prose text-xs" style={{ color: MUTED }}>{project.data.description}</p>
+                  )}
                   <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
                     <span className={`${cx.badge} ${JOURNEY_STAGE_BADGE_CLASS[journey.stage]}`}>{JOURNEY_STAGE_LABELS[journey.stage]}</span>
                     {representativeOrder?.manufacturing_est_completion && (
@@ -214,7 +243,7 @@ export const ProjectDetailPage = ({ id, userId, onBack, onOpenEstimator, onCreat
                     <span style={{ color: MUTED }}>Last updated: {relativeTime(project.updated_at)}</span>
                   </div>
                 </div>
-                <IconButton onClick={startRename} title="Rename" ariaLabel="Rename project"><Pencil size={15} /></IconButton>
+                <IconButton onClick={startRename} title="Edit details" ariaLabel="Edit project details"><Pencil size={15} /></IconButton>
               </div>
             </div>
           </div>

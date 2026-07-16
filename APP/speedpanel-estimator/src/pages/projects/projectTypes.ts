@@ -29,6 +29,15 @@ export type ReviewStatus = typeof REVIEW_STATUSES[number];
 
 export const SavedProjectDataSchema = PersistedProjectSchema.extend({
   system: z.string(), mode: z.string(), dimUnit: z.string(),
+  // Optional project metadata, editable from the Projects list's create form
+  // and ProjectDetailPage.tsx -- stored here (not new `projects` SQL columns)
+  // since this jsonb `data` blob already carries exactly this kind of
+  // project-level-but-not-wall-config metadata (system/mode/dimUnit above).
+  // Optional so projects saved before these fields existed still validate.
+  reference: z.string().optional(),
+  siteAddress: z.string().optional(),
+  customerName: z.string().optional(),
+  description: z.string().optional(),
 });
 export type SavedProjectData = z.infer<typeof SavedProjectDataSchema>;
 
