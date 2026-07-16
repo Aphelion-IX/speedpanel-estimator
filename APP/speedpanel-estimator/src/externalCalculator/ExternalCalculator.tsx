@@ -13,6 +13,13 @@
 // Internal's. Sharing one mode variable also means switching between
 // Internal/External mid-project keeps whatever Single Wall/Project Estimate
 // view you were in, consistent with how walls/dimUnit are already shared.
+//
+// Phone and web are fully separate JSX trees below (phoneWorkspaceNode vs
+// webWorkspaceNode), mirroring internalCalculator/InternalCalculator.tsx --
+// phone gets its own forked visual language (SegPhone segmented controls,
+// EdgeGridPhone tinted edge toggles, one continuous SheetCardPhone instead
+// of separate CollapsibleSection accordions, a ProjectCardPhone + pill-strip
+// nav), web is untouched.
 // =============================================================================
 import { useState, useMemo } from "react";
 import { Box, Frame, Gauge, Lock, Settings } from "lucide-react";
@@ -34,7 +41,6 @@ import {
 import { LockedDataExt, LockedDataFooter } from "../ui/lockedData";
 import { PanelLengthSection } from "./lengthExplorer";
 import { WallsCard } from "./wallsCard";
-import { StickyBar } from "../ui/stickyBar";
 import { EstimateStructureNav } from "./estimateStructureNav";
 import {
   ProfileSection, DimensionInputs, SpanTable, EdgeRestraintSelector, ProjectSeparator,
@@ -47,13 +53,31 @@ import { SingleWallMaterialsSection } from "./mainSections";
 import { WallWorkspaceTabs } from "./wallWorkspaceTabs";
 import { EstimateResultsCard } from "./estimateResultsCard";
 import { OrderReviewDrawer } from "./orderReviewDrawer";
+import { ProjectCardPhone, SheetHeaderPhone, StickyBarTilesPhone, deriveWallStatus } from "./phoneShell";
+import {
+  SheetCardPhone, SheetSectionPhone, SystemConfigSectionPhone, GeometrySectionPhone,
+  PanelLengthSectionPhone, TracksFlashingSectionPhone, WarningsListPhone,
+} from "./phoneSections";
 import { buildExternalReportData } from "../export/buildExternalReportData";
 import { exportEstimateToExcel } from "../export/exportEstimateToExcel";
 
-export function ExternalCalculator({ store, orient, dimUnit, setDimUnit, systemSelector, layoutMode, mode, setMode }: {
+export function ExternalCalculator({ store, orient, dimUnit, setDimUnit, systemSelector, layoutMode, mode, setMode, projectName, onAddInternalWall, switchOrient, switchToInternal }: {
   store: WallStore; orient: "vertical" | "horizontal"; dimUnit: string;
   setDimUnit: (u: string) => void; systemSelector?: React.ReactNode; layoutMode: EffectiveLayout;
   mode: string; setMode: (m: string) => void;
+  projectName?: string;
+  // Phone-only "Internal Wall" add-tile (ProjectCardPhone) -- adds a wall
+  // then switches the whole project to the Internal calculator, see
+  // App.tsx's addInternalWall.
+  onAddInternalWall: () => void;
+  // Phone-only SystemConfigSectionPhone's Orientation/Wall type segments --
+  // same store/App.tsx wiring web's SystemRows uses, just threaded straight
+  // through instead of via the opaque systemSelector render-prop, so the
+  // phone-only restyle doesn't need to branch inside the shared SystemRows
+  // component (see internalCalculator/phoneSections.tsx's header comment --
+  // same reasoning applies here).
+  switchOrient: (o: "vertical" | "horizontal") => void;
+  switchToInternal: () => void;
 }) {
   const [showTakeoff, setShowTakeoff] = useState(true);
   const [orderDrawerOpen, setOrderDrawerOpen] = useState(false);
@@ -81,6 +105,9 @@ export function ExternalCalculator({ store, orient, dimUnit, setDimUnit, systemS
   const ScheduleComp = layoutMode === "web" ? PanelScheduleTable : PanelScheduleCard;
 
   const workspaceTitle = `${active.name} — ${active.orient === "vertical" ? "Vertical" : "Horizontal"} · P78`;
+  // Phone-only sheet header: same underlying data as workspaceTitle above,
+  // just split into a title/crumb shape for SheetHeaderPhone.
+  const sheetCrumb = `${active.orient === "vertical" ? "Vertical" : "Horizontal"} · P78`;
   const colourEntry = active.colour ? EXT_STOCKED_COLOURS.find(c => c.code === active.colour) : null;
   const colourLabel = active.colourType === "special" ? "Custom" : (colourEntry?.label ?? "--");
   const selectedItemStats = [
@@ -105,10 +132,90 @@ export function ExternalCalculator({ store, orient, dimUnit, setDimUnit, systemS
     />
   );
 
-  const workspaceNode = (
+  // Shared with web only -- phone builds its own separate components below
+  // (see phoneWorkspaceNode), same split InternalCalculator.tsx uses.
+  const geometryContent = (
     <>
-      <EstimateModeSelector visible={!out.empty} mode={mode} setMode={setMode} />
+      <ProfileSection profile={active.profile} onChange={id => update({ profile: id })} />
+      <div className="border-t border-slate-100 dark:border-slate-800 pt-3">
+        <div className="mb-2 flex items-center justify-between">
+          <span className={cx.cardHd} style={{marginBottom:0}}>Dimensions</span>
+          <div className="flex items-center gap-2">
+            <UnitToggle unit={dimUnit} setUnit={switchDimUnit} />
+          </div>
+        </div>
+        <DimensionInputs active={active} toDisp={toDisp} updDim={updDim} out={out} orient={orient} />
+        {/* Pulled out into WallWorkspaceTabs's Preview tab on phone, but
+            only in single-wall mode -- project mode's own tabbed
+            EstimateResultsCard has no preview tab of its own, so this
+            stays inline there rather than disappearing entirely. */}
+        {(layoutMode !== "phone" || project) && <WallPreviewSection active={active} walls={walls} out={out} dimUnit={dimUnit} toDisp={toDisp} />}
+        <SpanTable orient={orient} type={78} />
+      </div>
+    </>
+  );
+  const panelLengthContent = (
+    <PanelLengthSection
+      dimUnit={dimUnit} out={out} active={active} walls={walls}
+      projectLock={projectLock} projectStock={projectStock}
+      customLengthInput={customLengthInput} customActive={customActive}
+      stocks={EXT_STOCK} packType={78}
+      update={update} setProjectLength={setProjectLength}
+      commitCustomLength={commitCustomLength} toggleCustom={toggleCustom} clearCustomLength={clearCustomLength}
+    />
+  );
+  const tracksContent = (
+    <EdgeRestraintSelector
+      edges={active.edges}
+      onEdgeToggle={k => update({ edges: { ...active.edges, [k]: !active.edges[k] } })}
+      options={edgeOptions}
+      corners={{ intCorners: active.intCorners, extCorners: active.extCorners, onChange: (f: CornersField, v: string) => update({ [f]: v } as Pick<Wall, CornersField>) }}
+    />
+  );
 
+  const phoneWorkspaceNode = (
+    <SheetCardPhone>
+      <SheetHeaderPhone title={active.name} crumb={sheetCrumb} status={deriveWallStatus(active, out)} stats={selectedItemStats} />
+      <SystemConfigSectionPhone
+        walls={walls} active={active} update={update}
+        duplicateWall={duplicateWall} deleteWall={deleteWall} orient={orient}
+        onJunctionLink={linkJunctionPartner}
+        switchOrient={switchOrient} switchToInternal={switchToInternal}
+      />
+      <GeometrySectionPhone
+        active={active} update={update} toDisp={toDisp} updDim={updDim} out={out} orient={orient}
+        walls={walls} dimUnit={dimUnit} switchDimUnit={switchDimUnit} project={project}
+      />
+      <PanelLengthSectionPhone
+        dimUnit={dimUnit} out={out} active={active} walls={walls}
+        projectLock={projectLock} projectStock={projectStock}
+        customLengthInput={customLengthInput} customActive={customActive}
+        stocks={EXT_STOCK} packType={78}
+        update={update} setProjectLength={setProjectLength}
+        commitCustomLength={commitCustomLength} toggleCustom={toggleCustom} clearCustomLength={clearCustomLength}
+      />
+      <TracksFlashingSectionPhone active={active} update={update} />
+
+      {/* WallWorkspaceTabs only replaces this in single-wall mode -- project
+          mode's EstimateResultsCard (below, in mainNode) already has its
+          own Selected Wall/Connections/Order tabs covering the same
+          per-wall content, so showing both would stack two redundant tab
+          strips on one phone screen. */}
+      {!project ? (
+        <WallWorkspaceTabs
+          active={active} out={out} orient={orient} layoutMode={layoutMode}
+          walls={walls} ScheduleComp={ScheduleComp} dimUnit={dimUnit} toDisp={toDisp}
+        />
+      ) : (
+        <SheetSectionPhone label="Warnings">
+          <WarningsListPhone warnings={!out.empty ? out.warnings : null} />
+        </SheetSectionPhone>
+      )}
+    </SheetCardPhone>
+  );
+
+  const webWorkspaceNode = (
+    <>
       <SectionLabel icon={<Gauge size={13} />}>Selected item metrics</SectionLabel>
       <StatsGrid stats={selectedItemStats} />
 
@@ -124,61 +231,28 @@ export function ExternalCalculator({ store, orient, dimUnit, setDimUnit, systemS
       <CollapsibleSection icon={<Box size={13} />} label="Panel configuration" defaultOpen>
         <div className={cx.section}>
           <PanelColourSection active={active} update={update} />
-
-          <PanelLengthSection
-            dimUnit={dimUnit} out={out} active={active} walls={walls}
-            projectLock={projectLock} projectStock={projectStock}
-            customLengthInput={customLengthInput} customActive={customActive}
-            stocks={EXT_STOCK} packType={78}
-            update={update} setProjectLength={setProjectLength}
-            commitCustomLength={commitCustomLength} toggleCustom={toggleCustom} clearCustomLength={clearCustomLength}
-          />
+          {panelLengthContent}
         </div>
       </CollapsibleSection>
 
       <CollapsibleSection icon={<Frame size={13} />} label="Wall geometry" defaultOpen>
         <div className={cx.section}>
-          <ProfileSection profile={active.profile} onChange={id => update({ profile: id })} />
-          <div className="border-t border-slate-100 dark:border-slate-800 pt-3">
-            <div className="mb-2 flex items-center justify-between">
-              <span className={cx.cardHd} style={{marginBottom:0}}>Dimensions</span>
-              <div className="flex items-center gap-2">
-                <UnitToggle unit={dimUnit} setUnit={switchDimUnit} />
-              </div>
-            </div>
-            <DimensionInputs active={active} toDisp={toDisp} updDim={updDim} out={out} orient={orient} />
-            {/* Pulled out into WallWorkspaceTabs's Preview tab on phone, but
-                only in single-wall mode -- project mode's own tabbed
-                EstimateResultsCard has no preview tab of its own, so this
-                stays inline there rather than disappearing entirely. */}
-            {(layoutMode !== "phone" || project) && <WallPreviewSection active={active} walls={walls} out={out} dimUnit={dimUnit} toDisp={toDisp} />}
-            <SpanTable orient={orient} type={78} />
-          </div>
+          {geometryContent}
         </div>
       </CollapsibleSection>
 
       <CollapsibleSection icon={<Lock size={13} />} label="Tracks and flashing" defaultOpen>
-        <EdgeRestraintSelector
-          edges={active.edges}
-          onEdgeToggle={k => update({ edges: { ...active.edges, [k]: !active.edges[k] } })}
-          options={edgeOptions}
-          corners={{ intCorners: active.intCorners, extCorners: active.extCorners, onChange: (f: CornersField, v: string) => update({ [f]: v } as Pick<Wall, CornersField>) }}
-        />
+        {tracksContent}
       </CollapsibleSection>
 
-      {/* WallWorkspaceTabs only replaces this in single-wall mode -- project
-          mode's EstimateResultsCard (below, in mainNode) already has its own
-          Selected Wall/Connections/Order tabs covering the same per-wall
-          content, so showing both would stack two redundant tab strips on
-          one phone screen. */}
-      {layoutMode === "phone" && !project ? (
-        <WallWorkspaceTabs
-          active={active} out={out} orient={orient} layoutMode={layoutMode}
-          walls={walls} ScheduleComp={ScheduleComp} dimUnit={dimUnit} toDisp={toDisp}
-        />
-      ) : (
-        <WarningsList warnings={!out.empty ? out.warnings : null} />
-      )}
+      <WarningsList warnings={!out.empty ? out.warnings : null} />
+    </>
+  );
+
+  const workspaceNode = (
+    <>
+      <EstimateModeSelector visible={!out.empty} mode={mode} setMode={setMode} />
+      {layoutMode === "phone" ? phoneWorkspaceNode : webWorkspaceNode}
     </>
   );
 
@@ -233,15 +307,19 @@ export function ExternalCalculator({ store, orient, dimUnit, setDimUnit, systemS
   // this degrades correctly to that one wall's own totals outside project
   // mode). Mirrors Internal's.
   const stickyBarNode = layoutMode === "phone" && (
-    <StickyBar
-      view="project" wallStats={[]} projectStats={stickyProjectStats}
+    <StickyBarTilesPhone
+      stats={stickyProjectStats}
       onReviewOrder={() => setOrderDrawerOpen(true)} lineItemCount={orderLineItemCount}
     />
   );
+  const projectCardNode = layoutMode === "phone" && (
+    <ProjectCardPhone
+      projectName={projectName} results={results}
+      addBlankWall={addBlankWall} onAddInternalWall={onAddInternalWall}
+    />
+  );
 
-  if (layoutMode === "phone") {
-    return <div>{sidebarNode}{mainNode}{footerNode}{stickyBarNode}{orderDrawerNode}</div>;
-  }
+  if (layoutMode === "phone") return <>{projectCardNode}{sidebarNode}{mainNode}{footerNode}{stickyBarNode}{orderDrawerNode}</>;
   return (
     <>
       <CalculatorShell sidebar={sidebarNode} main={mainNode} footer={footerNode} sidebarWidth={320} />

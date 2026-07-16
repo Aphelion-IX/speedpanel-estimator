@@ -129,6 +129,10 @@ export default function SpeedpanelEstimator() {
   // switch as above but WITHOUT adding a wall, mirroring SystemRows' real
   // "Wall type" toggle exactly (see systemRows.tsx).
   const switchToExternal = () => switchSystem(findSys(orient, true).id);
+  // Mirror image of the two above, for External's own phone project card/
+  // System configuration "Wall type -> Internal" segment.
+  const addInternalWall = () => { store.addBlankWall(); switchSystem(findSys(orient, false).id); };
+  const switchToInternal = () => switchSystem(findSys(orient, false).id);
 
   // Opening a saved project from Projects loads its snapshot into the shared
   // wall store/view state and switches to the Estimator tab -- the builder UI
@@ -316,6 +320,9 @@ export default function SpeedpanelEstimator() {
               systemSelector={<SystemRows orient={orient} switchOrient={switchOrient} isExt={isExt} switchSystem={switchSystem} findSys={findSys} />}
               layoutMode={layoutMode}
               mode={mode} setMode={setMode}
+              projectName={openProject?.name}
+              onAddInternalWall={addInternalWall}
+              switchOrient={switchOrient} switchToInternal={switchToInternal}
             />
           ) : (
             <InternalCalculator

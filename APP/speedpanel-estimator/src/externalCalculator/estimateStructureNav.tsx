@@ -9,33 +9,24 @@ import { Plus } from "lucide-react";
 import { cx, BLUE, GOLD, NAVY, MUTED } from "../styleTokens";
 import type { Wall, WallResult } from "../estimate/wall.types";
 import type { EffectiveLayout } from "../useLayoutMode";
-import { ItemPillScroller, type PillItem } from "../ui/itemPillScroller";
+import { WallPillStripPhone, deriveWallStatus, type PhonePillItem } from "./phoneShell";
 
 export const EstimateStructureNav = ({ walls, results, activeId, onSelectWall, warnById, addBlankWall, layoutMode }: {
   walls: Wall[]; results: WallResult[]; activeId: number; onSelectWall: (id: number) => void;
   warnById: Record<number, boolean>; addBlankWall: () => void; layoutMode?: EffectiveLayout;
 }) => {
   if (layoutMode === "phone") {
-    const items: PillItem[] = results.map(({ wall: w, out: r }) => ({
+    // Add-wall action lives on ProjectCardPhone (rendered above this nav in
+    // ExternalCalculator.tsx) on phone, not as a trailing pill here --
+    // mirrors internalCalculator/estimateStructureNav.tsx's phone branch.
+    const items: PhonePillItem[] = results.map(({ wall: w, out: r }) => ({
       id: String(w.id),
       label: w.name,
       sublabel: `${w.orient === "vertical" ? "Vert" : "Horiz"}${r.empty ? "" : ` · ${r.area} m2`}`,
       active: w.id === activeId,
-      warn: !!warnById[w.id],
+      status: deriveWallStatus(w, r),
     }));
-    return (
-      <ItemPillScroller
-        items={items}
-        onSelect={id => onSelectWall(Number(id))}
-        trailing={
-          <button onClick={addBlankWall}
-            className="flex min-w-[100px] shrink-0 snap-start items-center justify-center gap-1.5 rounded-xl border-2 border-dashed px-3 py-3 text-sm font-bold active:scale-95 transition-all bg-white dark:bg-slate-800"
-            style={{ borderColor: BLUE, color: BLUE }}>
-            <Plus size={14} />Wall
-          </button>
-        }
-      />
-    );
+    return <WallPillStripPhone items={items} onSelect={id => onSelectWall(Number(id))} />;
   }
 
   return (

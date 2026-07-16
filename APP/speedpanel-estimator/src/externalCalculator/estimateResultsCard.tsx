@@ -10,7 +10,7 @@
 // Structure nav + Selected Wall tab.
 // =============================================================================
 import { useState } from "react";
-import { NAVY } from "../styleTokens";
+import { cx, NAVY } from "../styleTokens";
 import { Row, StatsGrid, WarningsList } from "../ui/primitives";
 import { Button } from "../ui/button";
 import { Tabs, TabPanel } from "../ui/tabs";
@@ -22,6 +22,8 @@ import type { ComputeOut, Wall, WallResult } from "../estimate/wall.types";
 import type { EffectiveLayout } from "../useLayoutMode";
 import { WallEstimateCardsExt } from "./mainSections";
 import { OrderContent } from "./orderContent";
+import { MetricsGridPhone } from "./phoneShell";
+import { WarningsListPhone } from "./phoneSections";
 
 function collectProjectWarnings(results: WallResult[], combinedEstimate: CombinedEstimate): string[] {
   return [
@@ -69,16 +71,26 @@ export const EstimateResultsCard = ({
       </div>
 
       <TabPanel id="overview" activeId={activeTab}>
-        <StatsGrid stats={[
-          { value: `${projAgg.totalArea} m2`, label: "Total area" },
-          { value: projAgg.panels, label: "Total panels" },
-          { value: results.length, label: "Walls" },
-          { value: projectWarnings.length, label: "Warnings" },
-        ]} />
+        {(() => {
+          const overviewStats = [
+            { value: `${projAgg.totalArea} m2`, label: "Total area" },
+            { value: projAgg.panels, label: "Total panels" },
+            { value: results.length, label: "Walls" },
+            { value: projectWarnings.length, label: "Warnings" },
+          ];
+          // Phone: MetricsGridPhone (blue/navy only, no gold top-border) --
+          // same colour rule as the rest of the External phone estimator.
+          // Web keeps the shared gold-accented StatsGrid/Stat unchanged.
+          return layoutMode === "phone"
+            ? <div className={cx.section}><MetricsGridPhone stats={overviewStats} /></div>
+            : <StatsGrid stats={overviewStats} />;
+        })()}
         <div className="mt-3">
           <WallsSummaryTable results={results} activeId={activeId} setActiveId={onSelectWall} warnById={warnById} toDisp={toDisp} dimUnit={dimUnit} />
         </div>
-        <WarningsList warnings={projectWarnings} />
+        {layoutMode === "phone"
+          ? <WarningsListPhone warnings={projectWarnings} emptyLabel="No active warnings for this project." />
+          : <WarningsList warnings={projectWarnings} />}
       </TabPanel>
 
       <TabPanel id="wall" activeId={activeTab}>
