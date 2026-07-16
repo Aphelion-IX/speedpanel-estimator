@@ -40,6 +40,7 @@ import {
   ProfileSection, DimensionInputs, SpanTable, EdgeRestraintSelector, ProjectSeparator,
 } from "../ui/wallConfig";
 import type { FinishKey, CornersField } from "../ui/wallConfig";
+import { WallPreviewSection } from "../ui/wallPreview";
 import { PanelScheduleCard, PanelScheduleTable } from "../ui/scheduleCards";
 import { SingleWallEstimateSection } from "./mainSections";
 import { EstimateResultsCard } from "./estimateResultsCard";
@@ -176,6 +177,7 @@ export function InternalCalculator({ store, orient, dimUnit, setDimUnit, systemS
                   </div>
                 </div>
                 <DimensionInputs active={active} toDisp={toDisp} updDim={updDim} out={out} orient={orient} />
+                <WallPreviewSection active={active} walls={walls} out={out} />
                 <SpanTable orient={orient} type={active.type} wallSystem={active.wallSystem} />
               </div>
               <PanelLengthSection
