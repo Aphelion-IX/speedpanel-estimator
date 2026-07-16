@@ -11,7 +11,7 @@
 // =============================================================================
 import { useState } from "react";
 import { Frame } from "lucide-react";
-import { NAVY } from "../styleTokens";
+import { cx, NAVY } from "../styleTokens";
 import { r1 } from "../estimate/mathUtils";
 import { aggregate } from "../estimate/aggregate";
 import type { CombinedEstimate } from "../estimate/calculateCombinedEstimate";
@@ -27,6 +27,8 @@ import { ConnectionBreakdownCard, PanelScheduleCard } from "../ui/scheduleCards"
 import { CornerKitCard, ShaftJunctionCard } from "./kitCards";
 import { WallEstimateCards } from "./mainSections";
 import { OrderContent } from "./orderContent";
+import { MetricsGridPhone } from "./phoneShell";
+import { WarningsListPhone } from "./phoneSections";
 
 function collectProjectWarnings(results: WallResult[], kits: KitEntry[], combinedEstimate: CombinedEstimate): string[] {
   return [
@@ -77,18 +79,28 @@ export const EstimateResultsCard = ({
       </div>
 
       <TabPanel id="overview" activeId={activeTab}>
-        <StatsGrid stats={[
-          { value: `${projChosenAgg.totalArea} m2`, label: "Total area" },
-          { value: projChosenAgg.totalPanels, label: "Total panels" },
-          { value: results.length, label: "Walls" },
-          { value: kits.length, label: "Connection kits" },
-          { value: `${r1(projChosenAgg.wastePct)}%`, label: "Est. waste" },
-          { value: projectWarnings.length, label: "Warnings" },
-        ]} />
+        {(() => {
+          const overviewStats = [
+            { value: `${projChosenAgg.totalArea} m2`, label: "Total area" },
+            { value: projChosenAgg.totalPanels, label: "Total panels" },
+            { value: results.length, label: "Walls" },
+            { value: kits.length, label: "Connection kits" },
+            { value: `${r1(projChosenAgg.wastePct)}%`, label: "Est. waste" },
+            { value: projectWarnings.length, label: "Warnings" },
+          ];
+          // Phone: MetricsGridPhone (blue/navy only, no gold top-border) --
+          // same colour rule as the rest of the Internal phone estimator.
+          // Web keeps the shared gold-accented StatsGrid/Stat unchanged.
+          return layoutMode === "phone"
+            ? <div className={cx.section}><MetricsGridPhone stats={overviewStats} /></div>
+            : <StatsGrid stats={overviewStats} />;
+        })()}
         <div className="mt-3">
           <WallsSummaryTable results={results} activeId={activeId} setActiveId={onSelectWall} warnById={warnById} toDisp={toDisp} dimUnit={dimUnit} />
         </div>
-        <WarningsList warnings={projectWarnings} />
+        {layoutMode === "phone"
+          ? <WarningsListPhone warnings={projectWarnings} emptyLabel="No active warnings for this project." />
+          : <WarningsList warnings={projectWarnings} />}
       </TabPanel>
 
       <TabPanel id="wall" activeId={activeTab}>

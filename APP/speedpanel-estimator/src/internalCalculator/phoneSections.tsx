@@ -109,9 +109,11 @@ export const EdgeGridPhone = ({ edges, onEdgeToggle, locked }: {
 // Red, not the shared WarningsList's amber cx.warnbox -- "Red: warnings and
 // errors" per the mockup's visual rules. Same border-weight convention as
 // cx.warnbox, just tone("danger") instead of amber.
-export const WarningsListPhone = ({ warnings }: { warnings?: string[] | null }) => {
+export const WarningsListPhone = ({ warnings, emptyLabel = "No active warnings for this wall." }: {
+  warnings?: string[] | null; emptyLabel?: string;
+}) => {
   if (!warnings || warnings.length === 0) {
-    return <p className="text-sm" style={{ color: MUTED }}>No active warnings for this wall.</p>;
+    return <p className="text-sm" style={{ color: MUTED }}>{emptyLabel}</p>;
   }
   return (
     <div className="space-y-2.5">
