@@ -183,7 +183,9 @@ export const ProjectLockNote = ({ wallCount, stock, dimUnit, numM, customActive 
 };
 
 export const Stat = ({ value, label }: { value: string | number; label: string }) => (
-  <div className="rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-2 py-4 text-center shadow-sm" style={{ borderTop: `2px solid ${GOLD}` }}>
+  <div
+    className="rounded-xl border border-slate-200 dark:border-slate-600 bg-gradient-to-b from-white to-amber-50/70 dark:from-slate-800 dark:to-amber-900/10 px-2 py-4 text-center shadow-[0_1px_1px_rgba(15,23,42,0.04),0_14px_26px_-18px_rgba(12,35,64,0.4)] dark:shadow-[0_1px_1px_rgba(0,0,0,0.25),0_14px_26px_-16px_rgba(0,0,0,0.5)] transition-all hover:-translate-y-0.5 hover:shadow-[0_1px_1px_rgba(15,23,42,0.05),0_18px_30px_-16px_rgba(12,35,64,0.45)] dark:hover:shadow-[0_1px_1px_rgba(0,0,0,0.3),0_18px_30px_-14px_rgba(0,0,0,0.55)]"
+    style={{ borderTop: `2px solid ${GOLD}` }}>
     <div className="text-xl font-extrabold leading-none tracking-tight" style={{ color: BLUE }}>{value}</div>
     <div className="mt-2 text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-400">{label}</div>
   </div>

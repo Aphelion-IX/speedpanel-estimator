@@ -173,9 +173,14 @@ export const cx = {
   // Click-to-switch pill tab bar (src/ui/tabs.tsx) -- same pill visual
   // language as SectionNav's scroll-spy pills, but a plain non-sticky row
   // since tab switching stays within one card, not the whole page.
-  tabList:     "flex gap-1.5 overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900/40 p-1.5",
-  tabActive:   "shrink-0 rounded-lg px-3.5 py-2 text-xs font-bold uppercase tracking-wide whitespace-nowrap text-white bg-[color:var(--blue)]",
-  tabInactive: "shrink-0 rounded-lg px-3.5 py-2 text-xs font-bold uppercase tracking-wide whitespace-nowrap text-slate-400 dark:text-slate-400 hover:text-[color:var(--blue)]",
+  // Track is a recessed groove (inset shadow, same idea as cx.panel) instead
+  // of a flat grey box; the active tab is a small raised chip sitting inside
+  // it (real elevation + brand-blue text) rather than a flat solid-blue fill
+  // -- matches the "pill in a groove" pattern used by Stripe/Linear segmented
+  // controls instead of a plain colour swap.
+  tabList:     "flex gap-1.5 overflow-x-auto rounded-xl border border-slate-200/80 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-900/50 p-1.5 shadow-[inset_0_1px_3px_rgba(15,23,42,0.06)] dark:shadow-[inset_0_1px_3px_rgba(0,0,0,0.25)]",
+  tabActive:   "shrink-0 rounded-lg px-3.5 py-2 text-xs font-bold uppercase tracking-wide whitespace-nowrap text-[color:var(--blue)] bg-white dark:bg-slate-800 shadow-[0_1px_1px_rgba(15,23,42,0.04),0_8px_16px_-10px_rgba(12,35,64,0.35)] dark:shadow-[0_1px_1px_rgba(0,0,0,0.2),0_8px_16px_-8px_rgba(0,0,0,0.4)]",
+  tabInactive: "shrink-0 rounded-lg px-3.5 py-2 text-xs font-bold uppercase tracking-wide whitespace-nowrap text-slate-400 dark:text-slate-400 transition-colors hover:text-[color:var(--blue)]",
 
   // -- Drawer / slide-over ------------------------------------------------------
   // src/ui/drawer.tsx -- right-side panel on web layout, bottom sheet on phone
