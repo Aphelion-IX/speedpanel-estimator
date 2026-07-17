@@ -38,7 +38,7 @@ export const IconButton = ({ onClick, title, ariaLabel, className = "", variant 
       title={title}
       aria-label={ariaLabel ?? title}
       disabled={disabled}
-      className={`grid place-items-center border bg-white dark:bg-slate-800 shadow-sm active:scale-95 transition-all disabled:opacity-50 disabled:pointer-events-none ${sizeCx} ${variantCx} ${className}`}
+      className={`grid place-items-center border bg-white dark:bg-slate-800 shadow-sm hover:-translate-y-0.5 hover:shadow-md active:translate-y-0 active:scale-95 transition-all disabled:opacity-50 disabled:pointer-events-none disabled:hover:translate-y-0 disabled:hover:shadow-sm ${sizeCx} ${variantCx} ${className}`}
     >
       {children}
     </button>
@@ -133,11 +133,12 @@ export const ToggleSwitch = ({ active, onToggle, label }: { active: boolean; onT
     <span style={{
       display: "inline-flex", width: 32, height: 18, borderRadius: 9,
       background: active ? BLUE : MUTED,
-      position: "relative", flexShrink: 0, transition: "background 0.2s",
+      boxShadow: active ? `0 0 0 4px color-mix(in srgb, ${BLUE} 14%, transparent), inset 0 1px 1px rgba(255,255,255,0.25)` : "inset 0 1px 2px rgba(12,35,64,0.15)",
+      position: "relative", flexShrink: 0, transition: "background 0.2s, box-shadow 0.2s",
     }}>
       <span style={{
         position: "absolute", top: 2, width: 14, height: 14, borderRadius: "50%",
-        background: "#fff", boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
+        background: "#fff", boxShadow: "0 1px 3px rgba(0,0,0,0.25)",
         left: active ? 16 : 2, transition: "left 0.2s",
       }} />
     </span>

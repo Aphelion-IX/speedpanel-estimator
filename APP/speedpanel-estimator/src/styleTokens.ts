@@ -52,17 +52,29 @@ export const tone = (t: StatusTone): string => {
 //
 export const cx = {
   // -- Inputs & labels --------------------------------------------------------
-  input:     "w-full rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-4 py-3 text-sm text-slate-800 dark:text-slate-100 shadow-sm transition-shadow focus:border-blue-300 dark:focus:border-blue-600 focus:shadow-md focus:outline-none",
+  // Resting shadow is a real (if small) contact shadow rather than shadow-sm,
+  // hover nudges the border toward brand-blue so a field reads as "live"
+  // before it's even focused, and focus swaps the old flat focus:shadow-md
+  // for an actual glow ring (halo + crisp border) -- the same language
+  // buttons/chips below use for their own selected/focus state.
+  input:     "w-full rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-4 py-3 text-sm text-slate-800 dark:text-slate-100 shadow-[0_1px_2px_rgba(15,23,42,0.05)] transition-all hover:border-blue-200 dark:hover:border-blue-700 focus:border-blue-400 dark:focus:border-blue-500 focus:shadow-[0_0_0_3.5px_rgba(0,103,185,0.15)] dark:focus:shadow-[0_0_0_3.5px_rgba(58,168,255,0.22)] focus:outline-none",
   lbl:       "mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300 pl-1",
-  wallName:  "min-w-0 flex-1 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-4 py-3 text-sm font-semibold text-slate-800 dark:text-slate-100 shadow-sm outline-none transition-shadow focus:border-blue-300 dark:focus:border-blue-600 focus:shadow-md",
+  wallName:  "min-w-0 flex-1 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-4 py-3 text-sm font-semibold text-slate-800 dark:text-slate-100 shadow-[0_1px_2px_rgba(15,23,42,0.05)] outline-none transition-all hover:border-blue-200 dark:hover:border-blue-700 focus:border-blue-400 dark:focus:border-blue-500 focus:shadow-[0_0_0_3.5px_rgba(0,103,185,0.15)] dark:focus:shadow-[0_0_0_3.5px_rgba(58,168,255,0.22)]",
 
   // -- Layout containers ------------------------------------------------------
   // Raised baseline -- bigger radius + a layered shadow (soft contact shadow
-  // + a wider ambient one), matching the depth already used on the sign-in
-  // card and the signed-in home screen's workspace cards, instead of the
-  // flatter shadow-sm every other page used previously.
-  card:      "rounded-2xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 p-6 lg:p-7 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_20px_40px_-28px_rgba(15,23,42,0.18)] dark:shadow-[0_1px_2px_rgba(0,0,0,0.2),0_20px_40px_-24px_rgba(0,0,0,0.35)]",
-  section:   "rounded-2xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 p-6 lg:p-7 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_20px_40px_-28px_rgba(15,23,42,0.18)] dark:shadow-[0_1px_2px_rgba(0,0,0,0.2),0_20px_40px_-24px_rgba(0,0,0,0.35)] space-y-4",
+  // + a wider, deeper ambient one) plus a hairline top rim-highlight (inset),
+  // matching the depth already used on the sign-in card and the signed-in
+  // home screen's workspace cards, instead of the flatter shadow-sm every
+  // other page used previously. The ambient layer is deliberately stronger
+  // than the original -- at the old opacity/spread, cards read as barely
+  // elevated above the page (see estimator visual-flatness feedback).
+  card:      "rounded-2xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 p-6 lg:p-7 shadow-[inset_0_1px_0_rgba(255,255,255,0.7),0_1px_2px_rgba(15,23,42,0.05),0_28px_48px_-24px_rgba(15,23,42,0.26)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.04),0_1px_2px_rgba(0,0,0,0.25),0_28px_48px_-22px_rgba(0,0,0,0.45)]",
+  section:   "rounded-2xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 p-6 lg:p-7 shadow-[inset_0_1px_0_rgba(255,255,255,0.7),0_1px_2px_rgba(15,23,42,0.05),0_28px_48px_-24px_rgba(15,23,42,0.26)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.04),0_1px_2px_rgba(0,0,0,0.25),0_28px_48px_-22px_rgba(0,0,0,0.45)] space-y-4",
+  // Recessed "well" surface for content nested inside a card (e.g. a preview
+  // box) -- tinted background + inset shadow so it reads as sunken rather
+  // than another flat white rectangle stacked on the card behind it.
+  panel:     "rounded-xl border border-slate-200/80 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-900/50 shadow-[inset_0_1px_3px_rgba(15,23,42,0.06)] dark:shadow-[inset_0_1px_3px_rgba(0,0,0,0.25)]",
 
   // -- Page heading scale -------------------------------------------------------
   // Colour fades from full-strength Navy (H1) through two mid-steps to the
