@@ -186,7 +186,7 @@ export const EstimateTopCard = ({
                       className={cx.input + " w-40 !py-1 !text-sm"} style={{ color: NAVY }} />
                   ) : (
                     <>
-                      <span>{draftLabel ?? "Draft"}</span>
+                      <span>{draftLabel ?? "Add a name"}</span>
                       <button onClick={() => { setLabelInput(draftLabel ?? ""); setEditingLabel(true); }} aria-label="Edit draft label">
                         <Pencil size={13} className="text-slate-400 hover:text-blue-600 dark:hover:text-blue-400" />
                       </button>
