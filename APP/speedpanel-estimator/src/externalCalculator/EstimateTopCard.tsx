@@ -149,10 +149,16 @@ export const EstimateTopCard = ({
   const pillTone = isSaved ? "info" : "ok";
   const noteCx = isSaved ? cx.infoNoteInfo : cx.infoNoteOk;
   const heroFill = isSaved ? "bg-cyan-500 dark:bg-cyan-600" : "bg-emerald-500 dark:bg-emerald-600";
+  // "Project" is only accurate once it's actually a saved Supabase row (in
+  // the Projects tab) -- an unsaved local draft is still a "draft" until the
+  // Save to Projects button below turns it into one. Calling it "project"
+  // in both states made that button read as contradictory ("save to
+  // projects" on something already labeled a project).
+  const projectWord = isSaved ? "project" : "draft";
 
   return (
     <div className="mt-3">
-      <span className={`${cx.badge} ${tone(pillTone)}`}>WORKING ON A PROJECT</span>
+      <span className={`${cx.badge} ${tone(pillTone)}`}>WORKING ON A {projectWord.toUpperCase()}</span>
       <div className={`mt-2 ${cx.section}`}>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="flex min-w-0 items-start gap-3">
@@ -161,7 +167,7 @@ export const EstimateTopCard = ({
             </span>
             <div className="min-w-0">
               <div className="truncate text-base font-extrabold" style={{ color: NAVY }}>
-                {openProject ? openProject.name : "Current project"}
+                {openProject ? openProject.name : `Current ${projectWord}`}
               </div>
               <span className={`${cx.badge} ${tone(pillTone)} mt-1 inline-block`}>{isSaved ? "Saved" : "In progress"}</span>
               <div className="mt-1.5 flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-300">
@@ -173,7 +179,7 @@ export const EstimateTopCard = ({
                     className={cx.input + " w-40 !py-1 !text-sm"} style={{ color: NAVY }} />
                 ) : (
                   <>
-                    <span>{draftLabel ?? "Draft project"}</span>
+                    <span>{draftLabel ?? "Draft"}</span>
                     <button onClick={() => { setLabelInput(draftLabel ?? ""); setEditingLabel(true); }} aria-label="Edit draft label">
                       <Pencil size={13} className="text-slate-400 hover:text-blue-600 dark:hover:text-blue-400" />
                     </button>
@@ -188,7 +194,7 @@ export const EstimateTopCard = ({
                 <span>Last edited {formatLastEdited(openProject ? openProject.updatedAt : lastEditedAt)}</span>
               </div>
               <button onClick={onViewDetails} className="mt-2 flex items-center gap-1 text-xs font-bold" style={{ color: BLUE }}>
-                View project details <ChevronRight size={12} />
+                View {projectWord} details <ChevronRight size={12} />
               </button>
             </div>
           </div>
@@ -221,8 +227,8 @@ export const EstimateTopCard = ({
         <span>You can view and manage all your projects in the <button onClick={onGoToProjects} className="font-bold underline decoration-2 underline-offset-2">Projects</button> tab.</span>
       </div>
       <div className={`mt-3 ${cx.section}`}>
-        <div className={cx.cardHd} style={{ marginTop: 0 }}>Continue building your project</div>
-        <div className="mb-3 text-sm text-slate-400 dark:text-slate-400">Add more walls to your current project.</div>
+        <div className={cx.cardHd} style={{ marginTop: 0 }}>Continue building your {projectWord}</div>
+        <div className="mb-3 text-sm text-slate-400 dark:text-slate-400">Add more walls to your current {projectWord}.</div>
         <div className="grid grid-cols-2 gap-2.5">
           <AddTile label="External Wall" sublabel="Add another weather-exposed wall" onClick={addBlankWall} icon={<CloudRain size={16} />} highlighted />
           <AddTile label="Internal Wall" sublabel="Add another internal wall" onClick={onAddInternalWall} icon={<House size={16} />} />
