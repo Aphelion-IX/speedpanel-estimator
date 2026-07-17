@@ -179,22 +179,22 @@ export const EstimateTopCard = ({
                 {openProject ? openProject.name : `Current ${projectWord}`}
               </div>
               <span className={`${cx.badge} ${tone(pillTone)} mt-1 inline-block`}>{isSaved ? "Saved" : "In progress"}</span>
-              <div className="mt-1.5 flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-300">
-                {openProject ? (
-                  <span>{openProject.name}</span>
-                ) : editingLabel ? (
-                  <input autoFocus value={labelInput} onChange={e => setLabelInput(e.target.value)}
-                    onBlur={commitLabel} onKeyDown={e => e.key === "Enter" && commitLabel()}
-                    className={cx.input + " w-40 !py-1 !text-sm"} style={{ color: NAVY }} />
-                ) : (
-                  <>
-                    <span>{draftLabel ?? "Draft"}</span>
-                    <button onClick={() => { setLabelInput(draftLabel ?? ""); setEditingLabel(true); }} aria-label="Edit draft label">
-                      <Pencil size={13} className="text-slate-400 hover:text-blue-600 dark:hover:text-blue-400" />
-                    </button>
-                  </>
-                )}
-              </div>
+              {!openProject && (
+                <div className="mt-1.5 flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-300">
+                  {editingLabel ? (
+                    <input autoFocus value={labelInput} onChange={e => setLabelInput(e.target.value)}
+                      onBlur={commitLabel} onKeyDown={e => e.key === "Enter" && commitLabel()}
+                      className={cx.input + " w-40 !py-1 !text-sm"} style={{ color: NAVY }} />
+                  ) : (
+                    <>
+                      <span>{draftLabel ?? "Draft"}</span>
+                      <button onClick={() => { setLabelInput(draftLabel ?? ""); setEditingLabel(true); }} aria-label="Edit draft label">
+                        <Pencil size={13} className="text-slate-400 hover:text-blue-600 dark:hover:text-blue-400" />
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
               <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-400 dark:text-slate-400">
                 <span className="flex items-center gap-1"><CheckCircle2 size={12} />{pct}% configured</span>
                 <span className="flex items-center gap-1"><CheckCircle2 size={12} />{warningsCount} warning{warningsCount === 1 ? "" : "s"}</span>
