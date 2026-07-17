@@ -79,6 +79,13 @@ export const PersistedProjectSchema = z.object({
   projectLock: z.boolean(),
   customLengthInput: z.string(),
   customActive: z.boolean(),
+  // Local-draft-only display metadata (device localStorage, never part of a
+  // saved Supabase project's snapshot) -- optional so existing persisted
+  // payloads without them still validate. lastEditedAt is stamped on every
+  // local-draft persist (see useWallStore's persist effect); draftLabel is
+  // the "Draft estimate" card's editable pre-save display name.
+  lastEditedAt: z.number().optional(),
+  draftLabel: z.string().nullable().optional(),
 });
 export type PersistedProject = z.infer<typeof PersistedProjectSchema>;
 
@@ -124,16 +131,25 @@ export function useWallStore({ dimUnit, onWallAdded, persistLocally = true }: { 
   const [projectLock, setProjectLock]   = useState(() => saved ? saved.projectLock : false);
   const [customLengthInput, setCustomLengthInput] = useState(() => saved ? saved.customLengthInput : "");
   const [customActive, setCustomActive] = useState(() => saved ? saved.customActive : false);
+  const [lastEditedAt, setLastEditedAt] = useState<number | undefined>(() => saved?.lastEditedAt);
+  const [draftLabel, setDraftLabel]     = useState<string | null>(() => saved?.draftLabel ?? null);
 
   // Persist the whole project to the device on any change (unless a saved
   // Supabase project is currently open -- see persistLocally above).
+  // Stamps lastEditedAt on every persist -- this effect already fires on
+  // every keystroke-driven walls change (see useWallResults' PERF NOTE), so
+  // that's more than enough resolution for a "Last edited: Today, 3:45 PM"
+  // display, which only needs minute granularity.
   useEffect(() => {
     if (typeof window === "undefined" || !persistLocally) return;
+    const stamp = Date.now();
     const payload: PersistedProject = {
       v: 1, walls, activeId, nextId, projectStock, projectLock, customLengthInput, customActive,
+      lastEditedAt: stamp, draftLabel,
     };
     try { window.localStorage.setItem(PROJECT_KEY, JSON.stringify(payload)); } catch { /* ignore quota/serialization errors */ }
-  }, [walls, activeId, nextId, projectStock, projectLock, customLengthInput, customActive, persistLocally]);
+    setLastEditedAt(stamp);
+  }, [walls, activeId, nextId, projectStock, projectLock, customLengthInput, customActive, draftLabel, persistLocally]);
 
   const active = walls.find(w => w.id === activeId) || walls[0];
   const update = (patch: Partial<Wall>) =>
@@ -308,6 +324,7 @@ export function useWallStore({ dimUnit, onWallAdded, persistLocally = true }: { 
     addBlankWall, addCornerWall, addShaftWall, duplicateWall, deleteWall,
     commitCustomLength, toggleCustom, resetWalls, clearCustomLength,
     linkJunctionPartner, loadFrom, exportSnapshot,
+    lastEditedAt, draftLabel, setDraftLabel,
   };
 }
 

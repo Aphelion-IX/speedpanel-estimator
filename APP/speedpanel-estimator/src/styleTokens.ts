@@ -91,6 +91,10 @@ export const cx = {
   warnbox:   "flex gap-3 rounded-xl border border-amber-200 dark:border-amber-700/80 bg-amber-50/80 dark:bg-amber-900/50 p-4 text-sm leading-relaxed text-amber-800 dark:text-amber-300",
   // Blue info / note boxes
   infoNote:  "mt-3 flex gap-2.5 rounded-xl border border-blue-100 dark:border-blue-800/80 bg-blue-50/70 dark:bg-blue-900/55 px-4 py-3 text-sm leading-relaxed text-blue-700 dark:text-blue-300",
+  // Green info / note box -- unsaved-draft-in-progress variant of infoNote
+  infoNoteOk:   "mt-3 flex gap-2.5 rounded-xl border border-emerald-100 dark:border-emerald-800/80 bg-emerald-50/70 dark:bg-emerald-900/55 px-4 py-3 text-sm leading-relaxed text-emerald-700 dark:text-emerald-300",
+  // Cyan info / note box -- editing-a-saved-project variant of infoNote
+  infoNoteInfo: "mt-3 flex gap-2.5 rounded-xl border border-cyan-100 dark:border-cyan-800/80 bg-cyan-50/70 dark:bg-cyan-900/55 px-4 py-3 text-sm leading-relaxed text-cyan-700 dark:text-cyan-300",
   // Pack notes (amber, inside cards)
   packNote:  "mt-2 flex gap-2 rounded-xl bg-amber-50 dark:bg-amber-900/50 px-3.5 py-2.5 text-sm leading-relaxed text-amber-700 dark:text-amber-300",
 
