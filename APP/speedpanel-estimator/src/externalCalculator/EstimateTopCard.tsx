@@ -22,7 +22,7 @@
 // =============================================================================
 import { useState } from "react";
 import {
-  House, CloudRain, Info, Plus, ChevronRight, Pencil, Save, CheckCircle2, FileText,
+  House, CloudRain, Info, Plus, ChevronRight, Pencil, Save, CheckCircle2, FileText, FolderPlus,
 } from "lucide-react";
 import { cx, tone, BLUE, NAVY, WHITE } from "../styleTokens";
 import { Button } from "../ui/button";
@@ -113,9 +113,9 @@ export const EstimateTopCard = ({
         <span className={`${cx.badge} ${tone("neutral")}`}>NO PROJECT ACTIVE</span>
         <div className={`mt-2 ${cx.section}`}>
           <div className="flex items-center gap-3">
-            <button onClick={addBlankWall} title="Start New Project" aria-label="Start New Project"
-              className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-[color:var(--blue)] text-white shadow-sm transition-all hover:bg-[#045A9E] hover:-translate-y-px active:scale-95">
-              <Plus size={20} />
+            <button onClick={addBlankWall} title="Create Project" aria-label="Create Project"
+              className="grid h-11 w-11 shrink-0 place-items-center rounded-full border-2 border-white/30 bg-[color:var(--blue)] text-white shadow-sm transition-all hover:bg-[#045A9E] hover:-translate-y-px active:scale-95">
+              <FolderPlus size={20} />
             </button>
             <div>
               <div className="text-base font-extrabold" style={{ color: NAVY }}>Start a new project</div>
