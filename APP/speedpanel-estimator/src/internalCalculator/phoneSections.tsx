@@ -48,15 +48,19 @@ import { PanelLengthSection, type PanelLengthSectionProps } from "./lengthExplor
 // text, selected = white pill + blue text (NOT a solid blue fill -- that's
 // the app's existing button-grid style, and also the mockup's DIFFERENT
 // ".unit-toggle" pattern already matched by ui/primitives.tsx's UnitToggle).
-// Track background reuses tone("neutral")'s bg half (the same neutral panel
-// colour used elsewhere in the app); selected pill reuses the same
-// "bg-white dark:bg-slate-800" card-fill pattern cx.section/IconButton/item
-// pills already use.
+// Track uses a literal "bg-slate-100 dark:bg-slate-900" (one step darker
+// than the dark:bg-slate-800 card it sits in, mirroring how light mode's
+// slate-100 track already reads as recessed against the white card) rather
+// than tone("neutral") -- that helper's text-color half is dead code here
+// anyway, always overridden by the inline style={{ color }} below. Selected
+// pill stays the same "bg-white dark:bg-slate-800" card-fill pattern
+// cx.section/IconButton/item pills already use -- now visibly lighter than
+// the track in dark mode too.
 export function SegPhone<T extends string>({ options, value, onChange, columns }: {
   options: { id: T; label: string }[]; value: T; onChange: (id: T) => void; columns?: number;
 }) {
   return (
-    <div className={`grid gap-1 rounded-[10px] p-1 ${tone("neutral")}`} style={{ gridTemplateColumns: `repeat(${columns ?? options.length}, 1fr)` }}>
+    <div className="grid gap-1 rounded-[10px] p-1 bg-slate-100 dark:bg-slate-900" style={{ gridTemplateColumns: `repeat(${columns ?? options.length}, 1fr)` }}>
       {options.map(o => {
         const on = o.id === value;
         return (
