@@ -178,7 +178,6 @@ export const EstimateTopCard = ({
               <div className="truncate text-base font-extrabold" style={{ color: NAVY }}>
                 {openProject ? openProject.name : `Current ${projectWord}`}
               </div>
-              <span className={`${cx.badge} ${tone(pillTone)} mt-1 inline-block`}>{isSaved ? "Saved" : "In progress"}</span>
               {!openProject && (
                 <div className="mt-1.5 flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-300">
                   {editingLabel ? (
