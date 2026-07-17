@@ -24,7 +24,7 @@ import { useState } from "react";
 import {
   House, CloudRain, Info, Plus, ChevronRight, Pencil, Save, CheckCircle2, FileText, FolderPlus,
 } from "lucide-react";
-import { cx, tone, BLUE, NAVY, WHITE } from "../styleTokens";
+import { cx, tone, BLUE, NAVY, WHITE, selectableOffCx } from "../styleTokens";
 import { Button } from "../ui/button";
 import { IconButton } from "../ui/primitives";
 import type { WallResult } from "../estimate/wall.types";
@@ -115,7 +115,11 @@ export const EstimateTopCard = ({
         <div className={`mt-2 ${cx.section}`}>
           <div className="flex items-center gap-3">
             <button onClick={addBlankWall} title="Create Project" aria-label="Create Project"
-              className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-white/30 bg-[color:var(--blue)] text-white shadow-sm transition-all hover:bg-[#045A9E] hover:-translate-y-px active:scale-95">
+              className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-white/30 text-white transition-all hover:brightness-95 hover:-translate-y-px active:scale-95"
+              style={{
+                background: `linear-gradient(155deg, color-mix(in srgb, ${BLUE} 100%, white 18%), ${BLUE})`,
+                boxShadow: `inset 0 1px 1px rgba(255,255,255,0.3), 0 14px 24px -12px color-mix(in srgb, ${BLUE} 55%, transparent)`,
+              }}>
               <FolderPlus size={20} />
             </button>
             <div>
@@ -152,7 +156,9 @@ export const EstimateTopCard = ({
 
   const pillTone = isSaved ? "info" : "ok";
   const noteCx = isSaved ? cx.infoNoteInfo : cx.infoNoteOk;
-  const heroFill = isSaved ? "bg-cyan-500 dark:bg-cyan-600" : "bg-emerald-500 dark:bg-emerald-600";
+  const heroFill = isSaved
+    ? "bg-gradient-to-br from-cyan-400 to-cyan-600 dark:from-cyan-500 dark:to-cyan-700 shadow-[inset_0_1px_1px_rgba(255,255,255,0.3),0_14px_24px_-12px_rgba(8,145,178,0.5)]"
+    : "bg-gradient-to-br from-emerald-400 to-emerald-600 dark:from-emerald-500 dark:to-emerald-700 shadow-[inset_0_1px_1px_rgba(255,255,255,0.3),0_14px_24px_-12px_rgba(16,185,129,0.5)]";
   // "Project" is only accurate once it's actually a saved Supabase row (in
   // the Projects tab) -- an unsaved local draft is still a "draft" until the
   // Save to Projects button below turns it into one. Calling it "project"
@@ -260,17 +266,25 @@ const AddTile = ({ label, sublabel, onClick, icon, highlighted = false }: {
   label: string; sublabel: string; onClick: () => void; icon: React.ReactNode; highlighted?: boolean;
 }) => (
   <button onClick={onClick}
-    className={`flex min-h-[76px] items-center gap-2.5 rounded-xl border bg-white dark:bg-slate-800 px-3 py-2.5 text-left shadow-sm active:scale-95 transition-all ${highlighted ? "" : "border-slate-200 dark:border-slate-600"}`}
+    className={`flex min-h-[76px] items-center gap-2.5 rounded-xl border bg-white dark:bg-slate-800 px-3 py-2.5 text-left active:scale-95 transition-all hover:-translate-y-0.5 ${
+      highlighted
+        ? "shadow-[0_1px_1px_rgba(15,23,42,0.04),0_18px_30px_-18px_rgba(0,103,185,0.45)] dark:shadow-[0_1px_1px_rgba(0,0,0,0.2),0_18px_30px_-16px_rgba(58,168,255,0.4)]"
+        : `border-slate-200 dark:border-slate-600 ${selectableOffCx}`
+    }`}
     style={highlighted ? { borderColor: BLUE } : undefined}>
-    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[11px] bg-slate-100 dark:bg-slate-700" style={{ color: BLUE }}>
+    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[11px] bg-slate-100 dark:bg-slate-700 shadow-[inset_0_1px_1px_rgba(255,255,255,0.5),0_1px_2px_rgba(15,23,42,0.06)] dark:shadow-[inset_0_1px_1px_rgba(255,255,255,0.04),0_1px_2px_rgba(0,0,0,0.25)]" style={{ color: BLUE }}>
       {icon}
     </span>
     <span className="min-w-0 flex-1">
       <span className="block text-[13px] font-bold leading-tight" style={{ color: NAVY }}>{label}</span>
       <span className="mt-0.5 block text-[10px] leading-tight text-slate-400 dark:text-slate-400">{sublabel}</span>
     </span>
-    <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-full ${highlighted ? "" : tone("info")}`}
-      style={highlighted ? { background: BLUE, color: WHITE } : undefined}>
+    <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-full ${highlighted ? "" : `${tone("info")} shadow-[inset_0_1px_1px_rgba(255,255,255,0.4),0_1px_2px_rgba(15,23,42,0.05)]`}`}
+      style={highlighted ? {
+        background: `linear-gradient(180deg, color-mix(in srgb, ${BLUE} 100%, white 15%), ${BLUE})`,
+        color: WHITE,
+        boxShadow: `inset 0 1px 1px rgba(255,255,255,0.3), 0 6px 12px -4px color-mix(in srgb, ${BLUE} 55%, transparent)`,
+      } : undefined}>
       <Plus size={14} />
     </span>
   </button>

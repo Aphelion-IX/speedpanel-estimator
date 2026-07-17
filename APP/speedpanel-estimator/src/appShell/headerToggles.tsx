@@ -6,7 +6,7 @@
 // =============================================================================
 import { Smartphone, Monitor, Sun, Moon, Bell } from "lucide-react";
 import { IconButton } from "../ui/primitives";
-import { GOLD } from "../styleTokens";
+import { goldBubbleFill } from "../styleTokens";
 import type { EffectiveLayout } from "../useLayoutMode";
 import type { EffectiveTheme } from "../useThemeMode";
 
@@ -34,7 +34,7 @@ export const NotificationBell = ({ count, onClick }: { count: number; onClick: (
       <Bell size={16} />
     </IconButton>
     {count > 0 && (
-      <span className="absolute -top-1 -right-1 grid h-4 min-w-[16px] place-items-center rounded-full px-1 text-[10px] font-bold text-white" style={{ background: GOLD }}>
+      <span className="absolute -top-1 -right-1 grid h-4 min-w-[16px] place-items-center rounded-full px-1 text-[10px] font-bold text-white" style={goldBubbleFill}>
         {count > 9 ? "9+" : count}
       </span>
     )}

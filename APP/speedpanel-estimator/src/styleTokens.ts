@@ -29,6 +29,17 @@ export const selectedFill: CSSProperties = {
   background: `linear-gradient(180deg, color-mix(in srgb, ${BLUE} 100%, white 12%), ${BLUE})`,
   boxShadow: `inset 0 1px 1px rgba(255,255,255,0.28), 0 12px 22px -10px color-mix(in srgb, ${BLUE} 60%, transparent)`,
 };
+
+// -- Small "bubble" accents: warning dots, notification-count badges -----------
+// Was a flat GOLD disc (`style={{ background: GOLD }}`), duplicated across the
+// notification bell badge and three separate warning-dot call sites (Internal/
+// External Estimate Structure nav, the phone pill scroller) -- a radial
+// highlight + soft glow instead, so it reads as a lit indicator rather than a
+// coloured sticker. Spread/assign wherever one of those bare GOLD dots lives.
+export const goldBubbleFill: CSSProperties = {
+  background: `radial-gradient(circle at 35% 30%, color-mix(in srgb, ${GOLD} 100%, white 30%), ${GOLD})`,
+  boxShadow: `inset 0 1px 1px rgba(255,255,255,0.3), 0 3px 8px -1px color-mix(in srgb, ${GOLD} 60%, transparent)`,
+};
 // className fragment for the *resting* (unselected) branch of the same
 // buttons -- a real contact shadow instead of a bare hairline border, and a
 // hover-lift/border-tint so an unselected option reads as clickable before

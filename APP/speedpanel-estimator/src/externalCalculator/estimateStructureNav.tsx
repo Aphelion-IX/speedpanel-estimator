@@ -6,7 +6,7 @@
 // "+ Add corner"/"+ Add shaft" actions here, just walls + "+ Add wall".
 // =============================================================================
 import { Plus } from "lucide-react";
-import { cx, BLUE, GOLD, NAVY, MUTED, selectedFill, selectableOffCx } from "../styleTokens";
+import { cx, BLUE, NAVY, MUTED, selectedFill, selectableOffCx, goldBubbleFill } from "../styleTokens";
 import type { Wall, WallResult } from "../estimate/wall.types";
 import type { EffectiveLayout } from "../useLayoutMode";
 import { WallPillStripPhone, deriveWallStatus, type PhonePillItem } from "./phoneShell";
@@ -39,7 +39,7 @@ export const EstimateStructureNav = ({ walls, results, activeId, onSelectWall, w
             <button key={w.id} onClick={() => onSelectWall(w.id)}
               className={"relative w-full rounded-xl border-2 px-3.5 py-3 text-left active:scale-95 transition-all " + (on ? "" : `border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 ${selectableOffCx}`)}
               style={on ? selectedFill : undefined}>
-              {warnById[w.id] && <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full" style={{ background: GOLD }} />}
+              {warnById[w.id] && <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full" style={goldBubbleFill} />}
               <div className="text-sm font-bold" style={{ color: on ? "#fff" : NAVY }}>{w.name}</div>
               <div className="mt-1 text-xs font-medium" style={{ color: on ? "rgba(255,255,255,0.7)" : MUTED }}>
                 {w.orient === "vertical" ? "Vert" : "Horiz"}{r.empty ? "" : ` · ${r.area} m2`}
