@@ -115,7 +115,7 @@ export const EstimateTopCard = ({
         <div className={`mt-2 ${cx.section}`}>
           <div className="flex items-center gap-3">
             <button onClick={addBlankWall} title="Create Project" aria-label="Create Project"
-              className="grid h-11 w-11 shrink-0 place-items-center rounded-full border-2 border-white/30 bg-[color:var(--blue)] text-white shadow-sm transition-all hover:bg-[#045A9E] hover:-translate-y-px active:scale-95">
+              className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-white/30 bg-[color:var(--blue)] text-white shadow-sm transition-all hover:bg-[#045A9E] hover:-translate-y-px active:scale-95">
               <FolderPlus size={20} />
             </button>
             <div>
