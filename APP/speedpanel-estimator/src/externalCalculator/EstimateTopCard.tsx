@@ -107,21 +107,21 @@ export const EstimateTopCard = ({
   if (noEstimate) {
     return (
       <div className="mt-3">
-        <span className={`${cx.badge} ${tone("neutral")}`}>NO ESTIMATE ACTIVE</span>
+        <span className={`${cx.badge} ${tone("neutral")}`}>NO PROJECT ACTIVE</span>
         <div className={`mt-2 ${cx.section}`}>
           <div className="flex items-center gap-3">
-            <button onClick={addBlankWall} title="Start New Estimate" aria-label="Start New Estimate"
+            <button onClick={addBlankWall} title="Start New Project" aria-label="Start New Project"
               className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-white shadow-sm transition-all hover:-translate-y-px active:scale-95"
               style={{ background: BLUE }}>
               <Plus size={20} />
             </button>
             <div>
-              <div className="text-base font-extrabold" style={{ color: NAVY }}>Start a new estimate</div>
+              <div className="text-base font-extrabold" style={{ color: NAVY }}>Start a new project</div>
               <div className="mt-0.5 text-sm text-slate-400 dark:text-slate-400">Choose a wall type below to start building -- it'll be saved in your Projects tab.</div>
             </div>
           </div>
           <div className="mt-4">
-            <label className={cx.lbl}>Estimate description (optional)</label>
+            <label className={cx.lbl}>Project description (optional)</label>
             <input
               value={draftLabel ?? ""}
               onChange={e => onSetDraftLabel(e.target.value || null)}
@@ -135,11 +135,11 @@ export const EstimateTopCard = ({
           <span>You can view your projects in the <button onClick={onGoToProjects} className="font-bold underline decoration-2 underline-offset-2">Projects</button> tab.</span>
         </div>
         <div className={`mt-3 ${cx.section}`}>
-          <div className={cx.cardHd} style={{ marginTop: 0 }}>Add a new wall estimate</div>
-          <div className="mb-3 text-sm text-slate-400 dark:text-slate-400">Choose the type of wall you want to estimate.</div>
+          <div className={cx.cardHd} style={{ marginTop: 0 }}>Add a new wall</div>
+          <div className="mb-3 text-sm text-slate-400 dark:text-slate-400">Choose the type of wall you want to add.</div>
           <div className="grid grid-cols-2 gap-2.5">
-            <AddTile label="External Wall" sublabel="Add a weather-exposed estimate" onClick={addBlankWall} icon={<CloudRain size={16} />} highlighted />
-            <AddTile label="Internal Wall" sublabel="Add a new internal estimate" onClick={onAddInternalWall} icon={<House size={16} />} />
+            <AddTile label="External Wall" sublabel="Add a weather-exposed wall" onClick={addBlankWall} icon={<CloudRain size={16} />} highlighted />
+            <AddTile label="Internal Wall" sublabel="Add a new internal wall" onClick={onAddInternalWall} icon={<House size={16} />} />
           </div>
         </div>
       </div>
@@ -152,7 +152,7 @@ export const EstimateTopCard = ({
 
   return (
     <div className="mt-3">
-      <span className={`${cx.badge} ${tone(pillTone)}`}>WORKING ON AN ESTIMATE</span>
+      <span className={`${cx.badge} ${tone(pillTone)}`}>WORKING ON A PROJECT</span>
       <div className={`mt-2 ${cx.section}`}>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="flex min-w-0 items-start gap-3">
@@ -161,7 +161,7 @@ export const EstimateTopCard = ({
             </span>
             <div className="min-w-0">
               <div className="truncate text-base font-extrabold" style={{ color: NAVY }}>
-                {openProject ? openProject.name : "Current estimate"}
+                {openProject ? openProject.name : "Current project"}
               </div>
               <span className={`${cx.badge} ${tone(pillTone)} mt-1 inline-block`}>{isSaved ? "Saved" : "In progress"}</span>
               <div className="mt-1.5 flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-300">
@@ -173,7 +173,7 @@ export const EstimateTopCard = ({
                     className={cx.input + " w-40 !py-1 !text-sm"} style={{ color: NAVY }} />
                 ) : (
                   <>
-                    <span>{draftLabel ?? "Draft estimate"}</span>
+                    <span>{draftLabel ?? "Draft project"}</span>
                     <button onClick={() => { setLabelInput(draftLabel ?? ""); setEditingLabel(true); }} aria-label="Edit draft label">
                       <Pencil size={13} className="text-slate-400 hover:text-blue-600 dark:hover:text-blue-400" />
                     </button>
@@ -188,7 +188,7 @@ export const EstimateTopCard = ({
                 <span>Last edited {formatLastEdited(openProject ? openProject.updatedAt : lastEditedAt)}</span>
               </div>
               <button onClick={onViewDetails} className="mt-2 flex items-center gap-1 text-xs font-bold" style={{ color: BLUE }}>
-                View estimate details <ChevronRight size={12} />
+                View project details <ChevronRight size={12} />
               </button>
             </div>
           </div>
@@ -221,8 +221,8 @@ export const EstimateTopCard = ({
         <span>You can view and manage all your projects in the <button onClick={onGoToProjects} className="font-bold underline decoration-2 underline-offset-2">Projects</button> tab.</span>
       </div>
       <div className={`mt-3 ${cx.section}`}>
-        <div className={cx.cardHd} style={{ marginTop: 0 }}>Continue building your estimate</div>
-        <div className="mb-3 text-sm text-slate-400 dark:text-slate-400">Add more walls to your current estimate.</div>
+        <div className={cx.cardHd} style={{ marginTop: 0 }}>Continue building your project</div>
+        <div className="mb-3 text-sm text-slate-400 dark:text-slate-400">Add more walls to your current project.</div>
         <div className="grid grid-cols-2 gap-2.5">
           <AddTile label="External Wall" sublabel="Add another weather-exposed wall" onClick={addBlankWall} icon={<CloudRain size={16} />} highlighted />
           <AddTile label="Internal Wall" sublabel="Add another internal wall" onClick={onAddInternalWall} icon={<House size={16} />} />
