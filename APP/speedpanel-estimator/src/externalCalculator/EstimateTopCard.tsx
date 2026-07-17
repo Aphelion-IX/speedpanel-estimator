@@ -114,8 +114,7 @@ export const EstimateTopCard = ({
         <div className={`mt-2 ${cx.section}`}>
           <div className="flex items-center gap-3">
             <button onClick={addBlankWall} title="Start New Project" aria-label="Start New Project"
-              className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-white shadow-sm transition-all hover:-translate-y-px active:scale-95"
-              style={{ background: BLUE }}>
+              className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-[color:var(--blue)] text-white shadow-sm transition-all hover:bg-[#045A9E] hover:-translate-y-px active:scale-95">
               <Plus size={20} />
             </button>
             <div>
@@ -124,12 +123,13 @@ export const EstimateTopCard = ({
             </div>
           </div>
           <div className="mt-4">
-            <label className={cx.lbl}>Project description (optional)</label>
+            <label className={cx.lbl}>Project name (optional)</label>
             <input
               value={draftLabel ?? ""}
               onChange={e => onSetDraftLabel(e.target.value || null)}
-              placeholder="e.g. Front lobby internal walls"
-              className="w-full rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-600 bg-slate-50/60 dark:bg-slate-900/40 px-4 py-3 text-sm text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 outline-none transition-colors focus:border-blue-300 dark:focus:border-blue-600 focus:bg-white dark:focus:bg-slate-800"
+              placeholder="e.g. Front Lobby Project"
+              className={cx.input}
+              style={{ color: NAVY }}
             />
           </div>
         </div>
