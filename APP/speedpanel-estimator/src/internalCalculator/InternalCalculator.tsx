@@ -63,7 +63,7 @@ export function InternalCalculator({
   showWall, setShowWall, linkCornerPartner, linkShaftPartner,
   onAddExternalWall, switchOrient, switchToExternal,
   openProject, draftLabel, onSetDraftLabel, lastEditedAt,
-  onSaveDraftAsProject, onSaveOpenProject, savingProject, saveProjectError, onGoToProjects,
+  onSaveDraftAsProject, onSaveOpenProject, savingProject, saveProjectError, projectDirty, onGoToProjects,
 }: {
   store: WallStore; orient: "vertical" | "horizontal"; dimUnit: string;
   setDimUnit: (u: string) => void; systemSelector?: React.ReactNode; layoutMode: EffectiveLayout;
@@ -93,6 +93,10 @@ export function InternalCalculator({
   onSaveOpenProject: () => Promise<void>;
   savingProject: boolean;
   saveProjectError: string | null;
+  // Whether the open saved project has edits since it was opened/last saved
+  // -- see App.tsx's projectDirty. Only meaningful (and only shown) once
+  // openProject is set; harmless/ignored otherwise.
+  projectDirty: boolean;
   onGoToProjects: () => void;
 }) {
   const [showTrackFinish, setShowTrackFinish] = useState(false);
@@ -421,7 +425,7 @@ export function InternalCalculator({
       openProject={openProject} draftLabel={draftLabel} onSetDraftLabel={onSetDraftLabel}
       lastEditedAt={lastEditedAt}
       onSaveDraftAsProject={onSaveDraftAsProject} onSaveOpenProject={onSaveOpenProject}
-      savingProject={savingProject} saveProjectError={saveProjectError}
+      savingProject={savingProject} saveProjectError={saveProjectError} projectDirty={projectDirty}
       onGoToProjects={onGoToProjects} onViewDetails={scrollToResults}
     />
   );

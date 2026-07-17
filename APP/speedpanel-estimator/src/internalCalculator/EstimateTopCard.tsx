@@ -53,6 +53,9 @@ export interface EstimateTopCardProps {
   onSaveOpenProject: () => Promise<void>;
   savingProject: boolean;
   saveProjectError: string | null;
+  // Whether the open saved project has edits since it was opened/last saved
+  // -- see App.tsx's projectDirty. Only meaningful once openProject is set.
+  projectDirty: boolean;
   onGoToProjects: () => void;
   onViewDetails: () => void;
 }
@@ -73,7 +76,7 @@ function formatLastEdited(value?: number | string | null): string {
 export const EstimateTopCard = ({
   results, kits, projAgg, addBlankWall, onAddExternalWall,
   openProject, draftLabel, onSetDraftLabel, lastEditedAt,
-  onSaveDraftAsProject, onSaveOpenProject, savingProject, saveProjectError,
+  onSaveDraftAsProject, onSaveOpenProject, savingProject, saveProjectError, projectDirty,
   onGoToProjects, onViewDetails,
 }: EstimateTopCardProps) => {
   const totalItems = results.length + kits.length;
@@ -156,6 +159,12 @@ export const EstimateTopCard = ({
   // in both states made that button read as contradictory ("save to
   // projects" on something already labeled a project).
   const projectWord = isSaved ? "project" : "draft";
+  // Save-status indicator for an already-saved project -- autosave is off
+  // once a project is open (see wallStore.ts's persistLocally), so this
+  // tells the user whether the explicit Save button next to it actually has
+  // anything to do right now. Meaningless while unsaved (isSaved false).
+  const saveStatusLabel = savingProject ? "Saving..." : projectDirty ? "Unsaved changes" : "All changes saved";
+  const saveStatusTone = savingProject ? "info" : projectDirty ? "warn" : "ok";
 
   return (
     <div className="mt-3">
@@ -203,7 +212,8 @@ export const EstimateTopCard = ({
             {isSaved ? (
               <>
                 {saveProjectError && <span className="text-xs text-red-600 dark:text-red-300">{saveProjectError}</span>}
-                <IconButton onClick={onSaveOpenProject} disabled={savingProject} title={savingProject ? "Saving..." : "Save"} ariaLabel="Save">
+                <span className={`${cx.badge} ${tone(saveStatusTone)}`}>{saveStatusLabel}</span>
+                <IconButton onClick={onSaveOpenProject} disabled={savingProject} title="Save" ariaLabel="Save">
                   <Save size={16} />
                 </IconButton>
               </>

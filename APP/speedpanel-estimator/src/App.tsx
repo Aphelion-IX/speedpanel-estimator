@@ -1,4 +1,4 @@
-import { useState, useEffect, lazy, Suspense } from "react";
+import { useState, useEffect, useRef, lazy, Suspense } from "react";
 import { RotateCcw, AlertTriangle } from "lucide-react";
 import { useLayoutMode } from "./useLayoutMode";
 import { useThemeMode } from "./useThemeMode";
@@ -42,6 +42,24 @@ import type { WallSystemOption } from "./systemSelector/systemOptions";
 const AdminRoot = lazy(() => import("./pages/admin/AdminRoot").then(m => ({ default: m.AdminRoot })));
 
 export type WallSystemId = "standard" | "corner" | "shaft";
+
+// Comparable "have the wall-relevant fields changed" key for a saved
+// project -- used to drive the top card's "Unsaved changes"/"All changes
+// saved" indicator (see openProject/projectDirty below). Deliberately only
+// the fields saveOpenProject() actually persists (matches its own snapshot
+// shape exactly), not the wider SavedProjectData/ProjectRow shape, so
+// unrelated fields (id, name, timestamps, optional metadata) can't cause a
+// false "unsaved changes" reading.
+function snapshotKey(d: {
+  v: number; walls: unknown; activeId: number; nextId: number;
+  projectStock: string; projectLock: boolean; customLengthInput: string; customActive: boolean;
+  system: string; mode: string; dimUnit: string;
+}): string {
+  return JSON.stringify([
+    d.v, d.walls, d.activeId, d.nextId, d.projectStock, d.projectLock, d.customLengthInput, d.customActive,
+    d.system, d.mode, d.dimUnit,
+  ]);
+}
 
 // --- Main app -----------------------------------------------------------------
 export default function SpeedpanelEstimator() {
@@ -102,6 +120,20 @@ export default function SpeedpanelEstimator() {
   // It must never be applied to every wall (that was the combined-estimate bug).
   const orient = active.orient;
 
+  // Whether the open saved project has edits since it was opened/last saved
+  // -- autosave is off while a saved project is open (see persistLocally
+  // above), so this drives the top card's "Unsaved changes"/"All changes
+  // saved" indicator next to the explicit Save button. Meaningless (and
+  // unused) while there's no open project.
+  const lastSavedSnapshotRef = useRef<string | null>(null);
+  const [projectDirty, setProjectDirty] = useState(false);
+  useEffect(() => {
+    if (!openProject) { setProjectDirty(false); return; }
+    const current = snapshotKey({ ...exportSnapshot(), system, mode, dimUnit });
+    setProjectDirty(current !== lastSavedSnapshotRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openProject, store.walls, store.activeId, store.nextId, store.projectStock, store.projectLock, store.customLengthInput, store.customActive, system, mode, dimUnit]);
+
   const { linkCornerPartner, linkShaftPartner, switchOrient } = useCornerShaftLinking(store, setShowWall);
 
   const switchDimUnit = (u: string) => { setDimUnit(u); clearCustomLength(); };
@@ -143,6 +175,8 @@ export default function SpeedpanelEstimator() {
     setDimUnit(project.data.dimUnit);
     setOpenProject({ id: project.id, name: project.name, updatedAt: project.updated_at });
     setSaveProjectError(null);
+    lastSavedSnapshotRef.current = snapshotKey(project.data);
+    setProjectDirty(false);
     navigate({ tab: "estimator" });
   };
 
@@ -154,11 +188,15 @@ export default function SpeedpanelEstimator() {
     const err = await saveProjectSnapshot(openProject.id, snapshot);
     setSavingProject(false);
     if (err) setSaveProjectError(err);
-    // saveProjectSnapshot doesn't return the updated row -- optimistically
-    // stamp "now" for the top card's "Last edited" display; Supabase's own
-    // updated_at is refreshed server-side regardless, and self-corrects next
-    // time this project is (re)loaded.
-    else setOpenProject(p => p ? { ...p, updatedAt: new Date().toISOString() } : p);
+    else {
+      // saveProjectSnapshot doesn't return the updated row -- optimistically
+      // stamp "now" for the top card's "Last edited" display; Supabase's own
+      // updated_at is refreshed server-side regardless, and self-corrects next
+      // time this project is (re)loaded.
+      setOpenProject(p => p ? { ...p, updatedAt: new Date().toISOString() } : p);
+      lastSavedSnapshotRef.current = snapshotKey(snapshot);
+      setProjectDirty(false);
+    }
   };
 
   // Two ways to create a saved project from a device-local state: System
@@ -314,7 +352,7 @@ export default function SpeedpanelEstimator() {
               openProject={openProject} draftLabel={store.draftLabel} onSetDraftLabel={store.setDraftLabel}
               lastEditedAt={store.lastEditedAt}
               onSaveDraftAsProject={saveDraftAsProject} onSaveOpenProject={saveOpenProject}
-              savingProject={savingProject} saveProjectError={saveProjectError}
+              savingProject={savingProject} saveProjectError={saveProjectError} projectDirty={projectDirty}
               onGoToProjects={() => navigate({ tab: "projects" })}
             />
           ) : (
@@ -330,7 +368,7 @@ export default function SpeedpanelEstimator() {
               openProject={openProject} draftLabel={store.draftLabel} onSetDraftLabel={store.setDraftLabel}
               lastEditedAt={store.lastEditedAt}
               onSaveDraftAsProject={saveDraftAsProject} onSaveOpenProject={saveOpenProject}
-              savingProject={savingProject} saveProjectError={saveProjectError}
+              savingProject={savingProject} saveProjectError={saveProjectError} projectDirty={projectDirty}
               onGoToProjects={() => navigate({ tab: "projects" })}
             />
           )
