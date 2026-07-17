@@ -172,10 +172,16 @@ export const EstimateTopCard = ({
                   </>
                 )}
               </div>
-              <div className="mt-1.5 flex items-center gap-3 text-xs text-slate-400 dark:text-slate-400">
+              <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-400 dark:text-slate-400">
                 <span className="flex items-center gap-1"><CheckCircle2 size={12} />{pct}% configured</span>
                 <span className="flex items-center gap-1"><CheckCircle2 size={12} />{warningsCount} warning{warningsCount === 1 ? "" : "s"}</span>
+                <span>{totalItems} wall item{totalItems === 1 ? "" : "s"}</span>
+                <span>{projAgg.totalArea} m² total area</span>
+                <span>Last edited {formatLastEdited(openProject ? openProject.updatedAt : lastEditedAt)}</span>
               </div>
+              <button onClick={onViewDetails} className="mt-2 flex items-center gap-1 text-xs font-bold" style={{ color: BLUE }}>
+                View estimate details <ChevronRight size={12} />
+              </button>
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
@@ -206,37 +212,17 @@ export const EstimateTopCard = ({
         <Info size={15} className="mt-0.5 shrink-0" />
         <span>You can view and manage all your projects in the <button onClick={onGoToProjects} className="font-bold underline decoration-2 underline-offset-2">Projects</button> tab.</span>
       </div>
-      <div className="mt-3 grid gap-3 md:grid-cols-[1fr_280px]">
-        <div className={cx.section}>
-          <div className={cx.cardHd} style={{ marginTop: 0 }}>Continue building your estimate</div>
-          <div className="mb-3 text-sm text-slate-400 dark:text-slate-400">Add more walls to your current estimate.</div>
-          <div className="grid grid-cols-2 gap-2.5">
-            <AddTile label="Internal Wall" sublabel="Add another internal wall" onClick={addBlankWall} icon={<House size={16} />} highlighted />
-            <AddTile label="External Wall" sublabel="Add another weather-exposed wall" onClick={onAddExternalWall} icon={<CloudRain size={16} />} />
-          </div>
-        </div>
-        <div className={cx.section}>
-          <div className={cx.cardHd} style={{ marginTop: 0 }}>Estimate summary</div>
-          <div className="space-y-2 text-sm">
-            <Row k="Wall items" v={totalItems} />
-            <Row k="Total area" v={`${projAgg.totalArea} m²`} />
-            <Row k="Last edited" v={formatLastEdited(openProject ? openProject.updatedAt : lastEditedAt)} />
-          </div>
-          <button onClick={onViewDetails} className="mt-3 flex items-center gap-1 text-sm font-bold" style={{ color: BLUE }}>
-            View estimate details <ChevronRight size={14} />
-          </button>
+      <div className={`mt-3 ${cx.section}`}>
+        <div className={cx.cardHd} style={{ marginTop: 0 }}>Continue building your estimate</div>
+        <div className="mb-3 text-sm text-slate-400 dark:text-slate-400">Add more walls to your current estimate.</div>
+        <div className="grid grid-cols-2 gap-2.5">
+          <AddTile label="Internal Wall" sublabel="Add another internal wall" onClick={addBlankWall} icon={<House size={16} />} highlighted />
+          <AddTile label="External Wall" sublabel="Add another weather-exposed wall" onClick={onAddExternalWall} icon={<CloudRain size={16} />} />
         </div>
       </div>
     </div>
   );
 };
-
-const Row = ({ k, v }: { k: string; v: string | number }) => (
-  <div className="flex items-baseline justify-between gap-3">
-    <span className="text-slate-400 dark:text-slate-400">{k}</span>
-    <span className="font-semibold" style={{ color: NAVY }}>{v}</span>
-  </div>
-);
 
 // Leading icon box denotes wall type (House/CloudRain); trailing "+" circle
 // carries the highlight styling -- BLUE fill for this calculator's own
