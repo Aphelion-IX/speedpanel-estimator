@@ -21,10 +21,13 @@ import { WallPillStripPhone, deriveWallStatus, statusChipCx, statusLabel, type P
 import { CardCarousel } from "../ui/cardCarousel";
 import { WallPreviewSection } from "../ui/wallPreview";
 
-export const EstimateStructureNav = ({ walls, results, activeId, onSelectWall, warnById, addBlankWall, layoutMode, dimUnit, toDisp }: {
+export const EstimateStructureNav = ({ walls, results, activeId, onSelectWall, warnById, addBlankWall, layoutMode, dimUnit, toDisp, onViewAll }: {
   walls: Wall[]; results: WallResult[]; activeId: number; onSelectWall: (id: number) => void;
   warnById: Record<number, boolean>; addBlankWall: () => void; layoutMode?: EffectiveLayout;
   dimUnit: string; toDisp: (m: string) => string;
+  // Opens the All Walls page (allWallsPage.tsx) -- web only, see the
+  // "View all" link in the header row below.
+  onViewAll: () => void;
 }) => {
   if (layoutMode === "phone") {
     // Add-wall action lives on ProjectCardPhone (rendered above this nav in
@@ -43,7 +46,10 @@ export const EstimateStructureNav = ({ walls, results, activeId, onSelectWall, w
 
   return (
     <div className={`mt-3 ${cx.section}`}>
-      <div className={cx.cardHd} style={{ marginTop: 0 }}>Estimate structure ({walls.length})</div>
+      <div className="flex items-center justify-between" style={{ marginTop: 0 }}>
+        <div className={cx.cardHd} style={{ marginTop: 0 }}>Estimate structure ({walls.length})</div>
+        <button onClick={onViewAll} className="text-xs font-bold hover:underline" style={{ color: BLUE }}>View all</button>
+      </div>
       <CardCarousel
         items={results}
         itemKey={({ wall }) => wall.id}

@@ -52,6 +52,7 @@ import { PanelColourSection } from "./panelColourSection";
 import { SingleWallMaterialsSection } from "./mainSections";
 import { WallWorkspaceTabs } from "./wallWorkspaceTabs";
 import { EstimateResultsCard } from "./estimateResultsCard";
+import { AllWallsPage } from "./allWallsPage";
 import { OrderReviewDrawer } from "./orderReviewDrawer";
 import { StickyBarTilesPhone } from "./phoneShell";
 import { EstimateTopCard } from "./EstimateTopCard";
@@ -103,6 +104,7 @@ export function ExternalCalculator({
 }) {
   const [showTakeoff, setShowTakeoff] = useState(true);
   const [orderDrawerOpen, setOrderDrawerOpen] = useState(false);
+  const [allWallsOpen, setAllWallsOpen] = useState(false);
   // EstimateTopCard's "View estimate details" link scrolls here rather than
   // navigating anywhere new -- no separate estimate-detail route exists.
   const resultsRef = useRef<HTMLDivElement>(null);
@@ -113,6 +115,7 @@ export function ExternalCalculator({
     projectStock, projectLock, customLengthInput, customActive,
     active, update, toDisp, updDim,
     setProjectLength, addBlankWall, duplicateWall, deleteWall,
+    duplicateWallById, deleteWallById,
     commitCustomLength, toggleCustom, clearCustomLength,
     linkJunctionPartner,
   } = store;
@@ -156,6 +159,7 @@ export function ExternalCalculator({
       warnById={warnById} addBlankWall={addBlankWall}
       layoutMode={layoutMode}
       dimUnit={dimUnit} toDisp={toDisp}
+      onViewAll={() => setAllWallsOpen(true)}
     />
   );
 
@@ -306,8 +310,6 @@ export function ExternalCalculator({
           <ProjectSeparator />
           <EstimateResultsCard
             layoutMode={layoutMode} results={results}
-            activeId={activeId} onSelectWall={setActiveId}
-            warnById={warnById} toDisp={toDisp} dimUnit={dimUnit}
             projAgg={projAgg} combinedEstimate={combinedEstimate}
             active={active} out={out} orient={orient} ScheduleComp={ScheduleComp}
             onReviewOrder={() => setOrderDrawerOpen(true)} orderLineItemCount={orderLineItemCount}
@@ -360,6 +362,17 @@ export function ExternalCalculator({
       onGoToProjects={onGoToProjects} onViewDetails={scrollToResults}
     />
   );
+
+  if (allWallsOpen) {
+    return (
+      <AllWallsPage
+        walls={walls} results={results} warnById={warnById} toDisp={toDisp} dimUnit={dimUnit}
+        onSelectWall={id => { setActiveId(id); setAllWallsOpen(false); }}
+        duplicateWallById={duplicateWallById} deleteWallById={deleteWallById}
+        onBack={() => setAllWallsOpen(false)}
+      />
+    );
+  }
 
   if (layoutMode === "phone") return <>{topCardNode}{wallNavNode}{mainNode}{footerNode}{stickyBarNode}{orderDrawerNode}</>;
   return (

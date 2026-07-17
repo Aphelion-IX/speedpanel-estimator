@@ -2,9 +2,9 @@
 // Walls card (Internal Calculator only)
 // =============================================================================
 // Wall-list management UI: horizontal-only wall system selector (Standard/
-// Corner/Shaft) plus its Corner/Shaft/generic junction link pickers, the
-// WallsCard itself (system buttons, panel type, name/duplicate/delete), and
-// the read-only project-wide WallsSummaryTable.
+// Corner/Shaft) plus its Corner/Shaft/generic junction link pickers, and the
+// WallsCard itself (system buttons, panel type, name/duplicate/delete). The
+// read-only project-wide walls table now lives in allWallsPage.tsx instead.
 //
 // Forked from what used to be a single file shared with ExternalCalculator
 // (see externalCalculator/wallsCard.tsx for its own, independent copy) --
@@ -14,12 +14,11 @@
 // controls) had to be checked against "does this leak into External" first.
 // Splitting them means each calculator can now evolve its own UI freely.
 // =============================================================================
-import { Copy, Frame, Trash2 } from "lucide-react";
+import { Copy, Trash2 } from "lucide-react";
 import { cx, NAVY, BLUE, MUTED, selectedFill, selectableOffCx } from "../styleTokens";
 import { TYPES } from "../data";
 import { IconButton } from "../ui/primitives";
-import { Table, type TableColumn } from "../ui/table";
-import type { Wall, WallResult } from "../estimate/wall.types";
+import type { Wall } from "../estimate/wall.types";
 import type { WallSystemId } from "../App";
 
 // --- WallSystemSelector --------------------------------------------------------
@@ -305,52 +304,3 @@ export const WallsCard = ({ walls, active, update, duplicateWall, deleteWall, sh
     </div>
   </div>
 );
-
-// --- WallsSummaryTable ----------------------------------------------------------
-// Web/tablet-only "all walls at a glance" table. No new state -- driven entirely
-// by data already computed by the wall store / useWallResults (results/activeId/warnById);
-// clicking a row calls the same setActiveId used by WallsCard's tab strip.
-export const WallsSummaryTable = ({ results, activeId, setActiveId, warnById, toDisp, dimUnit }: {
-  results: WallResult[]; activeId: number; setActiveId: (id: number) => void;
-  warnById: Record<number, boolean>; toDisp: (m: string) => string; dimUnit: string;
-}) => {
-  const dim = (m: string) => (m ? `${toDisp(m)} ${dimUnit}` : "--");
-  const columns: TableColumn<WallResult>[] = [
-    {
-      key: "wall", header: "Wall",
-      cell: ({ wall }) => (
-        <span className="font-semibold" style={{ color: NAVY }}>
-          {/* Red, not gold -- "Red: warnings and errors" per the approved
-              phone mockup's colour rule, applied here since this table is
-              now Internal's own copy (no longer shared with External). Same
-              red family tone("danger") uses elsewhere (bg-red-50/text-red-600),
-              just a solid fill since this is a small dot, not a text badge. */}
-          {warnById[wall.id] && <span className="mr-1.5 inline-block h-2 w-2 rounded-full align-middle bg-red-600 dark:bg-red-500" />}
-          {wall.name}
-        </span>
-      ),
-    },
-    { key: "orientation", header: "Orientation", cell: ({ wall }) => (wall.orient === "vertical" ? "Vertical" : "Horizontal") },
-    { key: "type", header: "Type", cell: ({ wall }) => `P${wall.type}` },
-    { key: "width", header: "Width", cell: ({ wall }) => dim(wall.width) },
-    { key: "height", header: "Height", cell: ({ wall }) => dim(wall.height) },
-    { key: "area", header: "Area", cell: ({ out }) => (out.empty ? "--" : `${out.area} m2`) },
-    { key: "panels", header: "Panels", cell: ({ out }) => (out.empty ? "--" : (out.chosen?.panels ?? out.result?.panels ?? "--")) },
-  ];
-  return (
-    <div className={`mt-3 ${cx.card}`}>
-      <div className={cx.cardTitle} style={{ color: NAVY }}>
-        <span style={{ color: BLUE }}><Frame size={14} /></span>Walls ({results.length})
-      </div>
-      <div className="mt-2">
-        <Table
-          columns={columns}
-          rows={results}
-          rowKey={({ wall }) => wall.id}
-          onRowClick={({ wall }) => setActiveId(wall.id)}
-          rowClassName={({ wall }) => (wall.id === activeId ? "bg-blue-50/60 dark:bg-blue-900/55" : undefined)}
-        />
-      </div>
-    </div>
-  );
-};

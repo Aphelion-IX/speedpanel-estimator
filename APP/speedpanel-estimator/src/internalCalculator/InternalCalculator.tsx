@@ -54,6 +54,7 @@ import { WallPreviewSection } from "../ui/wallPreview";
 import { PanelScheduleCard, PanelScheduleTable } from "../ui/scheduleCards";
 import { SingleWallEstimateSection } from "./mainSections";
 import { EstimateResultsCard } from "./estimateResultsCard";
+import { AllWallsPage } from "./allWallsPage";
 import { OrderReviewDrawer } from "./orderReviewDrawer";
 import { buildInternalReportData } from "../export/buildInternalReportData";
 import { exportEstimateToExcel } from "../export/exportEstimateToExcel";
@@ -101,6 +102,7 @@ export function InternalCalculator({
 }) {
   const [showTrackFinish, setShowTrackFinish] = useState(false);
   const [orderDrawerOpen, setOrderDrawerOpen] = useState(false);
+  const [allWallsOpen, setAllWallsOpen] = useState(false);
   // EstimateTopCard's "View estimate details" link scrolls here rather than
   // navigating anywhere new -- no separate estimate-detail route exists.
   const resultsRef = useRef<HTMLDivElement>(null);
@@ -111,6 +113,7 @@ export function InternalCalculator({
     projectStock, projectLock, customLengthInput, customActive,
     active, update, toDisp, updDim,
     setProjectLength, addBlankWall, addCornerWall, addShaftWall, duplicateWall, deleteWall,
+    duplicateWallById, deleteWallById,
     commitCustomLength, toggleCustom, clearCustomLength,
     linkJunctionPartner,
   } = store;
@@ -193,6 +196,7 @@ export function InternalCalculator({
       addBlankWall={addBlankWall} addCornerWall={addCornerWall} addShaftWall={addShaftWall}
       layoutMode={layoutMode}
       dimUnit={dimUnit} toDisp={toDisp}
+      onViewAll={() => setAllWallsOpen(true)}
     />
   );
 
@@ -374,8 +378,6 @@ export function InternalCalculator({
           <ProjectSeparator />
           <EstimateResultsCard
             layoutMode={layoutMode} results={results} walls={walls} kits={kits}
-            activeId={activeId} onSelectWall={wallId => handleSelectNavItem({ type: "wall", wallId })}
-            warnById={warnById} toDisp={toDisp} dimUnit={dimUnit}
             projChosenAgg={projChosenAgg} combinedEstimate={combinedEstimate}
             active={active} out={out} orient={orient} cornerPair={cornerPair} shaftPair={shaftPair}
             ScheduleComp={ScheduleComp}
@@ -429,6 +431,17 @@ export function InternalCalculator({
       onGoToProjects={onGoToProjects} onViewDetails={scrollToResults}
     />
   );
+
+  if (allWallsOpen) {
+    return (
+      <AllWallsPage
+        walls={walls} results={results} warnById={warnById} toDisp={toDisp} dimUnit={dimUnit}
+        onSelectWall={id => { handleSelectNavItem({ type: "wall", wallId: id }); setAllWallsOpen(false); }}
+        duplicateWallById={duplicateWallById} deleteWallById={deleteWallById}
+        onBack={() => setAllWallsOpen(false)}
+      />
+    );
+  }
 
   if (layoutMode === "phone") return <>{topCardNode}{wallNavNode}{mainNode}{footerNode}{stickyBarNode}{orderDrawerNode}</>;
   return (

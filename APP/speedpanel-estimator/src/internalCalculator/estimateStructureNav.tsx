@@ -73,7 +73,7 @@ type CardItem = ({ type: "wall" } & WallResult) | { type: "kit"; kit: KitEntry }
 
 export const EstimateStructureNav = ({
   walls, results, kits, selected, onSelect, warnById,
-  addBlankWall, addCornerWall, addShaftWall, layoutMode, dimUnit, toDisp,
+  addBlankWall, addCornerWall, addShaftWall, layoutMode, dimUnit, toDisp, onViewAll,
 }: {
   walls: Wall[]; results: WallResult[]; kits: KitEntry[];
   selected: SelectedNavItem; onSelect: (item: SelectedNavItem) => void;
@@ -81,6 +81,9 @@ export const EstimateStructureNav = ({
   addBlankWall: () => void; addCornerWall: () => void; addShaftWall: () => void;
   layoutMode?: EffectiveLayout;
   dimUnit: string; toDisp: (m: string) => string;
+  // Opens the All Walls page (allWallsPage.tsx) -- web only, see the
+  // "View all" link in the header row below.
+  onViewAll: () => void;
 }) => {
   if (layoutMode === "phone") {
     // Add-wall/corner/shaft actions live on ProjectCardPhone (rendered above
@@ -113,7 +116,10 @@ export const EstimateStructureNav = ({
 
   return (
     <div className={`mt-3 ${cx.section}`}>
-      <div className={cx.cardHd} style={{ marginTop: 0 }}>Estimate structure ({walls.length + kits.length})</div>
+      <div className="flex items-center justify-between" style={{ marginTop: 0 }}>
+        <div className={cx.cardHd} style={{ marginTop: 0 }}>Estimate structure ({walls.length + kits.length})</div>
+        <button onClick={onViewAll} className="text-xs font-bold hover:underline" style={{ color: BLUE }}>View all</button>
+      </div>
       <CardCarousel
         items={items}
         itemKey={item => (item.type === "wall" ? item.wall.id : kitPillId(item.kit))}
