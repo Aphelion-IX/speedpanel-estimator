@@ -226,9 +226,12 @@ export const EstimateTopCard = ({
                 <Button type="button" variant="ghost" onClick={() => { setNamingOpen(false); setDraftSaveError(null); }}>Cancel</Button>
               </form>
             ) : (
-              <IconButton onClick={() => { setNameInput(draftLabel ?? ""); setNamingOpen(true); }} title="Save to Projects" ariaLabel="Save to Projects">
-                <Save size={16} />
-              </IconButton>
+              <>
+                <span className={`${cx.badge} ${tone("warn")}`}>Not saved</span>
+                <IconButton onClick={() => { setNameInput(draftLabel ?? ""); setNamingOpen(true); }} title="Save to Projects" ariaLabel="Save to Projects">
+                  <Save size={16} />
+                </IconButton>
+              </>
             )}
           </div>
         </div>
