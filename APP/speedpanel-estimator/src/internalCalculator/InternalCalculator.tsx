@@ -39,7 +39,7 @@ import { EstimateStructureNav } from "./estimateStructureNav";
 import { KitWorkspace } from "./kitWorkspace";
 import { KitWorkspacePhone } from "./kitWorkspacePhone";
 import { WallWorkspaceTabs } from "./wallWorkspaceTabs";
-import { SheetHeaderPhone, StickyBarTilesPhone, deriveWallStatus } from "./phoneShell";
+import { StickyBarTilesPhone } from "./phoneShell";
 import { EstimateTopCard } from "./EstimateTopCard";
 import type { OpenProjectInfo } from "./EstimateTopCard";
 import {
@@ -166,13 +166,6 @@ export function InternalCalculator({
   const workspaceTitle = selectedKit
     ? kitLabel(selectedKit, kits)
     : `${active.name} — ${active.orient === "vertical" ? "Vertical" : "Horizontal"} · P${active.type}`;
-  // Phone-only sheet header: same underlying data as workspaceTitle above,
-  // just split into a title/crumb/status shape for SheetHeaderPhone.
-  const sheetTitle = selectedKit ? kitLabel(selectedKit, kits) : active.name;
-  const sheetCrumb = selectedKit
-    ? `${selectedKit.wallAName} ↔ ${selectedKit.wallBName}`
-    : `${active.orient === "vertical" ? "Vertical" : "Horizontal"} · P${active.type}`;
-  const sheetStatus = selectedKit ? "linked" as const : deriveWallStatus(active, out);
   const selectedItemStats = selectedKit
     ? [
         { value: selectedKit.kind === "corner" ? "Corner" : "Shaft", label: "Kit type" },
@@ -265,14 +258,13 @@ export function InternalCalculator({
   // than a tangle of conditionals that differ in more than just wrapping.
   const phoneWorkspaceNode = (
     <>
-      <SheetCardPhone>
-        <SheetHeaderPhone title={sheetTitle} crumb={sheetCrumb} status={sheetStatus} stats={selectedItemStats} />
-        {selectedKit && (
+      {selectedKit && (
+        <SheetCardPhone>
           <SheetSectionPhone icon={<Link2 size={13} />} label="Connection workspace" noDivider>
             <KitWorkspacePhone kit={selectedKit} onSelect={handleSelectNavItem} />
           </SheetSectionPhone>
-        )}
-      </SheetCardPhone>
+        </SheetCardPhone>
+      )}
       {!selectedKit && (
         <>
           <SystemConfigSectionPhone

@@ -84,7 +84,12 @@ export const WallPillStripPhone = ({ items, onSelect }: {
   </div>
 );
 
-// --- Sheet header + metrics grid ----------------------------------------------
+// --- Metrics grid ----------------------------------------------
+// SheetHeaderPhone (the title/crumb/status header this used to sit under)
+// was removed -- it duplicated the wall/kit card carousel directly above it
+// (estimateStructureNav.tsx) plus the Panel Schedule/Orientation/Panel
+// configuration sections further down. This grid stays: it's independently
+// reused by estimateResultsCard.tsx's phone Overview stats.
 export const MetricsGridPhone = ({ stats }: { stats: { value: string | number; label: string }[] }) => (
   <div className="grid grid-cols-3 divide-x divide-slate-100 dark:divide-slate-700">
     {stats.map((s, i) => (
@@ -94,30 +99,6 @@ export const MetricsGridPhone = ({ stats }: { stats: { value: string | number; l
       </div>
     ))}
   </div>
-);
-
-// No longer self-wraps in its own card (mt-3/cx.section) -- it's now always
-// nested flush as the first two blocks of SheetCardPhone (see
-// phoneSections.tsx), matching the mockup's single continuous "sheet" (one
-// outer card, thin dividers between groups) instead of a separate floating
-// card. Only consumer is InternalCalculator.tsx, so changing this contract
-// is safe.
-export const SheetHeaderPhone = ({ title, crumb, status, stats }: {
-  title: string; crumb: string; status: ItemStatusKey;
-  stats: { value: string | number; label: string }[];
-}) => (
-  <>
-    <div className="flex items-start justify-between gap-3 border-b border-slate-100 dark:border-slate-700 px-4 py-4">
-      <div className="min-w-0">
-        <div className="truncate text-lg font-extrabold" style={{ color: NAVY }}>{title}</div>
-        <div className="mt-0.5 truncate text-xs font-medium text-slate-400 dark:text-slate-400">{crumb}</div>
-      </div>
-      <span className={`shrink-0 ${statusChipCx(status)}`}>{statusLabel(status)}</span>
-    </div>
-    <div className="border-b border-slate-100 dark:border-slate-700 px-2 py-3.5">
-      <MetricsGridPhone stats={stats} />
-    </div>
-  </>
 );
 
 // --- Sticky bottom bar (tiled) -------------------------------------------------

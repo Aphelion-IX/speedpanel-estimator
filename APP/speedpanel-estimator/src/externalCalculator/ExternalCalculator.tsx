@@ -53,7 +53,7 @@ import { SingleWallMaterialsSection } from "./mainSections";
 import { WallWorkspaceTabs } from "./wallWorkspaceTabs";
 import { EstimateResultsCard } from "./estimateResultsCard";
 import { OrderReviewDrawer } from "./orderReviewDrawer";
-import { SheetHeaderPhone, StickyBarTilesPhone, deriveWallStatus } from "./phoneShell";
+import { StickyBarTilesPhone } from "./phoneShell";
 import { EstimateTopCard } from "./EstimateTopCard";
 import type { OpenProjectInfo } from "./EstimateTopCard";
 import {
@@ -131,9 +131,6 @@ export function ExternalCalculator({
   const ScheduleComp = layoutMode === "web" ? PanelScheduleTable : PanelScheduleCard;
 
   const workspaceTitle = `${active.name} — ${active.orient === "vertical" ? "Vertical" : "Horizontal"} · P78`;
-  // Phone-only sheet header: same underlying data as workspaceTitle above,
-  // just split into a title/crumb shape for SheetHeaderPhone.
-  const sheetCrumb = `${active.orient === "vertical" ? "Vertical" : "Horizontal"} · P78`;
   const colourEntry = active.colour ? EXT_STOCKED_COLOURS.find(c => c.code === active.colour) : null;
   const colourLabel = active.colourType === "special" ? "Custom" : (colourEntry?.label ?? "--");
   const selectedItemStats = [
@@ -214,9 +211,6 @@ export function ExternalCalculator({
 
   const phoneWorkspaceNode = (
     <>
-      <SheetCardPhone>
-        <SheetHeaderPhone title={active.name} crumb={sheetCrumb} status={deriveWallStatus(active, out)} stats={selectedItemStats} />
-      </SheetCardPhone>
       <SystemConfigSectionPhone
         walls={walls} active={active} update={update}
         duplicateWall={duplicateWall} deleteWall={deleteWall} orient={orient}
