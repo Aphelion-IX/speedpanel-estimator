@@ -37,9 +37,9 @@ export const EstimateStructureNav = ({ walls, results, activeId, onSelectWall, w
           const on = w.id === activeId;
           return (
             <button key={w.id} onClick={() => onSelectWall(w.id)}
-              className={"relative w-full rounded-xl border-2 px-3.5 py-3 text-left active:scale-95 transition-all " + (on ? "" : `border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 ${selectableOffCx}`)}
+              className={"group relative w-full rounded-xl border-2 px-3.5 py-3 text-left active:scale-95 transition-all " + (on ? "" : `border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 ${selectableOffCx}`)}
               style={on ? selectedFill : undefined}>
-              {warnById[w.id] && <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full" style={goldBubbleFill} />}
+              {warnById[w.id] && <span title="Has warnings -- open this wall to see details" className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full transition-transform group-hover:scale-125" style={goldBubbleFill} />}
               <div className="text-sm font-bold" style={{ color: on ? "#fff" : NAVY }}>{w.name}</div>
               <div className="mt-1 text-xs font-medium" style={{ color: on ? "rgba(255,255,255,0.7)" : MUTED }}>
                 {w.orient === "vertical" ? "Vert" : "Horiz"}{r.empty ? "" : ` · ${r.area} m2`}
