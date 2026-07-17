@@ -231,13 +231,14 @@ export function InternalCalculator({
       commitCustomLength={commitCustomLength} toggleCustom={toggleCustom} clearCustomLength={clearCustomLength}
     />
   );
+  const edgesLocked = orient === "horizontal" && active.wallSystem === "standard";
   const tracksContent = (
     <EdgeRestraintSelector
       edges={active.edges}
       onEdgeToggle={k => update({ edges: { ...active.edges, [k]: !active.edges[k] } })}
       options={[{ key: "headFlash", label: HEAD_FLASH_LABEL, sublabel: HEAD_FLASH_SUBLABEL, value: active.headFlash, onToggle: () => update({ headFlash: !active.headFlash }) }]}
       orient={orient}
-      locked={orient === "horizontal" && active.wallSystem === "standard"}
+      locked={edgesLocked}
       showTrackFinish={showTrackFinish}
       setShowTrackFinish={setShowTrackFinish}
       activeFinishes={{ headFinish: active.headFinish, bottomFinish: active.bottomFinish, leftFinish: active.leftFinish, rightFinish: active.rightFinish }}
@@ -245,6 +246,12 @@ export function InternalCalculator({
       corners={{ intCorners: active.intCorners, extCorners: active.extCorners, onChange: (f: CornersField, v: string) => update({ [f]: v } as Pick<Wall, CornersField>) }}
     />
   );
+  // CollapsibleSection header badges -- a status summary visible even while
+  // collapsed, echoing the "Estimate structure (N)" pattern already used in
+  // the sidebar heading.
+  const profileLabel = active.profile === "standard" ? "Standard" : active.profile === "rake" ? "Raked" : "Gable";
+  const edgeCount = edgesLocked ? 4 : Object.values(active.edges).filter(Boolean).length;
+  const edgesBadge = `${edgeCount} edge${edgeCount === 1 ? "" : "s"}`;
 
   // Phone and web have genuinely different visual languages now (segmented
   // pill controls + one continuous "sheet" card on phone vs. the app's
@@ -326,18 +333,16 @@ export function InternalCalculator({
             onJunctionLink={linkJunctionPartner}
           />
 
-          <CollapsibleSection icon={<Frame size={13} />} label="Wall geometry" defaultOpen>
-            <div className={cx.section}>
-              {geometryContent}
-              {panelLengthContent}
-            </div>
+          <CollapsibleSection icon={<Frame size={13} />} label="Wall geometry" badge={profileLabel} defaultOpen>
+            {geometryContent}
+            {panelLengthContent}
           </CollapsibleSection>
 
           {/* Tracks and flashing -- defaults open now that this lives in the
               wider main-column workspace, not the space-constrained sidebar
               (see Phase B's CollapsibleSection doc comment for that original
               rationale, which no longer applies here). */}
-          <CollapsibleSection icon={<Lock size={13} />} label="Tracks and flashing" defaultOpen>
+          <CollapsibleSection icon={<Lock size={13} />} label="Tracks and flashing" badge={edgesBadge} defaultOpen>
             {tracksContent}
           </CollapsibleSection>
 

@@ -111,6 +111,11 @@ export const cx = {
   // box) -- tinted background + inset shadow so it reads as sunken rather
   // than another flat white rectangle stacked on the card behind it.
   panel:     "rounded-xl border border-slate-200/80 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-900/50 shadow-[inset_0_1px_3px_rgba(15,23,42,0.06)] dark:shadow-[inset_0_1px_3px_rgba(0,0,0,0.25)]",
+  // Same border/radius/shadow as cx.card, but no padding and overflow-hidden
+  // instead -- for CollapsibleSection's integrated header-bar treatment,
+  // where the header strip and the padded body are two regions inside one
+  // shell rather than a bare label floating above a separately-padded card.
+  cardShell: "rounded-2xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 overflow-hidden shadow-[inset_0_1px_0_rgba(255,255,255,0.7),0_1px_2px_rgba(15,23,42,0.05),0_28px_48px_-24px_rgba(15,23,42,0.26)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.04),0_1px_2px_rgba(0,0,0,0.25),0_28px_48px_-22px_rgba(0,0,0,0.45)]",
 
   // -- Page heading scale -------------------------------------------------------
   // Colour fades from full-strength Navy (H1) through two mid-steps to the

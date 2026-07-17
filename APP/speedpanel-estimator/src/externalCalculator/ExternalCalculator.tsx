@@ -198,6 +198,15 @@ export function ExternalCalculator({
       corners={{ intCorners: active.intCorners, extCorners: active.extCorners, onChange: (f: CornersField, v: string) => update({ [f]: v } as Pick<Wall, CornersField>) }}
     />
   );
+  // CollapsibleSection header badges -- a status summary visible even while
+  // collapsed, echoing the "Estimate structure (N)" pattern already used in
+  // the sidebar heading.
+  const profileLabel = active.profile === "standard" ? "Standard" : active.profile === "rake" ? "Raked" : "Gable";
+  const isCustomColour = active.colourType === "special";
+  const colourName = !isCustomColour && active.colour ? EXT_STOCKED_COLOURS.find(c => c.code === active.colour)?.label ?? "" : "";
+  const panelBadge = isCustomColour ? "Custom" : colourName || "No colour";
+  const edgeCount = Object.values(active.edges).filter(Boolean).length;
+  const edgesBadge = `${edgeCount} edge${edgeCount === 1 ? "" : "s"}`;
 
   const phoneWorkspaceNode = (
     <>
@@ -258,20 +267,16 @@ export function ExternalCalculator({
         onJunctionLink={linkJunctionPartner}
       />
 
-      <CollapsibleSection icon={<Box size={13} />} label="Panel configuration" defaultOpen>
-        <div className={cx.section}>
-          <PanelColourSection active={active} update={update} />
-          {panelLengthContent}
-        </div>
+      <CollapsibleSection icon={<Box size={13} />} label="Panel configuration" badge={panelBadge} defaultOpen>
+        <PanelColourSection active={active} update={update} />
+        {panelLengthContent}
       </CollapsibleSection>
 
-      <CollapsibleSection icon={<Frame size={13} />} label="Wall geometry" defaultOpen>
-        <div className={cx.section}>
-          {geometryContent}
-        </div>
+      <CollapsibleSection icon={<Frame size={13} />} label="Wall geometry" badge={profileLabel} defaultOpen>
+        {geometryContent}
       </CollapsibleSection>
 
-      <CollapsibleSection icon={<Lock size={13} />} label="Tracks and flashing" defaultOpen>
+      <CollapsibleSection icon={<Lock size={13} />} label="Tracks and flashing" badge={edgesBadge} defaultOpen>
         {tracksContent}
       </CollapsibleSection>
 

@@ -186,12 +186,15 @@ export const EdgeRestraintSelector = ({
 }: EdgeRestraintProps) => {
   const flashOption = options.find(o => o.key === "headFlash");
 
+  // No wrapping cx.section here -- the sole caller (ExternalCalculator's
+  // tracksContent) always renders this inside a CollapsibleSection, whose
+  // own body wrapper now supplies that padding/spacing/card shell.
   return (
-    <div className={cx.section}>
+    <>
       <RestrainedEdgesBlock edges={edges} onEdgeToggle={onEdgeToggle} locked={locked} />
       {flashOption && <HeadFlashingToggle flashOption={flashOption} />}
       <CornerAnglesBlock corners={corners} />
-    </div>
+    </>
   );
 };
 // --- Shared layout components -------------------------------------------------

@@ -84,24 +84,41 @@ export const SectionLabel = ({ icon, children }: { icon: React.ReactNode; childr
 );
 
 // --- CollapsibleSection -----------------------------------------------------
-// Same header/chevron visual language as the "Wall estimate" accordion
-// (cx.accordion) and SpanTable's inline accordion, generalized into a
-// sidebar section header that can be toggled shut -- used to shrink the
-// sidebar's default rendered height (Wall geometry stays open, Tracks and
-// flashing starts closed) so the sticky sidebar isn't routinely taller than
-// the main column it sits beside.
-export const CollapsibleSection = ({ icon, label, defaultOpen = true, children }: {
-  icon: React.ReactNode; label: React.ReactNode; defaultOpen?: boolean; children: React.ReactNode;
+// Header used to be a bare uppercase label (cx.sectionLbl) floating above a
+// separately-padded cx.card/cx.section -- two visually disconnected pieces.
+// Now a single cx.cardShell wraps both: an integrated header strip (icon
+// chip + label + optional status badge) with its own tinted background and
+// bottom border, and a padded body below it -- so the card reads as one
+// object with a real header region (Stripe/Linear-style), the way an
+// unrelated flat label never could. Callers that used to wrap their own
+// children in `<div className={cx.section}>` should stop doing that -- this
+// component's body wrapper now supplies that padding/spacing instead, so
+// nesting cx.section here would double up the border/shadow/padding.
+export const CollapsibleSection = ({ icon, label, badge, defaultOpen = true, children }: {
+  icon: React.ReactNode; label: React.ReactNode; badge?: React.ReactNode; defaultOpen?: boolean; children: React.ReactNode;
 }) => {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <>
-      <button onClick={() => setOpen(v => !v)} className={`${cx.sectionLbl} w-full justify-between`}>
-        <span className="flex items-center gap-2"><span style={{ color: BLUE }}>{icon}</span>{label}</span>
-        <ChevronDown size={14} className={`text-slate-400 dark:text-slate-400 transition-transform ${open ? "rotate-180" : ""}`} />
+    <div className={`mt-5 ${cx.cardShell}`}>
+      <button onClick={() => setOpen(v => !v)}
+        className="flex w-full items-center justify-between gap-2 border-b border-slate-200 bg-slate-50/80 px-5 py-3.5 transition-colors hover:bg-slate-100/70 dark:border-slate-600 dark:bg-slate-900/40 dark:hover:bg-slate-900/60">
+        <span className="flex min-w-0 items-center gap-2.5">
+          <span className="grid h-6 w-6 shrink-0 place-items-center rounded-lg border border-blue-100 bg-blue-50 shadow-[inset_0_1px_1px_rgba(255,255,255,0.6)] dark:border-blue-800/50 dark:bg-blue-500/15 dark:shadow-[inset_0_1px_1px_rgba(255,255,255,0.06)]" style={{ color: BLUE }}>
+            {icon}
+          </span>
+          <span className="truncate text-xs font-bold uppercase tracking-widest text-slate-700 dark:text-slate-200">{label}</span>
+        </span>
+        <span className="flex shrink-0 items-center gap-2">
+          {badge && (
+            <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-bold text-slate-400 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-400">
+              {badge}
+            </span>
+          )}
+          <ChevronDown size={14} className={`text-slate-400 dark:text-slate-400 transition-transform ${open ? "rotate-180" : ""}`} />
+        </span>
       </button>
-      {open && children}
-    </>
+      {open && <div className="space-y-4 p-6 lg:p-7">{children}</div>}
+    </div>
   );
 };
 
