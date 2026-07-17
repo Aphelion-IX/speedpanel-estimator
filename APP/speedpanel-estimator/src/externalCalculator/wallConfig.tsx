@@ -16,7 +16,7 @@
 // =============================================================================
 import { useState } from "react";
 import { ChevronDown, AlertTriangle } from "lucide-react";
-import { cx, NAVY, BLUE, MUTED } from "../styleTokens";
+import { cx, NAVY, BLUE, MUTED, selectedFill, selectableOffCx } from "../styleTokens";
 import {
   SPAN_TABLE_VERT, SPAN_TABLE_HORIZ, RAKE_NOTE, CUSTOM_MAX_LENGTH,
 } from "../data";
@@ -83,8 +83,8 @@ export const ProfileSelector = ({ value, onChange }: { value: ProfileId; onChang
       const on = value === id;
       return (
         <button key={id} onClick={() => onChange(id)}
-          className={"w-full rounded-xl border-2 py-3.5 px-4 text-sm font-semibold text-center active:scale-95 transition-all " + (on ? "" : "border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800")}
-          style={on ? { borderColor: BLUE, background: BLUE, color: "#fff" } : { color: BLUE }}>{lbl}</button>
+          className={"w-full rounded-xl border-2 py-3.5 px-4 text-sm font-semibold text-center active:scale-95 transition-all " + (on ? "" : `border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 ${selectableOffCx}`)}
+          style={on ? { ...selectedFill, color: "#fff" } : { color: BLUE }}>{lbl}</button>
       );
     })}
   </div>

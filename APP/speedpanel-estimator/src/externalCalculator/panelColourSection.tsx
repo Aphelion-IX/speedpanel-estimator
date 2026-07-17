@@ -4,7 +4,7 @@
 // "Panel configuration" sidebar content: the P78 type badge (colour-tinted
 // to match the current selection) and the stocked-colour/custom picker grid.
 // =============================================================================
-import { cx, NAVY, BLUE, GOLD } from "../styleTokens";
+import { cx, NAVY, BLUE, GOLD, selectedFill, selectableOffCx } from "../styleTokens";
 import { COLOUR_HEX, EXT_STOCKED_COLOURS } from "../data";
 import type { Wall } from "../estimate/wall.types";
 
@@ -38,11 +38,13 @@ export const PanelColourSection = ({ active, update }: { active: Wall; update: (
             const textColour = isLight ? NAVY : "#fff";
             return (
               <button key={c.code} onClick={() => update({ colour: c.code, colourType: "stocked" })}
-                className="w-full rounded-xl border-2 py-3 px-1.5 text-center transition-all active:scale-95"
+                className={"w-full rounded-xl border-2 py-3 px-1.5 text-center transition-all active:scale-95" + (selected ? "" : " hover:-translate-y-0.5 hover:shadow-md")}
                 style={{
                   background: hex,
                   borderColor: selected ? BLUE : "rgba(0,0,0,0.08)",
-                  boxShadow: selected ? `0 0 0 2px ${BLUE}` : undefined,
+                  boxShadow: selected
+                    ? `0 0 0 2px ${BLUE}, inset 0 1px 1px rgba(255,255,255,0.3), 0 12px 20px -8px color-mix(in srgb, ${BLUE} 60%, transparent)`
+                    : "0 1px 2px rgba(15,23,42,0.08)",
                 }}>
                 <div className="text-[10px] font-bold uppercase leading-tight truncate"
                   style={{ color: textColour }}>{c.label}</div>
@@ -52,8 +54,8 @@ export const PanelColourSection = ({ active, update }: { active: Wall; update: (
             const selected = active.colourType === "special";
             return (
               <button key="special" onClick={() => update({ colourType: "special", colour: "" })}
-                className={"w-full rounded-xl border-2 py-3 px-1.5 text-center active:scale-95 transition-all " + (selected ? "" : "border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800")}
-                style={selected ? { borderColor: BLUE, background: BLUE } : undefined}>
+                className={"w-full rounded-xl border-2 py-3 px-1.5 text-center active:scale-95 transition-all " + (selected ? "" : `border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 ${selectableOffCx}`)}
+                style={selected ? selectedFill : undefined}>
                 <div className="text-[10px] font-bold uppercase leading-tight"
                   style={{ color: selected ? "#fff" : BLUE }}>Custom</div>
               </button>

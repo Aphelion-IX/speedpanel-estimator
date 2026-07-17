@@ -15,7 +15,7 @@
 // =============================================================================
 import { useState } from "react";
 import { ChevronDown, AlertTriangle } from "lucide-react";
-import { cx, NAVY, BLUE, MUTED } from "../styleTokens";
+import { cx, NAVY, BLUE, MUTED, selectedFill, selectableOffCx } from "../styleTokens";
 import {
   SPAN_TABLE_VERT, SPAN_TABLE_HORIZ, CTRACK_DIM, MAX_H_HORIZ, MAX_W_HORIZ,
   RAKE_NOTE, SHAFT_TRACK_TABLE, CUSTOM_MAX_LENGTH,
@@ -146,8 +146,8 @@ export const ProfileSelector = ({ value, onChange }: { value: ProfileId; onChang
       const on = value === id;
       return (
         <button key={id} onClick={() => onChange(id)}
-          className={"w-full rounded-xl border-2 py-3.5 px-4 text-sm font-semibold text-center active:scale-95 transition-all " + (on ? "" : "border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800")}
-          style={on ? { borderColor: BLUE, background: BLUE, color: "#fff" } : { color: BLUE }}>{lbl}</button>
+          className={"w-full rounded-xl border-2 py-3.5 px-4 text-sm font-semibold text-center active:scale-95 transition-all " + (on ? "" : `border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 ${selectableOffCx}`)}
+          style={on ? { ...selectedFill, color: "#fff" } : { color: BLUE }}>{lbl}</button>
       );
     })}
   </div>
@@ -285,8 +285,8 @@ export const OtherOptionsBlock = ({ options }: { options: EdgeOption[] }) => (
   <div className="space-y-2">
     {options.map(({ key, label, sublabel, value, onToggle }) => (
       <button key={key} onClick={onToggle}
-        className={"w-full rounded-xl border-2 py-3.5 px-4 text-sm font-semibold text-left active:scale-95 transition-all " + (value ? "" : "border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-300")}
-        style={value ? { borderColor: BLUE, background: BLUE, color: "#fff" } : undefined}>
+        className={"w-full rounded-xl border-2 py-3.5 px-4 text-sm font-semibold text-left active:scale-95 transition-all " + (value ? "" : `border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-300 ${selectableOffCx}`)}
+        style={value ? { ...selectedFill, color: "#fff" } : undefined}>
         {value ? "✓ " : ""}{label}
         {sublabel && <span className={`text-sm font-normal ${value ? "text-white/70" : "text-slate-400 dark:text-slate-400"}`}> {sublabel}</span>}
       </button>

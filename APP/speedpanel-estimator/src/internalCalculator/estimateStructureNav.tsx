@@ -9,7 +9,7 @@
 // KitWorkspace.
 // =============================================================================
 import { Plus } from "lucide-react";
-import { cx, BLUE, GOLD, NAVY, MUTED } from "../styleTokens";
+import { cx, BLUE, GOLD, NAVY, MUTED, selectedFill, selectableOffCx } from "../styleTokens";
 import type { Wall, WallResult } from "../estimate/wall.types";
 import { kitLabel, type KitEntry } from "../estimate/synthesizeKits";
 import type { SelectedNavItem } from "../estimate/navSelection";
@@ -30,8 +30,8 @@ const NavRow = ({ on, warn, title, subtitle, onClick }: {
   on: boolean; warn: boolean; title: string; subtitle: string; onClick: () => void;
 }) => (
   <button onClick={onClick}
-    className={"relative w-full rounded-xl border-2 px-3.5 py-3 text-left active:scale-95 transition-all " + (on ? "" : "border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800")}
-    style={on ? { borderColor: BLUE, background: BLUE } : undefined}>
+    className={"relative w-full rounded-xl border-2 px-3.5 py-3 text-left active:scale-95 transition-all " + (on ? "" : `border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 ${selectableOffCx}`)}
+    style={on ? selectedFill : undefined}>
     {warn && <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full" style={{ background: GOLD }} />}
     <div className="text-sm font-bold" style={{ color: on ? "#fff" : NAVY }}>{title}</div>
     <div className="mt-1 text-xs font-medium" style={{ color: on ? "rgba(255,255,255,0.7)" : MUTED }}>{subtitle}</div>

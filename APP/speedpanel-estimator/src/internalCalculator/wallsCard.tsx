@@ -15,7 +15,7 @@
 // Splitting them means each calculator can now evolve its own UI freely.
 // =============================================================================
 import { Copy, Frame, Trash2 } from "lucide-react";
-import { cx, NAVY, BLUE, MUTED } from "../styleTokens";
+import { cx, NAVY, BLUE, MUTED, selectedFill, selectableOffCx } from "../styleTokens";
 import { TYPES } from "../data";
 import { IconButton } from "../ui/primitives";
 import { Table, type TableColumn } from "../ui/table";
@@ -43,8 +43,8 @@ export const WallSystemSelector = ({ value, onChange }: { value: WallSystemId; o
         const on = value === id;
         return (
           <button key={id} onClick={() => onChange(id)}
-            className={"w-full rounded-xl border-2 py-3.5 px-2 text-sm font-semibold text-center active:scale-95 transition-all " + (on ? "" : "border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800")}
-            style={on ? { borderColor: BLUE, background: BLUE, color: "#fff" } : { color: BLUE }}>
+            className={"w-full rounded-xl border-2 py-3.5 px-2 text-sm font-semibold text-center active:scale-95 transition-all " + (on ? "" : `border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 ${selectableOffCx}`)}
+            style={on ? { ...selectedFill, color: "#fff" } : { color: BLUE }}>
             {label.replace(" wall", "")}
           </button>
         );
@@ -76,16 +76,16 @@ const WallLinkSelector = ({ heading, walls, active, filter, partnerId, onLink, l
       <div className={cx.cardHd}>{heading}</div>
       <div className="space-y-1.5">
         <button onClick={() => onLink(null)}
-          className={"w-full rounded-xl border-2 py-3 px-4 text-sm font-semibold text-left active:scale-95 transition-all " + (!partner ? "" : "border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800")}
-          style={!partner ? { borderColor: BLUE, background: BLUE, color: "#fff" } : { color: BLUE }}>
+          className={"w-full rounded-xl border-2 py-3 px-4 text-sm font-semibold text-left active:scale-95 transition-all " + (!partner ? "" : `border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 ${selectableOffCx}`)}
+          style={!partner ? { ...selectedFill, color: "#fff" } : { color: BLUE }}>
           Not linked
         </button>
         {linkable.map(w => {
           const on = partner?.id === w.id;
           return (
             <button key={w.id} onClick={() => onLink(w.id)}
-              className={"w-full rounded-xl border-2 py-3 px-4 text-sm font-semibold text-left active:scale-95 transition-all " + (on ? "" : "border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800")}
-              style={on ? { borderColor: BLUE, background: BLUE, color: "#fff" } : { color: BLUE }}>
+              className={"w-full rounded-xl border-2 py-3 px-4 text-sm font-semibold text-left active:scale-95 transition-all " + (on ? "" : `border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 ${selectableOffCx}`)}
+              style={on ? { ...selectedFill, color: "#fff" } : { color: BLUE }}>
               {label ? label(w, on) : w.name}
             </button>
           );
@@ -125,8 +125,8 @@ export const CornerLinkSelector = ({ active, walls, onLink, onSideChange }: {
               const on = (active.cornerSide ?? "right") === side;
               return (
                 <button key={side} onClick={() => onSideChange(side)}
-                  className={"w-full rounded-xl border-2 py-3 px-4 text-sm font-semibold text-center active:scale-95 transition-all " + (on ? "" : "border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800")}
-                  style={on ? { borderColor: BLUE, background: BLUE, color: "#fff" } : { color: BLUE }}>
+                  className={"w-full rounded-xl border-2 py-3 px-4 text-sm font-semibold text-center active:scale-95 transition-all " + (on ? "" : `border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 ${selectableOffCx}`)}
+                  style={on ? { ...selectedFill, color: "#fff" } : { color: BLUE }}>
                   {side === "left" ? "Left" : "Right"}
                 </button>
               );
@@ -218,8 +218,8 @@ export const PanelTypeSelector = ({ active, update, topBorder }: {
           const on = active.type === t.id;
           return (
             <button key={t.id} onClick={() => update({ type: t.id })}
-              className={"w-full rounded-xl border-2 py-3 px-1.5 text-center active:scale-95 transition-all " + (on ? "" : "border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800")}
-              style={on ? { borderColor: BLUE, background: BLUE } : undefined}>
+              className={"w-full rounded-xl border-2 py-3 px-1.5 text-center active:scale-95 transition-all " + (on ? "" : `border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 ${selectableOffCx}`)}
+              style={on ? selectedFill : undefined}>
               <div className="text-base font-black leading-none tracking-tight" style={{ color: on ? "#fff" : BLUE }}>{t.label}</div>
               <div className="mt-1 text-xs font-semibold tracking-wide" style={{ color: on ? "rgba(255,255,255,0.7)" : MUTED }}>{t.depth}</div>
               <div className="mt-1 text-[10px] font-bold tracking-wide" style={{ color: on ? "rgba(255,255,255,0.7)" : MUTED }}>FRL {t.frl}</div>

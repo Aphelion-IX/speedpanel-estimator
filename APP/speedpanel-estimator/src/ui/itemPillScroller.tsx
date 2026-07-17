@@ -8,7 +8,7 @@
 // estimateStructureNav.tsx can each map their own item shape to PillItem and
 // share this one presentational component.
 // =============================================================================
-import { cx, BLUE, GOLD, NAVY, MUTED, WHITE } from "../styleTokens";
+import { cx, GOLD, NAVY, MUTED, WHITE, selectedFill, selectableOffCx } from "../styleTokens";
 
 export interface PillItem { id: string; label: string; sublabel?: string; active: boolean; warn: boolean; }
 
@@ -22,8 +22,8 @@ export const ItemPillScroller = ({ items, onSelect, trailing }: {
         <button
           key={item.id}
           onClick={() => onSelect(item.id)}
-          className={"relative min-w-[168px] shrink-0 snap-start rounded-xl border-2 px-3.5 py-3 text-left active:scale-95 transition-all " + (item.active ? "" : "border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800")}
-          style={item.active ? { borderColor: BLUE, background: BLUE } : undefined}
+          className={"relative min-w-[168px] shrink-0 snap-start rounded-xl border-2 px-3.5 py-3 text-left active:scale-95 transition-all " + (item.active ? "" : `border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 ${selectableOffCx}`)}
+          style={item.active ? selectedFill : undefined}
         >
           {item.warn && <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full" style={{ background: GOLD }} />}
           <div className="truncate text-sm font-bold" style={{ color: item.active ? WHITE : NAVY }}>{item.label}</div>

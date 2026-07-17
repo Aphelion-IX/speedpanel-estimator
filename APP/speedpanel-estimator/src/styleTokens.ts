@@ -1,3 +1,5 @@
+import type { CSSProperties } from "react";
+
 // --- Design tokens ------------------------------------------------------------
 // Each references a CSS custom property (defined in index.css for :root and
 // overridden under .dark) instead of a literal hex code, so every existing
@@ -10,6 +12,29 @@ export const BLUE      = "var(--blue)";      // primary brand colour -- selected
 export const GOLD      = "var(--gold)";      // accent colour -- highlights, warnings, custom/special-order badge
 export const WHITE     = "var(--on-fill)";   // text/icon colour on filled (BLUE/GOLD) backgrounds
 export const MUTED     = "var(--muted)";     // inactive/unselected text & icon colour
+
+// --- Selected-option fill (buttons, nav rows, pills, chips) ------------------
+// Every button-grid-style selector in the app (Orientation, Wall type, Wall
+// system, Panel type/configuration, Profile, link/partner pickers, the
+// Estimate Structure nav, the phone pill scroller, colour swatches...) is its
+// own hand-rolled button, not one shared component -- so without a shared
+// style object here, each one's "selected" state drifts independently. This
+// used to be a flat `background: BLUE` with no shadow at all; spread into the
+// "on" branch of each call site's inline style (alongside `color`, which
+// still varies per call site since some set it on child elements instead of
+// the button itself) for a gradient fill + glow-lift matching EdgeBtn/
+// ToggleSwitch's existing treatment instead of a flat colour swap.
+export const selectedFill: CSSProperties = {
+  borderColor: BLUE,
+  background: `linear-gradient(180deg, color-mix(in srgb, ${BLUE} 100%, white 12%), ${BLUE})`,
+  boxShadow: `inset 0 1px 1px rgba(255,255,255,0.28), 0 12px 22px -10px color-mix(in srgb, ${BLUE} 60%, transparent)`,
+};
+// className fragment for the *resting* (unselected) branch of the same
+// buttons -- a real contact shadow instead of a bare hairline border, and a
+// hover-lift/border-tint so an unselected option reads as clickable before
+// it's ever pressed. Append after the existing
+// "border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800".
+export const selectableOffCx = "shadow-[0_1px_2px_rgba(15,23,42,0.05)] hover:-translate-y-0.5 hover:border-blue-200 dark:hover:border-blue-700";
 
 // --- Status tone -> class string ---------------------------------------------
 // Single source for status-colour classes. Domain files (companyTypes.ts,

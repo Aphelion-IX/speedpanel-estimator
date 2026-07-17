@@ -10,7 +10,7 @@
 // =============================================================================
 import { useState } from "react";
 import { r1 } from "../estimate/mathUtils";
-import { cx, BLUE, GOLD, WHITE, NAVY, MUTED } from "../styleTokens";
+import { cx, BLUE, GOLD, WHITE, NAVY, MUTED, selectedFill, selectableOffCx } from "../styleTokens";
 import type { EffectiveLayout } from "../useLayoutMode";
 import { AlertTriangle, ChevronDown } from "lucide-react";
 
@@ -239,8 +239,8 @@ export const EstimateModeSelector = ({ visible, mode, setMode }: { visible: bool
         const on = mode === k;
         return (
           <button key={k} onClick={() => setMode(k)}
-            className={"w-full rounded-xl border-2 py-3.5 px-4 text-sm font-semibold text-center active:scale-95 transition-all " + (on ? "" : "border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800")}
-            style={on ? { borderColor: BLUE, background: BLUE, color: "#fff" } : { color: BLUE }}>{lbl}</button>
+            className={"w-full rounded-xl border-2 py-3.5 px-4 text-sm font-semibold text-center active:scale-95 transition-all " + (on ? "" : `border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 ${selectableOffCx}`)}
+            style={on ? { ...selectedFill, color: "#fff" } : { color: BLUE }}>{lbl}</button>
         );
       })}
     </div>

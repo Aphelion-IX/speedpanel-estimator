@@ -14,7 +14,7 @@
 // absent, since External has no use for it.
 // =============================================================================
 import { Copy, Frame, Trash2 } from "lucide-react";
-import { cx, NAVY, BLUE, GOLD, MUTED } from "../styleTokens";
+import { cx, NAVY, BLUE, GOLD, MUTED, selectedFill, selectableOffCx } from "../styleTokens";
 import { IconButton } from "../ui/primitives";
 import { Table, type TableColumn } from "../ui/table";
 import type { Wall, WallResult } from "../estimate/wall.types";
@@ -39,16 +39,16 @@ const WallLinkSelector = ({ heading, walls, active, filter, partnerId, onLink, l
       <div className={cx.cardHd}>{heading}</div>
       <div className="space-y-1.5">
         <button onClick={() => onLink(null)}
-          className={"w-full rounded-xl border-2 py-3 px-4 text-sm font-semibold text-left active:scale-95 transition-all " + (!partner ? "" : "border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800")}
-          style={!partner ? { borderColor: BLUE, background: BLUE, color: "#fff" } : { color: BLUE }}>
+          className={"w-full rounded-xl border-2 py-3 px-4 text-sm font-semibold text-left active:scale-95 transition-all " + (!partner ? "" : `border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 ${selectableOffCx}`)}
+          style={!partner ? { ...selectedFill, color: "#fff" } : { color: BLUE }}>
           Not linked
         </button>
         {linkable.map(w => {
           const on = partner?.id === w.id;
           return (
             <button key={w.id} onClick={() => onLink(w.id)}
-              className={"w-full rounded-xl border-2 py-3 px-4 text-sm font-semibold text-left active:scale-95 transition-all " + (on ? "" : "border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800")}
-              style={on ? { borderColor: BLUE, background: BLUE, color: "#fff" } : { color: BLUE }}>
+              className={"w-full rounded-xl border-2 py-3 px-4 text-sm font-semibold text-left active:scale-95 transition-all " + (on ? "" : `border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 ${selectableOffCx}`)}
+              style={on ? { ...selectedFill, color: "#fff" } : { color: BLUE }}>
               {label ? label(w, on) : w.name}
             </button>
           );
