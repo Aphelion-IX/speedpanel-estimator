@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { cx, tone, BLUE, NAVY, WHITE } from "../styleTokens";
 import { Button } from "../ui/button";
+import { IconButton } from "../ui/primitives";
 import type { WallResult } from "../estimate/wall.types";
 import type { KitEntry } from "../estimate/synthesizeKits";
 import type { aggregate } from "../estimate/aggregate";
@@ -188,9 +189,9 @@ export const EstimateTopCard = ({
             {isSaved ? (
               <>
                 {saveProjectError && <span className="text-xs text-red-600 dark:text-red-300">{saveProjectError}</span>}
-                <Button variant="secondary" icon={<Save size={14} />} onClick={onSaveOpenProject} disabled={savingProject}>
-                  {savingProject ? "Saving..." : "Save"}
-                </Button>
+                <IconButton onClick={onSaveOpenProject} disabled={savingProject} title={savingProject ? "Saving..." : "Save"} ariaLabel="Save">
+                  <Save size={16} />
+                </IconButton>
               </>
             ) : namingOpen ? (
               <form onSubmit={handleSaveAsProject} className="flex flex-wrap items-center gap-2">
