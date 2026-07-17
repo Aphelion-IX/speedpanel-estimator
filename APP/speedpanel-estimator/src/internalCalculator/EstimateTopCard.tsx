@@ -226,9 +226,9 @@ export const EstimateTopCard = ({
                 <Button type="button" variant="ghost" onClick={() => { setNamingOpen(false); setDraftSaveError(null); }}>Cancel</Button>
               </form>
             ) : (
-              <Button icon={<Plus size={14} />} onClick={() => { setNameInput(draftLabel ?? ""); setNamingOpen(true); }}>
-                Save to Projects
-              </Button>
+              <IconButton onClick={() => { setNameInput(draftLabel ?? ""); setNamingOpen(true); }} title="Save to Projects" ariaLabel="Save to Projects">
+                <Save size={16} />
+              </IconButton>
             )}
           </div>
         </div>
