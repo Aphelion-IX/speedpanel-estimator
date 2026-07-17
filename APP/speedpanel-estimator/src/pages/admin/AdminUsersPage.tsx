@@ -91,7 +91,7 @@ const CreateStaffForm = ({ onCreate }: { onCreate: (email: string, staffRole: In
           </Button>
         </div>
       </form>
-      {error && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{error}</p>}
+      {error && <p className="mt-2 text-sm text-red-600 dark:text-red-300">{error}</p>}
       {success && <p className="mt-2 text-sm font-semibold" style={{ color: BLUE }}>{success}</p>}
     </div>
   );
@@ -126,7 +126,7 @@ const PromoteUserForm = ({ onPromote }: { onPromote: (email: string, staffRole: 
   return (
     <div className={`${cx.card} mt-3`}>
       <h2 className={cx.h3}>Promote an existing account to staff</h2>
-      <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">For an account that already exists (e.g. created directly in Supabase) rather than a brand-new hire. No email is sent -- their existing login already works.</p>
+      <p className="mt-1 text-xs text-slate-500 dark:text-slate-300">For an account that already exists (e.g. created directly in Supabase) rather than a brand-new hire. No email is sent -- their existing login already works.</p>
       <form onSubmit={handleSubmit} className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-end">
         <div className="flex-1"><Field label="Email" value={email} onChange={setEmail} type="email" required autoComplete="email" /></div>
         <div className="sm:w-56"><SelectField label="Role" value={staffRole} options={STAFF_ROLE_OPTIONS} onChange={v => setStaffRole(v as InternalRole)} /></div>
@@ -134,7 +134,7 @@ const PromoteUserForm = ({ onPromote }: { onPromote: (email: string, staffRole: 
           {promoting ? "Promoting..." : "Promote"}
         </Button>
       </form>
-      {error && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{error}</p>}
+      {error && <p className="mt-2 text-sm text-red-600 dark:text-red-300">{error}</p>}
       {success && <p className="mt-2 text-sm font-semibold" style={{ color: BLUE }}>Promoted -- they now appear in the staff list below.</p>}
     </div>
   );
@@ -152,7 +152,7 @@ const PromoteUserForm = ({ onPromote }: { onPromote: (email: string, staffRole: 
 // which each render their own <label> and aren't meant to sit inside a
 // <td>) -- same convention as RepeatableRowEditor's editable cells
 // (src/pages/admin/shared/repeatableRowEditor.tsx).
-const cellInputCx = "w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1.5 text-sm";
+const cellInputCx = "w-full rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-2 py-1.5 text-sm";
 
 const UserTableRow = ({ item, isSelf, onSetStaffRole, onSaveStaffProfile }: {
   item: AdminUserRow; isSelf: boolean;
@@ -180,13 +180,13 @@ const UserTableRow = ({ item, isSelf, onSetStaffRole, onSaveStaffProfile }: {
   };
 
   return (
-    <tr className="border-t border-slate-100 align-top transition-colors hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800/60">
+    <tr className="border-t border-slate-100 align-top transition-colors hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800/60">
       <td className="px-4 py-3">
         <div className="text-sm font-bold" style={{ color: NAVY }}>
           {item.display_name || item.email || "(no email)"}{isSelf && <span className={cx.footnote}> (you)</span>}
         </div>
         <p className={cx.footnote}>Joined {new Date(item.created_at).toLocaleDateString()}</p>
-        {error && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{error}</p>}
+        {error && <p className="mt-1 text-xs text-red-600 dark:text-red-300">{error}</p>}
       </td>
       <td className="px-4 py-3 w-48">
         <select value={item.staff_role ?? ""} onChange={e => e.target.value && handleSetStaffRole(e.target.value as InternalRole)} className={cellInputCx} style={{ color: NAVY }}>
@@ -215,16 +215,16 @@ const UsersTable = ({ items, myUserId, onSetStaffRole, onSaveStaffProfile }: {
   onSetStaffRole: (item: AdminUserRow, staffRole: InternalRole) => Promise<string | null>;
   onSaveStaffProfile: (item: AdminUserRow, input: { displayName: string; title: string; phone: string }) => Promise<string | null>;
 }) => (
-  <div className="mt-3 overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-700">
+  <div className="mt-3 overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-600">
     <table className="w-full border-collapse text-sm">
       <thead>
         <tr className="bg-slate-50 dark:bg-slate-900/60">
-          <th className="border-b border-slate-200 px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500 dark:border-slate-700 dark:text-slate-400">Person</th>
-          <th className="border-b border-slate-200 px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500 dark:border-slate-700 dark:text-slate-400">Staff role</th>
-          <th className="border-b border-slate-200 px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500 dark:border-slate-700 dark:text-slate-400">Display name</th>
-          <th className="border-b border-slate-200 px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500 dark:border-slate-700 dark:text-slate-400">Title</th>
-          <th className="border-b border-slate-200 px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500 dark:border-slate-700 dark:text-slate-400">Phone</th>
-          <th className="border-b border-slate-200 px-4 py-3 w-16 dark:border-slate-700" />
+          <th className="border-b border-slate-200 px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500 dark:border-slate-600 dark:text-slate-300">Person</th>
+          <th className="border-b border-slate-200 px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500 dark:border-slate-600 dark:text-slate-300">Staff role</th>
+          <th className="border-b border-slate-200 px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500 dark:border-slate-600 dark:text-slate-300">Display name</th>
+          <th className="border-b border-slate-200 px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500 dark:border-slate-600 dark:text-slate-300">Title</th>
+          <th className="border-b border-slate-200 px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500 dark:border-slate-600 dark:text-slate-300">Phone</th>
+          <th className="border-b border-slate-200 px-4 py-3 w-16 dark:border-slate-600" />
         </tr>
       </thead>
       <tbody>
@@ -274,7 +274,7 @@ export const AdminUsersPage = ({ auth }: { auth: UseAuth }) => {
       {!loading && !error && users.length > 0 && (
         <>
           <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-            <div className="flex flex-1 items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 shadow-sm">
+            <div className="flex flex-1 items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-4 py-3 shadow-sm">
               <Search size={16} className="shrink-0" style={{ color: MUTED }} />
               <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search email..."
                 className="w-full bg-transparent text-sm outline-none" style={{ color: NAVY }} />

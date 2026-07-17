@@ -30,7 +30,7 @@ const NavRow = ({ on, warn, title, subtitle, onClick }: {
   on: boolean; warn: boolean; title: string; subtitle: string; onClick: () => void;
 }) => (
   <button onClick={onClick}
-    className={"relative w-full rounded-xl border-2 px-3.5 py-3 text-left active:scale-95 transition-all " + (on ? "" : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800")}
+    className={"relative w-full rounded-xl border-2 px-3.5 py-3 text-left active:scale-95 transition-all " + (on ? "" : "border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800")}
     style={on ? { borderColor: BLUE, background: BLUE } : undefined}>
     {warn && <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full" style={{ background: GOLD }} />}
     <div className="text-sm font-bold" style={{ color: on ? "#fff" : NAVY }}>{title}</div>

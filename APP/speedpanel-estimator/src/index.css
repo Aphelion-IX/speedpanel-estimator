@@ -14,6 +14,12 @@ body {
    reference these variables instead of literal hex codes. Every existing
    inline style={{color: NAVY}} usage becomes theme-aware automatically. */
 :root {
+  /* Tells the browser which palette this page uses, so native chrome that
+     Tailwind can't reach -- select/date-picker popups, number-input spinner
+     buttons, checkboxes/radios, scrollbars, autofill -- switches to a dark
+     rendering too instead of defaulting to light regardless of .dark below.
+     Most visible on mobile, where those pickers are full native sheets. */
+  color-scheme: light;
   --navy: #0C2340;      /* primary body/heading text -- PANTONE 289 C */
   --blue: #0067B9;      /* primary brand colour -- selected states, links -- PANTONE 2144 C */
   --gold: #F0B323;      /* accent -- highlights, warnings, special-order badge -- PANTONE 7409 C */
@@ -28,12 +34,15 @@ body {
 }
 
 .dark {
+  color-scheme: dark;
   --navy: #E8ECF6;      /* NOT a navy tint -- this is the primary text colour on a dark
                             background, so it stays a light neutral for legibility. */
   --blue: #3AA8FF;      /* brightened tint of the new brand blue, same lightening ratio as before */
   --gold: #F0C152;      /* brightened tint of the new brand gold, same lightening ratio as before */
   --on-fill: #FFFFFF;
-  --muted: #94A3B8;
+  --muted: #CBD5E1;     /* brighter than the light-mode value -- #94A3B8 read as
+                            washed-out/low-contrast against the very dark page
+                            background, this lifts it roughly slate-400 -> slate-300 */
   --navy-2: #D3D9E8;
   --navy-3: #BEC6DA;
 }

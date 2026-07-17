@@ -80,11 +80,11 @@ export const ProjectMembersCard = ({ projectId, companyId }: { projectId: string
       ) : (
         <div className="space-y-2">
           {assignments.map(a => (
-            <div key={a.user_id} className="flex items-center justify-between gap-2 rounded-xl border border-slate-200 dark:border-slate-700 px-3 py-2">
+            <div key={a.user_id} className="flex items-center justify-between gap-2 rounded-xl border border-slate-200 dark:border-slate-600 px-3 py-2">
               <span className="text-sm truncate" style={{ color: NAVY }}>{emailFor(a.user_id)}</span>
               <div className="flex items-center gap-2">
                 <select value={a.project_role} onChange={e => setRole(a.user_id, e.target.value as ProjectRole)}
-                  className="rounded-lg border border-slate-200 dark:border-slate-700 bg-transparent px-2 py-1 text-xs" style={{ color: NAVY }}>
+                  className="rounded-lg border border-slate-200 dark:border-slate-600 bg-transparent px-2 py-1 text-xs" style={{ color: NAVY }}>
                   {ROLE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
                 <IconButton size="sm" variant="danger" onClick={() => remove(a.user_id)} title="Remove" ariaLabel="Remove teammate"><Trash2 size={13} /></IconButton>
@@ -94,7 +94,7 @@ export const ProjectMembersCard = ({ projectId, companyId }: { projectId: string
         </div>
       )}
 
-      {error && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{error}</p>}
+      {error && <p className="mt-2 text-sm text-red-600 dark:text-red-300">{error}</p>}
 
       {availableToAdd.length > 0 && (
         <div className="mt-3 flex items-end gap-2">

@@ -38,10 +38,10 @@ export const WallEstimateCardsExt = ({ active, out, orient, layoutMode, Schedule
   return (
     <>
       {active.colour && (
-        <div className="mb-3 flex items-center gap-2 rounded-lg border bg-amber-50 dark:bg-amber-950/30 px-3 py-2.5" style={{ borderColor: GOLD }}>
-          <span className="text-xs font-bold uppercase tracking-wide text-amber-700 dark:text-amber-400">Colour</span>
+        <div className="mb-3 flex items-center gap-2 rounded-lg border bg-amber-50 dark:bg-amber-900/50 px-3 py-2.5" style={{ borderColor: GOLD }}>
+          <span className="text-xs font-bold uppercase tracking-wide text-amber-700 dark:text-amber-300">Colour</span>
           <span className="text-sm font-semibold" style={{ color: NAVY }}>{colourDisplay}</span>
-          {active.colourType === "special" && <span className="ml-auto text-xs font-bold uppercase tracking-wide text-amber-600 dark:text-amber-400">Special order</span>}
+          {active.colourType === "special" && <span className="ml-auto text-xs font-bold uppercase tracking-wide text-amber-600 dark:text-amber-300">Special order</span>}
         </div>
       )}
       <CardGrid layoutMode={layoutMode} minWidth={380}>

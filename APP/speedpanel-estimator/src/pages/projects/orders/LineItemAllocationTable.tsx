@@ -42,7 +42,7 @@ export const LineItemAllocationTable = ({ items, remaining, allocations, onChang
         ) : (
           <input type="number" min={0} max={max} value={qty}
             onChange={e => onChange?.(item.id, Math.max(0, Math.min(Number(e.target.value), max)))}
-            className="w-20 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1 text-right text-xs" style={{ color: NAVY }} />
+            className="w-20 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-2 py-1 text-right text-xs" style={{ color: NAVY }} />
         );
       },
     },

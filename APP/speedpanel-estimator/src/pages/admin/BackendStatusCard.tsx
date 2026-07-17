@@ -13,7 +13,7 @@ import { cx } from "../../styleTokens";
 import { isSupabaseConfigured } from "../../lib/supabaseClient";
 
 export const BackendStatusCard = () => (
-  <p className={`${cx.hr} text-sm leading-relaxed text-slate-400 dark:text-slate-500`}>
+  <p className={`${cx.hr} text-sm leading-relaxed text-slate-400 dark:text-slate-400`}>
     Supabase backend: {isSupabaseConfigured ? "ready" : "not configured"}
   </p>
 );

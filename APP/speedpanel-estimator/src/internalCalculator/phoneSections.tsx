@@ -48,24 +48,36 @@ import { PanelLengthSection, type PanelLengthSectionProps } from "./lengthExplor
 // text, selected = white pill + blue text (NOT a solid blue fill -- that's
 // the app's existing button-grid style, and also the mockup's DIFFERENT
 // ".unit-toggle" pattern already matched by ui/primitives.tsx's UnitToggle).
-// Track uses a literal "bg-slate-100 dark:bg-slate-900" (one step darker
-// than the dark:bg-slate-800 card it sits in, mirroring how light mode's
-// slate-100 track already reads as recessed against the white card) rather
-// than tone("neutral") -- that helper's text-color half is dead code here
-// anyway, always overridden by the inline style={{ color }} below. Selected
-// pill stays the same "bg-white dark:bg-slate-800" card-fill pattern
-// cx.section/IconButton/item pills already use -- now visibly lighter than
-// the track in dark mode too.
+// Track background is a literal bg-slate-100/900, not tone("neutral")
+// (dark:bg-slate-800) -- every phone card is itself dark:bg-slate-800, so
+// that shade is invisible as a track here; dark:bg-slate-900 keeps it one
+// step darker/recessed, same relationship light mode already has (slate-100
+// track vs white card). Selected pill reuses the same "bg-white
+// dark:bg-slate-800" card-fill pattern cx.section/IconButton/item pills
+// already use -- now visibly lighter than the slate-900 track beneath it.
+//
+// The pill is one shared absolutely-positioned div that slides between slots
+// (translateX in multiples of its own width, so no gap-vs-percentage math is
+// needed) rather than each button toggling its own background -- flex, not
+// grid, so every slot is an equal fraction of the track with no gaps to
+// account for (unselected buttons are transparent anyway, so removing the
+// old gap-1 between them is visually identical).
 export function SegPhone<T extends string>({ options, value, onChange, columns }: {
   options: { id: T; label: string }[]; value: T; onChange: (id: T) => void; columns?: number;
 }) {
+  const cols = columns ?? options.length;
+  const activeIndex = Math.max(0, options.findIndex(o => o.id === value));
   return (
-    <div className="grid gap-1 rounded-[10px] p-1 bg-slate-100 dark:bg-slate-900" style={{ gridTemplateColumns: `repeat(${columns ?? options.length}, 1fr)` }}>
+    <div className="relative flex rounded-[10px] p-1 bg-slate-100 dark:bg-slate-900">
+      <div
+        className="absolute inset-y-1 rounded-lg bg-white dark:bg-slate-800 shadow-sm transition-transform duration-200 ease-out"
+        style={{ width: `${100 / cols}%`, transform: `translateX(${activeIndex * 100}%)` }}
+      />
       {options.map(o => {
         const on = o.id === value;
         return (
           <button key={o.id} type="button" onClick={() => onChange(o.id)}
-            className={`min-h-[44px] rounded-lg text-xs font-extrabold uppercase tracking-wide transition-all active:scale-95 ${on ? "bg-white dark:bg-slate-800 shadow-sm" : ""}`}
+            className="relative z-10 min-h-[44px] flex-1 rounded-lg text-xs font-extrabold uppercase tracking-wide transition-colors active:scale-95"
             style={{ color: on ? BLUE : NAVY }}>
             {o.label}
           </button>
@@ -94,7 +106,7 @@ export const EdgeGridPhone = ({ edges, onEdgeToggle, locked }: {
         const on = locked || edges[key];
         return (
           <button key={key} type="button" disabled={locked} onClick={locked ? undefined : () => onEdgeToggle(key)}
-            className={`min-h-[44px] rounded-lg border text-sm font-semibold transition-all ${locked ? "cursor-default" : "active:scale-95"} ${on ? "border-blue-100 dark:border-blue-900/60 bg-blue-50/60 dark:bg-blue-950/40" : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800"}`}
+            className={`min-h-[44px] rounded-lg border text-sm font-semibold transition-all ${locked ? "cursor-default" : "active:scale-95"} ${on ? "border-blue-100 dark:border-blue-800/80 bg-blue-50/60 dark:bg-blue-900/55" : "border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800"}`}
             style={{ color: on ? BLUE : NAVY }}>
             {on ? "✓ " : ""}{label}
           </button>
@@ -122,7 +134,7 @@ export const WarningsListPhone = ({ warnings, emptyLabel = "No active warnings f
   return (
     <div className="space-y-2.5">
       {warnings.map((w, i) => (
-        <div key={i} className={`flex gap-2.5 rounded-xl border border-red-200 dark:border-red-800/60 p-3.5 text-sm leading-relaxed ${tone("danger")}`}>
+        <div key={i} className={`flex gap-2.5 rounded-xl border border-red-200 dark:border-red-700/80 p-3.5 text-sm leading-relaxed ${tone("danger")}`}>
           <span className="mt-0.5 shrink-0">!</span>
           <span>{w}</span>
         </div>
@@ -137,18 +149,22 @@ export const WarningsListPhone = ({ warnings, emptyLabel = "No active warnings f
 // ".sheet" wrapping sheet-head + metrics + every config section + the tabs,
 // instead of Round 1's separate floating cx.section cards with gaps.
 export const SheetCardPhone = ({ children }: { children: React.ReactNode }) => (
-  <div className="mt-3 overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_20px_40px_-28px_rgba(15,23,42,0.18)] dark:shadow-[0_1px_2px_rgba(0,0,0,0.2),0_20px_40px_-24px_rgba(0,0,0,0.35)]">
+  <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_20px_40px_-28px_rgba(15,23,42,0.18)] dark:shadow-[0_1px_2px_rgba(0,0,0,0.2),0_20px_40px_-24px_rgba(0,0,0,0.35)]">
     {children}
   </div>
 );
 
-export const SheetSectionPhone = ({ icon, label, children }: {
-  icon?: React.ReactNode; label?: string; children: React.ReactNode;
+export const SheetSectionPhone = ({ icon, label, noDivider, children }: {
+  icon?: React.ReactNode; label?: string; noDivider?: boolean; children: React.ReactNode;
 }) => (
-  <div className="border-b border-slate-100 dark:border-slate-800 px-4 py-4">
+  <div className={noDivider ? "px-4 py-4" : "border-b border-slate-100 dark:border-slate-700 px-4 py-4"}>
     {label && (
       <div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-widest" style={{ color: MUTED }}>
-        {icon && <span style={{ color: BLUE }}>{icon}</span>}{label}
+        {icon && (
+          <span className="grid h-6 w-6 shrink-0 place-items-center rounded-lg bg-blue-50/60 dark:bg-blue-900/55" style={{ color: BLUE }}>
+            {icon}
+          </span>
+        )}{label}
       </div>
     )}
     {children}
@@ -175,7 +191,8 @@ export const SystemConfigSectionPhone = ({
   switchOrient: (o: "vertical" | "horizontal") => void;
   switchToExternal: () => void;
 }) => (
-  <SheetSectionPhone icon={<Settings size={13} />} label="System configuration">
+  <SheetCardPhone>
+  <SheetSectionPhone icon={<Settings size={13} />} label="System configuration" noDivider>
     <div className={cx.cardHd}>Orientation</div>
     <SegPhone
       options={[{ id: "vertical" as const, label: "Vertical" }, { id: "horizontal" as const, label: "Horizontal" }]}
@@ -222,6 +239,7 @@ export const SystemConfigSectionPhone = ({
       <WallNameAndActions walls={walls} active={active} update={update} duplicateWall={duplicateWall} deleteWall={deleteWall} />
     </div>
   </SheetSectionPhone>
+  </SheetCardPhone>
 );
 
 // --- Wall geometry -----------------------------------------------------------
@@ -238,7 +256,8 @@ export const GeometrySectionPhone = ({
   // the old "layoutMode !== phone ||" half of that condition always held).
   project: boolean;
 }) => (
-  <SheetSectionPhone icon={<Frame size={13} />} label="Wall geometry">
+  <SheetCardPhone>
+  <SheetSectionPhone icon={<Frame size={13} />} label="Wall geometry" noDivider>
     <div className={cx.cardHd}>Profile</div>
     <SegPhone
       columns={3}
@@ -261,13 +280,16 @@ export const GeometrySectionPhone = ({
 
     <div className="mt-3"><SpanTable orient={orient} type={active.type} wallSystem={active.wallSystem} /></div>
   </SheetSectionPhone>
+  </SheetCardPhone>
 );
 
 // --- Panel length & optimisation ---------------------------------------------
 export const PanelLengthSectionPhone = (props: PanelLengthSectionProps) => (
-  <SheetSectionPhone icon={<Ruler size={13} />} label="Panel length & optimisation">
+  <SheetCardPhone>
+  <SheetSectionPhone icon={<Ruler size={13} />} label="Panel length & optimisation" noDivider>
     <PanelLengthSection {...props} />
   </SheetSectionPhone>
+  </SheetCardPhone>
 );
 
 // --- Tracks, flashing & restraint ---------------------------------------------
@@ -285,7 +307,8 @@ export const TracksFlashingSectionPhone = ({ active, update, orient }: {
     onToggle: () => update({ headFlash: !active.headFlash }),
   };
   return (
-    <SheetSectionPhone icon={<Lock size={13} />} label="Tracks, flashing & restraint">
+    <SheetCardPhone>
+    <SheetSectionPhone icon={<Lock size={13} />} label="Tracks, flashing & restraint" noDivider>
       <EdgeGridPhone
         edges={active.edges}
         onEdgeToggle={k => update({ edges: { ...active.edges, [k]: !active.edges[k] } })}
@@ -307,5 +330,6 @@ export const TracksFlashingSectionPhone = ({ active, update, orient }: {
         }} />
       </div>
     </SheetSectionPhone>
+    </SheetCardPhone>
   );
 };

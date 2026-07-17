@@ -36,14 +36,14 @@ export const WALL_SYSTEMS: [WallSystemId, string][] = [
 ];
 
 export const WallSystemSelector = ({ value, onChange }: { value: WallSystemId; onChange: (id: WallSystemId) => void }) => (
-  <div className="border-t border-slate-100 dark:border-slate-800 pt-3">
+  <div className="border-t border-slate-100 dark:border-slate-700 pt-3">
     <div className={cx.cardHd}>Wall system</div>
     <div className="grid grid-cols-3 items-end gap-1.5">
       {WALL_SYSTEMS.map(([id, label]) => {
         const on = value === id;
         return (
           <button key={id} onClick={() => onChange(id)}
-            className={"w-full rounded-xl border-2 py-3.5 px-2 text-sm font-semibold text-center active:scale-95 transition-all " + (on ? "" : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800")}
+            className={"w-full rounded-xl border-2 py-3.5 px-2 text-sm font-semibold text-center active:scale-95 transition-all " + (on ? "" : "border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800")}
             style={on ? { borderColor: BLUE, background: BLUE, color: "#fff" } : { color: BLUE }}>
             {label.replace(" wall", "")}
           </button>
@@ -72,11 +72,11 @@ const WallLinkSelector = ({ heading, walls, active, filter, partnerId, onLink, l
   const linkable = walls.filter(w => w.id !== active.id && filter(w));
   const partner = walls.find(w => w.id === partnerId);
   return (
-    <div className="border-t border-slate-100 dark:border-slate-800 pt-3">
+    <div className="border-t border-slate-100 dark:border-slate-700 pt-3">
       <div className={cx.cardHd}>{heading}</div>
       <div className="space-y-1.5">
         <button onClick={() => onLink(null)}
-          className={"w-full rounded-xl border-2 py-3 px-4 text-sm font-semibold text-left active:scale-95 transition-all " + (!partner ? "" : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800")}
+          className={"w-full rounded-xl border-2 py-3 px-4 text-sm font-semibold text-left active:scale-95 transition-all " + (!partner ? "" : "border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800")}
           style={!partner ? { borderColor: BLUE, background: BLUE, color: "#fff" } : { color: BLUE }}>
           Not linked
         </button>
@@ -84,7 +84,7 @@ const WallLinkSelector = ({ heading, walls, active, filter, partnerId, onLink, l
           const on = partner?.id === w.id;
           return (
             <button key={w.id} onClick={() => onLink(w.id)}
-              className={"w-full rounded-xl border-2 py-3 px-4 text-sm font-semibold text-left active:scale-95 transition-all " + (on ? "" : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800")}
+              className={"w-full rounded-xl border-2 py-3 px-4 text-sm font-semibold text-left active:scale-95 transition-all " + (on ? "" : "border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800")}
               style={on ? { borderColor: BLUE, background: BLUE, color: "#fff" } : { color: BLUE }}>
               {label ? label(w, on) : w.name}
             </button>
@@ -113,7 +113,7 @@ export const CornerLinkSelector = ({ active, walls, onLink, onSideChange }: {
     partnerId={active.cornerPartnerId}
     onLink={onLink}
     note={partner => !partner ? (
-      <p className="mt-1.5 text-xs leading-relaxed text-slate-400 dark:text-slate-500">
+      <p className="mt-1.5 text-xs leading-relaxed text-slate-400 dark:text-slate-400">
         Link this run to another Corner wall run to calculate the shared corner post, screws, sealant, and protection strip.
       </p>
     ) : (
@@ -125,7 +125,7 @@ export const CornerLinkSelector = ({ active, walls, onLink, onSideChange }: {
               const on = (active.cornerSide ?? "right") === side;
               return (
                 <button key={side} onClick={() => onSideChange(side)}
-                  className={"w-full rounded-xl border-2 py-3 px-4 text-sm font-semibold text-center active:scale-95 transition-all " + (on ? "" : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800")}
+                  className={"w-full rounded-xl border-2 py-3 px-4 text-sm font-semibold text-center active:scale-95 transition-all " + (on ? "" : "border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800")}
                   style={on ? { borderColor: BLUE, background: BLUE, color: "#fff" } : { color: BLUE }}>
                   {side === "left" ? "Left" : "Right"}
                 </button>
@@ -133,7 +133,7 @@ export const CornerLinkSelector = ({ active, walls, onLink, onSideChange }: {
             })}
           </div>
         </div>
-        <p className="mt-1.5 text-xs leading-relaxed text-slate-400 dark:text-slate-500">
+        <p className="mt-1.5 text-xs leading-relaxed text-slate-400 dark:text-slate-400">
           Linked to <span className="font-semibold">{partner.name}</span>. This run's {active.cornerSide === "left" ? "left" : "right"} edge is the free corner -- no track/screws on that side; the corner kit covers it.
         </p>
       </>
@@ -159,7 +159,7 @@ export const ShaftLinkSelector = ({ active, walls, onLink }: {
     partnerId={active.shaftPartnerId}
     onLink={onLink}
     note={partner => (
-      <p className="mt-1.5 text-xs leading-relaxed text-slate-400 dark:text-slate-500">
+      <p className="mt-1.5 text-xs leading-relaxed text-slate-400 dark:text-slate-400">
         {partner
           ? <>Linked to <span className="font-semibold">{partner.name}</span>. Both stack walls are estimated independently, plus a shared back-to-back C-track junction where they split.</>
           : "Link this wall to a secondary split stack wall if the shaft has one, to calculate the shared back-to-back junction track."}
@@ -188,7 +188,7 @@ export const JunctionLinkSelector = ({ active, walls, onLink }: {
     onLink={onLink}
     label={(w, on) => <>{w.name} <span className="font-normal" style={{ color: on ? "rgba(255,255,255,0.7)" : MUTED }}>({w.orient === "vertical" ? "Vert" : "Horiz"})</span></>}
     note={partner => (
-      <p className="mt-1.5 text-xs leading-relaxed text-slate-400 dark:text-slate-500">
+      <p className="mt-1.5 text-xs leading-relaxed text-slate-400 dark:text-slate-400">
         {partner
           ? partner.orient !== active.orient
             ? <>Linked to <span className="font-semibold">{partner.name}</span>. Combined estimate includes an extra C/J track allowance where these two walls meet.</>
@@ -205,7 +205,7 @@ export const JunctionLinkSelector = ({ active, walls, onLink }: {
 export const PanelTypeSelector = ({ active, update, topBorder }: {
   active: Wall; update: (patch: Partial<Wall>) => void; topBorder: boolean;
 }) => (
-  <div className={topBorder ? "border-t border-slate-100 dark:border-slate-800 pt-3" : ""}>
+  <div className={topBorder ? "border-t border-slate-100 dark:border-slate-700 pt-3" : ""}>
     <div className={cx.cardHd}>Panel configuration</div>
     {active.wallSystem === "shaft" ? (
       <div className="rounded-xl border-2 py-3 px-4 text-center" style={{ borderColor: BLUE, background: BLUE }}>
@@ -218,11 +218,11 @@ export const PanelTypeSelector = ({ active, update, topBorder }: {
           const on = active.type === t.id;
           return (
             <button key={t.id} onClick={() => update({ type: t.id })}
-              className={"w-full rounded-xl border-2 py-3 px-1.5 text-center active:scale-95 transition-all " + (on ? "" : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800")}
+              className={"w-full rounded-xl border-2 py-3 px-1.5 text-center active:scale-95 transition-all " + (on ? "" : "border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800")}
               style={on ? { borderColor: BLUE, background: BLUE } : undefined}>
               <div className="text-base font-black leading-none tracking-tight" style={{ color: on ? "#fff" : BLUE }}>{t.label}</div>
-              <div className="mt-1 text-xs font-semibold tracking-wide" style={{ color: on ? "rgba(255,255,255,0.7)" : "#94a3b8" }}>{t.depth}</div>
-              <div className="mt-1 text-[10px] font-bold tracking-wide" style={{ color: on ? "rgba(255,255,255,0.7)" : "#94a3b8" }}>FRL {t.frl}</div>
+              <div className="mt-1 text-xs font-semibold tracking-wide" style={{ color: on ? "rgba(255,255,255,0.7)" : MUTED }}>{t.depth}</div>
+              <div className="mt-1 text-[10px] font-bold tracking-wide" style={{ color: on ? "rgba(255,255,255,0.7)" : MUTED }}>FRL {t.frl}</div>
             </button>
           );
         })}
@@ -300,7 +300,7 @@ export const WallsCard = ({ walls, active, update, duplicateWall, deleteWall, sh
     {/* 3 -- Name/duplicate/delete toolbar for whichever wall is active.
         The Estimate Structure nav is the wall picker + add-wall entry point,
         so the old tab-strip (once rendered here too) is gone. */}
-    <div className={(showTypes || !!systemSelector) ? "border-t border-slate-100 dark:border-slate-800 pt-3" : ""}>
+    <div className={(showTypes || !!systemSelector) ? "border-t border-slate-100 dark:border-slate-700 pt-3" : ""}>
       <WallNameAndActions walls={walls} active={active} update={update} duplicateWall={duplicateWall} deleteWall={deleteWall} />
     </div>
   </div>
@@ -348,7 +348,7 @@ export const WallsSummaryTable = ({ results, activeId, setActiveId, warnById, to
           rows={results}
           rowKey={({ wall }) => wall.id}
           onRowClick={({ wall }) => setActiveId(wall.id)}
-          rowClassName={({ wall }) => (wall.id === activeId ? "bg-blue-50/60 dark:bg-blue-950/40" : undefined)}
+          rowClassName={({ wall }) => (wall.id === activeId ? "bg-blue-50/60 dark:bg-blue-900/55" : undefined)}
         />
       </div>
     </div>

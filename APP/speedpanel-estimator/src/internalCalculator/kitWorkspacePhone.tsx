@@ -53,7 +53,7 @@ export const KitWorkspacePhone = ({ kit, onSelect }: {
 
     <FieldRow label="Connection height" value={`${r1(kit.result.H)} m`} />
     {kit.result.heightMismatch && (
-      <p className={`flex gap-1.5 rounded-xl border border-red-200 dark:border-red-800/60 p-3 text-sm leading-relaxed ${tone("danger")}`}>
+      <p className={`flex gap-1.5 rounded-xl border border-red-200 dark:border-red-700/80 p-3 text-sm leading-relaxed ${tone("danger")}`}>
         <AlertTriangle size={13} className="mt-0.5 shrink-0" />
         Linked runs have different heights -- sized to {kit.wallAName}'s height. Confirm on site.
       </p>
@@ -61,7 +61,7 @@ export const KitWorkspacePhone = ({ kit, onSelect }: {
 
     <FieldRow label="Angle and flashing" value={`90° (fixed) — ${kit.kind === "corner" ? "corner post" : "back-to-back junction"} kit`} />
 
-    <div className="border-t border-slate-100 dark:border-slate-800 pt-3">
+    <div className="border-t border-slate-100 dark:border-slate-700 pt-3">
       <div className={cx.cardHd}>Required connection materials</div>
       {kit.kind === "corner"
         ? <CornerKitCard kit={kit.result as CornerPairResult} partnerName={kit.wallBName} />

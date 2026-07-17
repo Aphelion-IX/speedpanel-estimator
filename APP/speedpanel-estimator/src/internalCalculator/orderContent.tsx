@@ -72,7 +72,7 @@ export const OrderContent = ({ layoutMode, projChosenAgg, combinedEstimate, resu
       )}
       <p className={cx.footnote}>Est. fixings pooled - 1000/box.</p>
       {results.some(r => r.out.p2pEnhanced) && (
-        <p className="pt-1 text-sm leading-relaxed text-amber-700 dark:text-amber-400">One or more P78 vertical walls &gt; 5.0 m: enhanced panel-to-panel pattern applied.</p>
+        <p className="pt-1 text-sm leading-relaxed text-amber-700 dark:text-amber-300">One or more P78 vertical walls &gt; 5.0 m: enhanced panel-to-panel pattern applied.</p>
       )}
     </Card>
 

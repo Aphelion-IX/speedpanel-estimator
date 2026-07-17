@@ -137,7 +137,7 @@ export function ExternalCalculator({ store, orient, dimUnit, setDimUnit, systemS
   const geometryContent = (
     <>
       <ProfileSection profile={active.profile} onChange={id => update({ profile: id })} />
-      <div className="border-t border-slate-100 dark:border-slate-800 pt-3">
+      <div className="border-t border-slate-100 dark:border-slate-700 pt-3">
         <div className="mb-2 flex items-center justify-between">
           <span className={cx.cardHd} style={{marginBottom:0}}>Dimensions</span>
           <div className="flex items-center gap-2">
@@ -174,8 +174,10 @@ export function ExternalCalculator({ store, orient, dimUnit, setDimUnit, systemS
   );
 
   const phoneWorkspaceNode = (
-    <SheetCardPhone>
-      <SheetHeaderPhone title={active.name} crumb={sheetCrumb} status={deriveWallStatus(active, out)} stats={selectedItemStats} />
+    <>
+      <SheetCardPhone>
+        <SheetHeaderPhone title={active.name} crumb={sheetCrumb} status={deriveWallStatus(active, out)} stats={selectedItemStats} />
+      </SheetCardPhone>
       <SystemConfigSectionPhone
         walls={walls} active={active} update={update}
         duplicateWall={duplicateWall} deleteWall={deleteWall} orient={orient}
@@ -207,11 +209,13 @@ export function ExternalCalculator({ store, orient, dimUnit, setDimUnit, systemS
           walls={walls} ScheduleComp={ScheduleComp} dimUnit={dimUnit} toDisp={toDisp}
         />
       ) : (
-        <SheetSectionPhone label="Warnings">
-          <WarningsListPhone warnings={!out.empty ? out.warnings : null} />
-        </SheetSectionPhone>
+        <SheetCardPhone>
+          <SheetSectionPhone label="Warnings" noDivider>
+            <WarningsListPhone warnings={!out.empty ? out.warnings : null} />
+          </SheetSectionPhone>
+        </SheetCardPhone>
       )}
-    </SheetCardPhone>
+    </>
   );
 
   const webWorkspaceNode = (

@@ -18,7 +18,7 @@ import { NAVY } from "../styleTokens";
 import { WallPreviewSection } from "../ui/wallPreview";
 import { ConnectionsSummary } from "../ui/connectionsSummary";
 import { WallEstimateCardsExt } from "./mainSections";
-import { WarningsListPhone } from "./phoneSections";
+import { WarningsListPhone, SheetCardPhone } from "./phoneSections";
 import type { ComputeOut, Wall } from "../estimate/wall.types";
 import type { EffectiveLayout } from "../useLayoutMode";
 import type { PanelScheduleCard } from "../ui/scheduleCards";
@@ -37,8 +37,9 @@ export const WallWorkspaceTabs = ({ active, out, orient, layoutMode, walls, Sche
 }) => {
   const [tab, setTab] = useState<TabId>("preview");
   return (
-    // No own top margin -- nested flush as the last section inside
-    // SheetCardPhone, right after Tracks (see ExternalCalculator.tsx).
+    // Its own SheetCardPhone -- Tracks (the last of the four config
+    // sections) is now its own separate card too, see ExternalCalculator.tsx.
+    <SheetCardPhone>
     <div className="px-4 py-4">
       <div className="flex gap-1.5 overflow-x-auto pb-1" style={{ scrollbarWidth: "none" }}>
         {TABS.map(t => {
@@ -46,7 +47,7 @@ export const WallWorkspaceTabs = ({ active, out, orient, layoutMode, walls, Sche
           return (
             <button key={t.id} onClick={() => setTab(t.id)}
               className={"shrink-0 rounded-lg border px-3.5 py-2 text-xs font-bold uppercase tracking-wide whitespace-nowrap transition-colors " +
-                (on ? "text-white" : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400")}
+                (on ? "text-white" : "border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-300")}
               style={on ? { background: NAVY, borderColor: NAVY } : undefined}>
               {t.label}
             </button>
@@ -70,5 +71,6 @@ export const WallWorkspaceTabs = ({ active, out, orient, layoutMode, walls, Sche
         <div className="mt-4"><WarningsListPhone warnings={!out.empty ? out.warnings : null} /></div>
       )}
     </div>
+    </SheetCardPhone>
   );
 };

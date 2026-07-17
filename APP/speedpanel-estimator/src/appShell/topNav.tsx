@@ -73,7 +73,7 @@ export const TopNav = ({ activeTab, onTabChange, right }: { activeTab: TopNavTab
         </div>
       </div>
       {mobileOpen && (
-        <div className="mt-3 flex flex-col gap-1 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-2 shadow-sm md:hidden">
+        <div className="mt-3 flex flex-col gap-1 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 p-2 shadow-sm md:hidden">
           {TOP_NAV_ITEMS.map(item => (
             <TopNavTabButton
               key={item.key} label={item.label} active={activeTab === item.key}

@@ -10,7 +10,7 @@
 // =============================================================================
 import { useState } from "react";
 import { r1 } from "../estimate/mathUtils";
-import { cx, BLUE, GOLD, WHITE, NAVY } from "../styleTokens";
+import { cx, BLUE, GOLD, WHITE, NAVY, MUTED } from "../styleTokens";
 import type { EffectiveLayout } from "../useLayoutMode";
 import { AlertTriangle, ChevronDown } from "lucide-react";
 
@@ -30,8 +30,8 @@ export const IconButton = ({ onClick, title, ariaLabel, className = "", variant 
 }) => {
   const sizeCx = size === "sm" ? "h-8 w-8 rounded-lg" : "h-10 w-10 rounded-xl";
   const variantCx = variant === "danger"
-    ? "border-red-100 dark:border-red-900/40 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 hover:border-red-300 dark:hover:border-red-700"
-    : "border-slate-200 dark:border-slate-700 text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700/60 hover:text-blue-600 dark:hover:text-blue-400 hover:border-blue-300 dark:hover:border-blue-600";
+    ? "border-red-100 dark:border-red-800/60 text-red-600 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-950/30 hover:border-red-300 dark:hover:border-red-700"
+    : "border-slate-200 dark:border-slate-600 text-slate-400 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700/60 hover:text-blue-600 dark:hover:text-blue-400 hover:border-blue-300 dark:hover:border-blue-600";
   return (
     <button
       onClick={onClick}
@@ -98,7 +98,7 @@ export const CollapsibleSection = ({ icon, label, defaultOpen = true, children }
     <>
       <button onClick={() => setOpen(v => !v)} className={`${cx.sectionLbl} w-full justify-between`}>
         <span className="flex items-center gap-2"><span style={{ color: BLUE }}>{icon}</span>{label}</span>
-        <ChevronDown size={14} className={`text-slate-400 dark:text-slate-500 transition-transform ${open ? "rotate-180" : ""}`} />
+        <ChevronDown size={14} className={`text-slate-400 dark:text-slate-400 transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
       {open && children}
     </>
@@ -115,10 +115,10 @@ export const Num = ({ label, value, onChange }: { label: string; value: string; 
 );
 
 export const UnitToggle = ({ unit, setUnit }: { unit: string; setUnit: (u: string) => void }) => (
-  <div className="flex overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-bold shadow-sm">
+  <div className="flex overflow-hidden rounded-lg border border-slate-200 dark:border-slate-600 text-xs font-bold shadow-sm">
     {["m", "mm"].map(u => (
       <button key={u} onClick={() => setUnit(u)}
-        className={`w-11 py-2 text-center transition-all ${unit === u ? "" : "bg-white dark:bg-slate-800 text-slate-400 dark:text-slate-500"}`}
+        className={`w-11 py-2 text-center transition-all ${unit === u ? "" : "bg-white dark:bg-slate-800 text-slate-400 dark:text-slate-400"}`}
         style={unit === u ? { background: BLUE, color: WHITE } : undefined}>{u}</button>
     ))}
   </div>
@@ -128,11 +128,11 @@ export const UnitToggle = ({ unit, setUnit }: { unit: string; setUnit: (u: strin
 export const ToggleSwitch = ({ active, onToggle, label }: { active: boolean; onToggle: () => void; label: string }) => (
   <button onClick={onToggle}
     className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest transition-colors"
-    style={{ color: active ? BLUE : "#94a3b8" }}>
+    style={{ color: active ? BLUE : MUTED }}>
     <span>{label}</span>
     <span style={{
       display: "inline-flex", width: 32, height: 18, borderRadius: 9,
-      background: active ? BLUE : "#cbd5e1",
+      background: active ? BLUE : MUTED,
       position: "relative", flexShrink: 0, transition: "background 0.2s",
     }}>
       <span style={{
@@ -157,9 +157,9 @@ export const StatsRow = ({ area, panels, panelType }: { area: string | number; p
 export const NotesList = ({ notes }: { notes?: string[] | null }) => {
   if (!notes || notes.length === 0) return null;
   return (
-    <div className="mt-3 space-y-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-900/40 p-3.5">
+    <div className="mt-3 space-y-2 rounded-xl border border-slate-200 dark:border-slate-600 bg-slate-50/70 dark:bg-slate-900/40 p-3.5">
       {notes.map((n, i) => (
-        <p key={i} className="flex gap-2 text-sm leading-relaxed text-slate-500 dark:text-slate-400">
+        <p key={i} className="flex gap-2 text-sm leading-relaxed text-slate-500 dark:text-slate-300">
           <span style={{ color: BLUE }}>›</span>{n}
         </p>
       ))}
@@ -182,9 +182,9 @@ export const ProjectLockNote = ({ wallCount, stock, dimUnit, numM, customActive 
 };
 
 export const Stat = ({ value, label }: { value: string | number; label: string }) => (
-  <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-4 text-center shadow-sm" style={{ borderTop: `2px solid ${GOLD}` }}>
+  <div className="rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-2 py-4 text-center shadow-sm" style={{ borderTop: `2px solid ${GOLD}` }}>
     <div className="text-xl font-extrabold leading-none tracking-tight" style={{ color: BLUE }}>{value}</div>
-    <div className="mt-2 text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">{label}</div>
+    <div className="mt-2 text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-400">{label}</div>
   </div>
 );
 
@@ -209,7 +209,7 @@ export const Card = ({ title, icon, children }: { title: string; icon: React.Rea
 export const Row = ({ k, v, dim, hl }: { k: string; v: string | number; dim?: boolean; hl?: boolean }) => (
   <div className="flex items-baseline justify-between gap-3 py-0.5">
     <span className={dim ? cx.rowKeyDim : cx.rowKey}>{k}</span>
-    <span className={cx.rowVal} style={{ color: hl ? BLUE : dim ? "#cbd5e1" : NAVY }}>{v}</span>
+    <span className={cx.rowVal} style={{ color: hl ? BLUE : dim ? MUTED : NAVY }}>{v}</span>
   </div>
 );
 
@@ -238,7 +238,7 @@ export const EstimateModeSelector = ({ visible, mode, setMode }: { visible: bool
         const on = mode === k;
         return (
           <button key={k} onClick={() => setMode(k)}
-            className={"w-full rounded-xl border-2 py-3.5 px-4 text-sm font-semibold text-center active:scale-95 transition-all " + (on ? "" : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800")}
+            className={"w-full rounded-xl border-2 py-3.5 px-4 text-sm font-semibold text-center active:scale-95 transition-all " + (on ? "" : "border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800")}
             style={on ? { borderColor: BLUE, background: BLUE, color: "#fff" } : { color: BLUE }}>{lbl}</button>
         );
       })}
@@ -253,7 +253,7 @@ export const WarningsList = ({ warnings }: { warnings?: string[] | null }) => {
     <div className="mt-5 space-y-3">
       {warnings.map((w, i) => (
         <div key={i} className={cx.warnbox}>
-          <AlertTriangle size={14} className="mt-0.5 shrink-0 text-amber-500 dark:text-amber-400" /><span>{w}</span>
+          <AlertTriangle size={14} className="mt-0.5 shrink-0 text-amber-500 dark:text-amber-300" /><span>{w}</span>
         </div>
       ))}
     </div>

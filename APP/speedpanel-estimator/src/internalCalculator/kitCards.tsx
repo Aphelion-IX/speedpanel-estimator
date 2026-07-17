@@ -20,7 +20,7 @@ import { LMLineItem } from "../ui/scheduleCards";
  * Part 2). Shown identically on both linked walls. */
 export const CornerKitCard = ({ kit, partnerName }: { kit: CornerPairResult; partnerName: string }) => (
   <Card title="Corner kit" icon={<Frame size={14} />}>
-    <p className={`mb-2 text-xs leading-relaxed text-slate-400 dark:text-slate-500`}>Shared with {partnerName} -- calculated once per corner.</p>
+    <p className={`mb-2 text-xs leading-relaxed text-slate-400 dark:text-slate-400`}>Shared with {partnerName} -- calculated once per corner.</p>
     <LMLineItem
       label={`Corner post - ${kit.section}`}
       pieces={kit.postPieces} lm={kit.postLM}
@@ -38,7 +38,7 @@ export const CornerKitCard = ({ kit, partnerName }: { kit: CornerPairResult; par
       </p>
     ))}
     {kit.warnings.map((w, i) => (
-      <p key={`w${i}`} className="mt-2 flex gap-1.5 text-sm leading-relaxed text-amber-700 dark:text-amber-400">
+      <p key={`w${i}`} className="mt-2 flex gap-1.5 text-sm leading-relaxed text-amber-700 dark:text-amber-300">
         <AlertTriangle size={13} className="mt-0.5 shrink-0" />
         {w}
       </p>
@@ -94,7 +94,7 @@ export const ShaftSlabCard = ({ out }: { out: ComputeOut }) => (
 /** Shaft wall back-to-back junction kit, shared between a linked primary + secondary split wall. */
 export const ShaftJunctionCard = ({ kit, partnerName }: { kit: ShaftPairResult; partnerName: string }) => (
   <Card title="Back-to-back junction" icon={<Frame size={14} />}>
-    <p className="mb-2 text-xs leading-relaxed text-slate-400 dark:text-slate-500">Shared with {partnerName} -- calculated once per split.</p>
+    <p className="mb-2 text-xs leading-relaxed text-slate-400 dark:text-slate-400">Shared with {partnerName} -- calculated once per split.</p>
     <div className={`mb-3 ${cx.infoBox}`}>
       <div className={cx.infoBoxHd}>Selected junction track section</div>
       <div className={cx.infoBoxVal} style={{ color: NAVY }}>{kit.section}</div>
@@ -112,7 +112,7 @@ export const ShaftJunctionCard = ({ kit, partnerName }: { kit: ShaftPairResult; 
       </p>
     ))}
     {kit.warnings.map((w, i) => (
-      <p key={`w${i}`} className="mt-2 flex gap-1.5 text-sm leading-relaxed text-amber-700 dark:text-amber-400">
+      <p key={`w${i}`} className="mt-2 flex gap-1.5 text-sm leading-relaxed text-amber-700 dark:text-amber-300">
         <AlertTriangle size={13} className="mt-0.5 shrink-0" />
         {w}
       </p>

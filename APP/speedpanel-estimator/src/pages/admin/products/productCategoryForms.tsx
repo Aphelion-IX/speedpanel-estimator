@@ -163,7 +163,7 @@ export function colourFields(d: Draft, setDraft: (fn: (d: Draft) => Draft) => vo
         <label className={cx.lbl}>Hex</label>
         <div className="flex items-center gap-2">
           <input type="color" value={/^#[0-9a-fA-F]{6}$/.test(c.hex) ? c.hex : "#cccccc"} onChange={e => set(setDraft, "hex", e.target.value)}
-            className="h-10 w-12 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800" />
+            className="h-10 w-12 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800" />
           <input value={c.hex} onChange={e => set(setDraft, "hex", e.target.value)} className={cx.input} style={{ color: NAVY }} />
         </div>
       </div>

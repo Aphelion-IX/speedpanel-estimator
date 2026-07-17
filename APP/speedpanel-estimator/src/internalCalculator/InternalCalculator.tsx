@@ -177,7 +177,7 @@ export function InternalCalculator({ store, orient, dimUnit, setDimUnit, systemS
   const geometryContent = (
     <>
       <ProfileSection profile={active.profile} onChange={id => update({ profile: id })} />
-      <div className="border-t border-slate-100 dark:border-slate-800 pt-3">
+      <div className="border-t border-slate-100 dark:border-slate-700 pt-3">
         <div className="mb-2 flex items-center justify-between">
           <span className={cx.cardHd} style={{marginBottom:0}}>Dimensions</span>
           <div className="flex items-center gap-2">
@@ -226,13 +226,16 @@ export function InternalCalculator({ store, orient, dimUnit, setDimUnit, systemS
   // shared tree with inline layoutMode checks -- easier to keep each correct
   // than a tangle of conditionals that differ in more than just wrapping.
   const phoneWorkspaceNode = (
-    <SheetCardPhone>
-      <SheetHeaderPhone title={sheetTitle} crumb={sheetCrumb} status={sheetStatus} stats={selectedItemStats} />
-      {selectedKit ? (
-        <SheetSectionPhone icon={<Link2 size={13} />} label="Connection workspace">
-          <KitWorkspacePhone kit={selectedKit} onSelect={handleSelectNavItem} />
-        </SheetSectionPhone>
-      ) : (
+    <>
+      <SheetCardPhone>
+        <SheetHeaderPhone title={sheetTitle} crumb={sheetCrumb} status={sheetStatus} stats={selectedItemStats} />
+        {selectedKit && (
+          <SheetSectionPhone icon={<Link2 size={13} />} label="Connection workspace" noDivider>
+            <KitWorkspacePhone kit={selectedKit} onSelect={handleSelectNavItem} />
+          </SheetSectionPhone>
+        )}
+      </SheetCardPhone>
+      {!selectedKit && (
         <>
           <SystemConfigSectionPhone
             walls={walls} active={active} update={update}
@@ -266,13 +269,15 @@ export function InternalCalculator({ store, orient, dimUnit, setDimUnit, systemS
               dimUnit={dimUnit} toDisp={toDisp}
             />
           ) : (
-            <SheetSectionPhone label="Warnings">
-              <WarningsListPhone warnings={!out.empty ? out.warnings : null} />
-            </SheetSectionPhone>
+            <SheetCardPhone>
+              <SheetSectionPhone label="Warnings" noDivider>
+                <WarningsListPhone warnings={!out.empty ? out.warnings : null} />
+              </SheetSectionPhone>
+            </SheetCardPhone>
           )}
         </>
       )}
-    </SheetCardPhone>
+    </>
   );
 
   const webWorkspaceNode = (

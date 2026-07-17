@@ -15,7 +15,7 @@
 // =============================================================================
 import { useState } from "react";
 import { ChevronDown, AlertTriangle } from "lucide-react";
-import { cx, NAVY, BLUE } from "../styleTokens";
+import { cx, NAVY, BLUE, MUTED } from "../styleTokens";
 import {
   SPAN_TABLE_VERT, SPAN_TABLE_HORIZ, CTRACK_DIM, MAX_H_HORIZ, MAX_W_HORIZ,
   RAKE_NOTE, SHAFT_TRACK_TABLE, CUSTOM_MAX_LENGTH,
@@ -39,15 +39,15 @@ export const SpanTable = ({ orient, type, wallSystem }: { orient: string; type: 
       { key: "maxH", header: "Max H", cell: r => r.maxH },
     ];
     return (
-      <div className="mt-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 overflow-hidden shadow-sm">
+      <div className="mt-4 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 overflow-hidden shadow-sm">
         <button onClick={() => setOpen(v => !v)} className={cx.accordionInner}>
           <span>{label}</span>
-          <ChevronDown size={14} className={`text-slate-400 dark:text-slate-500 transition-transform ${open ? "rotate-180" : ""}`} />
+          <ChevronDown size={14} className={`text-slate-400 dark:text-slate-400 transition-transform ${open ? "rotate-180" : ""}`} />
         </button>
         {open && (
           <>
-            <Table columns={columns} rows={rows} rowKey={(_r, i) => i} className="rounded-none border-0 border-t" rowClassName={() => "bg-blue-50/60 dark:bg-blue-950/40"} />
-            <div className="px-3.5 py-2.5 text-sm text-slate-400 dark:text-slate-500">Height limits apply without steel structure.</div>
+            <Table columns={columns} rows={rows} rowKey={(_r, i) => i} className="rounded-none border-0 border-t" rowClassName={() => "bg-blue-50/60 dark:bg-blue-900/55"} />
+            <div className="px-3.5 py-2.5 text-sm text-slate-400 dark:text-slate-400">Height limits apply without steel structure.</div>
           </>
         )}
       </div>
@@ -70,15 +70,15 @@ export const SpanTable = ({ orient, type, wallSystem }: { orient: string; type: 
       { key: "fix", header: "Fix", cell: r => r.fix },
     ];
     return (
-      <div className="mt-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 overflow-hidden shadow-sm">
+      <div className="mt-4 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 overflow-hidden shadow-sm">
         <button onClick={() => setOpen(v => !v)} className={cx.accordionInner}>
           <span>{label}</span>
-          <ChevronDown size={14} className={`text-slate-400 dark:text-slate-500 transition-transform ${open ? "rotate-180" : ""}`} />
+          <ChevronDown size={14} className={`text-slate-400 dark:text-slate-400 transition-transform ${open ? "rotate-180" : ""}`} />
         </button>
         {open && (
           <>
             <Table columns={columns} rows={rows} rowKey={(_r, i) => i} className="rounded-none border-0 border-t" />
-            <div className="px-3.5 py-2.5 text-sm text-slate-400 dark:text-slate-500">
+            <div className="px-3.5 py-2.5 text-sm text-slate-400 dark:text-slate-400">
               {wallSystem === "standard"
                 ? "Standard wall: fixed C-track section, no span-table lookup. All four edges restrained."
                 : "Corner wall: fixed C-track section on the supported side. The free-corner post has its own size table -- see the corner kit once linked."}
@@ -101,15 +101,15 @@ export const SpanTable = ({ orient, type, wallSystem }: { orient: string; type: 
       { key: "fixPerCourse", header: "Screws each side", cell: r => `${r.fixPerCourse}/course` },
     ];
     return (
-      <div className="mt-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 overflow-hidden shadow-sm">
+      <div className="mt-4 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 overflow-hidden shadow-sm">
         <button onClick={() => setOpen(v => !v)} className={cx.accordionInner}>
           <span>Vertical track table - P78</span>
-          <ChevronDown size={14} className={`text-slate-400 dark:text-slate-500 transition-transform ${open ? "rotate-180" : ""}`} />
+          <ChevronDown size={14} className={`text-slate-400 dark:text-slate-400 transition-transform ${open ? "rotate-180" : ""}`} />
         </button>
         {open && (
           <>
             <Table columns={columns} rows={SHAFT_TRACK_TABLE} rowKey={(_r, i) => i} className="rounded-none border-0 border-t" />
-            <div className="px-3.5 py-2.5 text-sm text-slate-400 dark:text-slate-500">Sized by floor height (slab to soffit), not total shaft height. Total height stacks to any height.</div>
+            <div className="px-3.5 py-2.5 text-sm text-slate-400 dark:text-slate-400">Sized by floor height (slab to soffit), not total shaft height. Total height stacks to any height.</div>
           </>
         )}
       </div>
@@ -124,15 +124,15 @@ export const SpanTable = ({ orient, type, wallSystem }: { orient: string; type: 
     { key: "fix", header: "Fix", cell: r => r.fix },
   ];
   return (
-    <div className="mt-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 overflow-hidden shadow-sm">
+    <div className="mt-4 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 overflow-hidden shadow-sm">
       <button onClick={() => setOpen(v => !v)} className={cx.accordionInner}>
         <span>{label}</span>
-        <ChevronDown size={14} className={`text-slate-400 dark:text-slate-500 transition-transform ${open ? "rotate-180" : ""}`} />
+        <ChevronDown size={14} className={`text-slate-400 dark:text-slate-400 transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
       {open && (
         <>
-          <Table columns={columns} rows={rows} rowKey={(_r, i) => i} className="rounded-none border-0 border-t" rowClassName={r => (r.note ? "bg-amber-50/60 dark:bg-amber-950/20" : undefined)} />
-          {type === 78 && <div className="px-3.5 py-2.5 text-sm text-slate-400 dark:text-slate-500">Stacked/shaft condition (W 4.5-5.0 m): height unlimited for material estimating only.</div>}
+          <Table columns={columns} rows={rows} rowKey={(_r, i) => i} className="rounded-none border-0 border-t" rowClassName={r => (r.note ? "bg-amber-50/60 dark:bg-amber-900/35" : undefined)} />
+          {type === 78 && <div className="px-3.5 py-2.5 text-sm text-slate-400 dark:text-slate-400">Stacked/shaft condition (W 4.5-5.0 m): height unlimited for material estimating only.</div>}
         </>
       )}
     </div>
@@ -146,7 +146,7 @@ export const ProfileSelector = ({ value, onChange }: { value: ProfileId; onChang
       const on = value === id;
       return (
         <button key={id} onClick={() => onChange(id)}
-          className={"w-full rounded-xl border-2 py-3.5 px-4 text-sm font-semibold text-center active:scale-95 transition-all " + (on ? "" : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800")}
+          className={"w-full rounded-xl border-2 py-3.5 px-4 text-sm font-semibold text-center active:scale-95 transition-all " + (on ? "" : "border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800")}
           style={on ? { borderColor: BLUE, background: BLUE, color: "#fff" } : { color: BLUE }}>{lbl}</button>
       );
     })}
@@ -179,8 +179,8 @@ const EdgeBtn = ({ edgeKey, label, edges, locked, onEdgeToggle }: {
   const on = locked || edges[edgeKey];
   return (
     <button onClick={locked ? undefined : () => onEdgeToggle(edgeKey)} disabled={locked}
-      className={"w-full rounded-xl border-2 py-3.5 px-4 text-sm font-semibold text-center transition-all " + (locked ? "cursor-default" : "active:scale-95") + (on ? "" : " border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800")}
-      style={on ? { borderColor: BLUE, background: BLUE, color: "#fff", opacity: locked ? 0.85 : 1 } : { color: "#94a3b8" }}>
+      className={"w-full rounded-xl border-2 py-3.5 px-4 text-sm font-semibold text-center transition-all " + (locked ? "cursor-default" : "active:scale-95") + (on ? "" : " border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800")}
+      style={on ? { borderColor: BLUE, background: BLUE, color: "#fff", opacity: locked ? 0.85 : 1 } : { color: MUTED }}>
       {on ? "✓ " : ""}{label}
     </button>
   );
@@ -198,7 +198,7 @@ const RestrainedEdgesBlock = ({ edges, onEdgeToggle, locked }: {
       <EdgeBtn edgeKey="right" label="Right" edges={edges} locked={locked} onEdgeToggle={onEdgeToggle} />
     </div>
     {locked && (
-      <p className="mt-2 text-xs leading-relaxed text-slate-400 dark:text-slate-500">
+      <p className="mt-2 text-xs leading-relaxed text-slate-400 dark:text-slate-400">
         Standard wall assumes all four edges restrained (slab, soffit, and structure both sides).
       </p>
     )}
@@ -211,12 +211,12 @@ const TrackSwitch = ({ field, label, activeFinishes, onFinishChange }: {
 }) => {
   const isJ = activeFinishes ? activeFinishes[field] === "J" : false;
   return (
-    <div className="flex items-center justify-between gap-3 py-3 border-b border-slate-100 dark:border-slate-800 last:border-0">
+    <div className="flex items-center justify-between gap-3 py-3 border-b border-slate-100 dark:border-slate-700 last:border-0">
       <span className="text-sm font-semibold text-slate-600 dark:text-slate-300">{label}</span>
       <div className="flex items-center gap-3 shrink-0">
-        <span className="text-sm font-bold text-slate-500 dark:text-slate-400">{isJ ? "J-track" : "C-track"}</span>
+        <span className="text-sm font-bold text-slate-500 dark:text-slate-300">{isJ ? "J-track" : "C-track"}</span>
         <button onClick={() => onFinishChange && onFinishChange(field, isJ ? "C" : "J")}
-          style={{ background: isJ ? BLUE : "#cbd5e1", width: 44, height: 24, borderRadius: 12, position: "relative", border: "none", cursor: "pointer", transition: "background 0.2s", flexShrink: 0 }}>
+          style={{ background: isJ ? BLUE : MUTED, width: 44, height: 24, borderRadius: 12, position: "relative", border: "none", cursor: "pointer", transition: "background 0.2s", flexShrink: 0 }}>
           <span style={{ position: "absolute", top: 2, left: isJ ? 22 : 2, width: 20, height: 20, borderRadius: "50%", background: "#fff", boxShadow: "0 1px 3px rgba(0,0,0,0.2)", transition: "left 0.2s", display: "block" }} />
         </button>
       </div>
@@ -232,10 +232,10 @@ export const TrackFinishBlock = ({ edges, orient, activeFinishes, onFinishChange
     <button onClick={() => setShowTrackFinish(v => !v)}
       className={`${cx.accordionInner} active:scale-95`}>
       <span>Advanced track selection</span>
-      <ChevronDown size={13} className={`text-slate-400 dark:text-slate-500 transition-transform ${showTrackFinish ? "rotate-180" : ""}`} />
+      <ChevronDown size={13} className={`text-slate-400 dark:text-slate-400 transition-transform ${showTrackFinish ? "rotate-180" : ""}`} />
     </button>
     {showTrackFinish && (
-      <div className="mt-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3">
+      <div className="mt-2 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-3">
         {(([
           edges.top    ? { field: "headFinish"   as FinishKey, label: "Head" }   : null,
           edges.bottom ? { field: "bottomFinish" as FinishKey, label: "Base" }   : null,
@@ -245,9 +245,9 @@ export const TrackFinishBlock = ({ edges, orient, activeFinishes, onFinishChange
           <TrackSwitch key={label} field={field} label={label} activeFinishes={activeFinishes} onFinishChange={onFinishChange} />
         ))}
         {!edges.top && !edges.bottom && !edges.left && !edges.right && (
-          <p className="py-3 text-center text-sm text-slate-400 dark:text-slate-500">No restrained edges selected</p>
+          <p className="py-3 text-center text-sm text-slate-400 dark:text-slate-400">No restrained edges selected</p>
         )}
-        <p className="py-2.5 text-sm text-slate-400 dark:text-slate-500">J-track available on P78 panels only</p>
+        <p className="py-2.5 text-sm text-slate-400 dark:text-slate-400">J-track available on P78 panels only</p>
       </div>
     )}
   </div>
@@ -255,11 +255,11 @@ export const TrackFinishBlock = ({ edges, orient, activeFinishes, onFinishChange
 
 // --- HeadFlashingToggle -----------------------------------------------------------
 export const HeadFlashingToggle = ({ flashOption }: { flashOption: EdgeOption }) => (
-  <div className="flex w-full items-center justify-between rounded-xl border border-blue-100 dark:border-blue-900/60 bg-blue-50/60 dark:bg-blue-950/40 px-4 py-2">
+  <div className="flex w-full items-center justify-between rounded-xl border border-blue-100 dark:border-blue-800/80 bg-blue-50/60 dark:bg-blue-900/55 px-4 py-2">
     <span className={cx.cardHd} style={{marginBottom:0,display:"inline"}}>Head track flashing</span>
     <button onClick={flashOption.onToggle}
       style={{
-        background: flashOption.value ? BLUE : "#cbd5e1",
+        background: flashOption.value ? BLUE : MUTED,
         width: 44, height: 24, borderRadius: 12, position: "relative",
         border: "none", cursor: "pointer", transition: "background 0.2s", flexShrink: 0,
       }}>
@@ -277,10 +277,10 @@ export const OtherOptionsBlock = ({ options }: { options: EdgeOption[] }) => (
   <div className="space-y-2">
     {options.map(({ key, label, sublabel, value, onToggle }) => (
       <button key={key} onClick={onToggle}
-        className={"w-full rounded-xl border-2 py-3.5 px-4 text-sm font-semibold text-left active:scale-95 transition-all " + (value ? "" : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400")}
+        className={"w-full rounded-xl border-2 py-3.5 px-4 text-sm font-semibold text-left active:scale-95 transition-all " + (value ? "" : "border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-300")}
         style={value ? { borderColor: BLUE, background: BLUE, color: "#fff" } : undefined}>
         {value ? "✓ " : ""}{label}
-        {sublabel && <span className={`text-sm font-normal ${value ? "text-white/70" : "text-slate-400 dark:text-slate-500"}`}> {sublabel}</span>}
+        {sublabel && <span className={`text-sm font-normal ${value ? "text-white/70" : "text-slate-400 dark:text-slate-400"}`}> {sublabel}</span>}
       </button>
     ))}
   </div>
@@ -288,7 +288,7 @@ export const OtherOptionsBlock = ({ options }: { options: EdgeOption[] }) => (
 
 // --- CornerAnglesBlock -----------------------------------------------------------
 export const CornerAnglesBlock = ({ corners }: { corners: CornersValue }) => (
-  <div className="border-t border-slate-100 dark:border-slate-800 pt-3">
+  <div className="border-t border-slate-100 dark:border-slate-700 pt-3">
     <div className={cx.cardHd}>Corner angles</div>
     <div className="grid grid-cols-2 items-end gap-2">
       <div>
@@ -364,7 +364,7 @@ export const CustomLengthSection = ({ dimUnit, customLengthInput, customActive, 
   const numM = parseFloat(parsedM);
   const overMax = numM > CUSTOM_MAX_LENGTH + 1e-9;
   return (
-    <div className="border-t border-slate-100 dark:border-slate-800 pt-3 mt-3">
+    <div className="border-t border-slate-100 dark:border-slate-700 pt-3 mt-3">
       <div className="mb-1.5 flex items-center justify-between">
         <label className={cx.cardHd} style={{marginBottom:0,display:"inline"}}>Custom length</label>
         <ToggleSwitch active={customActive} label={customActive ? "Active" : "Off"} onToggle={toggleCustom} />
@@ -382,7 +382,7 @@ export const CustomLengthSection = ({ dimUnit, customLengthInput, customActive, 
           opacity: customActive ? 1 : 0.5,
         }} />
       {overMax && customActive && (
-        <p className="mt-1.5 flex gap-1 text-sm leading-relaxed text-amber-700 dark:text-amber-400">
+        <p className="mt-1.5 flex gap-1 text-sm leading-relaxed text-amber-700 dark:text-amber-300">
           <AlertTriangle size={11} className="mt-0.5 shrink-0" />
           Exceeds {CUSTOM_MAX_LENGTH} m maximum -- contact Speedpanel.
         </p>
@@ -447,7 +447,7 @@ export const DimensionInputs = ({ active, toDisp, updDim, out, orient }: Dimensi
         )}
       </div>
       {isShaft && (
-        <p className="mt-1.5 text-xs leading-relaxed text-slate-400 dark:text-slate-500">
+        <p className="mt-1.5 text-xs leading-relaxed text-slate-400 dark:text-slate-400">
           Shaft wall stacks continuously -- total height drives panel/screw counts; floor height sizes the vertical track (see estimate_shaft_wall.md).
         </p>
       )}

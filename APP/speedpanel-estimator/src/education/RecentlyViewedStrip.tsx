@@ -15,7 +15,7 @@ export const RecentlyViewedStrip = ({ ids, docs, onSelect }: { ids: string[]; do
       <div className="flex gap-2 overflow-x-auto pb-1">
         {recentDocs.map(d => (
           <button key={d.id} onClick={() => onSelect(d.id)}
-            className="shrink-0 w-56 rounded-xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3.5 py-3 text-left active:scale-95 transition-all">
+            className="shrink-0 w-56 rounded-xl border-2 border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-3.5 py-3 text-left active:scale-95 transition-all">
             <div className="text-sm font-bold truncate" style={{ color: NAVY }}>{d.title}</div>
             <div className="mt-1 flex items-center justify-between gap-2 text-xs font-medium" style={{ color: MUTED }}>
               <span className="truncate">{d.category} · p.{d.pageCount}</span>

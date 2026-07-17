@@ -66,7 +66,7 @@ export const OrderLineItemsTable = ({ items, onChange, readOnly, editablePrice }
       cell: item => readOnly ? <>{item.qty}</> : (
         <input type="number" value={item.qty} disabled={!item.included}
           onChange={e => setQty(item.id, Number(e.target.value))}
-          className="w-20 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1 text-right text-xs" style={{ color: NAVY }} />
+          className="w-20 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-2 py-1 text-right text-xs" style={{ color: NAVY }} />
       ),
     },
     { key: "unit", header: "Unit", cell: item => <span style={{ color: MUTED }}>{item.unit}</span> },
@@ -79,7 +79,7 @@ export const OrderLineItemsTable = ({ items, onChange, readOnly, editablePrice }
           {editablePrice ? (
             <input type="number" step="0.01" value={item.unitPriceExGst ?? ""} disabled={!item.included}
               onChange={e => setUnitPrice(item.id, Number(e.target.value))}
-              className="w-24 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1 text-right text-xs" style={{ color: NAVY }} />
+              className="w-24 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-2 py-1 text-right text-xs" style={{ color: NAVY }} />
           ) : (
             item.unitPriceExGst != null ? `$${item.unitPriceExGst.toFixed(2)}` : "--"
           )}

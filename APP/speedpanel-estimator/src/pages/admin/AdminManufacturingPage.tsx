@@ -61,7 +61,7 @@ const ManufacturingRow = ({ row, onSaveManufacturing, onStatusChange }: {
           <div className="w-44"><Field label="Est. completion" value={estCompletion} onChange={setEstCompletion} type="date" /></div>
           <Button className="h-[46px]" onClick={handleSave} disabled={saving}>{saving ? "Saving..." : "Save"}</Button>
         </div>
-        {error && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{error}</p>}
+        {error && <p className="mt-2 text-sm text-red-600 dark:text-red-300">{error}</p>}
       </div>
 
       {deliveries.length > 0 && (

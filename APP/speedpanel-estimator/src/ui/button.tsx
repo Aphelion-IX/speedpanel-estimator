@@ -15,8 +15,8 @@ const base = "inline-flex items-center justify-center gap-2 rounded-xl text-sm f
 
 const variantCx: Record<Variant, string> = {
   primary:   "px-5 py-2.5 bg-[color:var(--blue)] text-white shadow-sm hover:bg-[#045A9E] hover:-translate-y-px",
-  secondary: "px-5 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[color:var(--navy)] hover:border-[color:var(--blue)] hover:text-[color:var(--blue)] hover:-translate-y-px",
-  danger:    "px-5 py-2.5 bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 hover:bg-red-600 hover:text-white dark:hover:bg-red-600 hover:-translate-y-px",
+  secondary: "px-5 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-[color:var(--navy)] hover:border-[color:var(--blue)] hover:text-[color:var(--blue)] hover:-translate-y-px",
+  danger:    "px-5 py-2.5 bg-red-50 dark:bg-red-900/50 text-red-600 dark:text-red-300 hover:bg-red-600 hover:text-white dark:hover:bg-red-600 hover:-translate-y-px",
   ghost:     "px-2 py-2 bg-transparent text-[color:var(--blue)] hover:underline",
 };
 

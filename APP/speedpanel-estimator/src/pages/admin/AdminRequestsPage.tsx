@@ -132,7 +132,7 @@ export const AdminRequestsPage = ({ userId, staffRole, staffRoleLoading }: {
       <ErrorDialog message={actionError} onDismiss={() => setActionError(null)} />
       {bdmPanel}
       <div className="flex flex-col gap-2 sm:flex-row">
-        <div className="flex flex-1 items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 shadow-sm">
+        <div className="flex flex-1 items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-4 py-3 shadow-sm">
           <Search size={16} className="shrink-0" style={{ color: MUTED }} />
           <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search name, email, phone, message..."
             className="w-full bg-transparent text-sm outline-none" style={{ color: NAVY }} />

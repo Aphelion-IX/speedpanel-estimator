@@ -46,14 +46,14 @@ export const WallPreviewSection = ({ active, walls, out, dimUnit, toDisp }: {
     <div>
       <div className={cx.cardHd}>Preview</div>
       <div
-        className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800"
+        className="rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800"
         style={{
           paddingTop: hasApex ? 22 : 6, paddingBottom: 32,
           paddingLeft: 52, paddingRight: hasRightDim ? 52 : 6,
         }}
       >
         {out.empty || !grid.ok ? (
-          <div className="flex items-center justify-center text-sm text-slate-400 dark:text-slate-500" style={{ height: CONTENT_H }}>
+          <div className="flex items-center justify-center text-sm text-slate-400 dark:text-slate-400" style={{ height: CONTENT_H }}>
             Enter dimensions to preview
           </div>
         ) : (
@@ -63,12 +63,12 @@ export const WallPreviewSection = ({ active, walls, out, dimUnit, toDisp }: {
         )}
       </div>
       {cornerPartner && (
-        <p className="mt-1.5 text-xs leading-relaxed text-slate-400 dark:text-slate-500">
+        <p className="mt-1.5 text-xs leading-relaxed text-slate-400 dark:text-slate-400">
           Linked corner: <span className="font-semibold">{cornerPartner.name}</span>
         </p>
       )}
       {shaftPartner && (
-        <p className="mt-1.5 text-xs leading-relaxed text-slate-400 dark:text-slate-500">
+        <p className="mt-1.5 text-xs leading-relaxed text-slate-400 dark:text-slate-400">
           Linked shaft partner: <span className="font-semibold">{shaftPartner.name}</span>
         </p>
       )}

@@ -28,7 +28,7 @@ export const PanelColourSection = ({ active, update }: { active: Wall; update: (
         </div>
       </div>
       {/* Colour selection */}
-      <div className="border-t border-slate-100 dark:border-slate-800 pt-3">
+      <div className="border-t border-slate-100 dark:border-slate-700 pt-3">
         <div className={cx.cardHd}>Colour selection</div>
         <div className="grid grid-cols-3 gap-2 items-stretch">
           {[...EXT_STOCKED_COLOURS.map(c => {
@@ -52,7 +52,7 @@ export const PanelColourSection = ({ active, update }: { active: Wall; update: (
             const selected = active.colourType === "special";
             return (
               <button key="special" onClick={() => update({ colourType: "special", colour: "" })}
-                className={"w-full rounded-xl border-2 py-3 px-1.5 text-center active:scale-95 transition-all " + (selected ? "" : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800")}
+                className={"w-full rounded-xl border-2 py-3 px-1.5 text-center active:scale-95 transition-all " + (selected ? "" : "border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800")}
                 style={selected ? { borderColor: BLUE, background: BLUE } : undefined}>
                 <div className="text-[10px] font-bold uppercase leading-tight"
                   style={{ color: selected ? "#fff" : BLUE }}>Custom</div>

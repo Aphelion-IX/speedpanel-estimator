@@ -9,7 +9,7 @@
 // =============================================================================
 import { Fragment } from "react";
 import { AlertTriangle, Frame, Hammer, Layers } from "lucide-react";
-import { cx, NAVY, BLUE } from "../styleTokens";
+import { cx, NAVY, BLUE, MUTED } from "../styleTokens";
 import { plural, stockStatus } from "../estimate/computeUtils";
 import { r1 } from "../estimate/mathUtils";
 import { PACK, typeFromPackSize } from "../data";
@@ -27,7 +27,7 @@ export const LMLineItem = ({ label, pieces, lm, stockLabel, bordered = true }: {
 }) => (
   <div className={bordered ? cx.rowBorder : undefined}>
     <div className="flex items-center justify-between gap-2">
-      <span className="text-sm font-medium text-slate-500 dark:text-slate-400">{label}</span>
+      <span className="text-sm font-medium text-slate-500 dark:text-slate-300">{label}</span>
       <span className="text-base font-bold shrink-0" style={{ color: BLUE }}>{pieces} length{plural(pieces)}</span>
     </div>
     <div className={cx.rowSub}>{lm} m total - {stockLabel}</div>
@@ -40,7 +40,7 @@ export const LMLineItem = ({ label, pieces, lm, stockLabel, bordered = true }: {
 export const HeadFlashingCard = ({ dim, pieces, lm, stock }: { dim: string; pieces: number; lm: number; stock: number }) => (
   <Card title="Head track flashing" icon={<Layers size={14} />}>
     <div className="flex items-center justify-between gap-2">
-      <span className="text-sm font-medium text-slate-500 dark:text-slate-400">{dim}</span>
+      <span className="text-sm font-medium text-slate-500 dark:text-slate-300">{dim}</span>
       <span className="text-base font-bold shrink-0" style={{ color: BLUE }}>{pieces} length{plural(pieces)}</span>
     </div>
     <div className={cx.rowSub}>{lm} m total - stocked @ {r1(stock)} m</div>
@@ -62,10 +62,10 @@ export const PackNote = ({ type, spare }: { type: number; spare?: number }) => {
 
 export const StockBadge = ({ status }: { status: ReturnType<typeof stockStatus> }) => {
   if (status.type === "stocked")
-    return <span className={`${cx.badge} bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400`}>Stocked</span>;
+    return <span className={`${cx.badge} bg-emerald-50 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300`}>Stocked</span>;
   if (status.type === "near-stock")
-    return <span className={`${cx.badge} bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400`}>^ {r1(status.length)} m</span>;
-  return <span className={`${cx.badge} bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400`}>Custom</span>;
+    return <span className={`${cx.badge} bg-blue-50 dark:bg-blue-900/55 text-blue-600 dark:text-blue-300`}>^ {r1(status.length)} m</span>;
+  return <span className={`${cx.badge} bg-amber-50 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300`}>Custom</span>;
 };
 
 export const ScheduleRow = ({ mm, ordered, qty, packs, packSize, stocks, isLast, packNumber }: {
@@ -73,7 +73,7 @@ export const ScheduleRow = ({ mm, ordered, qty, packs, packSize, stocks, isLast,
 }) => {
   const status = stockStatus(mm, stocks);
   return (
-    <div className={`py-3.5 ${isLast ? "" : "border-b border-slate-100 dark:border-slate-800"}`}>
+    <div className={`py-3.5 ${isLast ? "" : "border-b border-slate-100 dark:border-slate-700"}`}>
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2.5 min-w-0">
           {packNumber != null && (
@@ -86,7 +86,7 @@ export const ScheduleRow = ({ mm, ordered, qty, packs, packSize, stocks, isLast,
         </div>
         <span className="text-base font-bold shrink-0" style={{ color: BLUE }}>{ordered} panels</span>
       </div>
-      <div className="mt-1.5 flex items-center justify-between" style={{fontSize:"14px",color:"#94a3b8"}}>
+      <div className="mt-1.5 flex items-center justify-between" style={{fontSize:"14px",color:MUTED}}>
         <span>{qty} req · {packs} pack{packs !== 1 ? "s" : ""} of {packSize}</span>
         <span>{ordered - qty} spare</span>
       </div>
@@ -100,7 +100,7 @@ export const StockGroupRow = ({ stock, ordered, pieces, packs, packSize, spare, 
   typeLabel?: string; // e.g. "P78" prefix -- omit for external which has no type column
   packNote?: React.ReactNode;
 }) => (
-  <div className={`py-2 ${!isLast ? "border-b border-slate-100 dark:border-slate-800" : ""}`}>
+  <div className={`py-2 ${!isLast ? "border-b border-slate-100 dark:border-slate-700" : ""}`}>
     <div className="flex items-center justify-between gap-2">
       <div className="flex items-center gap-2">
         <span className="text-base font-bold" style={{ color: NAVY }}>
@@ -143,7 +143,7 @@ export const PanelScheduleCard = ({ title, icon, customSchedule, groups, packSiz
         {(groups || []).map((g, i) => {
           const status = stockStatus(g.stock * 1000, stocks);
           return (
-            <div key={i} className={`py-2 ${i < (groups!.length - 1) ? "border-b border-slate-100 dark:border-slate-800" : ""}`}>
+            <div key={i} className={`py-2 ${i < (groups!.length - 1) ? "border-b border-slate-100 dark:border-slate-700" : ""}`}>
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                   <span className="text-base font-bold" style={{ color: NAVY }}>{r1(g.stock)} m</span>
@@ -177,9 +177,9 @@ export const PanelScheduleTable = ({ title, icon, customSchedule, groups, packSi
   customSchedule?: CustomScheduleEntry[] | null; groups?: PanelGroup[];
   packSize: number; stocks: number[]; wastePct?: number; orient?: string; showCustomNote?: boolean;
 }) => {
-  const TH = "py-2.5 px-2 text-left text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-800";
-  const TD = "py-2.5 px-2 text-sm text-slate-600 dark:text-slate-300 border-b border-slate-100 dark:border-slate-800 last:border-0";
-  const TDm = "py-2.5 px-2 text-sm font-semibold border-b border-slate-100 dark:border-slate-800 last:border-0";
+  const TH = "py-2.5 px-2 text-left text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-300 border-b border-slate-100 dark:border-slate-700";
+  const TD = "py-2.5 px-2 text-sm text-slate-600 dark:text-slate-300 border-b border-slate-100 dark:border-slate-700 last:border-0";
+  const TDm = "py-2.5 px-2 text-sm font-semibold border-b border-slate-100 dark:border-slate-700 last:border-0";
   const hasCustom = customSchedule && customSchedule.length > 0;
 
   return (
@@ -239,7 +239,7 @@ export const PanelScheduleTable = ({ title, icon, customSchedule, groups, packSi
                 </tr>
                 {showNote && (
                   <tr>
-                    <td colSpan={6} className="pb-2.5 border-b border-slate-100 dark:border-slate-800 last:border-0">
+                    <td colSpan={6} className="pb-2.5 border-b border-slate-100 dark:border-slate-700 last:border-0">
                       <PackNote type={typeFromPackSize(g.ps || packSize)} spare={g.spare} />
                     </td>
                   </tr>
@@ -286,11 +286,11 @@ export const FixingSealantCard = ({ title, boxes30, fix30, boxes16, fix16, seala
       <Row k={`area / ${sealantRate} m2/sausage`} v={`${area} m2`} dim />
     </div>
     {p2pEnhanced !== undefined ? (
-      <div className="mt-1.5 border-t border-slate-100 dark:border-slate-800 pt-1.5 space-y-1">
+      <div className="mt-1.5 border-t border-slate-100 dark:border-slate-700 pt-1.5 space-y-1">
         {p2pEnhanced ? (
           <>
             <p className="text-sm font-bold" style={{ color: NAVY }}>P78 vertical &gt; 5.0 m -- enhanced panel-to-panel pattern:</p>
-            <p className="text-sm leading-relaxed text-slate-500 dark:text-slate-400">Joints 1-2 @500mm - 3-4 @750mm - rest @1000mm - one face.</p>
+            <p className="text-sm leading-relaxed text-slate-500 dark:text-slate-300">Joints 1-2 @500mm - 3-4 @750mm - rest @1000mm - one face.</p>
           </>
         ) : (
           <p className={cx.footnote} style={{paddingTop:0}}>Est. fixings -- 1000/box. {p2pNote}</p>
@@ -317,15 +317,15 @@ export const ConnectionBreakdownCard = ({ connections }: { connections: Connecti
           <span className="text-sm font-bold" style={{ color: NAVY }}>Extra C/J track</span>
           <span className={cx.rowVal} style={{ color: BLUE }}>{c.pieces} length{plural(c.pieces)}</span>
         </div>
-        <div className="mt-1.5 text-sm text-slate-500 dark:text-slate-400">
+        <div className="mt-1.5 text-sm text-slate-500 dark:text-slate-300">
           Between <span className="font-semibold">{c.wallAName}</span> ({c.wallAOrient}) and{" "}
           <span className="font-semibold">{c.wallBName}</span> ({c.wallBOrient})
         </div>
-        <div className="mt-1 text-xs text-slate-400 dark:text-slate-500">
+        <div className="mt-1 text-xs text-slate-400 dark:text-slate-400">
           Length {r1(c.lengthM)} lm - qty {c.quantity} - stocked @ {r1(c.stock)} m - {c.reason}
         </div>
         {c.warnings.map((w, i) => (
-          <div key={i} className="mt-1.5 flex gap-2 rounded-lg bg-amber-50 dark:bg-amber-950/30 px-3 py-2 text-xs leading-relaxed text-amber-700 dark:text-amber-400">
+          <div key={i} className="mt-1.5 flex gap-2 rounded-lg bg-amber-50 dark:bg-amber-900/50 px-3 py-2 text-xs leading-relaxed text-amber-700 dark:text-amber-300">
             <AlertTriangle size={12} className="mt-0.5 shrink-0" /><span>{w}</span>
           </div>
         ))}

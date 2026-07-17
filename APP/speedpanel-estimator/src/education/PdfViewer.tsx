@@ -52,15 +52,15 @@ export const PdfViewer = ({ url, page, onPageChange, tall }: { url: string; page
   }, [pdfDoc, page, tall]);
 
   return (
-    <div className="mt-1 overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700">
-      <div className="flex items-center justify-between gap-2 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 px-3 py-2">
+    <div className="mt-1 overflow-hidden rounded-lg border border-slate-200 dark:border-slate-600">
+      <div className="flex items-center justify-between gap-2 border-b border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 px-3 py-2">
         <button onClick={() => onPageChange(page - 1)} disabled={page <= 1} title="Previous page"
-          className="grid h-8 w-8 place-items-center rounded-lg text-slate-500 dark:text-slate-400 disabled:opacity-30">
+          className="grid h-8 w-8 place-items-center rounded-lg text-slate-500 dark:text-slate-300 disabled:opacity-30">
           <ChevronLeft size={16} />
         </button>
         <span className="text-xs font-bold" style={{ color: MUTED }}>Page {page} of {pageCount || "-"}</span>
         <button onClick={() => onPageChange(page + 1)} disabled={!pageCount || page >= pageCount} title="Next page"
-          className="grid h-8 w-8 place-items-center rounded-lg text-slate-500 dark:text-slate-400 disabled:opacity-30">
+          className="grid h-8 w-8 place-items-center rounded-lg text-slate-500 dark:text-slate-300 disabled:opacity-30">
           <ChevronRight size={16} />
         </button>
       </div>

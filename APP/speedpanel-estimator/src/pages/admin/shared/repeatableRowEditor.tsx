@@ -54,13 +54,13 @@ export function RepeatableRowEditor<T extends Record<string, unknown>>({
           <input type="checkbox" checked={!!raw} onChange={e => setBoolCell(i, c, e.target.checked)} />
         ) : c.type === "select" ? (
           <select value={raw == null ? "" : String(raw)} onChange={e => setCell(i, c, e.target.value)}
-            className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1 text-xs" style={{ color: NAVY }}>
+            className="w-full rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-2 py-1 text-xs" style={{ color: NAVY }}>
             {(c.options ?? []).map(o => <option key={o} value={o}>{o}</option>)}
           </select>
         ) : (
           <input type={c.type === "number" ? "number" : "text"} value={raw == null ? "" : String(raw)}
             onChange={e => setCell(i, c, e.target.value)}
-            className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1 text-xs" style={{ color: NAVY }} />
+            className="w-full rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-2 py-1 text-xs" style={{ color: NAVY }} />
         );
       },
     })),

@@ -101,7 +101,7 @@ const InviteMemberForm = ({ companyId, onInvited }: {
               </label>
             </div>
             {scope === "selected" && (
-              <div className="mt-2 max-h-40 space-y-1 overflow-auto rounded-xl border border-slate-200 dark:border-slate-700 p-2">
+              <div className="mt-2 max-h-40 space-y-1 overflow-auto rounded-xl border border-slate-200 dark:border-slate-600 p-2">
                 {projects.map(p => (
                   <label key={p.id} className="flex items-center gap-2 text-sm" style={{ color: NAVY }}>
                     <input type="checkbox" checked={selectedProjects.includes(p.id)} onChange={() => toggleProject(p.id)} /> {p.name}
@@ -112,7 +112,7 @@ const InviteMemberForm = ({ companyId, onInvited }: {
           </div>
         )}
 
-        {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+        {error && <p className="text-sm text-red-600 dark:text-red-300">{error}</p>}
         {success && <p className="text-sm font-semibold" style={{ color: BLUE }}>Invitation sent.</p>}
 
         <Button type="submit" disabled={inviting || !email.trim()}>
@@ -150,7 +150,7 @@ const AddExistingAccountForm = ({ onAdded }: { onAdded: (input: { email: string;
   return (
     <div className={cx.card}>
       <div className="text-sm font-bold" style={{ color: NAVY }}>Add existing account</div>
-      <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Grant an existing account access to this company. No email is sent -- their existing login already works.</p>
+      <p className="mt-1 text-xs text-slate-500 dark:text-slate-300">Grant an existing account access to this company. No email is sent -- their existing login already works.</p>
       <form onSubmit={handleSubmit} className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-end">
         <div className="flex-1"><Field label="Email" value={email} onChange={setEmail} type="email" required autoComplete="email" /></div>
         <div className="sm:w-56"><SelectField label="Role" value={role} options={ROLE_OPTIONS} onChange={v => setRole(v as CompanyRole)} /></div>
@@ -158,7 +158,7 @@ const AddExistingAccountForm = ({ onAdded }: { onAdded: (input: { email: string;
           {submitting ? "Adding..." : "Add"}
         </Button>
       </form>
-      {error && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{error}</p>}
+      {error && <p className="mt-2 text-sm text-red-600 dark:text-red-300">{error}</p>}
       {success && <p className="mt-2 text-sm font-semibold" style={{ color: BLUE }}>Added -- they now have access to this company.</p>}
     </div>
   );
@@ -254,8 +254,8 @@ export const CompanyMemberList = ({ companyId, myUserId, canManage, isSpeedpanel
 
   return (
     <div>
-      {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
-      {actionError && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{actionError}</p>}
+      {error && <p className="text-sm text-red-600 dark:text-red-300">{error}</p>}
+      {actionError && <p className="mt-2 text-sm text-red-600 dark:text-red-300">{actionError}</p>}
 
       <ConfirmDialog
         open={removeTarget !== null}

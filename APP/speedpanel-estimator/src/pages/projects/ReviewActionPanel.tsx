@@ -29,7 +29,7 @@ import type { ProjectRow } from "./projectTypes";
 
 const ServiceRow = ({ label, icon, onClick, disabled }: { label: string; icon: React.ReactNode; onClick: () => void; disabled?: boolean }) => (
   <button onClick={onClick} disabled={disabled}
-    className="flex w-full items-center justify-between gap-2 rounded-xl border border-slate-200 dark:border-slate-700 px-4 py-3 text-left text-sm font-semibold disabled:opacity-50"
+    className="flex w-full items-center justify-between gap-2 rounded-xl border border-slate-200 dark:border-slate-600 px-4 py-3 text-left text-sm font-semibold disabled:opacity-50"
     style={{ color: NAVY }}>
     <span className="flex items-center gap-2">
       <span style={{ color: BLUE }}>{icon}</span>{label}
@@ -78,7 +78,7 @@ export const ReviewActionPanel = ({ project, onCreateOrder, onRequestInstallRevi
         <p className={cx.infoNote} style={{ marginTop: 0 }}>{project.technical_review_note}</p>
       )}
 
-      {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+      {error && <p className="text-sm text-red-600 dark:text-red-300">{error}</p>}
 
       <ServiceRow label="Request a quote" icon={<FileText size={15} />} onClick={onCreateOrder} />
       {canRequestInstall && (

@@ -79,7 +79,7 @@ const AdminOrderRow = ({ order, onIssue, onCancel, onRevise }: {
         <div className={cx.footnote}>{new Date(order.proforma_requested_at ?? order.created_at).toLocaleString()}</div>
       </div>
       {order.unpriced_item_count > 0 && (
-        <p className="mt-1 text-sm text-amber-600 dark:text-amber-400">
+        <p className="mt-1 text-sm text-amber-600 dark:text-amber-300">
           {order.unpriced_item_count} item{order.unpriced_item_count !== 1 ? "s" : ""} not priced automatically -- confirm pricing before issuing.
         </p>
       )}
@@ -93,7 +93,7 @@ const AdminOrderRow = ({ order, onIssue, onCancel, onRevise }: {
               <div className="mt-2">
                 <TextAreaField label="Note (required -- what changed and why)" value={reviseNote} onChange={setReviseNote} />
               </div>
-              {error && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{error}</p>}
+              {error && <p className="mt-2 text-sm text-red-600 dark:text-red-300">{error}</p>}
               <div className="mt-2 flex flex-wrap gap-2">
                 <Button onClick={saveRevise} disabled={submitting}>Save revision</Button>
                 <Button variant="ghost" onClick={() => setRevising(false)} disabled={submitting}>Cancel</Button>
@@ -121,7 +121,7 @@ const AdminOrderRow = ({ order, onIssue, onCancel, onRevise }: {
             <TextAreaField label="Note (optional, included with the pro forma)" value={note} onChange={setNote} />
           </div>
 
-          {error && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{error}</p>}
+          {error && <p className="mt-2 text-sm text-red-600 dark:text-red-300">{error}</p>}
 
           <div className="mt-3 flex flex-wrap gap-2">
             {order.stage === "proforma_requested" && (

@@ -27,7 +27,7 @@ export const StickyBar = ({ view, wallStats, projectStats, onReviewOrder, lineIt
       <div className="flex flex-1 items-center gap-4 overflow-x-auto">
         {stats.map((s, i) => (
           <div key={i} className="shrink-0">
-            <div className="text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">{s.label}</div>
+            <div className="text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-400">{s.label}</div>
             <div className="text-sm font-extrabold leading-tight" style={{ color: BLUE }}>{s.value}</div>
           </div>
         ))}

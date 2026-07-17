@@ -31,7 +31,7 @@ export const DocumentCard = ({ doc, selected, onSelect, onQuickScan }: { doc: Ed
     </div>
     <div className="mt-1 flex items-center gap-2">
       <button onClick={e => { e.stopPropagation(); onQuickScan(doc.id); }}
-        className="flex-1 rounded-xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 py-2 text-xs font-bold active:scale-95 transition-all"
+        className="flex-1 rounded-xl border-2 border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 py-2 text-xs font-bold active:scale-95 transition-all"
         style={{ color: BLUE }}>Quick Scan</button>
       {doc.fileUrl ? (
         <a href={doc.fileUrl} target="_blank" rel="noopener noreferrer" onClick={e => { e.stopPropagation(); onSelect(doc.id); }}
@@ -43,7 +43,7 @@ export const DocumentCard = ({ doc, selected, onSelect, onQuickScan }: { doc: Ed
           style={{ background: BLUE, color: WHITE }}>Open PDF</button>
       )}
       {/* No-op overflow button -- a real menu (rename/download/etc) is out of scope for v1. */}
-      <button onClick={e => e.stopPropagation()} className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-slate-200 dark:border-slate-700 text-slate-400 dark:text-slate-500">
+      <button onClick={e => e.stopPropagation()} className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-slate-200 dark:border-slate-600 text-slate-400 dark:text-slate-400">
         <MoreVertical size={15} />
       </button>
     </div>

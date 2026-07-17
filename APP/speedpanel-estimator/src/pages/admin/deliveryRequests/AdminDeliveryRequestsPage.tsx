@@ -97,7 +97,7 @@ const DeliveryRequestRow = ({ request, allForOrder, onAccept, onPropose, onDecli
 
       <p className={`${cx.footnote} mt-2`}>{request.item_allocations.length} item{request.item_allocations.length !== 1 ? "s" : ""} allocated to this delivery.</p>
 
-      {error && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{error}</p>}
+      {error && <p className="mt-2 text-sm text-red-600 dark:text-red-300">{error}</p>}
 
       {awaitingDecision && (
         <div className="mt-3 flex flex-wrap items-center gap-2">

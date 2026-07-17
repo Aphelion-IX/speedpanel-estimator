@@ -23,7 +23,7 @@ const DocumentRow = ({ doc, onDownload, onRequestRemove }: {
 
   return (
     <div className={`flex items-center gap-3 ${cx.rowBorder}`}>
-      <div className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400">
+      <div className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-blue-50 dark:bg-blue-900/50 text-blue-600 dark:text-blue-300">
         <FileText size={15} />
       </div>
       <div className="min-w-0 flex-1">
@@ -97,7 +97,7 @@ export const ProjectDocumentsCard = ({ projectId, userId }: { projectId: string;
       {loading ? (
         <p className={cx.footnote} style={{ paddingTop: 0 }}>Loading...</p>
       ) : error ? (
-        <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+        <p className="text-sm text-red-600 dark:text-red-300">{error}</p>
       ) : documents.length === 0 ? (
         <div className="grid place-items-center gap-2 py-2 text-center">
           <FileText size={28} style={{ color: MUTED }} />
@@ -111,7 +111,7 @@ export const ProjectDocumentsCard = ({ projectId, userId }: { projectId: string;
         </div>
       )}
 
-      {uploadError && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{uploadError}</p>}
+      {uploadError && <p className="mt-2 text-sm text-red-600 dark:text-red-300">{uploadError}</p>}
 
       <input ref={inputRef} type="file" className="hidden" onChange={handleFileChosen} />
       <Button variant="secondary" icon={<Upload size={14} />} onClick={() => inputRef.current?.click()} disabled={uploading} className="mt-3 w-full">

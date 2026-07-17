@@ -43,7 +43,7 @@ export const CompanyPriceListCard = ({ companyId }: { companyId: string }) => {
         options={priceLists.map(pl => ({ value: pl.id, label: pl.is_default ? `${pl.name} (default)` : pl.name }))}
         onChange={v => { setDraft(v); setSaved(false); }}
       />
-      {saveError && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{saveError}</p>}
+      {saveError && <p className="mt-2 text-sm text-red-600 dark:text-red-300">{saveError}</p>}
       {saved && !dirty && <p className="mt-2 text-sm" style={{ color: MUTED }}>Saved.</p>}
       {dirty && (
         <Button className="mt-3" onClick={handleSave} disabled={saving}>

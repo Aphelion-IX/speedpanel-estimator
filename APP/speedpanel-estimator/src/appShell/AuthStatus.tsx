@@ -72,13 +72,13 @@ export const AuthStatus = ({ auth, onSignInClick, isInternalStaff, staffRole, na
         </span>
         <span className="hidden text-left lg:block">
           <span className="block max-w-[130px] truncate text-sm font-semibold" style={{ color: NAVY }}>{name}</span>
-          {roleLabel && <span className="block text-xs text-slate-400 dark:text-slate-500">{roleLabel}</span>}
+          {roleLabel && <span className="block text-xs text-slate-400 dark:text-slate-400">{roleLabel}</span>}
         </span>
         <ChevronDown size={14} className="hidden shrink-0 text-slate-400 sm:block" />
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full z-20 mt-2 w-48 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-lg">
+        <div className="absolute right-0 top-full z-20 mt-2 w-48 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 shadow-lg">
           {isInternalStaff && (
             <button
               onClick={() => { setOpen(false); navigate({ tab: "admin", sub: "dashboard" }); }}
@@ -90,7 +90,7 @@ export const AuthStatus = ({ auth, onSignInClick, isInternalStaff, staffRole, na
           )}
           <button
             onClick={() => { setOpen(false); auth.signOut(); }}
-            className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm font-semibold text-red-600 hover:bg-slate-50 dark:text-red-400 dark:hover:bg-slate-700"
+            className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm font-semibold text-red-600 hover:bg-slate-50 dark:text-red-300 dark:hover:bg-slate-700"
           >
             <LogOut size={15} /> Sign out
           </button>

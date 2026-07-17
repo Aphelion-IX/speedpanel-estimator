@@ -7,7 +7,7 @@ import type { EduSection } from "./catalog";
 export const SectionsList = ({ sections, onOpenSection }: { sections: EduSection[]; onOpenSection?: (pages: string) => void }) => (
   <div className="space-y-2.5">
     {sections.map((s, i) => {
-      const cardCx = "w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3.5 py-3 text-left"
+      const cardCx = "w-full rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-3.5 py-3 text-left"
         + (onOpenSection ? " active:scale-95 transition-all" : "");
       const body = (
         <>

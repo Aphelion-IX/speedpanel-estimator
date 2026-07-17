@@ -52,7 +52,7 @@ export const TrackFlashingCardInt = ({ out, headFlashActive, wall }: { out: Comp
           <div className={cx.rowBorder}><Row k="No track yet" v="--" dim /></div>
         )}
         {wall && wall.wallSystem !== "corner" && wall.wallSystem !== "shaft" && (
-          <div className="border-t border-slate-100 dark:border-slate-800 pt-3">
+          <div className="border-t border-slate-100 dark:border-slate-700 pt-3">
             <div className={cx.cardHd}>Corner angles</div>
             <Row
               k={`Internal corners${wall.intCorners ? ` x ${wall.intCorners}` : ""}`}

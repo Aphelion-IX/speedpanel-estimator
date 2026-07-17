@@ -52,20 +52,20 @@ export const ConfirmDialog = ({
         aria-label={title}
         tabIndex={-1}
         onClick={e => e.stopPropagation()}
-        className="w-full max-w-sm rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 shadow-[0_30px_60px_-24px_rgba(15,23,42,0.4)] outline-none dark:shadow-[0_30px_60px_-24px_rgba(0,0,0,0.6)]"
+        className="w-full max-w-sm rounded-2xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 p-6 shadow-[0_30px_60px_-24px_rgba(15,23,42,0.4)] outline-none dark:shadow-[0_30px_60px_-24px_rgba(0,0,0,0.6)]"
       >
         {danger && (
-          <span className="mb-3.5 grid h-10 w-10 place-items-center rounded-xl bg-red-50 text-red-600 dark:bg-red-950/30 dark:text-red-400">
+          <span className="mb-3.5 grid h-10 w-10 place-items-center rounded-xl bg-red-50 text-red-600 dark:bg-red-900/50 dark:text-red-300">
             <AlertTriangle size={18} />
           </span>
         )}
         <h2 className="text-base font-bold" style={{ color: NAVY }}>{title}</h2>
-        <p className="mt-1.5 text-sm text-slate-500 dark:text-slate-400">{description}</p>
+        <p className="mt-1.5 text-sm text-slate-500 dark:text-slate-300">{description}</p>
         <div className="mt-5 flex justify-end gap-2.5">
           {!hideCancel && (
             <button
               onClick={onCancel}
-              className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-bold text-[color:var(--navy)] hover:border-[color:var(--blue)] hover:text-[color:var(--blue)] dark:border-slate-700"
+              className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-bold text-[color:var(--navy)] hover:border-[color:var(--blue)] hover:text-[color:var(--blue)] dark:border-slate-600"
             >
               {cancelLabel}
             </button>
