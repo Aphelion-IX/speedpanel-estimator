@@ -22,7 +22,7 @@
 // =============================================================================
 import { useState } from "react";
 import {
-  House, CloudRain, FilePlus2, Info, Plus, ChevronRight, Pencil, Save, CheckCircle2, FileText,
+  House, CloudRain, Info, Plus, ChevronRight, Pencil, Save, CheckCircle2, FileText,
 } from "lucide-react";
 import { cx, tone, BLUE, NAVY, WHITE } from "../styleTokens";
 import { Button } from "../ui/button";
@@ -110,12 +110,14 @@ export const EstimateTopCard = ({
         <span className={`${cx.badge} ${tone("neutral")}`}>NO ESTIMATE ACTIVE</span>
         <div className={`mt-2 ${cx.section}`}>
           <div className="flex items-center gap-3">
-            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full border-2" style={{ borderColor: BLUE }}>
-              <FilePlus2 size={18} style={{ color: BLUE }} />
-            </span>
+            <button onClick={addBlankWall} title="Start New Estimate" aria-label="Start New Estimate"
+              className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-white shadow-sm transition-all hover:-translate-y-px active:scale-95"
+              style={{ background: BLUE }}>
+              <Plus size={20} />
+            </button>
             <div>
               <div className="text-base font-extrabold" style={{ color: NAVY }}>Start a new estimate</div>
-              <div className="mt-0.5 text-sm text-slate-400 dark:text-slate-400">Choose a wall type below to start building your estimate.</div>
+              <div className="mt-0.5 text-sm text-slate-400 dark:text-slate-400">Choose a wall type below to start building -- it'll be saved in your Projects tab.</div>
             </div>
           </div>
           <div className="mt-4">
@@ -127,9 +129,6 @@ export const EstimateTopCard = ({
               className="w-full rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-600 bg-slate-50/60 dark:bg-slate-900/40 px-4 py-3 text-sm text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 outline-none transition-colors focus:border-blue-300 dark:focus:border-blue-600 focus:bg-white dark:focus:bg-slate-800"
             />
           </div>
-          <Button icon={<Plus size={14} />} onClick={addBlankWall} className="mt-4 w-full sm:w-auto">
-            Start New Estimate <ChevronRight size={14} />
-          </Button>
         </div>
         <div className={cx.infoNote}>
           <Info size={15} className="mt-0.5 shrink-0" />
