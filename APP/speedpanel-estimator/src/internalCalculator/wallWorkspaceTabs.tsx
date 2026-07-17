@@ -1,13 +1,15 @@
 // =============================================================================
 // Wall workspace tabs (phone)
 // =============================================================================
-// Phone-only per-item tab strip -- Preview / Schedule / Connections /
-// Warnings -- wrapping EXISTING components, no new business logic. Config
-// sections (WallsCard, Wall geometry minus preview, Tracks and flashing)
-// stay above this in InternalCalculator.tsx's phone workspaceNode, unchanged;
-// this only reorganizes the "what does this wall produce" content that used
-// to be a WallPreviewSection + a standalone WarningsList + a separate
-// "Wall estimate" accordion below the fold.
+// Phone-only per-item tab strip -- Schedule / Connections / Warnings --
+// wrapping EXISTING components, no new business logic. Config sections
+// (WallsCard, Wall geometry, Tracks and flashing) stay above this in
+// InternalCalculator.tsx's phone workspaceNode, unchanged; this only
+// reorganizes the "what does this wall produce" content that used to be a
+// standalone WarningsList + a separate "Wall estimate" accordion below the
+// fold. No Preview tab here -- GeometrySectionPhone (phoneSections.tsx)
+// renders the preview diagram inline below the dimension inputs, matching
+// web/project-mode, so a duplicate tab would just show the same diagram twice.
 //
 // Uses its OWN tab-bar markup (not the shared ui/tabs.tsx Tabs/TabPanel, which
 // stays as-is for EstimateResultsCard/project-mode and External) so this
@@ -15,7 +17,6 @@
 // =============================================================================
 import { useState } from "react";
 import { NAVY } from "../styleTokens";
-import { WallPreviewSection } from "../ui/wallPreview";
 import { ConnectionsSummary } from "../ui/connectionsSummary";
 import { WallEstimateCards } from "./mainSections";
 import { WarningsListPhone, SheetCardPhone } from "./phoneSections";
@@ -25,7 +26,6 @@ import type { EffectiveLayout } from "../useLayoutMode";
 import type { PanelScheduleCard } from "../ui/scheduleCards";
 
 const TABS = [
-  { id: "preview", label: "Preview" },
   { id: "schedule", label: "Schedule" },
   { id: "connections", label: "Connections" },
   { id: "warnings", label: "Warnings" },
@@ -33,13 +33,13 @@ const TABS = [
 type TabId = typeof TABS[number]["id"];
 
 export const WallWorkspaceTabs = ({
-  active, out, orient, layoutMode, walls, cornerPair, shaftPair, ScheduleComp, dimUnit, toDisp,
+  active, out, orient, layoutMode, walls, cornerPair, shaftPair, ScheduleComp,
 }: {
   active: Wall; out: ComputeOut; orient: "vertical" | "horizontal"; layoutMode: EffectiveLayout;
   walls: Wall[]; cornerPair: CornerPairResult | null; shaftPair: ShaftPairResult | null;
-  ScheduleComp: typeof PanelScheduleCard; dimUnit: string; toDisp: (m: string) => string;
+  ScheduleComp: typeof PanelScheduleCard;
 }) => {
-  const [tab, setTab] = useState<TabId>("preview");
+  const [tab, setTab] = useState<TabId>("schedule");
   return (
     // Its own SheetCardPhone -- Tracks (the last of the four config
     // sections) is now its own separate card too, see InternalCalculator.tsx.
@@ -58,11 +58,6 @@ export const WallWorkspaceTabs = ({
           );
         })}
       </div>
-      {tab === "preview" && (
-        <div className="mt-4">
-          <WallPreviewSection active={active} walls={walls} out={out} dimUnit={dimUnit} toDisp={toDisp} />
-        </div>
-      )}
       {tab === "schedule" && (
         <div className="mt-4">
           <WallEstimateCards

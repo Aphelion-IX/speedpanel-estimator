@@ -216,11 +216,11 @@ export function InternalCalculator({
           </div>
         </div>
         <DimensionInputs active={active} toDisp={toDisp} updDim={updDim} out={out} orient={orient} />
-        {/* Pulled out into WallWorkspaceTabs's Preview tab on phone, but
-            only in single-wall mode -- project mode's own tabbed
-            EstimateResultsCard has no preview tab of its own, so this
-            stays inline there rather than disappearing entirely. */}
-        {(layoutMode !== "phone" || project) && <WallPreviewSection active={active} walls={walls} out={out} dimUnit={dimUnit} toDisp={toDisp} />}
+        {/* geometryContent only ever renders on web (see its own comment
+            above) -- phone has its own separate GeometrySectionPhone
+            (phoneSections.tsx), which now also always shows the preview
+            inline below Dimensions, matching this. */}
+        <WallPreviewSection active={active} walls={walls} out={out} dimUnit={dimUnit} toDisp={toDisp} />
         <SpanTable orient={orient} type={active.type} wallSystem={active.wallSystem} />
       </div>
     </>
@@ -283,7 +283,7 @@ export function InternalCalculator({
           />
           <GeometrySectionPhone
             active={active} update={update} toDisp={toDisp} updDim={updDim} out={out} orient={orient}
-            walls={walls} dimUnit={dimUnit} switchDimUnit={switchDimUnit} project={project}
+            walls={walls} dimUnit={dimUnit} switchDimUnit={switchDimUnit}
           />
           <PanelLengthSectionPhone
             dimUnit={dimUnit} out={out} active={active} walls={walls}
@@ -304,7 +304,6 @@ export function InternalCalculator({
             <WallWorkspaceTabs
               active={active} out={out} orient={orient} layoutMode={layoutMode}
               walls={walls} cornerPair={cornerPair} shaftPair={shaftPair} ScheduleComp={ScheduleComp}
-              dimUnit={dimUnit} toDisp={toDisp}
             />
           ) : (
             <SheetCardPhone>

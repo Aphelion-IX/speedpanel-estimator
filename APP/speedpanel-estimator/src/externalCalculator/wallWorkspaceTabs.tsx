@@ -2,6 +2,9 @@
 // Wall workspace tabs (phone) -- External
 // =============================================================================
 // Mirrors internalCalculator/wallWorkspaceTabs.tsx -- see its header comment.
+// No Preview tab here -- GeometrySectionPhone (phoneSections.tsx) renders the
+// preview diagram inline below the dimension inputs, matching web/project
+// -mode, so a duplicate tab would just show the same diagram twice.
 // External has no corner/shaft wallSystem concept, so its Schedule tab uses
 // WallEstimateCardsExt (no cornerPair/shaftPair), and Connections only ever
 // shows the generic junction-partner row (ConnectionsSummary already omits
@@ -15,7 +18,6 @@
 // =============================================================================
 import { useState } from "react";
 import { NAVY } from "../styleTokens";
-import { WallPreviewSection } from "../ui/wallPreview";
 import { ConnectionsSummary } from "../ui/connectionsSummary";
 import { WallEstimateCardsExt } from "./mainSections";
 import { WarningsListPhone, SheetCardPhone } from "./phoneSections";
@@ -24,18 +26,17 @@ import type { EffectiveLayout } from "../useLayoutMode";
 import type { PanelScheduleCard } from "../ui/scheduleCards";
 
 const TABS = [
-  { id: "preview", label: "Preview" },
   { id: "schedule", label: "Schedule" },
   { id: "connections", label: "Connections" },
   { id: "warnings", label: "Warnings" },
 ] as const;
 type TabId = typeof TABS[number]["id"];
 
-export const WallWorkspaceTabs = ({ active, out, orient, layoutMode, walls, ScheduleComp, dimUnit, toDisp }: {
+export const WallWorkspaceTabs = ({ active, out, orient, layoutMode, walls, ScheduleComp }: {
   active: Wall; out: ComputeOut; orient: "vertical" | "horizontal"; layoutMode: EffectiveLayout;
-  walls: Wall[]; ScheduleComp: typeof PanelScheduleCard; dimUnit: string; toDisp: (m: string) => string;
+  walls: Wall[]; ScheduleComp: typeof PanelScheduleCard;
 }) => {
-  const [tab, setTab] = useState<TabId>("preview");
+  const [tab, setTab] = useState<TabId>("schedule");
   return (
     // Its own SheetCardPhone -- Tracks (the last of the four config
     // sections) is now its own separate card too, see ExternalCalculator.tsx.
@@ -54,11 +55,6 @@ export const WallWorkspaceTabs = ({ active, out, orient, layoutMode, walls, Sche
           );
         })}
       </div>
-      {tab === "preview" && (
-        <div className="mt-4">
-          <WallPreviewSection active={active} walls={walls} out={out} dimUnit={dimUnit} toDisp={toDisp} />
-        </div>
-      )}
       {tab === "schedule" && (
         <div className="mt-4">
           <WallEstimateCardsExt active={active} out={out} orient={orient} layoutMode={layoutMode} ScheduleComp={ScheduleComp} />
