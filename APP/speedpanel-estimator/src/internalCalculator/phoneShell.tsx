@@ -84,7 +84,7 @@ export const ProjectCardPhone = ({
           {totalItems} item{totalItems === 1 ? "" : "s"}
         </div>
       </div>
-      <div className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+      <div className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-900">
         <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: BLUE }} />
       </div>
       <div className="mt-3 grid grid-cols-2 gap-2.5">
@@ -140,7 +140,7 @@ export const WallPillStripPhone = ({ items, onSelect }: {
 
 // --- Sheet header + metrics grid ----------------------------------------------
 export const MetricsGridPhone = ({ stats }: { stats: { value: string | number; label: string }[] }) => (
-  <div className="grid grid-cols-3 divide-x divide-slate-100 dark:divide-slate-800">
+  <div className="grid grid-cols-3 divide-x divide-slate-100 dark:divide-slate-700">
     {stats.map((s, i) => (
       <div key={i} className={`px-2 text-center ${i >= 3 ? "mt-3 border-t border-slate-100 dark:border-slate-800 pt-3" : ""}`}>
         <div className="text-base font-extrabold" style={{ color: NAVY }}>{s.value}</div>
