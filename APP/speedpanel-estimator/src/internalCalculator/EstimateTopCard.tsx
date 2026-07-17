@@ -109,7 +109,7 @@ export const EstimateTopCard = ({
     return (
       <div className="mt-3">
         <span className={`${cx.badge} ${tone("neutral")}`}>NO ESTIMATE ACTIVE</span>
-        <div className={`mt-2 ${cx.section} flex flex-wrap items-center justify-between gap-4`}>
+        <div className={`mt-2 ${cx.section}`}>
           <div className="flex items-center gap-3">
             <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full border-2" style={{ borderColor: BLUE }}>
               <FilePlus2 size={18} style={{ color: BLUE }} />
@@ -119,7 +119,16 @@ export const EstimateTopCard = ({
               <div className="mt-0.5 text-sm text-slate-400 dark:text-slate-400">Choose a wall type below to start building your estimate.</div>
             </div>
           </div>
-          <Button icon={<Plus size={14} />} onClick={addBlankWall}>
+          <div className="mt-4">
+            <label className={cx.lbl}>Estimate description (optional)</label>
+            <input
+              value={draftLabel ?? ""}
+              onChange={e => onSetDraftLabel(e.target.value || null)}
+              placeholder="e.g. Front lobby internal walls"
+              className="w-full rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-600 bg-slate-50/60 dark:bg-slate-900/40 px-4 py-3 text-sm text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 outline-none transition-colors focus:border-blue-300 dark:focus:border-blue-600 focus:bg-white dark:focus:bg-slate-800"
+            />
+          </div>
+          <Button icon={<Plus size={14} />} onClick={addBlankWall} className="mt-4 w-full sm:w-auto">
             Start New Estimate <ChevronRight size={14} />
           </Button>
         </div>
