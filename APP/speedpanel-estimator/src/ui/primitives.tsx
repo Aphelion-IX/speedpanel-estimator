@@ -284,8 +284,14 @@ export const WarningsList = ({ warnings }: { warnings?: string[] | null }) => {
 // layout mode. Phone reproduces today's stacked order exactly (byte-for-byte
 // equivalent JSX, just relocated into variables); web arranges it as a sticky
 // sidebar + wider main column.
+//
+// `sidebar` is optional -- the Estimate Structure wall nav used to be the
+// sidebar's only content, but now renders as its own full-width card
+// carousel above this shell instead (see each calculator's web branch), so
+// there's nothing left to put in a sidebar column. Omitting it collapses to
+// a single full-width column rather than reserving an empty aside.
 export const CalculatorShell = ({ sidebar, main, footer, sidebarWidth = 400 }: {
-  sidebar: React.ReactNode; main: React.ReactNode; footer: React.ReactNode;
+  sidebar?: React.ReactNode; main: React.ReactNode; footer: React.ReactNode;
   sidebarWidth?: number; // narrower once a sidebar is nav-only (see InternalCalculator's Estimate Structure nav) -- default keeps every existing caller byte-identical
 }) => (
   // No space-y-* here: every child component already carries its own correct
@@ -294,8 +300,8 @@ export const CalculatorShell = ({ sidebar, main, footer, sidebarWidth = 400 }: {
   // specificity than a plain utility class like mt-5, so it was silently
   // overriding every child's real margin down to a flat 4px -- the actual
   // cause of web layout's spacing looking compressed/inconsistent vs phone.
-  <div className="grid items-start gap-8" style={{ gridTemplateColumns: `${sidebarWidth}px 1fr` }}>
-    <aside className="sticky top-5">{sidebar}</aside>
+  <div className="grid items-start gap-8" style={{ gridTemplateColumns: sidebar ? `${sidebarWidth}px 1fr` : "1fr" }}>
+    {sidebar && <aside className="sticky top-5">{sidebar}</aside>}
     <div className="min-w-0">{main}{footer}</div>
   </div>
 );

@@ -150,11 +150,15 @@ export function ExternalCalculator({
     { value: results.length, label: "Walls" },
   ];
 
-  const sidebarNode = (
+  // Renders as a full-width card carousel on web (see estimateStructureNav.tsx),
+  // no longer the sidebar's sole content -- kept as its own variable rather
+  // than inlined so the phone/web branches below can each place it correctly.
+  const wallNavNode = (
     <EstimateStructureNav
       walls={walls} results={results} activeId={activeId} onSelectWall={setActiveId}
       warnById={warnById} addBlankWall={addBlankWall}
       layoutMode={layoutMode}
+      dimUnit={dimUnit} toDisp={toDisp}
     />
   );
 
@@ -363,11 +367,12 @@ export function ExternalCalculator({
     />
   );
 
-  if (layoutMode === "phone") return <>{topCardNode}{sidebarNode}{mainNode}{footerNode}{stickyBarNode}{orderDrawerNode}</>;
+  if (layoutMode === "phone") return <>{topCardNode}{wallNavNode}{mainNode}{footerNode}{stickyBarNode}{orderDrawerNode}</>;
   return (
     <>
       {topCardNode}
-      <CalculatorShell sidebar={sidebarNode} main={mainNode} footer={footerNode} sidebarWidth={320} />
+      {wallNavNode}
+      <CalculatorShell main={mainNode} footer={footerNode} />
       {orderDrawerNode}
     </>
   );

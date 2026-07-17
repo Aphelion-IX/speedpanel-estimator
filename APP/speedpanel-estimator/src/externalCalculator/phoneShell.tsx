@@ -47,7 +47,10 @@ export const deriveWallStatus = (wall: Wall, out: ComputeOut): ItemStatusKey => 
 };
 
 // --- Wall pill strip -------------------------------------------------------
-export interface PhonePillItem { id: string; label: string; sublabel?: string; active: boolean; status: ItemStatusKey; }
+// `thumbnail` (a small WallPreviewSection size="thumb") sits in its own
+// backing chip above the text -- needed regardless of the pill's own
+// background so the image reads the same selected or not.
+export interface PhonePillItem { id: string; label: string; sublabel?: string; active: boolean; status: ItemStatusKey; thumbnail?: React.ReactNode; }
 
 export const WallPillStripPhone = ({ items, onSelect }: {
   items: PhonePillItem[]; onSelect: (id: string) => void;
@@ -57,9 +60,14 @@ export const WallPillStripPhone = ({ items, onSelect }: {
     <div className="-mx-1 flex snap-x gap-2 overflow-x-auto px-1 pb-1" style={{ scrollbarWidth: "none" }}>
       {items.map(item => (
         <button key={item.id} onClick={() => onSelect(item.id)}
-          className={"min-w-[168px] shrink-0 snap-start rounded-xl border bg-white dark:bg-slate-800 px-3.5 py-3 text-left active:scale-95 transition-all " +
+          className={"min-w-[190px] shrink-0 snap-start rounded-xl border bg-white dark:bg-slate-800 px-3.5 py-3 text-left active:scale-95 transition-all " +
             (item.active ? "border-2 shadow-[0_0_0_2px_rgba(0,103,185,0.12)]" : "border-slate-200 dark:border-slate-600")}
           style={item.active ? { borderColor: BLUE } : undefined}>
+          {item.thumbnail && (
+            <div className="mb-2 overflow-hidden rounded-lg bg-white dark:bg-slate-900/70">
+              {item.thumbnail}
+            </div>
+          )}
           <div className="truncate text-sm font-bold" style={{ color: NAVY }}>{item.label}</div>
           {item.sublabel && <div className="mt-1 truncate text-xs font-medium" style={{ color: MUTED }}>{item.sublabel}</div>}
           <span className={`mt-2 inline-flex ${statusChipCx(item.status)}`}>{statusLabel(item.status)}</span>
