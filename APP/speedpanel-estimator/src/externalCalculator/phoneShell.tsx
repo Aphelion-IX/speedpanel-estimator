@@ -13,8 +13,8 @@
 // wallConfig/lengthExplorer fork (each calculator owns everything it
 // renders, so a change to one can never accidentally affect the other).
 // =============================================================================
-import { cx, tone, BLUE, NAVY, MUTED, WHITE } from "../styleTokens";
-import type { Wall, WallResult, ComputeOut } from "../estimate/wall.types";
+import { cx, tone, BLUE, NAVY, MUTED } from "../styleTokens";
+import type { Wall, ComputeOut } from "../estimate/wall.types";
 
 // --- Derived item status ------------------------------------------------------
 // No persisted "status" field exists on Wall -- this derives a mockup-style
@@ -45,68 +45,6 @@ export const deriveWallStatus = (wall: Wall, out: ComputeOut): ItemStatusKey => 
   if (wall.forcedStock) return "custom";
   return "complete";
 };
-
-// --- Project card ------------------------------------------------------------
-export const ProjectCardPhone = ({
-  projectName, results, addBlankWall, onAddInternalWall,
-}: {
-  projectName?: string;
-  results: WallResult[];
-  addBlankWall: () => void;
-  // Adds a wall then switches the whole project over to the Internal
-  // calculator -- see App.tsx's addInternalWall (no per-wall internal/
-  // external flag exists, Internal-ness is a project-level system choice).
-  // Mirror image of Internal's own onAddExternalWall.
-  onAddInternalWall: () => void;
-}) => {
-  const totalItems = results.length;
-  const configuredCount = results.filter(r => isConfigured(deriveWallStatus(r.wall, r.out))).length;
-  const warningsCount = results.filter(r => r.out.warnings.length > 0).length;
-  const pct = totalItems ? Math.round((configuredCount / totalItems) * 100) : 0;
-
-  return (
-    <div className={`mt-3 ${cx.section}`}>
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="truncate text-base font-extrabold" style={{ color: NAVY }}>{projectName ?? "Draft estimate"}</div>
-          <div className="mt-0.5 text-xs font-medium text-slate-400 dark:text-slate-400">
-            {pct}% configured · {warningsCount} warning{warningsCount === 1 ? "" : "s"}
-          </div>
-        </div>
-        <div className="shrink-0 text-xs font-medium text-slate-400 dark:text-slate-400">
-          {totalItems} item{totalItems === 1 ? "" : "s"}
-        </div>
-      </div>
-      <div className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-900">
-        <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: BLUE }} />
-      </div>
-      <div className="mt-3 grid grid-cols-2 gap-2.5">
-        <AddTile label="External Wall" sublabel="Add a weather-exposed wall" onClick={addBlankWall} external />
-        <AddTile label="Internal Wall" sublabel="Add a new internal estimate" onClick={onAddInternalWall} />
-      </div>
-    </div>
-  );
-};
-
-// External tile's icon badge reuses tone("info") -- the same cyan classes
-// already backing the Custom status chip -- rather than hand-rolled cyan
-// classes; its border stays the same neutral slate every other unselected
-// card in the app uses (no cyan border token exists in styleTokens.ts to
-// borrow instead).
-const AddTile = ({ label, sublabel, onClick, external = false }: {
-  label: string; sublabel: string; onClick: () => void; external?: boolean;
-}) => (
-  <button onClick={onClick}
-    className={`flex min-h-[76px] items-center gap-2.5 rounded-xl border bg-white dark:bg-slate-800 px-3 py-2.5 text-left shadow-sm active:scale-95 transition-all ${external ? "border-slate-200 dark:border-slate-600" : ""}`}
-    style={external ? undefined : { borderColor: BLUE }}>
-    <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-[11px] text-base font-black leading-none ${external ? tone("info") : ""}`}
-      style={external ? undefined : { background: BLUE, color: WHITE }}>+</span>
-    <span className="min-w-0">
-      <span className="block text-[13px] font-bold leading-tight" style={{ color: NAVY }}>{label}</span>
-      <span className="mt-0.5 block text-[10px] leading-tight text-slate-400 dark:text-slate-400">{sublabel}</span>
-    </span>
-  </button>
-);
 
 // --- Wall pill strip -------------------------------------------------------
 export interface PhonePillItem { id: string; label: string; sublabel?: string; active: boolean; status: ItemStatusKey; }

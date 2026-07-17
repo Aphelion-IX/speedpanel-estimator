@@ -12,7 +12,7 @@
 // estimate are computed independently here, mirroring ExternalCalculator's
 // own independent compute calls on the same shared `walls` array.
 // =============================================================================
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { Frame, Gauge, Link2, Lock, Settings } from "lucide-react";
 import { cx } from "../styleTokens";
 import { useWallResults } from "../wallStore";
@@ -39,7 +39,9 @@ import { EstimateStructureNav } from "./estimateStructureNav";
 import { KitWorkspace } from "./kitWorkspace";
 import { KitWorkspacePhone } from "./kitWorkspacePhone";
 import { WallWorkspaceTabs } from "./wallWorkspaceTabs";
-import { ProjectCardPhone, SheetHeaderPhone, StickyBarTilesPhone, deriveWallStatus } from "./phoneShell";
+import { SheetHeaderPhone, StickyBarTilesPhone, deriveWallStatus } from "./phoneShell";
+import { EstimateTopCard } from "./EstimateTopCard";
+import type { OpenProjectInfo } from "./EstimateTopCard";
 import {
   SheetCardPhone, SheetSectionPhone, SystemConfigSectionPhone, GeometrySectionPhone,
   PanelLengthSectionPhone, TracksFlashingSectionPhone, WarningsListPhone,
@@ -56,17 +58,22 @@ import { OrderReviewDrawer } from "./orderReviewDrawer";
 import { buildInternalReportData } from "../export/buildInternalReportData";
 import { exportEstimateToExcel } from "../export/exportEstimateToExcel";
 
-export function InternalCalculator({ store, orient, dimUnit, setDimUnit, systemSelector, layoutMode, mode, setMode, showWall, setShowWall, linkCornerPartner, linkShaftPartner, projectName, onAddExternalWall, switchOrient, switchToExternal }: {
+export function InternalCalculator({
+  store, orient, dimUnit, setDimUnit, systemSelector, layoutMode, mode, setMode,
+  showWall, setShowWall, linkCornerPartner, linkShaftPartner,
+  onAddExternalWall, switchOrient, switchToExternal,
+  openProject, draftLabel, onSetDraftLabel, lastEditedAt,
+  onSaveDraftAsProject, onSaveOpenProject, savingProject, saveProjectError, onGoToProjects,
+}: {
   store: WallStore; orient: "vertical" | "horizontal"; dimUnit: string;
   setDimUnit: (u: string) => void; systemSelector?: React.ReactNode; layoutMode: EffectiveLayout;
   mode: string; setMode: (m: string) => void;
   showWall: boolean; setShowWall: (v: boolean) => void;
   linkCornerPartner: (targetId: number | null) => void;
   linkShaftPartner: (targetId: number | null) => void;
-  projectName?: string;
-  // Phone-only "External Wall" add-tile (ProjectCardPhone) -- adds a wall
-  // then switches the whole project to the External calculator, see
-  // App.tsx's addExternalWall.
+  // "External Wall" add-tile (EstimateTopCard) -- adds a wall then switches
+  // the whole project to the External calculator, see App.tsx's
+  // addExternalWall.
   onAddExternalWall: () => void;
   // Phone-only SystemConfigSectionPhone's Orientation/Wall type segments --
   // same store/App.tsx wiring web's SystemRows uses, just threaded straight
@@ -75,9 +82,25 @@ export function InternalCalculator({ store, orient, dimUnit, setDimUnit, systemS
   // component (see phoneSections.tsx's header comment).
   switchOrient: (o: "vertical" | "horizontal") => void;
   switchToExternal: () => void;
+  // EstimateTopCard's save-flow wiring -- lifted from App.tsx, which used to
+  // render this as a standalone banner above the calculator (see
+  // EstimateTopCard.tsx's header comment).
+  openProject: OpenProjectInfo | null;
+  draftLabel: string | null;
+  onSetDraftLabel: (label: string | null) => void;
+  lastEditedAt?: number;
+  onSaveDraftAsProject: (name: string) => Promise<string | null>;
+  onSaveOpenProject: () => Promise<void>;
+  savingProject: boolean;
+  saveProjectError: string | null;
+  onGoToProjects: () => void;
 }) {
   const [showTrackFinish, setShowTrackFinish] = useState(false);
   const [orderDrawerOpen, setOrderDrawerOpen] = useState(false);
+  // EstimateTopCard's "View estimate details" link scrolls here rather than
+  // navigating anywhere new -- no separate estimate-detail route exists.
+  const resultsRef = useRef<HTMLDivElement>(null);
+  const scrollToResults = () => resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
 
   const {
     walls, activeId, setActiveId,
@@ -328,7 +351,7 @@ export function InternalCalculator({ store, orient, dimUnit, setDimUnit, systemS
   );
 
   const mainNode = (
-    <>
+    <div ref={resultsRef}>
       {workspaceNode}
 
       {/* Single wall estimate -- superseded by WallWorkspaceTabs's Schedule
@@ -356,7 +379,7 @@ export function InternalCalculator({ store, orient, dimUnit, setDimUnit, systemS
           />
         </>
       )}
-    </>
+    </div>
   );
 
   const hasExportData = project
@@ -387,16 +410,26 @@ export function InternalCalculator({ store, orient, dimUnit, setDimUnit, systemS
       onReviewOrder={() => setOrderDrawerOpen(true)} lineItemCount={orderLineItemCount}
     />
   );
-  const projectCardNode = layoutMode === "phone" && (
-    <ProjectCardPhone
-      projectName={projectName} results={results} kits={kits}
+  // Unconditional now (used to be phone-only) -- see EstimateTopCard.tsx's
+  // header comment for why it now also covers the web layout's top-of-page
+  // slot, in place of App.tsx's old standalone save-draft/editing-project
+  // banners.
+  const topCardNode = (
+    <EstimateTopCard
+      results={results} kits={kits} projAgg={projChosenAgg}
       addBlankWall={addBlankWall} onAddExternalWall={onAddExternalWall}
+      openProject={openProject} draftLabel={draftLabel} onSetDraftLabel={onSetDraftLabel}
+      lastEditedAt={lastEditedAt}
+      onSaveDraftAsProject={onSaveDraftAsProject} onSaveOpenProject={onSaveOpenProject}
+      savingProject={savingProject} saveProjectError={saveProjectError}
+      onGoToProjects={onGoToProjects} onViewDetails={scrollToResults}
     />
   );
 
-  if (layoutMode === "phone") return <>{projectCardNode}{sidebarNode}{mainNode}{footerNode}{stickyBarNode}{orderDrawerNode}</>;
+  if (layoutMode === "phone") return <>{topCardNode}{sidebarNode}{mainNode}{footerNode}{stickyBarNode}{orderDrawerNode}</>;
   return (
     <>
+      {topCardNode}
       <CalculatorShell sidebar={sidebarNode} main={mainNode} footer={footerNode} sidebarWidth={320} />
       {orderDrawerNode}
     </>

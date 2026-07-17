@@ -7,7 +7,6 @@ import { useCompanyMemberships } from "./lib/useCompanyMemberships";
 import { useWallStore } from "./wallStore";
 import { NAVY, BLUE, GOLD } from "./styleTokens";
 import { IconButton } from "./ui/primitives";
-import { Button } from "./ui/button";
 import { ConfirmDialog, ErrorDialog } from "./ui/confirmDialog";
 import { LoadingState } from "./ui/states";
 import { EducationHub } from "./education/EducationHub";
@@ -29,7 +28,6 @@ import { LandingPage } from "./pages/home/LandingPage";
 import { OverviewDashboardPage } from "./pages/home/OverviewDashboardPage";
 import { saveProjectSnapshot } from "./pages/projects/saveProjectSnapshot";
 import { insertProject, seedSnapshotForSystem, useProjects } from "./pages/projects/projectsStore";
-import { SaveDraftBanner } from "./pages/projects/SaveDraftBanner";
 import type { ProjectRow, SavedProjectData } from "./pages/projects/projectTypes";
 import { ProformaInvoicePage } from "./pages/projects/orders/ProformaInvoicePage";
 import { CompanyRouter } from "./pages/company/CompanyRouter";
@@ -79,7 +77,7 @@ export default function SpeedpanelEstimator() {
   // Estimator tab -- see wallStore.ts's persistLocally/loadFrom/exportSnapshot.
   // While a project is open, the device-local session/wall autosave is
   // bypassed in favour of the explicit Save button below.
-  const [openProject, setOpenProject] = useState<{ id: string; name: string } | null>(null);
+  const [openProject, setOpenProject] = useState<{ id: string; name: string; updatedAt: string } | null>(null);
   const [savingProject, setSavingProject] = useState(false);
   const [saveProjectError, setSaveProjectError] = useState<string | null>(null);
   const [confirmReset, setConfirmReset] = useState(false);
@@ -143,7 +141,7 @@ export default function SpeedpanelEstimator() {
     setSystem(project.data.system);
     setMode(project.data.mode);
     setDimUnit(project.data.dimUnit);
-    setOpenProject({ id: project.id, name: project.name });
+    setOpenProject({ id: project.id, name: project.name, updatedAt: project.updated_at });
     setSaveProjectError(null);
     navigate({ tab: "estimator" });
   };
@@ -156,6 +154,11 @@ export default function SpeedpanelEstimator() {
     const err = await saveProjectSnapshot(openProject.id, snapshot);
     setSavingProject(false);
     if (err) setSaveProjectError(err);
+    // saveProjectSnapshot doesn't return the updated row -- optimistically
+    // stamp "now" for the top card's "Last edited" display; Supabase's own
+    // updated_at is refreshed server-side regardless, and self-corrects next
+    // time this project is (re)loaded.
+    else setOpenProject(p => p ? { ...p, updatedAt: new Date().toISOString() } : p);
   };
 
   // Two ways to create a saved project from a device-local state: System
@@ -297,32 +300,22 @@ export default function SpeedpanelEstimator() {
           </Suspense>
         )}
 
-        {/* Open-project banner + Save -- only shown while editing a saved project */}
-        {route.tab === "estimator" && openProject && (
-          <div className={`mt-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-blue-100 dark:border-blue-800/80 bg-blue-50/70 dark:bg-blue-900/55 px-4 py-3`}>
-            <span className="text-sm font-semibold" style={{ color: NAVY }}>Editing project: {openProject.name}</span>
-            <div className="flex items-center gap-3">
-              {saveProjectError && <span className="text-sm text-red-600 dark:text-red-300">{saveProjectError}</span>}
-              <Button onClick={saveOpenProject} disabled={savingProject}>{savingProject ? "Saving..." : "Save"}</Button>
-            </div>
-          </div>
-        )}
-
-        {/* Save-as-project banner -- only shown while there's no saved project open */}
-        {route.tab === "estimator" && !openProject && (
-          <SaveDraftBanner onSave={saveDraftAsProject} />
-        )}
-
-        {/* System configuration + calculator body */}
+        {/* System configuration + calculator body -- EstimateTopCard (inside
+            each Calculator) now renders the save-draft/editing-project
+            controls that used to live here as standalone banners. */}
         {route.tab === "estimator" && (
           isExt ? (
             <ExternalCalculator store={store} orient={orient} dimUnit={dimUnit} setDimUnit={switchDimUnit}
               systemSelector={<SystemRows orient={orient} switchOrient={switchOrient} isExt={isExt} switchSystem={switchSystem} findSys={findSys} />}
               layoutMode={layoutMode}
               mode={mode} setMode={setMode}
-              projectName={openProject?.name}
               onAddInternalWall={addInternalWall}
               switchOrient={switchOrient} switchToInternal={switchToInternal}
+              openProject={openProject} draftLabel={store.draftLabel} onSetDraftLabel={store.setDraftLabel}
+              lastEditedAt={store.lastEditedAt}
+              onSaveDraftAsProject={saveDraftAsProject} onSaveOpenProject={saveOpenProject}
+              savingProject={savingProject} saveProjectError={saveProjectError}
+              onGoToProjects={() => navigate({ tab: "projects" })}
             />
           ) : (
             <InternalCalculator
@@ -332,9 +325,13 @@ export default function SpeedpanelEstimator() {
               mode={mode} setMode={setMode}
               showWall={showWall} setShowWall={setShowWall}
               linkCornerPartner={linkCornerPartner} linkShaftPartner={linkShaftPartner}
-              projectName={openProject?.name}
               onAddExternalWall={addExternalWall}
               switchOrient={switchOrient} switchToExternal={switchToExternal}
+              openProject={openProject} draftLabel={store.draftLabel} onSetDraftLabel={store.setDraftLabel}
+              lastEditedAt={store.lastEditedAt}
+              onSaveDraftAsProject={saveDraftAsProject} onSaveOpenProject={saveOpenProject}
+              savingProject={savingProject} saveProjectError={saveProjectError}
+              onGoToProjects={() => navigate({ tab: "projects" })}
             />
           )
         )}
