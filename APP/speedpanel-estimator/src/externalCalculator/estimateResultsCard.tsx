@@ -11,9 +11,8 @@
 // =============================================================================
 import { useState } from "react";
 import { ClipboardList } from "lucide-react";
-import { NAVY } from "../styleTokens";
-import { Card, Row, StatsGrid, WarningsList } from "../ui/primitives";
-import { Button } from "../ui/button";
+import { BLUE, cx, NAVY } from "../styleTokens";
+import { Row, StatsGrid, WarningsList } from "../ui/primitives";
 import { Tabs, TabPanel } from "../ui/tabs";
 import { ConnectionBreakdownCard, type PanelScheduleCard } from "../ui/scheduleCards";
 import { buildExtProjAgg } from "../estimate/aggregate";
@@ -36,23 +35,19 @@ export const EstimateResultsCard = ({
   layoutMode, results,
   projAgg, combinedEstimate,
   active, out, orient, ScheduleComp,
-  onReviewOrder, orderLineItemCount,
 }: {
   layoutMode: EffectiveLayout;
   results: WallResult[];
   projAgg: ReturnType<typeof buildExtProjAgg>; combinedEstimate: CombinedEstimate;
   active: Wall; out: ComputeOut; orient: "vertical" | "horizontal";
   ScheduleComp: typeof PanelScheduleCard;
-  // Opens the Order Review drawer -- rendered next to the tab pills so it's
-  // reachable from every tab, not just the Order one.
-  onReviewOrder: () => void; orderLineItemCount: number;
 }) => {
   const [activeTab, setActiveTab] = useState("overview");
   const projectWarnings = collectProjectWarnings(results, combinedEstimate);
 
   return (
     <div className="mt-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
+      <div className={cx.card}>
         <Tabs
           tabs={[
             { id: "overview", label: "Overview" },
@@ -63,32 +58,32 @@ export const EstimateResultsCard = ({
           activeId={activeTab}
           onChange={setActiveTab}
         />
-        <Button variant="secondary" onClick={onReviewOrder}>
-          Review order · {orderLineItemCount} item{orderLineItemCount === 1 ? "" : "s"}
-        </Button>
-      </div>
 
-      <TabPanel id="overview" activeId={activeTab}>
-        {(() => {
-          const overviewStats = [
-            { value: `${projAgg.totalArea} m2`, label: "Total area" },
-            { value: projAgg.panels, label: "Total panels" },
-            { value: results.length, label: "Walls" },
-            { value: projectWarnings.length, label: "Warnings" },
-          ];
-          // Phone: MetricsGridPhone (blue/navy only, no gold top-border) --
-          // same colour rule as the rest of the External phone estimator.
-          // Web keeps the shared gold-accented StatsGrid/Stat unchanged.
-          return (
-            <Card title="Estimate Summary" icon={<ClipboardList size={14} />}>
-              {layoutMode === "phone" ? <MetricsGridPhone stats={overviewStats} /> : <StatsGrid stats={overviewStats} />}
-            </Card>
-          );
-        })()}
-        {layoutMode === "phone"
-          ? <WarningsListPhone warnings={projectWarnings} emptyLabel="No active warnings for this project." />
-          : <WarningsList warnings={projectWarnings} />}
-      </TabPanel>
+        <TabPanel id="overview" activeId={activeTab}>
+          {(() => {
+            const overviewStats = [
+              { value: `${projAgg.totalArea} m2`, label: "Total area" },
+              { value: projAgg.panels, label: "Total panels" },
+              { value: results.length, label: "Walls" },
+              { value: projectWarnings.length, label: "Warnings" },
+            ];
+            // Phone: MetricsGridPhone (blue/navy only, no gold top-border) --
+            // same colour rule as the rest of the External phone estimator.
+            // Web keeps the shared gold-accented StatsGrid/Stat unchanged.
+            return (
+              <>
+                <div className={cx.cardTitle} style={{ color: NAVY }}>
+                  <span style={{ color: BLUE }}><ClipboardList size={14} /></span>Estimate Summary
+                </div>
+                {layoutMode === "phone" ? <MetricsGridPhone stats={overviewStats} /> : <StatsGrid stats={overviewStats} />}
+              </>
+            );
+          })()}
+          {layoutMode === "phone"
+            ? <WarningsListPhone warnings={projectWarnings} emptyLabel="No active warnings for this project." />
+            : <WarningsList warnings={projectWarnings} />}
+        </TabPanel>
+      </div>
 
       <TabPanel id="wall" activeId={activeTab}>
         <p className="mb-3 text-sm font-semibold" style={{ color: NAVY }}>Selected wall: {active.name}</p>

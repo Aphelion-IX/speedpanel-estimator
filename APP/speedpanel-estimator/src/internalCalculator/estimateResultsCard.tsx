@@ -11,7 +11,7 @@
 // =============================================================================
 import { useState } from "react";
 import { ClipboardList, Frame } from "lucide-react";
-import { NAVY } from "../styleTokens";
+import { BLUE, cx, NAVY } from "../styleTokens";
 import { r1 } from "../estimate/mathUtils";
 import { aggregate } from "../estimate/aggregate";
 import type { CombinedEstimate } from "../estimate/calculateCombinedEstimate";
@@ -20,7 +20,6 @@ import type { KitEntry } from "../estimate/synthesizeKits";
 import type { ComputeOut, Wall, WallResult } from "../estimate/wall.types";
 import type { EffectiveLayout } from "../useLayoutMode";
 import { Card, CardGrid, Row, StatsGrid, WarningsList } from "../ui/primitives";
-import { Button } from "../ui/button";
 import { Tabs, TabPanel } from "../ui/tabs";
 import { ConnectionBreakdownCard, PanelScheduleCard } from "../ui/scheduleCards";
 import { CornerKitCard, ShaftJunctionCard } from "./kitCards";
@@ -41,7 +40,6 @@ export const EstimateResultsCard = ({
   layoutMode, results, walls, kits,
   projChosenAgg, combinedEstimate,
   active, out, orient, cornerPair, shaftPair, ScheduleComp,
-  onReviewOrder, orderLineItemCount,
 }: {
   layoutMode: EffectiveLayout;
   results: WallResult[]; walls: Wall[]; kits: KitEntry[];
@@ -49,17 +47,13 @@ export const EstimateResultsCard = ({
   active: Wall; out: ComputeOut; orient: "vertical" | "horizontal";
   cornerPair: CornerPairResult | null; shaftPair: ShaftPairResult | null;
   ScheduleComp: typeof PanelScheduleCard;
-  // Opens the Order Review drawer (src/internalCalculator/orderReviewDrawer.tsx)
-  // -- rendered next to the tab pills so it's reachable from every tab, not
-  // just the Order one.
-  onReviewOrder: () => void; orderLineItemCount: number;
 }) => {
   const [activeTab, setActiveTab] = useState("overview");
   const projectWarnings = collectProjectWarnings(results, kits, combinedEstimate);
 
   return (
     <div className="mt-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
+      <div className={cx.card}>
         <Tabs
           tabs={[
             { id: "overview", label: "Overview" },
@@ -70,34 +64,34 @@ export const EstimateResultsCard = ({
           activeId={activeTab}
           onChange={setActiveTab}
         />
-        <Button variant="secondary" onClick={onReviewOrder}>
-          Review order · {orderLineItemCount} item{orderLineItemCount === 1 ? "" : "s"}
-        </Button>
-      </div>
 
-      <TabPanel id="overview" activeId={activeTab}>
-        {(() => {
-          const overviewStats = [
-            { value: `${projChosenAgg.totalArea} m2`, label: "Total area" },
-            { value: projChosenAgg.totalPanels, label: "Total panels" },
-            { value: results.length, label: "Walls" },
-            { value: kits.length, label: "Connection kits" },
-            { value: `${r1(projChosenAgg.wastePct)}%`, label: "Est. waste" },
-            { value: projectWarnings.length, label: "Warnings" },
-          ];
-          // Phone: MetricsGridPhone (blue/navy only, no gold top-border) --
-          // same colour rule as the rest of the Internal phone estimator.
-          // Web keeps the shared gold-accented StatsGrid/Stat unchanged.
-          return (
-            <Card title="Estimate Summary" icon={<ClipboardList size={14} />}>
-              {layoutMode === "phone" ? <MetricsGridPhone stats={overviewStats} /> : <StatsGrid stats={overviewStats} />}
-            </Card>
-          );
-        })()}
-        {layoutMode === "phone"
-          ? <WarningsListPhone warnings={projectWarnings} emptyLabel="No active warnings for this project." />
-          : <WarningsList warnings={projectWarnings} />}
-      </TabPanel>
+        <TabPanel id="overview" activeId={activeTab}>
+          {(() => {
+            const overviewStats = [
+              { value: `${projChosenAgg.totalArea} m2`, label: "Total area" },
+              { value: projChosenAgg.totalPanels, label: "Total panels" },
+              { value: results.length, label: "Walls" },
+              { value: kits.length, label: "Connection kits" },
+              { value: `${r1(projChosenAgg.wastePct)}%`, label: "Est. waste" },
+              { value: projectWarnings.length, label: "Warnings" },
+            ];
+            // Phone: MetricsGridPhone (blue/navy only, no gold top-border) --
+            // same colour rule as the rest of the Internal phone estimator.
+            // Web keeps the shared gold-accented StatsGrid/Stat unchanged.
+            return (
+              <>
+                <div className={cx.cardTitle} style={{ color: NAVY }}>
+                  <span style={{ color: BLUE }}><ClipboardList size={14} /></span>Estimate Summary
+                </div>
+                {layoutMode === "phone" ? <MetricsGridPhone stats={overviewStats} /> : <StatsGrid stats={overviewStats} />}
+              </>
+            );
+          })()}
+          {layoutMode === "phone"
+            ? <WarningsListPhone warnings={projectWarnings} emptyLabel="No active warnings for this project." />
+            : <WarningsList warnings={projectWarnings} />}
+        </TabPanel>
+      </div>
 
       <TabPanel id="wall" activeId={activeTab}>
         <p className="mb-3 text-sm font-semibold" style={{ color: NAVY }}>Selected wall: {active.name}</p>
