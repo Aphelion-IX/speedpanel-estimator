@@ -132,7 +132,7 @@ export const EstimateTopCard = ({
           </div>
           <div className="mt-4">
             <label className={cx.lbl}>Project name (optional)</label>
-            <div className="flex items-center gap-2">
+            <div className="flex items-stretch gap-2">
               <input
                 ref={nameFieldRef}
                 value={draftLabel ?? ""}
@@ -141,8 +141,8 @@ export const EstimateTopCard = ({
                 className={cx.input + " min-w-0 flex-1"}
                 style={{ color: NAVY }}
               />
-              <NameActionButton title="Edit project name" icon={<Pencil size={14} />} onClick={() => nameFieldRef.current?.focus()} />
-              <NameActionButton title="Duplicate project" icon={<Copy size={14} />} onClick={onDuplicateDraft} />
+              <NameActionButton title="Edit project name" icon={<Pencil size={16} />} onClick={() => nameFieldRef.current?.focus()} />
+              <NameActionButton title="Duplicate project" icon={<Copy size={16} />} onClick={onDuplicateDraft} />
             </div>
           </div>
         </div>
@@ -261,17 +261,18 @@ export const EstimateTopCard = ({
   );
 };
 
-// "No project active" empty state's Edit/Duplicate row -- same bordered-
-// square visual language as ui/primitives.tsx's IconButton's "sm" size, and
-// deliberately sized off the input's TEXT (14px) rather than its full box
-// height -- an earlier version stretched these to match the input's whole
-// rendered height, which read as oversized next to a plain text field, so
-// this is a fixed small square centered in the row instead.
+// "No project active" empty state's Edit/Duplicate row -- matches the
+// Project Name input's own rendered height exactly, via an explicit w-11 +
+// self-stretch in a flex items-stretch row. Deliberately NOT aspect-square:
+// aspect-ratio can't reliably derive a flex row child's width from a height
+// that's only resolved via align-items: stretch (the two are computed in
+// separate passes), so it silently produced tall, narrow pill buttons
+// instead of actual squares -- an explicit width sidesteps that entirely.
 const NameActionButton = ({ onClick, title, icon }: {
   onClick: () => void; title: string; icon: React.ReactNode;
 }) => (
   <button onClick={onClick} title={title} aria-label={title}
-    className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-400 dark:text-slate-400 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md hover:text-blue-600 dark:hover:text-blue-400 hover:border-blue-300 dark:hover:border-blue-600 active:translate-y-0 active:scale-95">
+    className="grid w-11 shrink-0 place-items-center self-stretch rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-400 dark:text-slate-400 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md hover:text-blue-600 dark:hover:text-blue-400 hover:border-blue-300 dark:hover:border-blue-600 active:translate-y-0 active:scale-95">
     {icon}
   </button>
 );
