@@ -117,8 +117,7 @@ export const EstimateTopCard = ({
   if (noEstimate) {
     return (
       <div className="mt-3">
-        <span className={`${cx.badge} ${tone("neutral")}`}>NO PROJECT ACTIVE</span>
-        <div className={`mt-2 ${cx.section}`}>
+        <div className={cx.section}>
           <div className="flex items-center gap-2.5">
             <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border-2 bg-blue-50 dark:bg-blue-900/40"
               style={{ borderColor: BLUE, color: BLUE }}>
