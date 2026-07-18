@@ -10,8 +10,8 @@
 // Wall tab (click a wall in the nav, read its own breakdown).
 // =============================================================================
 import { useState } from "react";
-import { Frame } from "lucide-react";
-import { cx, NAVY } from "../styleTokens";
+import { ClipboardList, Frame } from "lucide-react";
+import { NAVY } from "../styleTokens";
 import { r1 } from "../estimate/mathUtils";
 import { aggregate } from "../estimate/aggregate";
 import type { CombinedEstimate } from "../estimate/calculateCombinedEstimate";
@@ -88,9 +88,11 @@ export const EstimateResultsCard = ({
           // Phone: MetricsGridPhone (blue/navy only, no gold top-border) --
           // same colour rule as the rest of the Internal phone estimator.
           // Web keeps the shared gold-accented StatsGrid/Stat unchanged.
-          return layoutMode === "phone"
-            ? <div className={cx.section}><MetricsGridPhone stats={overviewStats} /></div>
-            : <StatsGrid stats={overviewStats} />;
+          return (
+            <Card title="Estimate Summary" icon={<ClipboardList size={14} />}>
+              {layoutMode === "phone" ? <MetricsGridPhone stats={overviewStats} /> : <StatsGrid stats={overviewStats} />}
+            </Card>
+          );
         })()}
         {layoutMode === "phone"
           ? <WarningsListPhone warnings={projectWarnings} emptyLabel="No active warnings for this project." />
