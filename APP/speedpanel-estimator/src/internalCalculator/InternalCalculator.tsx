@@ -41,6 +41,7 @@ import { KitWorkspacePhone } from "./kitWorkspacePhone";
 import { StickyBarTilesPhone } from "./phoneShell";
 import { EstimateTopCard } from "./EstimateTopCard";
 import type { OpenProjectInfo } from "./EstimateTopCard";
+import type { ProjectRow } from "../pages/projects/projectTypes";
 import {
   SheetCardPhone, SheetSectionPhone, SystemConfigSectionPhone, GeometrySectionPhone,
   PanelLengthSectionPhone, TracksFlashingSectionPhone, WarningsListPhone,
@@ -63,6 +64,7 @@ export function InternalCalculator({
   onAddExternalWall, switchOrient, switchToExternal,
   openProject, draftLabel, onSetDraftLabel, lastEditedAt,
   onSaveDraftAsProject, onSaveOpenProject, savingProject, saveProjectError, projectDirty, onGoToProjects,
+  recentProjects, signedIn,
 }: {
   store: WallStore; orient: "vertical" | "horizontal"; dimUnit: string;
   setDimUnit: (u: string) => void; systemSelector?: React.ReactNode; layoutMode: EffectiveLayout;
@@ -95,6 +97,11 @@ export function InternalCalculator({
   // openProject is set; harmless/ignored otherwise.
   projectDirty: boolean;
   onGoToProjects: () => void;
+  // "Work on an existing project" card in EstimateTopCard's empty state --
+  // reuses App.tsx's existing header-bell useProjects() call rather than
+  // fetching a second time.
+  recentProjects: ProjectRow[];
+  signedIn: boolean;
 }) {
   const [showTrackFinish, setShowTrackFinish] = useState(false);
   const [orderDrawerOpen, setOrderDrawerOpen] = useState(false);
@@ -392,6 +399,7 @@ export function InternalCalculator({
       onSaveDraftAsProject={onSaveDraftAsProject} onSaveOpenProject={onSaveOpenProject}
       savingProject={savingProject} saveProjectError={saveProjectError} projectDirty={projectDirty}
       onGoToProjects={onGoToProjects} onViewDetails={scrollToResults}
+      recentProjects={recentProjects} signedIn={signedIn}
     />
   );
 
