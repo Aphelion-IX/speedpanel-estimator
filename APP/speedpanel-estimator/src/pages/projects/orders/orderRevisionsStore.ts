@@ -24,7 +24,7 @@ const OrderRevisionRowSchema = z.object({
   note: z.string(),
   created_at: z.string(),
 });
-export type OrderRevisionRow = z.infer<typeof OrderRevisionRowSchema>;
+type OrderRevisionRow = z.infer<typeof OrderRevisionRowSchema>;
 
 interface OrderRevisionsState {
   revisions: OrderRevisionRow[];

@@ -162,15 +162,6 @@ export const ToggleSwitch = ({ active, onToggle, label }: { active: boolean; onT
   </button>
 );
 
-/** Three-up stats grid: m2 / panels / type */
-export const StatsRow = ({ area, panels, panelType }: { area: string | number; panels: string | number; panelType: string }) => (
-  <div className="grid grid-cols-3 items-end gap-1.5">
-    <Stat value={area}      label="Total m2" />
-    <Stat value={panels}    label="Panels" />
-    <Stat value={panelType} label="Panel type" />
-  </div>
-);
-
 /** Italic notes list shown below results */
 export const NotesList = ({ notes }: { notes?: string[] | null }) => {
   if (!notes || notes.length === 0) return null;
@@ -208,9 +199,9 @@ export const Stat = ({ value, label }: { value: string | number; label: string }
   </div>
 );
 
-/** Arbitrary-length stats grid (unlike StatsRow's fixed 3) -- for contexts
- * needing more than area/panels/type at once, e.g. a project-wide overview
- * (area, panels, wall count, kit count, waste%, warnings). */
+/** Arbitrary-length stats grid -- for contexts needing more than area/panels/
+ * type at once, e.g. a project-wide overview (area, panels, wall count, kit
+ * count, waste%, warnings). */
 export const StatsGrid = ({ stats }: { stats: { value: string | number; label: string }[] }) => (
   <div className="grid grid-cols-2 sm:grid-cols-3 items-end gap-1.5">
     {stats.map((s, i) => <Stat key={i} value={s.value} label={s.label} />)}
