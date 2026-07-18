@@ -14,6 +14,16 @@ Supabase (Postgres + Auth + Storage + Edge Functions). Authorization is
 RLS-driven — `has_staff_role()`/`is_admin()` (see `supabase/schema.sql`)
 gate almost everything server-side, not just client-side nav.
 
+## Dependency graph / architecture enforcement
+
+`.dependency-cruiser.js` mechanically enforces the fork-not-share boundary
+below (`internalCalculator/` and `externalCalculator/` must never import
+from each other) — `npm run depcruise` validates and exits non-zero on a
+violation; `npm run depcruise:graph` writes a Mermaid dependency graph to
+`depcruise-graph.mmd` (gitignored, regenerate on demand) for either the
+whole `src/` tree or a scoped subfolder, e.g.
+`npx depcruise --config .dependency-cruiser.js --output-type mermaid src/internalCalculator`.
+
 ## Supabase auth / RLS rules
 
 - Never disable RLS.

@@ -10,7 +10,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:rls": "supabase test db",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "depcruise": "depcruise --config .dependency-cruiser.js src",
+    "depcruise:graph": "depcruise --config .dependency-cruiser.js --output-type mermaid src > depcruise-graph.mmd"
   },
   "keywords": [],
   "author": "",
@@ -33,6 +35,7 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.3",
     "autoprefixer": "^10.5.2",
+    "dependency-cruiser": "^18.1.0",
     "dotenv": "^17.4.2",
     "pdf-parse": "^2.4.5",
     "postcss": "^8.5.16",
