@@ -20,9 +20,9 @@
 // Deliberately its own copy, not shared with externalCalculator's mirror --
 // same fork-not-share convention as phoneShell.tsx (see its header comment).
 // =============================================================================
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
-  House, CloudRain, Info, Plus, ChevronRight, Pencil, Save, CheckCircle2, FileText, FolderPlus,
+  House, CloudRain, Info, Plus, ChevronRight, Pencil, Copy, Save, CheckCircle2, FileText, FolderPlus,
 } from "lucide-react";
 import { cx, tone, BLUE, NAVY, WHITE, selectableOffCx } from "../styleTokens";
 import { Button } from "../ui/button";
@@ -30,6 +30,7 @@ import { IconButton } from "../ui/primitives";
 import type { WallResult } from "../estimate/wall.types";
 import type { KitEntry } from "../estimate/synthesizeKits";
 import type { aggregate } from "../estimate/aggregate";
+import type { ProjectRow } from "../pages/projects/projectTypes";
 import { isConfigured, deriveWallStatus } from "./phoneShell";
 
 type ProjAgg = ReturnType<typeof aggregate>;
@@ -48,6 +49,11 @@ export interface EstimateTopCardProps {
   openProject: OpenProjectInfo | null;
   draftLabel: string | null;
   onSetDraftLabel: (label: string | null) => void;
+  // "No project active" empty state's Duplicate icon button -- there's no
+  // saved project yet to act on, so this acts on the current local draft
+  // (the one wall the store always seeds), reusing the store's existing
+  // duplicateWall.
+  onDuplicateDraft: () => void;
   lastEditedAt?: number;
   onSaveDraftAsProject: (name: string) => Promise<string | null>;
   onSaveOpenProject: () => Promise<void>;
@@ -58,6 +64,12 @@ export interface EstimateTopCardProps {
   projectDirty: boolean;
   onGoToProjects: () => void;
   onViewDetails: () => void;
+  // "Work on an existing project" card in the empty state -- the current
+  // user's saved projects, already fetched at App.tsx's root for the header
+  // bell badge and reused here rather than fetched twice. No signed-out
+  // handling needed -- App.tsx now gates the whole portal behind a session,
+  // so this component can never render for an anonymous visitor.
+  recentProjects: ProjectRow[];
 }
 
 function formatLastEdited(value?: number | string | null): string {
@@ -75,10 +87,11 @@ function formatLastEdited(value?: number | string | null): string {
 
 export const EstimateTopCard = ({
   results, kits, projAgg, addBlankWall, onAddExternalWall,
-  openProject, draftLabel, onSetDraftLabel, lastEditedAt,
+  openProject, draftLabel, onSetDraftLabel, onDuplicateDraft, lastEditedAt,
   onSaveDraftAsProject, onSaveOpenProject, savingProject, saveProjectError, projectDirty,
-  onGoToProjects, onViewDetails,
+  onGoToProjects, onViewDetails, recentProjects,
 }: EstimateTopCardProps) => {
+  const nameFieldRef = useRef<HTMLInputElement>(null);
   const totalItems = results.length + kits.length;
   const configuredCount = results.filter(r => isConfigured(deriveWallStatus(r.wall, r.out))).length + kits.length;
   const warningsCount = results.filter(r => r.out.warnings.length > 0).length + kits.filter(k => k.result.warnings.length > 0).length;
@@ -111,37 +124,35 @@ export const EstimateTopCard = ({
   if (noEstimate) {
     return (
       <div className="mt-3">
-        <span className={`${cx.badge} ${tone("neutral")}`}>NO PROJECT ACTIVE</span>
-        <div className={`mt-2 ${cx.section}`}>
-          <div className="flex items-center gap-3">
-            <button onClick={addBlankWall} title="Create Project" aria-label="Create Project"
-              className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-white/30 text-white transition-all hover:brightness-95 hover:-translate-y-px active:scale-95"
-              style={{
-                background: `linear-gradient(155deg, color-mix(in srgb, ${BLUE} 100%, white 18%), ${BLUE})`,
-                boxShadow: `inset 0 1px 1px rgba(255,255,255,0.3), 0 14px 24px -12px color-mix(in srgb, ${BLUE} 55%, transparent)`,
-              }}>
-              <FolderPlus size={20} />
-            </button>
-            <div>
-              <div className="text-base font-extrabold" style={{ color: NAVY }}>Start a new project</div>
-              <div className="mt-0.5 text-sm text-slate-400 dark:text-slate-400">Choose a wall type below to start building -- it'll be saved in your Projects tab.</div>
-            </div>
+        <div className={cx.section}>
+          <div className="flex items-center gap-2.5">
+            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border-2 bg-blue-50 dark:bg-blue-900/40"
+              style={{ borderColor: BLUE, color: BLUE }}>
+              <FolderPlus size={16} />
+            </span>
+            <div className="text-base font-extrabold" style={{ color: NAVY }}>Create a new project</div>
+          </div>
+          <div className="mt-2 flex items-start gap-1.5 text-sm text-slate-500 dark:text-slate-300">
+            <Info size={13} className="mt-0.5 shrink-0" style={{ color: BLUE }} />
+            <span>You can view your created project in the <button onClick={onGoToProjects} className="font-bold underline decoration-2 underline-offset-2" style={{ color: BLUE }}>Projects page</button>.</span>
           </div>
           <div className="mt-4">
             <label className={cx.lbl}>Project name (optional)</label>
-            <input
-              value={draftLabel ?? ""}
-              onChange={e => onSetDraftLabel(e.target.value || null)}
-              placeholder="e.g. Front Lobby Project"
-              className={cx.input}
-              style={{ color: NAVY }}
-            />
+            <div className="flex items-stretch gap-2">
+              <input
+                ref={nameFieldRef}
+                value={draftLabel ?? ""}
+                onChange={e => onSetDraftLabel(e.target.value || null)}
+                placeholder="e.g. Front Lobby Project"
+                className={cx.input + " min-w-0 flex-1"}
+                style={{ color: NAVY }}
+              />
+              <NameActionButton title="Edit project name" icon={<Pencil size={16} />} onClick={() => nameFieldRef.current?.focus()} />
+              <NameActionButton title="Duplicate project" icon={<Copy size={16} />} onClick={onDuplicateDraft} />
+            </div>
           </div>
         </div>
-        <div className={cx.infoNote}>
-          <Info size={15} className="mt-0.5 shrink-0" />
-          <span>You can view your projects in the <button onClick={onGoToProjects} className="font-bold underline decoration-2 underline-offset-2">Projects</button> tab.</span>
-        </div>
+        <RecentProjectsCard recentProjects={recentProjects} onGoToProjects={onGoToProjects} />
         <div className={`mt-3 ${cx.section}`}>
           <div className={cx.cardHd} style={{ marginTop: 0 }}>Add a new wall</div>
           <div className="mb-3 text-sm text-slate-400 dark:text-slate-400">Choose the type of wall you want to add.</div>
@@ -154,7 +165,6 @@ export const EstimateTopCard = ({
     );
   }
 
-  const pillTone = isSaved ? "info" : "ok";
   const noteCx = isSaved ? cx.infoNoteInfo : cx.infoNoteOk;
   const heroFill = isSaved
     ? "bg-gradient-to-br from-cyan-400 to-cyan-600 dark:from-cyan-500 dark:to-cyan-700 shadow-[inset_0_1px_1px_rgba(255,255,255,0.3),0_14px_24px_-12px_rgba(8,145,178,0.5)]"
@@ -174,8 +184,7 @@ export const EstimateTopCard = ({
 
   return (
     <div className="mt-3">
-      <span className={`${cx.badge} ${tone(pillTone)}`}>WORKING ON A {projectWord.toUpperCase()}</span>
-      <div className={`mt-2 ${cx.section}`}>
+      <div className={cx.section}>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="flex min-w-0 items-start gap-3">
             <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-full text-white ${heroFill}`}>
@@ -231,12 +240,9 @@ export const EstimateTopCard = ({
                 <Button type="button" variant="ghost" onClick={() => { setNamingOpen(false); setDraftSaveError(null); }}>Cancel</Button>
               </form>
             ) : (
-              <>
-                <span className={`${cx.badge} ${tone("warn")}`}>Not saved</span>
-                <IconButton onClick={() => { setNameInput(draftLabel ?? ""); setNamingOpen(true); }} title="Save to Projects" ariaLabel="Save to Projects">
-                  <Save size={16} />
-                </IconButton>
-              </>
+              <IconButton onClick={() => { setNameInput(draftLabel ?? ""); setNamingOpen(true); }} title="Save to Projects" ariaLabel="Save to Projects">
+                <Save size={16} />
+              </IconButton>
             )}
           </div>
         </div>
@@ -256,6 +262,54 @@ export const EstimateTopCard = ({
     </div>
   );
 };
+
+// "No project active" empty state's other path -- lets a user jump to a
+// saved project instead of building a fresh draft. Deliberately not an
+// inline "open directly" picker: clicking through always routes back to the
+// Projects page via the same onGoToProjects navigation the app already has
+// (just promoted from a buried text link to its own information card).
+const RecentProjectsCard = ({ recentProjects, onGoToProjects }: {
+  recentProjects: ProjectRow[]; onGoToProjects: () => void;
+}) => (
+  <div className={`mt-3 ${cx.section}`}>
+    <div className={cx.cardHd} style={{ marginTop: 0 }}>Work on an existing project</div>
+    {recentProjects.length === 0 ? (
+      <p className="mt-2 text-sm text-slate-500 dark:text-slate-300">
+        You haven't saved any projects yet.
+      </p>
+    ) : (
+      <div className="mt-2 space-y-2">
+        {recentProjects.slice(0, 3).map(p => (
+          <div key={p.id} className="text-sm">
+            <div className="font-bold" style={{ color: NAVY }}>{p.name}</div>
+            <div className="text-xs text-slate-400 dark:text-slate-400">
+              Created {formatLastEdited(p.created_at)} · Edited {formatLastEdited(p.updated_at)}
+            </div>
+          </div>
+        ))}
+      </div>
+    )}
+    <button onClick={onGoToProjects} className="mt-3 flex items-center gap-1 text-xs font-bold" style={{ color: BLUE }}>
+      Go to Projects <ChevronRight size={12} />
+    </button>
+  </div>
+);
+
+// "No project active" empty state's Edit/Duplicate row -- matches the
+// Project Name input's own rendered height exactly, via an explicit w-11 +
+// self-stretch in a flex items-stretch row. Deliberately NOT aspect-square:
+// aspect-ratio can't reliably derive a flex row child's width from a height
+// that's only resolved via align-items: stretch (the two are computed in
+// separate passes), so it silently produced tall, narrow pill buttons
+// instead of actual squares -- an explicit width sidesteps that entirely.
+const NameActionButton = ({ onClick, title, icon }: {
+  onClick: () => void; title: string; icon: React.ReactNode;
+}) => (
+  <button onClick={onClick} title={title} aria-label={title}
+    className="grid w-11 shrink-0 place-items-center self-stretch rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-400 dark:text-slate-400 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md hover:text-blue-600 dark:hover:text-blue-400 hover:border-blue-300 dark:hover:border-blue-600 active:translate-y-0 active:scale-95">
+    {icon}
+  </button>
+);
 
 // Leading icon box denotes wall type (House/CloudRain); trailing "+" circle
 // carries the highlight styling -- BLUE fill for this calculator's own

@@ -244,19 +244,29 @@ export default function SpeedpanelEstimator() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [auth.session]);
 
+  // Avoid flashing the sign-in screen at an already-signed-in visitor while
+  // the session is still resolving on first load -- same auth.loading guard
+  // ProjectsRouter.tsx already uses for its own sign-in gate.
+  if (auth.loading) {
+    return <LoadingState className="mt-16" />;
+  }
+
+  // Signed-out front door -- the whole portal requires a session (no tab is
+  // usable anonymously, including the Estimator/System Selector/Education
+  // Hub sandbox tools), so this now gates every tab, not just Home. Full-
+  // bleed sign-in/sign-up screen, no TopNav/app chrome, same reasoning as
+  // proforma below. The signed-in case (OverviewDashboardPage etc.) stays
+  // inside the normal shell further down.
+  if (!auth.session) {
+    return <LandingPage auth={auth} pendingNote={pendingProjectCreation ? `Sign in to create "${pendingProjectCreation.name}"` : undefined} />;
+  }
+
   // Standalone printable document -- no TopNav/app chrome at all, simpler
   // than fighting print CSS to hide it. Rendered as an alternate branch of
   // this same return (not an early return above) so every hook this
   // component calls still runs in the same order on every render.
   if (route.tab === "proforma") {
     return <ProformaInvoicePage orderId={route.orderId} onBack={() => navigate({ tab: "estimator" })} />;
-  }
-
-  // Signed-out front door -- also standalone/full-bleed, same reasoning as
-  // proforma above (its own hero/background, no TopNav). The signed-in
-  // case (OverviewDashboardPage) stays inside the normal shell below.
-  if (route.tab === "home" && !auth.session) {
-    return <LandingPage auth={auth} pendingNote={pendingProjectCreation ? `Sign in to create "${pendingProjectCreation.name}"` : undefined} />;
   }
 
   return (
@@ -350,6 +360,7 @@ export default function SpeedpanelEstimator() {
               onSaveDraftAsProject={saveDraftAsProject} onSaveOpenProject={saveOpenProject}
               savingProject={savingProject} saveProjectError={saveProjectError} projectDirty={projectDirty}
               onGoToProjects={() => navigate({ tab: "projects" })}
+              recentProjects={myProjects}
             />
           ) : (
             <InternalCalculator
@@ -364,6 +375,7 @@ export default function SpeedpanelEstimator() {
               onSaveDraftAsProject={saveDraftAsProject} onSaveOpenProject={saveOpenProject}
               savingProject={savingProject} saveProjectError={saveProjectError} projectDirty={projectDirty}
               onGoToProjects={() => navigate({ tab: "projects" })}
+              recentProjects={myProjects}
             />
           )
         )}
