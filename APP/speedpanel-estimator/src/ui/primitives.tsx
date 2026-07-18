@@ -217,14 +217,20 @@ export const StatsGrid = ({ stats }: { stats: { value: string | number; label: s
   </div>
 );
 
-export const Card = ({ title, icon, children }: { title: string; icon: React.ReactNode; children: React.ReactNode }) => (
-  <div className={`mt-3 ${cx.card}`}>
-    <div className={cx.cardTitle} style={{ color: NAVY }}>
-      <span style={{ color: BLUE }}>{icon}</span>{title}
-    </div>
-    <div className="space-y-3">{children}</div>
-  </div>
-);
+// bare: renders the title row + children without the outer bordered wrapper,
+// for callers that already have their own enclosing card (e.g. a tab strip
+// merged with its active panel into one continuous card).
+export const Card = ({ title, icon, children, bare }: { title: string; icon: React.ReactNode; children: React.ReactNode; bare?: boolean }) => {
+  const inner = (
+    <>
+      <div className={cx.cardTitle} style={{ color: NAVY }}>
+        <span style={{ color: BLUE }}>{icon}</span>{title}
+      </div>
+      <div className="space-y-3">{children}</div>
+    </>
+  );
+  return bare ? inner : <div className={`mt-3 ${cx.card}`}>{inner}</div>;
+};
 
 export const Row = ({ k, v, dim, hl }: { k: string; v: string | number; dim?: boolean; hl?: boolean }) => (
   <div className="flex items-baseline justify-between gap-3 py-0.5">
