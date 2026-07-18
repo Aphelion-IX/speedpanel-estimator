@@ -13,6 +13,7 @@
 // wallConfig/lengthExplorer fork (each calculator owns everything it
 // renders, so a change to one can never accidentally affect the other).
 // =============================================================================
+import { Layers } from "lucide-react";
 import { cx, tone, BLUE, NAVY, MUTED } from "../styleTokens";
 import type { Wall, ComputeOut } from "../estimate/wall.types";
 
@@ -56,7 +57,9 @@ export const WallPillStripPhone = ({ items, onSelect }: {
   items: PhonePillItem[]; onSelect: (id: string) => void;
 }) => (
   <div className={`mt-3 ${cx.section}`}>
-    <div className={cx.cardHd} style={{ marginTop: 0 }}>Estimate structure ({items.length})</div>
+    <div className={`${cx.cardHd} flex items-center gap-1.5`} style={{ marginTop: 0 }}>
+      <Layers size={12} />My Walls ({items.length})
+    </div>
     <div className="-mx-1 flex snap-x gap-2 overflow-x-auto px-1 pb-1" style={{ scrollbarWidth: "none" }}>
       {items.map(item => (
         <button key={item.id} onClick={() => onSelect(item.id)}
