@@ -119,20 +119,20 @@ export const EstimateTopCard = ({
       <div className="mt-3">
         <span className={`${cx.badge} ${tone("neutral")}`}>NO PROJECT ACTIVE</span>
         <div className={`mt-2 ${cx.section}`}>
-          <div className="flex items-center gap-3">
-            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border-2 bg-blue-50 dark:bg-blue-900/40"
+          <div className="flex items-center gap-2.5">
+            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border-2 bg-blue-50 dark:bg-blue-900/40"
               style={{ borderColor: BLUE, color: BLUE }}>
-              <FolderPlus size={20} />
+              <FolderPlus size={16} />
             </span>
             <div className="text-base font-extrabold" style={{ color: NAVY }}>Create a new project</div>
           </div>
           <div className="mt-2 flex items-start gap-1.5 text-sm text-slate-500 dark:text-slate-300">
-            <Info size={14} className="mt-0.5 shrink-0" style={{ color: BLUE }} />
+            <Info size={13} className="mt-0.5 shrink-0" style={{ color: BLUE }} />
             <span>You can view your created project in the <button onClick={onGoToProjects} className="font-bold underline decoration-2 underline-offset-2" style={{ color: BLUE }}>Projects page</button>.</span>
           </div>
           <div className="mt-4">
             <label className={cx.lbl}>Project name (optional)</label>
-            <div className="flex items-stretch gap-2">
+            <div className="flex items-center gap-2">
               <input
                 ref={nameFieldRef}
                 value={draftLabel ?? ""}
@@ -141,8 +141,8 @@ export const EstimateTopCard = ({
                 className={cx.input + " min-w-0 flex-1"}
                 style={{ color: NAVY }}
               />
-              <NameActionButton title="Edit project name" icon={<Pencil size={15} />} onClick={() => nameFieldRef.current?.focus()} />
-              <NameActionButton title="Duplicate project" icon={<Copy size={15} />} onClick={onDuplicateDraft} />
+              <NameActionButton title="Edit project name" icon={<Pencil size={14} />} onClick={() => nameFieldRef.current?.focus()} />
+              <NameActionButton title="Duplicate project" icon={<Copy size={14} />} onClick={onDuplicateDraft} />
             </div>
           </div>
         </div>
@@ -262,18 +262,16 @@ export const EstimateTopCard = ({
 };
 
 // "No project active" empty state's Edit/Duplicate row -- same bordered-
-// square visual language as ui/primitives.tsx's IconButton, but sized with
-// an explicit w-11 + self-stretch instead of a fixed h-10, so its height
-// always matches whatever input it sits next to in a flex items-stretch
-// row. Deliberately NOT aspect-square: aspect-ratio can't reliably derive a
-// flex row child's width from a height that's only resolved via
-// align-items: stretch (the two are computed in different passes), so it
-// silently produced tall, narrow pill buttons instead of actual squares.
+// square visual language as ui/primitives.tsx's IconButton's "sm" size, and
+// deliberately sized off the input's TEXT (14px) rather than its full box
+// height -- an earlier version stretched these to match the input's whole
+// rendered height, which read as oversized next to a plain text field, so
+// this is a fixed small square centered in the row instead.
 const NameActionButton = ({ onClick, title, icon }: {
   onClick: () => void; title: string; icon: React.ReactNode;
 }) => (
   <button onClick={onClick} title={title} aria-label={title}
-    className="grid w-11 shrink-0 place-items-center self-stretch rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-400 dark:text-slate-400 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md hover:text-blue-600 dark:hover:text-blue-400 hover:border-blue-300 dark:hover:border-blue-600 active:translate-y-0 active:scale-95">
+    className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-400 dark:text-slate-400 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md hover:text-blue-600 dark:hover:text-blue-400 hover:border-blue-300 dark:hover:border-blue-600 active:translate-y-0 active:scale-95">
     {icon}
   </button>
 );
