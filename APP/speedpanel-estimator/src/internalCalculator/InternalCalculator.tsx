@@ -41,7 +41,6 @@ import { KitWorkspacePhone } from "./kitWorkspacePhone";
 import { StickyBarTilesPhone } from "./phoneShell";
 import { EstimateTopCard } from "./EstimateTopCard";
 import type { OpenProjectInfo } from "./EstimateTopCard";
-import type { ProjectRow } from "../pages/projects/projectTypes";
 import {
   SheetCardPhone, SheetSectionPhone, SystemConfigSectionPhone, GeometrySectionPhone,
   PanelLengthSectionPhone, TracksFlashingSectionPhone, WarningsListPhone,
@@ -61,19 +60,14 @@ import { exportEstimateToExcel } from "../export/exportEstimateToExcel";
 export function InternalCalculator({
   store, orient, dimUnit, setDimUnit, systemSelector, layoutMode,
   linkCornerPartner, linkShaftPartner,
-  onAddExternalWall, switchOrient, switchToExternal,
+  switchOrient, switchToExternal,
   openProject, draftLabel, onSetDraftLabel, lastEditedAt,
   onSaveDraftAsProject, onSaveOpenProject, savingProject, saveProjectError, projectDirty, onGoToProjects,
-  recentProjects,
 }: {
   store: WallStore; orient: "vertical" | "horizontal"; dimUnit: string;
   setDimUnit: (u: string) => void; systemSelector?: React.ReactNode; layoutMode: EffectiveLayout;
   linkCornerPartner: (targetId: number | null) => void;
   linkShaftPartner: (targetId: number | null) => void;
-  // "External Wall" add-tile (EstimateTopCard) -- adds a wall then switches
-  // the whole project to the External calculator, see App.tsx's
-  // addExternalWall.
-  onAddExternalWall: () => void;
   // Phone-only SystemConfigSectionPhone's Orientation/Wall type segments --
   // same store/App.tsx wiring web's SystemRows uses, just threaded straight
   // through instead of via the opaque systemSelector render-prop, so the
@@ -97,10 +91,6 @@ export function InternalCalculator({
   // openProject is set; harmless/ignored otherwise.
   projectDirty: boolean;
   onGoToProjects: () => void;
-  // "Work on an existing project" card in EstimateTopCard's empty state --
-  // reuses App.tsx's existing header-bell useProjects() call rather than
-  // fetching a second time.
-  recentProjects: ProjectRow[];
 }) {
   const [showTrackFinish, setShowTrackFinish] = useState(false);
   const [orderDrawerOpen, setOrderDrawerOpen] = useState(false);
@@ -186,9 +176,9 @@ export function InternalCalculator({
         { value: out.empty ? "--" : `${r1(out.chosen?.wastePct ?? 0)}%`, label: "Waste" },
       ];
 
-  // Renders as a full-width card carousel on web (see estimateStructureNav.tsx),
-  // no longer the sidebar's sole content -- kept as its own variable rather
-  // than inlined so the phone/web branches below can each place it correctly.
+  // Renders as a full-width card carousel on web (see estimateStructureNav.tsx)
+  // -- rendered inside mainNode below, as the first thing under the "Project
+  // quantities" divider, rather than at the top of the page.
   const wallNavNode = (
     <EstimateStructureNav
       walls={walls} results={results} kits={kits}
@@ -351,6 +341,7 @@ export function InternalCalculator({
 
       {/* Estimate Results: Overview / Selected Wall / Connections / Order tabs */}
       <ProjectSeparator />
+      {wallNavNode}
       <EstimateResultsCard
         layoutMode={layoutMode} results={results} walls={walls} kits={kits}
         projChosenAgg={projChosenAgg} combinedEstimate={combinedEstimate}
@@ -391,14 +382,12 @@ export function InternalCalculator({
   const topCardNode = (
     <EstimateTopCard
       results={results} kits={kits} projAgg={projChosenAgg}
-      addBlankWall={addBlankWall} onAddExternalWall={onAddExternalWall}
       openProject={openProject} draftLabel={draftLabel} onSetDraftLabel={onSetDraftLabel}
       onDuplicateDraft={duplicateWall}
       lastEditedAt={lastEditedAt}
       onSaveDraftAsProject={onSaveDraftAsProject} onSaveOpenProject={onSaveOpenProject}
       savingProject={savingProject} saveProjectError={saveProjectError} projectDirty={projectDirty}
       onGoToProjects={onGoToProjects} onViewDetails={scrollToResults}
-      recentProjects={recentProjects}
     />
   );
 
@@ -413,11 +402,10 @@ export function InternalCalculator({
     );
   }
 
-  if (layoutMode === "phone") return <>{topCardNode}{wallNavNode}{mainNode}{footerNode}{stickyBarNode}{orderDrawerNode}</>;
+  if (layoutMode === "phone") return <>{topCardNode}{mainNode}{footerNode}{stickyBarNode}{orderDrawerNode}</>;
   return (
     <>
       {topCardNode}
-      {wallNavNode}
       <CalculatorShell main={mainNode} footer={footerNode} />
       {orderDrawerNode}
     </>

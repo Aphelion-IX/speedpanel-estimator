@@ -30,6 +30,5 @@ export function useProjectPhoneStats(item: ProjectRow): ProjectPhoneStats {
       panels += out.chosen?.panels ?? out.result?.panels ?? 0;
     }
     return { wallCount: item.data.walls.length, area, panels, warnings };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [item.id, item.updated_at]);
+  }, [item.data]);
 }

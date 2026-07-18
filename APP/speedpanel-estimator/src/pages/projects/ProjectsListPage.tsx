@@ -1,21 +1,18 @@
 // =============================================================================
 // Projects -- list/overview page
 // =============================================================================
-// Modeled on the supplied ProjectsPage.tsx mockup: search, real journey-stage
-// count tabs, and a table (web) / stacked cards (phone) of every project a
-// row click navigates to that project's own ProjectDetailPage.tsx (see
-// ProjectsRouter.tsx -- #/projects and #/projects/:id are now two distinct
-// views, not one page with an embedded dashboard). "+ New Project" is the
-// mockup's one missing-but-required piece of real functionality -- reused
-// verbatim from the old carousel's inline-name-field creation flow
-// (projectsStore.ts's createProject()), just relocated into the header row.
+// Search, real journey-stage count tabs, and a table (web) / stacked cards
+// (phone) of every project -- a row click navigates to that project's own
+// ProjectDetailPage.tsx (see ProjectsRouter.tsx -- #/projects and
+// #/projects/:id are two distinct views, not one page with an embedded
+// dashboard). "+ New Project" reuses projectsStore.ts's createProject().
 //
-// Journey stage (the mockup's 8-step Estimating..Completed pipeline) is a
+// Journey stage (the 8-step Estimating..Completed pipeline) is a
 // DISPLAY-ONLY value computed by journeyStage.ts from each project's real
 // orders/manufacturing/delivery data -- see that file's header comment for
-// why it's never a persisted column. The bottom Projects/Orders Stat rows
+// why it's never a persisted column. The bottom Projects/Orders stat rows
 // deliberately keep showing the REAL project.stage (draft/install_review/
-// technical_review/approved) and order.stage pipelines untouched -- the new
+// technical_review/approved) and order.stage pipelines untouched -- the
 // journey tabs above are an additional, honest view, not a replacement for
 // those existing aggregate totals.
 // =============================================================================
@@ -25,15 +22,17 @@ import { Building2, Check, ChevronDown, FileText, Plus, Search, Settings, Truck 
 import { cx, tone, NAVY, BLUE, MUTED } from "../../styleTokens";
 import { r1 } from "../../estimate/mathUtils";
 import { Field, TextAreaField } from "../shared/fields";
-import { Stat } from "../../ui/primitives";
+import { Stat, StatsGrid } from "../../ui/primitives";
 import { Button } from "../../ui/button";
-import { LoadingState, ErrorState } from "../../ui/states";
+import { LoadingState, ErrorState, EmptyState } from "../../ui/states";
+import { Table, type TableColumn } from "../../ui/table";
 import type { EffectiveLayout } from "../../useLayoutMode";
 import { useProjects, useProjectCompanyNames } from "./projectsStore";
 import { useOrdersSummary } from "./dashboardStore";
 import { useProjectsJourney, type ProjectJourneyInfo } from "./projectsJourneyStore";
 import { useProjectPhoneStats } from "./projectPhoneStats";
 import { journeyMilestone, nextDeliveryDate } from "./journeyCopy";
+import { StepTracker } from "./StepTracker";
 import { JOURNEY_STAGES, JOURNEY_STAGE_LABELS, JOURNEY_STAGE_BADGE_CLASS, type JourneyStage } from "./journeyStage";
 import { STAGES, STAGE_LABELS } from "./projectTypes";
 import { ORDER_STAGES, ORDER_STAGE_LABELS } from "./orders/orderTypes";
@@ -115,129 +114,42 @@ const NewProjectPanel = ({ onCreate, layoutMode }: {
   );
 };
 
-// Compact per-row 8-dot timeline (web only) -- a smaller, label-light
-// sibling of ProjectJourneyTimeline.tsx's own web variant, matching the
-// mockup's row-level StageTimeline density (a table row has no room for
-// full h-14 icon circles + captions).
-const ListRowTimeline = ({ stage }: { stage: JourneyStage }) => {
-  const activeIndex = JOURNEY_STAGES.indexOf(stage);
-  return (
-    <div className="min-w-[420px]">
-      <div className="relative grid grid-cols-8">
-        <div className="absolute left-[6%] right-[6%] top-3 h-px bg-slate-200 dark:bg-slate-700" />
-        <div className="absolute left-[6%] top-3 h-px bg-emerald-400" style={{ width: `${Math.max(0, (activeIndex / (JOURNEY_STAGES.length - 1)) * 88)}%` }} />
-        {JOURNEY_STAGES.map((s, i) => {
-          const done = i < activeIndex;
-          const current = i === activeIndex;
-          return (
-            <div key={s} className="relative z-10 text-center">
-              <div className={[
-                "mx-auto grid h-6 w-6 place-items-center rounded-full border bg-white dark:bg-slate-800",
-                done && "border-emerald-500 bg-emerald-500 text-white",
-                current && "border-blue-600 text-blue-700 dark:text-blue-300 ring-2 ring-blue-100 dark:ring-blue-900/40",
-                !done && !current && "border-slate-200 dark:border-slate-600",
-              ].filter(Boolean).join(" ")}>
-                {done && <Check className="h-3 w-3" />}
-              </div>
-              <p className={`mt-1.5 px-0.5 text-[9px] leading-3 ${current ? "font-semibold text-blue-700 dark:text-blue-300" : "text-slate-500 dark:text-slate-300"}`}>
-                {JOURNEY_STAGE_LABELS[s]}
-              </p>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-};
-
-const ProjectListRow = ({ item, journey, companyName, onOpen, layoutMode }: {
-  item: ProjectRow; journey: ProjectJourneyInfo | undefined; companyName: string | undefined;
-  onOpen: () => void; layoutMode: EffectiveLayout;
+const ProjectPhoneCard = ({ item, journey, companyName, onOpen }: {
+  item: ProjectRow; journey: ProjectJourneyInfo | undefined; companyName: string | undefined; onOpen: () => void;
 }) => {
   const stage = journey?.journey.stage ?? "estimating";
   const progress = journey?.progress ?? 0;
-  const milestone = journeyMilestone(stage, {
-    estimatingNote: journey?.journey.estimatingNote,
-    estCompletion: journey?.representativeOrder?.manufacturing_est_completion,
-    nextDeliveryDate: journey ? nextDeliveryDate(journey.representativeDeliveries) : null,
-  });
-  const MilestoneIcon = milestoneIcon(stage);
   const phoneStats = useProjectPhoneStats(item);
-
-  if (layoutMode === "phone") {
-    const ctaLabel = item.stage === "draft" ? "Continue Estimate" : "Open Estimate";
-    return (
-      <button onClick={onOpen} className={`${cx.card} mt-3 block w-full text-left`}>
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0">
-            <div className="truncate text-sm font-bold" style={{ color: NAVY }}>{item.name}</div>
-            <div className="text-xs" style={{ color: MUTED }}>Ref: {item.data.reference || item.id.slice(0, 8).toUpperCase()}{companyName ? ` · ${companyName}` : ""}</div>
-          </div>
-          <span className={`${cx.badge} shrink-0 ${JOURNEY_STAGE_BADGE_CLASS[stage]}`}>{JOURNEY_STAGE_LABELS[stage]}</span>
-        </div>
-        <div className="mt-3 grid grid-cols-3 gap-1.5">
-          <Stat value={phoneStats.wallCount} label="Walls" />
-          <Stat value={`${r1(phoneStats.area)} m²`} label="Area" />
-          <Stat value={phoneStats.panels} label="Panels" />
-        </div>
-        {phoneStats.warnings > 0 && (
-          <div className="mt-2.5 flex items-center justify-between gap-2 text-xs" style={{ color: MUTED }}>
-            <span>{Math.round(progress)}% complete</span>
-            <span className={`${cx.badge} ${tone("danger")}`}>{phoneStats.warnings} warning{phoneStats.warnings !== 1 ? "s" : ""}</span>
-          </div>
-        )}
-        <div className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-xl border border-blue-200 dark:border-blue-800 bg-blue-50/70 dark:bg-blue-900/55 py-2.5 text-sm font-bold" style={{ color: BLUE }}>
-          {ctaLabel}
-        </div>
-      </button>
-    );
-  }
+  const ctaLabel = item.stage === "draft" ? "Continue Estimate" : "Open Estimate";
 
   return (
-    <article onClick={onOpen}
-      className="grid cursor-pointer gap-5 border-b border-slate-100 dark:border-slate-700 p-4 transition hover:bg-slate-50/70 dark:hover:bg-slate-800/40 last:border-b-0 xl:grid-cols-[2.3fr_3.2fr_.9fr_1.25fr_.85fr] xl:items-center">
-      <div className="flex min-w-0 items-center gap-3">
-        <div className="grid h-14 w-14 shrink-0 place-items-center rounded-lg bg-blue-50 dark:bg-blue-900/55">
-          <Building2 size={22} style={{ color: BLUE }} />
-        </div>
+    <button onClick={onOpen} className={`${cx.card} mt-3 block w-full text-left`}>
+      <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <h3 className="truncate text-sm font-bold" style={{ color: NAVY }}>{item.name}</h3>
-          <p className="mt-1 text-xs" style={{ color: MUTED }}>Ref: {item.id.slice(0, 8).toUpperCase()}</p>
-          {companyName && (
-            <p className="mt-1.5 flex items-center gap-1.5 truncate text-sm" style={{ color: MUTED }}>
-              <Building2 className="h-3.5 w-3.5" />{companyName}
-            </p>
-          )}
+          <div className="truncate text-sm font-bold" style={{ color: NAVY }}>{item.name}</div>
+          <div className="text-xs" style={{ color: MUTED }}>Ref: {item.data.reference || item.id.slice(0, 8).toUpperCase()}{companyName ? ` · ${companyName}` : ""}</div>
         </div>
+        <span className={`${cx.badge} shrink-0 ${JOURNEY_STAGE_BADGE_CLASS[stage]}`}>{JOURNEY_STAGE_LABELS[stage]}</span>
       </div>
-
-      <div className="overflow-x-auto"><ListRowTimeline stage={stage} /></div>
-
-      <div>
-        <p className="text-xl font-extrabold" style={{ color: progress === 100 ? "#059669" : BLUE }}>{progress}%</p>
-        <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-700">
-          <div className="h-full rounded-full transition-all" style={{ width: `${progress}%`, background: progress === 100 ? "#10b981" : BLUE }} />
+      <div className="mt-3 grid grid-cols-3 gap-1.5">
+        <Stat value={phoneStats.wallCount} label="Walls" />
+        <Stat value={`${r1(phoneStats.area)} m²`} label="Area" />
+        <Stat value={phoneStats.panels} label="Panels" />
+      </div>
+      {phoneStats.warnings > 0 && (
+        <div className="mt-2.5 flex items-center justify-between gap-2 text-xs" style={{ color: MUTED }}>
+          <span>{Math.round(progress)}% complete</span>
+          <span className={`${cx.badge} ${tone("danger")}`}>{phoneStats.warnings} warning{phoneStats.warnings !== 1 ? "s" : ""}</span>
         </div>
-        <p className="mt-2 text-xs" style={{ color: MUTED }}>{JOURNEY_STAGE_LABELS[stage]}</p>
+      )}
+      <div className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-xl border border-blue-200 dark:border-blue-800 bg-blue-50/70 dark:bg-blue-900/55 py-2.5 text-sm font-bold" style={{ color: BLUE }}>
+        {ctaLabel}
       </div>
-
-      <div className="flex items-center gap-3">
-        <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-full ${JOURNEY_STAGE_BADGE_CLASS[stage]}`}>
-          <MilestoneIcon size={18} />
-        </span>
-        <div className="min-w-0">
-          <p className="text-sm font-bold" style={{ color: NAVY }}>{milestone.label}</p>
-          <p className="mt-1 truncate text-xs" style={{ color: MUTED }}>{milestone.note}</p>
-        </div>
-      </div>
-
-      <div className="text-sm" style={{ color: NAVY }}>
-        <p>{relativeTime(item.updated_at)}</p>
-        <p className="mt-1 text-xs" style={{ color: MUTED }}>{new Date(item.updated_at).toLocaleDateString()}</p>
-      </div>
-    </article>
+    </button>
   );
 };
+
+const journeySteps = JOURNEY_STAGES.map(s => ({ label: JOURNEY_STAGE_LABELS[s] }));
 
 export const ProjectsListPage = ({ user, onOpenProject, layoutMode, hasCompany, activeCompanyId, onTeam }: {
   user: User | null; onOpenProject: (id: string) => void; layoutMode: EffectiveLayout;
@@ -269,6 +181,76 @@ export const ProjectsListPage = ({ user, onOpenProject, layoutMode, hasCompany, 
     [projects],
   );
 
+  const columns: TableColumn<ProjectRow>[] = useMemo(() => [
+    {
+      key: "project", header: "Project",
+      cell: item => {
+        const stage = journeyByProject.get(item.id)?.journey.stage ?? "estimating";
+        return (
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-blue-50 dark:bg-blue-900/55">
+              <Building2 size={18} style={{ color: BLUE }} />
+            </div>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-bold" style={{ color: NAVY }}>{item.name}</p>
+              <p className="mt-0.5 text-xs" style={{ color: MUTED }}>Ref: {item.data.reference || item.id.slice(0, 8).toUpperCase()}</p>
+              <div className="mt-1.5">
+                <StepTracker steps={journeySteps} activeIndex={JOURNEY_STAGES.indexOf(stage)} layoutMode={layoutMode} size="compact" />
+              </div>
+            </div>
+          </div>
+        );
+      },
+    },
+    {
+      key: "stage", header: "Stage",
+      cell: item => {
+        const stage = journeyByProject.get(item.id)?.journey.stage ?? "estimating";
+        return <span className={`${cx.badge} ${JOURNEY_STAGE_BADGE_CLASS[stage]}`}>{JOURNEY_STAGE_LABELS[stage]}</span>;
+      },
+    },
+    {
+      key: "company", header: "Company",
+      cell: item => {
+        const name = companyNames.get(item.company_id ?? "");
+        return <span className="text-sm" style={{ color: name ? NAVY : MUTED }}>{name ?? "—"}</span>;
+      },
+    },
+    {
+      key: "milestone", header: "Next Milestone",
+      cell: item => {
+        const journey = journeyByProject.get(item.id);
+        const stage = journey?.journey.stage ?? "estimating";
+        const milestone = journeyMilestone(stage, {
+          estimatingNote: journey?.journey.estimatingNote,
+          estCompletion: journey?.representativeOrder?.manufacturing_est_completion,
+          nextDeliveryDate: journey ? nextDeliveryDate(journey.representativeDeliveries) : null,
+        });
+        const MilestoneIcon = milestoneIcon(stage);
+        return (
+          <div className="flex items-center gap-3">
+            <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-full ${JOURNEY_STAGE_BADGE_CLASS[stage]}`}>
+              <MilestoneIcon size={16} />
+            </span>
+            <div className="min-w-0">
+              <p className="text-sm font-bold" style={{ color: NAVY }}>{milestone.label}</p>
+              <p className="mt-0.5 truncate text-xs" style={{ color: MUTED }}>{milestone.note}</p>
+            </div>
+          </div>
+        );
+      },
+    },
+    {
+      key: "updated", header: "Last Updated", align: "right",
+      cell: item => (
+        <div className="text-sm" style={{ color: NAVY }}>
+          <p>{relativeTime(item.updated_at)}</p>
+          <p className="mt-0.5 text-xs" style={{ color: MUTED }}>{new Date(item.updated_at).toLocaleDateString()}</p>
+        </div>
+      ),
+    },
+  ], [journeyByProject, companyNames, layoutMode]);
+
   return (
     <div className="mt-2">
       <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
@@ -290,19 +272,15 @@ export const ProjectsListPage = ({ user, onOpenProject, layoutMode, hasCompany, 
           className="w-full bg-transparent text-sm outline-none placeholder:text-slate-400" style={{ color: NAVY }} />
       </label>
 
-      <div className="mt-4 flex gap-2 overflow-x-auto pb-2">
-        <button onClick={() => setActiveTab("all")}
-          className={`flex shrink-0 items-center gap-3 rounded-lg border bg-white dark:bg-slate-800 px-4 py-2.5 text-sm font-semibold shadow-sm ${activeTab === "all" ? "border-blue-200 dark:border-blue-800" : "border-slate-200 dark:border-slate-600"}`}
-          style={{ color: NAVY }}>
+      <div className={`mt-4 ${cx.tabList}`}>
+        <button onClick={() => setActiveTab("all")} className={`${activeTab === "all" ? cx.tabActive : cx.tabInactive} inline-flex items-center gap-2`}>
           All Projects
-          <span className="grid min-w-6 place-items-center rounded-full bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 text-xs" style={{ color: MUTED }}>{projects.length}</span>
+          <span className="rounded-full bg-slate-200/70 px-1.5 py-0.5 text-[10px] font-bold normal-case tracking-normal text-slate-500 dark:bg-slate-700 dark:text-slate-300">{projects.length}</span>
         </button>
         {JOURNEY_STAGES.map(s => (
-          <button key={s} onClick={() => setActiveTab(s)}
-            className={`flex shrink-0 items-center gap-3 rounded-lg border bg-white dark:bg-slate-800 px-4 py-2.5 text-sm font-semibold shadow-sm ${activeTab === s ? "border-blue-200 dark:border-blue-800" : "border-slate-200 dark:border-slate-600"}`}
-            style={{ color: NAVY }}>
+          <button key={s} onClick={() => setActiveTab(s)} className={`${activeTab === s ? cx.tabActive : cx.tabInactive} inline-flex items-center gap-2`}>
             {JOURNEY_STAGE_LABELS[s]}
-            <span className={`grid min-w-6 place-items-center rounded-full px-1.5 py-0.5 text-xs ${JOURNEY_STAGE_BADGE_CLASS[s]}`}>{journeyCounts[s]}</span>
+            <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold normal-case tracking-normal ${JOURNEY_STAGE_BADGE_CLASS[s]}`}>{journeyCounts[s]}</span>
           </button>
         ))}
       </div>
@@ -314,29 +292,23 @@ export const ProjectsListPage = ({ user, onOpenProject, layoutMode, hasCompany, 
       )}
 
       {!loading && !error && projects.length === 0 && (
-        <p className={cx.footnote}>No projects yet -- create one above to get started.</p>
+        <EmptyState className="mt-3" message="No projects yet -- create one above to get started." />
       )}
 
       {!loading && !error && projects.length > 0 && (
         layoutMode === "phone" ? (
           <div>
             {filtered.map(item => (
-              <ProjectListRow key={item.id} item={item} journey={journeyByProject.get(item.id)}
-                companyName={companyNames.get(item.company_id ?? "")} onOpen={() => onOpenProject(item.id)} layoutMode={layoutMode} />
+              <ProjectPhoneCard key={item.id} item={item} journey={journeyByProject.get(item.id)}
+                companyName={companyNames.get(item.company_id ?? "")} onOpen={() => onOpenProject(item.id)} />
             ))}
-            {filtered.length === 0 && <p className={cx.footnote}>No projects match your search.</p>}
+            {filtered.length === 0 && <EmptyState className="mt-3" message="No projects match your search." />}
           </div>
         ) : (
-          <section className="mt-3 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 shadow-sm">
-            <div className="hidden grid-cols-[2.3fr_3.2fr_.9fr_1.25fr_.85fr] border-b border-slate-200 dark:border-slate-600 bg-slate-50/70 dark:bg-slate-900/40 px-4 py-3 text-[11px] font-bold uppercase tracking-wide xl:grid" style={{ color: MUTED }}>
-              <div>Project</div><div>Stage</div><div>Progress</div><div>Next Milestone</div><div>Last Updated</div>
-            </div>
-            {filtered.map(item => (
-              <ProjectListRow key={item.id} item={item} journey={journeyByProject.get(item.id)}
-                companyName={companyNames.get(item.company_id ?? "")} onOpen={() => onOpenProject(item.id)} layoutMode={layoutMode} />
-            ))}
-            {filtered.length === 0 && <p className={`${cx.footnote} p-4`}>No projects match your search.</p>}
-          </section>
+          <>
+            <Table className="mt-3" columns={columns} rows={filtered} rowKey={item => item.id} onRowClick={item => onOpenProject(item.id)} />
+            {filtered.length === 0 && <EmptyState className="mt-3" message="No projects match your search." />}
+          </>
         )
       )}
 
@@ -345,17 +317,17 @@ export const ProjectsListPage = ({ user, onOpenProject, layoutMode, hasCompany, 
       )}
 
       <div className={cx.cardHd + " mt-8"}>Projects</div>
-      <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
-        <Stat value={projects.length} label="Total" />
-        {STAGES.map(s => <Stat key={s} value={projectsByStage[s]} label={STAGE_LABELS[s]} />)}
-      </div>
+      <StatsGrid stats={[
+        { value: projects.length, label: "Total" },
+        ...STAGES.map(s => ({ value: projectsByStage[s], label: STAGE_LABELS[s] })),
+      ]} />
 
       <div className={cx.cardHd + " mt-5"}>Orders</div>
-      <div className="grid grid-cols-3 gap-2 sm:grid-cols-7">
-        <Stat value={ordersLoading ? "--" : ordersTotal} label="Total" />
-        {ORDER_STAGES.map(s => <Stat key={s} value={ordersLoading ? "--" : ordersByStage[s]} label={ORDER_STAGE_LABELS[s]} />)}
-        <Stat value={ordersLoading ? "--" : `$${totalValue.toFixed(0)}`} label="Total value" />
-      </div>
+      <StatsGrid stats={[
+        { value: ordersLoading ? "--" : ordersTotal, label: "Total" },
+        ...ORDER_STAGES.map(s => ({ value: ordersLoading ? "--" : ordersByStage[s], label: ORDER_STAGE_LABELS[s] })),
+        { value: ordersLoading ? "--" : `$${totalValue.toFixed(0)}`, label: "Total value" },
+      ]} />
     </div>
   );
 };

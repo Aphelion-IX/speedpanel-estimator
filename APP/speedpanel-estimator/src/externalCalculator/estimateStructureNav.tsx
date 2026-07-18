@@ -13,7 +13,7 @@
 // workflow status). Phone keeps its own WallPillStripPhone (phoneShell.tsx),
 // now also carrying a thumbnail per pill.
 // =============================================================================
-import { Plus } from "lucide-react";
+import { Plus, Layers } from "lucide-react";
 import { cx, BLUE, NAVY, MUTED, selectableOffCx, goldBubbleFill } from "../styleTokens";
 import type { Wall, WallResult } from "../estimate/wall.types";
 import type { EffectiveLayout } from "../useLayoutMode";
@@ -47,7 +47,9 @@ export const EstimateStructureNav = ({ walls, results, activeId, onSelectWall, w
   return (
     <div className={`mt-3 ${cx.section}`}>
       <div className="flex items-center justify-between" style={{ marginTop: 0 }}>
-        <div className={cx.cardHd} style={{ marginTop: 0 }}>Estimate structure ({walls.length})</div>
+        <div className={`${cx.cardHd} flex items-center gap-1.5`} style={{ marginTop: 0 }}>
+          <Layers size={12} />My Walls ({walls.length})
+        </div>
         <button onClick={onViewAll} className="text-xs font-bold hover:underline" style={{ color: BLUE }}>View all</button>
       </div>
       <CardCarousel

@@ -4,47 +4,41 @@
 // Separate from projectsStore.ts's list hook since the detail page needs live
 // single-row state plus the stage-transition RPC calls (request/review
 // install/technical), not just CRUD. Same {data,loading,error}+optimistic-
-// patch shape as the rest of the app's Supabase-backed hooks.
+// patch shape as the rest of the app's Supabase-backed hooks, built on the
+// shared useAsyncResource.ts.
 // =============================================================================
-import { useCallback, useEffect, useState } from "react";
+import { useCallback } from "react";
 import { supabase } from "../../lib/supabaseClient";
 import { saveProjectSnapshot } from "./saveProjectSnapshot";
 import { ProjectRowSchema, type ProjectRow, type SavedProjectData } from "./projectTypes";
+import { useAsyncResource } from "./useAsyncResource";
 
 const NOT_CONFIGURED = "Projects aren't configured for this environment.";
 const BAD_SHAPE = "This project's data looks corrupted and can't be opened.";
-
-interface ProjectState {
-  project: ProjectRow | null;
-  loading: boolean;
-  error: string | null;
-}
 
 // id is optional so QuoteRequestPage.tsx can call this unconditionally (React
 // hooks can't be called conditionally) for its anonymous, project-less flow --
 // an unset id just short-circuits to an idle, empty state, no fetch fired.
 export function useProject(id: string | undefined) {
-  const [state, setState] = useState<ProjectState>(() =>
-    !id || !supabase ? { project: null, loading: false, error: id ? NOT_CONFIGURED : null } : { project: null, loading: true, error: null },
-  );
-
-  const load = useCallback(async () => {
-    if (!id || !supabase) return;
-    setState(s => ({ ...s, loading: true, error: null }));
+  const fetchProject = useCallback(async (): Promise<{ data: ProjectRow | null; error: string | null }> => {
+    if (!id || !supabase) return { data: null, error: null };
     const { data, error } = await supabase.from("projects").select("*").eq("id", id).single();
-    if (error) { setState({ project: null, loading: false, error: error.message }); return; }
+    if (error) return { data: null, error: error.message };
     const parsed = ProjectRowSchema.safeParse(data);
-    if (!parsed.success) { setState({ project: null, loading: false, error: BAD_SHAPE }); return; }
-    setState({ project: parsed.data, loading: false, error: null });
+    return parsed.success ? { data: parsed.data, error: null } : { data: null, error: BAD_SHAPE };
   }, [id]);
 
-  useEffect(() => { load(); }, [load]);
+  const { data: project, loading, error, reload: load, setData } = useAsyncResource(fetchProject, [id], {
+    initialData: null as ProjectRow | null,
+    skip: !id || !supabase,
+    skipError: id && !supabase ? NOT_CONFIGURED : null,
+  });
 
   const rename = async (name: string): Promise<string | null> => {
     if (!supabase) return NOT_CONFIGURED;
     const { error } = await supabase.from("projects").update({ name, updated_at: new Date().toISOString() }).eq("id", id);
     if (error) return error.message;
-    setState(s => (s.project ? { ...s, project: { ...s.project, name } } : s));
+    setData(prev => (prev ? { ...prev, name } : prev));
     return null;
   };
 
@@ -52,7 +46,7 @@ export function useProject(id: string | undefined) {
     if (!id) return NOT_CONFIGURED;
     const err = await saveProjectSnapshot(id, data);
     if (err) return err;
-    setState(s => (s.project ? { ...s, project: { ...s.project, data, updated_at: new Date().toISOString() } } : s));
+    setData(prev => (prev ? { ...prev, data, updated_at: new Date().toISOString() } : prev));
     return null;
   };
 
@@ -73,5 +67,5 @@ export function useProject(id: string | undefined) {
   const requestInstallReview = () => callRpc("request_install_review", { p_project_id: id });
   const requestTechnicalReview = () => callRpc("request_technical_review", { p_project_id: id });
 
-  return { ...state, reload: load, rename, saveSnapshot, deleteProject, requestInstallReview, requestTechnicalReview };
+  return { project, loading, error, reload: load, rename, saveSnapshot, deleteProject, requestInstallReview, requestTechnicalReview };
 }

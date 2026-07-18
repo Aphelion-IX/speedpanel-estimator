@@ -10,8 +10,9 @@
 // Structure nav + Selected Wall tab.
 // =============================================================================
 import { useState } from "react";
-import { cx, NAVY } from "../styleTokens";
-import { Row, StatsGrid, WarningsList } from "../ui/primitives";
+import { ClipboardList } from "lucide-react";
+import { NAVY } from "../styleTokens";
+import { Card, Row, StatsGrid, WarningsList } from "../ui/primitives";
 import { Button } from "../ui/button";
 import { Tabs, TabPanel } from "../ui/tabs";
 import { ConnectionBreakdownCard, type PanelScheduleCard } from "../ui/scheduleCards";
@@ -78,9 +79,11 @@ export const EstimateResultsCard = ({
           // Phone: MetricsGridPhone (blue/navy only, no gold top-border) --
           // same colour rule as the rest of the External phone estimator.
           // Web keeps the shared gold-accented StatsGrid/Stat unchanged.
-          return layoutMode === "phone"
-            ? <div className={cx.section}><MetricsGridPhone stats={overviewStats} /></div>
-            : <StatsGrid stats={overviewStats} />;
+          return (
+            <Card title="Estimate Summary" icon={<ClipboardList size={14} />}>
+              {layoutMode === "phone" ? <MetricsGridPhone stats={overviewStats} /> : <StatsGrid stats={overviewStats} />}
+            </Card>
+          );
         })()}
         {layoutMode === "phone"
           ? <WarningsListPhone warnings={projectWarnings} emptyLabel="No active warnings for this project." />

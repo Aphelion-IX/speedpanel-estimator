@@ -52,7 +52,6 @@ import { OrderReviewDrawer } from "./orderReviewDrawer";
 import { StickyBarTilesPhone } from "./phoneShell";
 import { EstimateTopCard } from "./EstimateTopCard";
 import type { OpenProjectInfo } from "./EstimateTopCard";
-import type { ProjectRow } from "../pages/projects/projectTypes";
 import {
   SheetCardPhone, SheetSectionPhone, SystemConfigSectionPhone, GeometrySectionPhone,
   PanelLengthSectionPhone, TracksFlashingSectionPhone, WarningsListPhone,
@@ -62,17 +61,12 @@ import { exportEstimateToExcel } from "../export/exportEstimateToExcel";
 
 export function ExternalCalculator({
   store, orient, dimUnit, setDimUnit, systemSelector, layoutMode,
-  onAddInternalWall, switchOrient, switchToInternal,
+  switchOrient, switchToInternal,
   openProject, draftLabel, onSetDraftLabel, lastEditedAt,
   onSaveDraftAsProject, onSaveOpenProject, savingProject, saveProjectError, projectDirty, onGoToProjects,
-  recentProjects,
 }: {
   store: WallStore; orient: "vertical" | "horizontal"; dimUnit: string;
   setDimUnit: (u: string) => void; systemSelector?: React.ReactNode; layoutMode: EffectiveLayout;
-  // "Internal Wall" add-tile (EstimateTopCard) -- adds a wall then switches
-  // the whole project to the Internal calculator, see App.tsx's
-  // addInternalWall.
-  onAddInternalWall: () => void;
   // Phone-only SystemConfigSectionPhone's Orientation/Wall type segments --
   // same store/App.tsx wiring web's SystemRows uses, just threaded straight
   // through instead of via the opaque systemSelector render-prop, so the
@@ -97,10 +91,6 @@ export function ExternalCalculator({
   // openProject is set; harmless/ignored otherwise.
   projectDirty: boolean;
   onGoToProjects: () => void;
-  // "Work on an existing project" card in EstimateTopCard's empty state --
-  // reuses App.tsx's existing header-bell useProjects() call rather than
-  // fetching a second time.
-  recentProjects: ProjectRow[];
 }) {
   const [orderDrawerOpen, setOrderDrawerOpen] = useState(false);
   const [allWallsOpen, setAllWallsOpen] = useState(false);
@@ -148,9 +138,9 @@ export function ExternalCalculator({
     { value: results.length, label: "Walls" },
   ];
 
-  // Renders as a full-width card carousel on web (see estimateStructureNav.tsx),
-  // no longer the sidebar's sole content -- kept as its own variable rather
-  // than inlined so the phone/web branches below can each place it correctly.
+  // Renders as a full-width card carousel on web (see estimateStructureNav.tsx)
+  // -- rendered inside mainNode below, as the first thing under the "Project
+  // quantities" divider, rather than at the top of the page.
   const wallNavNode = (
     <EstimateStructureNav
       walls={walls} results={results} activeId={activeId} onSelectWall={setActiveId}
@@ -282,6 +272,7 @@ export function ExternalCalculator({
       {workspaceNode}
 
       <ProjectSeparator />
+      {wallNavNode}
       <EstimateResultsCard
         layoutMode={layoutMode} results={results}
         projAgg={projAgg} combinedEstimate={combinedEstimate}
@@ -321,14 +312,12 @@ export function ExternalCalculator({
   const topCardNode = (
     <EstimateTopCard
       results={results} projAgg={projAgg}
-      addBlankWall={addBlankWall} onAddInternalWall={onAddInternalWall}
       openProject={openProject} draftLabel={draftLabel} onSetDraftLabel={onSetDraftLabel}
       onDuplicateDraft={duplicateWall}
       lastEditedAt={lastEditedAt}
       onSaveDraftAsProject={onSaveDraftAsProject} onSaveOpenProject={onSaveOpenProject}
       savingProject={savingProject} saveProjectError={saveProjectError} projectDirty={projectDirty}
       onGoToProjects={onGoToProjects} onViewDetails={scrollToResults}
-      recentProjects={recentProjects}
     />
   );
 
@@ -343,11 +332,10 @@ export function ExternalCalculator({
     );
   }
 
-  if (layoutMode === "phone") return <>{topCardNode}{wallNavNode}{mainNode}{footerNode}{stickyBarNode}{orderDrawerNode}</>;
+  if (layoutMode === "phone") return <>{topCardNode}{mainNode}{footerNode}{stickyBarNode}{orderDrawerNode}</>;
   return (
     <>
       {topCardNode}
-      {wallNavNode}
       <CalculatorShell main={mainNode} footer={footerNode} />
       {orderDrawerNode}
     </>

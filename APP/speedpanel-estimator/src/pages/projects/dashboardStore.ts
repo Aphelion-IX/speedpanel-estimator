@@ -12,52 +12,50 @@
 // actually selected -- this only ever reads stage + total_inc_gst, not a full
 // order row.
 // =============================================================================
-import { useCallback, useEffect, useState } from "react";
+import { useCallback } from "react";
 import type { User } from "@supabase/supabase-js";
 import { z } from "zod";
 import { supabase } from "../../lib/supabaseClient";
 import { ORDER_STAGES, type OrderStage } from "./orders/orderTypes";
+import { useAsyncResource } from "./useAsyncResource";
 
 const NOT_CONFIGURED = "Orders aren't configured for this environment.";
 const BAD_SHAPE = "Unexpected data shape from the server.";
 
 const OrderSummaryRowSchema = z.object({ stage: z.enum(ORDER_STAGES), total_inc_gst: z.number() });
 
-interface OrdersSummaryState {
+interface OrdersSummaryData {
   ordersByStage: Record<OrderStage, number>;
   ordersTotal: number;
   totalValue: number;
-  loading: boolean;
-  error: string | null;
 }
 
 const emptyByStage = (): Record<OrderStage, number> =>
   Object.fromEntries(ORDER_STAGES.map(s => [s, 0])) as Record<OrderStage, number>;
 
-export function useOrdersSummary(user: User | null) {
-  const [state, setState] = useState<OrdersSummaryState>(() =>
-    !supabase || !user
-      ? { ordersByStage: emptyByStage(), ordersTotal: 0, totalValue: 0, loading: false, error: !supabase ? NOT_CONFIGURED : null }
-      : { ordersByStage: emptyByStage(), ordersTotal: 0, totalValue: 0, loading: true, error: null },
-  );
+const emptySummary = (): OrdersSummaryData => ({ ordersByStage: emptyByStage(), ordersTotal: 0, totalValue: 0 });
 
-  const load = useCallback(async () => {
-    if (!supabase || !user) return;
-    setState(s => ({ ...s, loading: true, error: null }));
+export function useOrdersSummary(user: User | null) {
+  const fetchSummary = useCallback(async (): Promise<{ data: OrdersSummaryData; error: string | null }> => {
+    if (!supabase || !user) return { data: emptySummary(), error: null };
     const { data, error } = await supabase.from("orders").select("stage, total_inc_gst");
-    if (error) { setState({ ordersByStage: emptyByStage(), ordersTotal: 0, totalValue: 0, loading: false, error: error.message }); return; }
+    if (error) return { data: emptySummary(), error: error.message };
     const parsed = OrderSummaryRowSchema.array().safeParse(data ?? []);
-    if (!parsed.success) { setState({ ordersByStage: emptyByStage(), ordersTotal: 0, totalValue: 0, loading: false, error: BAD_SHAPE }); return; }
+    if (!parsed.success) return { data: emptySummary(), error: BAD_SHAPE };
     const ordersByStage = emptyByStage();
     let totalValue = 0;
     for (const row of parsed.data) {
       ordersByStage[row.stage] += 1;
       if (row.stage !== "cancelled") totalValue += row.total_inc_gst;
     }
-    setState({ ordersByStage, ordersTotal: parsed.data.length, totalValue, loading: false, error: null });
+    return { data: { ordersByStage, ordersTotal: parsed.data.length, totalValue }, error: null };
   }, [user]);
 
-  useEffect(() => { load(); }, [load]);
+  const { data, loading, error, reload } = useAsyncResource(fetchSummary, [user], {
+    initialData: emptySummary(),
+    skip: !supabase || !user,
+    skipError: !supabase ? NOT_CONFIGURED : null,
+  });
 
-  return { ...state, reload: load };
+  return { ...data, loading, error, reload };
 }

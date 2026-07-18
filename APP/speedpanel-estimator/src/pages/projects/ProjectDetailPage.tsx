@@ -31,7 +31,8 @@ import { cx, NAVY, BLUE, WHITE, MUTED } from "../../styleTokens";
 import { Field, TextAreaField } from "../shared/fields";
 import { Card, WarningsList, Stat, IconButton } from "../../ui/primitives";
 import { Button } from "../../ui/button";
-import { LoadingState, ErrorState } from "../../ui/states";
+import { LoadingState, ErrorState, EmptyState } from "../../ui/states";
+import { Table, type TableColumn } from "../../ui/table";
 import { ConfirmDialog } from "../../ui/confirmDialog";
 import type { EffectiveLayout } from "../../useLayoutMode";
 import { useProject } from "./projectDetailStore";
@@ -43,7 +44,7 @@ import { useProjectOrders } from "./orders/ordersStore";
 import { useOrderDeliveriesForOrders } from "./orders/orderDeliveriesStore";
 import { journeyStageForProject, journeyStageForOrder, journeyProgressPercent, JOURNEY_STAGE_LABELS, JOURNEY_STAGE_BADGE_CLASS } from "./journeyStage";
 import { journeyMilestone, nextDeliveryDate } from "./journeyCopy";
-import { ORDER_STAGE_LABELS, ORDER_STAGE_BADGE_CLASS, totalPanelCount, summarizeOrders } from "./orders/orderTypes";
+import { ORDER_STAGE_LABELS, ORDER_STAGE_BADGE_CLASS, totalPanelCount, summarizeOrders, type OrderRow } from "./orders/orderTypes";
 import {
   useProjectActivity, STAGE_EVENT_LABELS, STAGE_EVENT_DESCRIPTIONS, relativeTime,
   type StageEventType,
@@ -86,7 +87,8 @@ export const ProjectDetailPage = ({ id, userId, onBack, onOpenEstimator, onCreat
   layoutMode: EffectiveLayout;
 }) => {
   const { orders } = useProjectOrders(id);
-  const orderIds = useMemo(() => orders.filter(o => o.stage !== "cancelled").map(o => o.id), [orders]);
+  const nonCancelledOrders = useMemo(() => orders.filter(o => o.stage !== "cancelled"), [orders]);
+  const orderIds = useMemo(() => nonCancelledOrders.map(o => o.id), [nonCancelledOrders]);
   const { deliveriesByOrder } = useOrderDeliveriesForOrders(orderIds);
   const { events, loading: activityLoading, error: activityError } = useProjectActivity(id);
   const { project, loading, error, reload, rename, saveSnapshot, deleteProject, requestInstallReview, requestTechnicalReview } = useProject(id);
@@ -105,9 +107,8 @@ export const ProjectDetailPage = ({ id, userId, onBack, onOpenEstimator, onCreat
 
   const journey = useMemo(() => {
     if (!project) return null;
-    const nonCancelled = orders.filter(o => o.stage !== "cancelled");
-    return journeyStageForProject(project, nonCancelled.map(order => ({ order, deliveries: deliveriesByOrder.get(order.id) ?? [] })));
-  }, [project, orders, deliveriesByOrder]);
+    return journeyStageForProject(project, nonCancelledOrders.map(order => ({ order, deliveries: deliveriesByOrder.get(order.id) ?? [] })));
+  }, [project, nonCancelledOrders, deliveriesByOrder]);
 
   // "At a glance" summary data -- scoped to this project's own already-
   // fetched orders/deliveries, no new fetch. allDeliveries doesn't need
@@ -117,6 +118,43 @@ export const ProjectDetailPage = ({ id, userId, onBack, onOpenEstimator, onCreat
 
   const representativeOrder = orders.find(o => o.id === journey?.representativeOrderId);
   const representativeDeliveries = representativeOrder ? (deliveriesByOrder.get(representativeOrder.id) ?? []) : [];
+
+  const orderColumns: TableColumn<OrderRow>[] = useMemo(() => [
+    {
+      key: "order", header: "Order",
+      cell: o => (
+        <div>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm font-bold" style={{ color: NAVY }}>Order {o.id.slice(0, 8).toUpperCase()}</span>
+            <span className={`${cx.badge} ${ORDER_STAGE_BADGE_CLASS[o.stage]}`}>{ORDER_STAGE_LABELS[o.stage]}</span>
+          </div>
+          <p className="mt-1 text-xs" style={{ color: MUTED }}>{totalPanelCount(o.line_items)} panels &middot; ${o.total_inc_gst.toFixed(2)}</p>
+        </div>
+      ),
+    },
+    {
+      key: "progress", header: "Progress",
+      cell: o => {
+        const orderStage = journeyStageForOrder(o, deliveriesByOrder.get(o.id) ?? []);
+        const progress = o.stage === "cancelled" ? 0 : journeyProgressPercent(orderStage, o);
+        return (
+          <div>
+            <div className="flex items-center gap-3">
+              <div className="h-1.5 w-24 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-700">
+                <div className="h-full rounded-full" style={{ width: `${progress}%`, background: BLUE }} />
+              </div>
+              <span className="text-sm font-bold" style={{ color: NAVY }}>{progress}%</span>
+            </div>
+            <p className="mt-2 text-xs" style={{ color: MUTED }}>{new Date(o.created_at).toLocaleDateString()}</p>
+          </div>
+        );
+      },
+    },
+    {
+      key: "chevron", header: "", align: "right", className: "w-10",
+      cell: () => <ChevronRight className="ml-auto h-5 w-5" style={{ color: MUTED }} />,
+    },
+  ], [deliveriesByOrder]);
 
   if (loading) return <LoadingState className="mt-5" label="Loading project" />;
 
@@ -323,45 +361,18 @@ export const ProjectDetailPage = ({ id, userId, onBack, onOpenEstimator, onCreat
 
       <div className="mt-4 grid gap-4 xl:grid-cols-[1.65fr_1fr]">
         <div className="space-y-4">
-          <section className="overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 shadow-sm">
-            <div className="flex items-center justify-between px-5 py-4">
-              <h2 className={cx.h3}>Orders</h2>
-            </div>
+          <div>
+            <h2 className={cx.h3}>Orders</h2>
             {orders.length === 0 ? (
-              <p className={cx.footnote} style={{ padding: "0 20px 20px" }}>No orders yet.</p>
+              <EmptyState className="mt-3" message="No orders yet." />
             ) : (
-              orders.map(o => {
-                const orderStage = journeyStageForOrder(o, deliveriesByOrder.get(o.id) ?? []);
-                const progress = o.stage === "cancelled" ? 0 : journeyProgressPercent(orderStage, o);
-                return (
-                  <button key={o.id} onClick={() => onOpenOrder(project.id, o.id)}
-                    className="grid w-full gap-3 border-b border-slate-100 dark:border-slate-700 px-5 py-4 text-left last:border-b-0 lg:grid-cols-[1.1fr_1.3fr_24px] lg:items-center">
-                    <div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-sm font-bold" style={{ color: NAVY }}>Order {o.id.slice(0, 8).toUpperCase()}</span>
-                        <span className={`${cx.badge} ${ORDER_STAGE_BADGE_CLASS[o.stage]}`}>{ORDER_STAGE_LABELS[o.stage]}</span>
-                      </div>
-                      <p className="mt-1 text-xs" style={{ color: MUTED }}>{totalPanelCount(o.line_items)} panels &middot; ${o.total_inc_gst.toFixed(2)}</p>
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-3">
-                        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-700">
-                          <div className="h-full rounded-full" style={{ width: `${progress}%`, background: BLUE }} />
-                        </div>
-                        <span className="text-sm font-bold" style={{ color: NAVY }}>{progress}%</span>
-                      </div>
-                      <p className="mt-2 text-xs" style={{ color: MUTED }}>{new Date(o.created_at).toLocaleDateString()}</p>
-                    </div>
-                    <ChevronRight className="h-5 w-5 justify-self-end" style={{ color: MUTED }} />
-                  </button>
-                );
-              })
+              <Table className="mt-3" columns={orderColumns} rows={orders} rowKey={o => o.id} onRowClick={o => onOpenOrder(project.id, o.id)} />
             )}
             <button onClick={() => onCreateOrder(project.id)}
-              className="m-4 flex w-[calc(100%-2rem)] items-center justify-center gap-2 rounded-lg border border-dashed border-blue-300 dark:border-blue-700 py-3 text-sm font-semibold" style={{ color: BLUE }}>
+              className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-blue-300 dark:border-blue-700 py-3 text-sm font-semibold" style={{ color: BLUE }}>
               + Create New Order
             </button>
-          </section>
+          </div>
 
           <Card title="Recent Activity" icon={<ActivityIcon size={14} />}>
             {activityLoading ? (

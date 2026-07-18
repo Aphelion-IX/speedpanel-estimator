@@ -14,10 +14,14 @@
 // education/educationCatalogStore.ts documents for this exact admin/customer
 // boundary, so this customer-facing page's bundle stays independent of the
 // (separately, lazily loaded) admin section's code.
+//
+// Fetch/loading/error plumbing lives in useAsyncResource.ts, shared by every
+// store in this tree.
 // =============================================================================
-import { useCallback, useEffect, useState } from "react";
+import { useCallback } from "react";
 import { z } from "zod";
 import { supabase } from "../../lib/supabaseClient";
+import { useAsyncResource } from "./useAsyncResource";
 
 const NOT_CONFIGURED = "Activity isn't configured for this environment.";
 const BAD_SHAPE = "Unexpected data shape from the server.";
@@ -75,31 +79,23 @@ const ProjectActivityRowSchema = z.object({
 });
 export type ProjectActivityRow = z.infer<typeof ProjectActivityRowSchema>;
 
-interface ActivityState {
-  events: ProjectActivityRow[];
-  loading: boolean;
-  error: string | null;
-}
-
 export function useProjectActivity(projectId: string) {
-  const [state, setState] = useState<ActivityState>(() =>
-    supabase ? { events: [], loading: true, error: null } : { events: [], loading: false, error: NOT_CONFIGURED },
-  );
-
-  const load = useCallback(async () => {
-    if (!supabase) return;
-    setState(s => ({ ...s, loading: true, error: null }));
+  const fetchActivity = useCallback(async (): Promise<{ data: ProjectActivityRow[]; error: string | null }> => {
+    if (!supabase) return { data: [], error: null };
     const { data, error } = await supabase.from("project_stage_events")
       .select("id, event_type, note, created_at")
       .eq("project_id", projectId)
       .order("created_at", { ascending: false });
-    if (error) { setState({ events: [], loading: false, error: error.message }); return; }
+    if (error) return { data: [], error: error.message };
     const parsed = ProjectActivityRowSchema.array().safeParse(data ?? []);
-    if (!parsed.success) { setState({ events: [], loading: false, error: BAD_SHAPE }); return; }
-    setState({ events: parsed.data, loading: false, error: null });
+    return parsed.success ? { data: parsed.data, error: null } : { data: [], error: BAD_SHAPE };
   }, [projectId]);
 
-  useEffect(() => { load(); }, [load]);
+  const { data: events, loading, error, reload } = useAsyncResource(fetchActivity, [projectId], {
+    initialData: [] as ProjectActivityRow[],
+    skip: !supabase,
+    skipError: NOT_CONFIGURED,
+  });
 
-  return { ...state, reload: load };
+  return { events, loading, error, reload };
 }
