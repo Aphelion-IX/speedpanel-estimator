@@ -2,9 +2,9 @@
 // Walls card (Internal Calculator only)
 // =============================================================================
 // Wall-list management UI: horizontal-only wall system selector (Standard/
-// Corner/Shaft) plus its Corner/Shaft/generic junction link pickers, the
-// WallsCard itself (system buttons, panel type, name/duplicate/delete), and
-// the read-only project-wide WallsSummaryTable.
+// Corner/Shaft) plus its Corner/Shaft/generic junction link pickers, and the
+// WallsCard itself (system buttons, panel type, name/duplicate/delete). The
+// read-only project-wide walls table now lives in allWallsPage.tsx instead.
 //
 // Forked from what used to be a single file shared with ExternalCalculator
 // (see externalCalculator/wallsCard.tsx for its own, independent copy) --
@@ -14,12 +14,11 @@
 // controls) had to be checked against "does this leak into External" first.
 // Splitting them means each calculator can now evolve its own UI freely.
 // =============================================================================
-import { Copy, Frame, Trash2 } from "lucide-react";
-import { cx, NAVY, BLUE, MUTED } from "../styleTokens";
+import { Copy, Trash2 } from "lucide-react";
+import { cx, NAVY, BLUE, MUTED, selectedFill, selectableOffCx } from "../styleTokens";
 import { TYPES } from "../data";
 import { IconButton } from "../ui/primitives";
-import { Table, type TableColumn } from "../ui/table";
-import type { Wall, WallResult } from "../estimate/wall.types";
+import type { Wall } from "../estimate/wall.types";
 import type { WallSystemId } from "../App";
 
 // --- WallSystemSelector --------------------------------------------------------
@@ -43,8 +42,8 @@ export const WallSystemSelector = ({ value, onChange }: { value: WallSystemId; o
         const on = value === id;
         return (
           <button key={id} onClick={() => onChange(id)}
-            className={"w-full rounded-xl border-2 py-3.5 px-2 text-sm font-semibold text-center active:scale-95 transition-all " + (on ? "" : "border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800")}
-            style={on ? { borderColor: BLUE, background: BLUE, color: "#fff" } : { color: BLUE }}>
+            className={"w-full rounded-xl border-2 py-3.5 px-2 text-sm font-semibold text-center active:scale-95 transition-all " + (on ? "" : `border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 ${selectableOffCx}`)}
+            style={on ? { ...selectedFill, color: "#fff" } : { color: BLUE }}>
             {label.replace(" wall", "")}
           </button>
         );
@@ -76,16 +75,16 @@ const WallLinkSelector = ({ heading, walls, active, filter, partnerId, onLink, l
       <div className={cx.cardHd}>{heading}</div>
       <div className="space-y-1.5">
         <button onClick={() => onLink(null)}
-          className={"w-full rounded-xl border-2 py-3 px-4 text-sm font-semibold text-left active:scale-95 transition-all " + (!partner ? "" : "border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800")}
-          style={!partner ? { borderColor: BLUE, background: BLUE, color: "#fff" } : { color: BLUE }}>
+          className={"w-full rounded-xl border-2 py-3 px-4 text-sm font-semibold text-left active:scale-95 transition-all " + (!partner ? "" : `border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 ${selectableOffCx}`)}
+          style={!partner ? { ...selectedFill, color: "#fff" } : { color: BLUE }}>
           Not linked
         </button>
         {linkable.map(w => {
           const on = partner?.id === w.id;
           return (
             <button key={w.id} onClick={() => onLink(w.id)}
-              className={"w-full rounded-xl border-2 py-3 px-4 text-sm font-semibold text-left active:scale-95 transition-all " + (on ? "" : "border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800")}
-              style={on ? { borderColor: BLUE, background: BLUE, color: "#fff" } : { color: BLUE }}>
+              className={"w-full rounded-xl border-2 py-3 px-4 text-sm font-semibold text-left active:scale-95 transition-all " + (on ? "" : `border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 ${selectableOffCx}`)}
+              style={on ? { ...selectedFill, color: "#fff" } : { color: BLUE }}>
               {label ? label(w, on) : w.name}
             </button>
           );
@@ -125,8 +124,8 @@ export const CornerLinkSelector = ({ active, walls, onLink, onSideChange }: {
               const on = (active.cornerSide ?? "right") === side;
               return (
                 <button key={side} onClick={() => onSideChange(side)}
-                  className={"w-full rounded-xl border-2 py-3 px-4 text-sm font-semibold text-center active:scale-95 transition-all " + (on ? "" : "border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800")}
-                  style={on ? { borderColor: BLUE, background: BLUE, color: "#fff" } : { color: BLUE }}>
+                  className={"w-full rounded-xl border-2 py-3 px-4 text-sm font-semibold text-center active:scale-95 transition-all " + (on ? "" : `border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 ${selectableOffCx}`)}
+                  style={on ? { ...selectedFill, color: "#fff" } : { color: BLUE }}>
                   {side === "left" ? "Left" : "Right"}
                 </button>
               );
@@ -218,8 +217,8 @@ export const PanelTypeSelector = ({ active, update, topBorder }: {
           const on = active.type === t.id;
           return (
             <button key={t.id} onClick={() => update({ type: t.id })}
-              className={"w-full rounded-xl border-2 py-3 px-1.5 text-center active:scale-95 transition-all " + (on ? "" : "border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800")}
-              style={on ? { borderColor: BLUE, background: BLUE } : undefined}>
+              className={"w-full rounded-xl border-2 py-3 px-1.5 text-center active:scale-95 transition-all " + (on ? "" : `border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 ${selectableOffCx}`)}
+              style={on ? selectedFill : undefined}>
               <div className="text-base font-black leading-none tracking-tight" style={{ color: on ? "#fff" : BLUE }}>{t.label}</div>
               <div className="mt-1 text-xs font-semibold tracking-wide" style={{ color: on ? "rgba(255,255,255,0.7)" : MUTED }}>{t.depth}</div>
               <div className="mt-1 text-[10px] font-bold tracking-wide" style={{ color: on ? "rgba(255,255,255,0.7)" : MUTED }}>FRL {t.frl}</div>
@@ -305,52 +304,3 @@ export const WallsCard = ({ walls, active, update, duplicateWall, deleteWall, sh
     </div>
   </div>
 );
-
-// --- WallsSummaryTable ----------------------------------------------------------
-// Web/tablet-only "all walls at a glance" table. No new state -- driven entirely
-// by data already computed by the wall store / useWallResults (results/activeId/warnById);
-// clicking a row calls the same setActiveId used by WallsCard's tab strip.
-export const WallsSummaryTable = ({ results, activeId, setActiveId, warnById, toDisp, dimUnit }: {
-  results: WallResult[]; activeId: number; setActiveId: (id: number) => void;
-  warnById: Record<number, boolean>; toDisp: (m: string) => string; dimUnit: string;
-}) => {
-  const dim = (m: string) => (m ? `${toDisp(m)} ${dimUnit}` : "--");
-  const columns: TableColumn<WallResult>[] = [
-    {
-      key: "wall", header: "Wall",
-      cell: ({ wall }) => (
-        <span className="font-semibold" style={{ color: NAVY }}>
-          {/* Red, not gold -- "Red: warnings and errors" per the approved
-              phone mockup's colour rule, applied here since this table is
-              now Internal's own copy (no longer shared with External). Same
-              red family tone("danger") uses elsewhere (bg-red-50/text-red-600),
-              just a solid fill since this is a small dot, not a text badge. */}
-          {warnById[wall.id] && <span className="mr-1.5 inline-block h-2 w-2 rounded-full align-middle bg-red-600 dark:bg-red-500" />}
-          {wall.name}
-        </span>
-      ),
-    },
-    { key: "orientation", header: "Orientation", cell: ({ wall }) => (wall.orient === "vertical" ? "Vertical" : "Horizontal") },
-    { key: "type", header: "Type", cell: ({ wall }) => `P${wall.type}` },
-    { key: "width", header: "Width", cell: ({ wall }) => dim(wall.width) },
-    { key: "height", header: "Height", cell: ({ wall }) => dim(wall.height) },
-    { key: "area", header: "Area", cell: ({ out }) => (out.empty ? "--" : `${out.area} m2`) },
-    { key: "panels", header: "Panels", cell: ({ out }) => (out.empty ? "--" : (out.chosen?.panels ?? out.result?.panels ?? "--")) },
-  ];
-  return (
-    <div className={`mt-3 ${cx.card}`}>
-      <div className={cx.cardTitle} style={{ color: NAVY }}>
-        <span style={{ color: BLUE }}><Frame size={14} /></span>Walls ({results.length})
-      </div>
-      <div className="mt-2">
-        <Table
-          columns={columns}
-          rows={results}
-          rowKey={({ wall }) => wall.id}
-          onRowClick={({ wall }) => setActiveId(wall.id)}
-          rowClassName={({ wall }) => (wall.id === activeId ? "bg-blue-50/60 dark:bg-blue-900/55" : undefined)}
-        />
-      </div>
-    </div>
-  );
-};

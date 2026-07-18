@@ -4,13 +4,13 @@
 // The Internal calculator (P51/P64/P78, vertical or horizontal, Standard/
 // Corner/Shaft wall systems). Shares the same wall store as the External
 // calculator (passed down from the root component) so walls survive
-// switching between Internal/External and orientation. mode and showWall
-// stay lifted as props -- the root component persists mode across sessions
-// and force-opens showWall on several of its own call sites (add wall,
-// switch orientation, switch system) -- while showTrackFinish/showData are
-// local UI-only state, and results/aggregate/corner-shaft-pair/combined
-// estimate are computed independently here, mirroring ExternalCalculator's
-// own independent compute calls on the same shared `walls` array.
+// switching between Internal/External and orientation. Always renders the
+// combined project view (single-wall-only mode was retired -- see git
+// history for the old EstimateModeSelector toggle) -- showTrackFinish/
+// showData are local UI-only state, and results/aggregate/corner-shaft-pair/
+// combined estimate are computed independently here, mirroring
+// ExternalCalculator's own independent compute calls on the same shared
+// `walls` array.
 // =============================================================================
 import { useState, useEffect, useMemo, useRef } from "react";
 import { Frame, Gauge, Link2, Lock, Settings } from "lucide-react";
@@ -29,7 +29,7 @@ import { HEAD_FLASH_LABEL, HEAD_FLASH_SUBLABEL, STOCK_LENGTHS, INT_CONFIG } from
 import type { Wall } from "../estimate/wall.types";
 import type { EffectiveLayout } from "../useLayoutMode";
 import {
-  SectionLabel, WarningsList, EstimateModeSelector, UnitToggle, CalculatorShell,
+  SectionLabel, WarningsList, UnitToggle, CalculatorShell,
   CollapsibleSection, StatsGrid,
 } from "../ui/primitives";
 import { LockedDataInt, LockedDataFooter } from "../ui/lockedData";
@@ -38,8 +38,7 @@ import { WallsCard } from "./wallsCard";
 import { EstimateStructureNav } from "./estimateStructureNav";
 import { KitWorkspace } from "./kitWorkspace";
 import { KitWorkspacePhone } from "./kitWorkspacePhone";
-import { WallWorkspaceTabs } from "./wallWorkspaceTabs";
-import { SheetHeaderPhone, StickyBarTilesPhone, deriveWallStatus } from "./phoneShell";
+import { StickyBarTilesPhone } from "./phoneShell";
 import { EstimateTopCard } from "./EstimateTopCard";
 import type { OpenProjectInfo } from "./EstimateTopCard";
 import {
@@ -52,23 +51,21 @@ import {
 import type { FinishKey, CornersField } from "./wallConfig";
 import { WallPreviewSection } from "../ui/wallPreview";
 import { PanelScheduleCard, PanelScheduleTable } from "../ui/scheduleCards";
-import { SingleWallEstimateSection } from "./mainSections";
 import { EstimateResultsCard } from "./estimateResultsCard";
+import { AllWallsPage } from "./allWallsPage";
 import { OrderReviewDrawer } from "./orderReviewDrawer";
 import { buildInternalReportData } from "../export/buildInternalReportData";
 import { exportEstimateToExcel } from "../export/exportEstimateToExcel";
 
 export function InternalCalculator({
-  store, orient, dimUnit, setDimUnit, systemSelector, layoutMode, mode, setMode,
-  showWall, setShowWall, linkCornerPartner, linkShaftPartner,
+  store, orient, dimUnit, setDimUnit, systemSelector, layoutMode,
+  linkCornerPartner, linkShaftPartner,
   onAddExternalWall, switchOrient, switchToExternal,
   openProject, draftLabel, onSetDraftLabel, lastEditedAt,
   onSaveDraftAsProject, onSaveOpenProject, savingProject, saveProjectError, projectDirty, onGoToProjects,
 }: {
   store: WallStore; orient: "vertical" | "horizontal"; dimUnit: string;
   setDimUnit: (u: string) => void; systemSelector?: React.ReactNode; layoutMode: EffectiveLayout;
-  mode: string; setMode: (m: string) => void;
-  showWall: boolean; setShowWall: (v: boolean) => void;
   linkCornerPartner: (targetId: number | null) => void;
   linkShaftPartner: (targetId: number | null) => void;
   // "External Wall" add-tile (EstimateTopCard) -- adds a wall then switches
@@ -101,6 +98,7 @@ export function InternalCalculator({
 }) {
   const [showTrackFinish, setShowTrackFinish] = useState(false);
   const [orderDrawerOpen, setOrderDrawerOpen] = useState(false);
+  const [allWallsOpen, setAllWallsOpen] = useState(false);
   // EstimateTopCard's "View estimate details" link scrolls here rather than
   // navigating anywhere new -- no separate estimate-detail route exists.
   const resultsRef = useRef<HTMLDivElement>(null);
@@ -111,6 +109,7 @@ export function InternalCalculator({
     projectStock, projectLock, customLengthInput, customActive,
     active, update, toDisp, updDim,
     setProjectLength, addBlankWall, addCornerWall, addShaftWall, duplicateWall, deleteWall,
+    duplicateWallById, deleteWallById,
     commitCustomLength, toggleCustom, clearCustomLength,
     linkJunctionPartner,
   } = store;
@@ -130,7 +129,6 @@ export function InternalCalculator({
   };
 
   const switchDimUnit = (u: string) => { setDimUnit(u); clearCustomLength(); };
-  const project = mode === "project";
   const projChosenAgg = useMemo(() => aggregate(results), [results]);
   const combinedEstimate = useCombinedEstimateCalc(walls);
   // Rough "line item" count for the Review Order trigger/sticky bar -- stock
@@ -166,13 +164,6 @@ export function InternalCalculator({
   const workspaceTitle = selectedKit
     ? kitLabel(selectedKit, kits)
     : `${active.name} — ${active.orient === "vertical" ? "Vertical" : "Horizontal"} · P${active.type}`;
-  // Phone-only sheet header: same underlying data as workspaceTitle above,
-  // just split into a title/crumb/status shape for SheetHeaderPhone.
-  const sheetTitle = selectedKit ? kitLabel(selectedKit, kits) : active.name;
-  const sheetCrumb = selectedKit
-    ? `${selectedKit.wallAName} ↔ ${selectedKit.wallBName}`
-    : `${active.orient === "vertical" ? "Vertical" : "Horizontal"} · P${active.type}`;
-  const sheetStatus = selectedKit ? "linked" as const : deriveWallStatus(active, out);
   const selectedItemStats = selectedKit
     ? [
         { value: selectedKit.kind === "corner" ? "Corner" : "Shaft", label: "Kit type" },
@@ -189,13 +180,18 @@ export function InternalCalculator({
         { value: out.empty ? "--" : `${r1(out.chosen?.wastePct ?? 0)}%`, label: "Waste" },
       ];
 
-  const sidebarNode = (
+  // Renders as a full-width card carousel on web (see estimateStructureNav.tsx),
+  // no longer the sidebar's sole content -- kept as its own variable rather
+  // than inlined so the phone/web branches below can each place it correctly.
+  const wallNavNode = (
     <EstimateStructureNav
       walls={walls} results={results} kits={kits}
       selected={selectedNavItem} onSelect={handleSelectNavItem}
       warnById={warnById}
       addBlankWall={addBlankWall} addCornerWall={addCornerWall} addShaftWall={addShaftWall}
       layoutMode={layoutMode}
+      dimUnit={dimUnit} toDisp={toDisp}
+      onViewAll={() => setAllWallsOpen(true)}
     />
   );
 
@@ -212,11 +208,11 @@ export function InternalCalculator({
           </div>
         </div>
         <DimensionInputs active={active} toDisp={toDisp} updDim={updDim} out={out} orient={orient} />
-        {/* Pulled out into WallWorkspaceTabs's Preview tab on phone, but
-            only in single-wall mode -- project mode's own tabbed
-            EstimateResultsCard has no preview tab of its own, so this
-            stays inline there rather than disappearing entirely. */}
-        {(layoutMode !== "phone" || project) && <WallPreviewSection active={active} walls={walls} out={out} dimUnit={dimUnit} toDisp={toDisp} />}
+        {/* geometryContent only ever renders on web (see its own comment
+            above) -- phone has its own separate GeometrySectionPhone
+            (phoneSections.tsx), which now also always shows the preview
+            inline below Dimensions, matching this. */}
+        <WallPreviewSection active={active} walls={walls} out={out} dimUnit={dimUnit} toDisp={toDisp} />
         <SpanTable orient={orient} type={active.type} wallSystem={active.wallSystem} />
       </div>
     </>
@@ -231,13 +227,14 @@ export function InternalCalculator({
       commitCustomLength={commitCustomLength} toggleCustom={toggleCustom} clearCustomLength={clearCustomLength}
     />
   );
+  const edgesLocked = orient === "horizontal" && active.wallSystem === "standard";
   const tracksContent = (
     <EdgeRestraintSelector
       edges={active.edges}
       onEdgeToggle={k => update({ edges: { ...active.edges, [k]: !active.edges[k] } })}
       options={[{ key: "headFlash", label: HEAD_FLASH_LABEL, sublabel: HEAD_FLASH_SUBLABEL, value: active.headFlash, onToggle: () => update({ headFlash: !active.headFlash }) }]}
       orient={orient}
-      locked={orient === "horizontal" && active.wallSystem === "standard"}
+      locked={edgesLocked}
       showTrackFinish={showTrackFinish}
       setShowTrackFinish={setShowTrackFinish}
       activeFinishes={{ headFinish: active.headFinish, bottomFinish: active.bottomFinish, leftFinish: active.leftFinish, rightFinish: active.rightFinish }}
@@ -245,6 +242,12 @@ export function InternalCalculator({
       corners={{ intCorners: active.intCorners, extCorners: active.extCorners, onChange: (f: CornersField, v: string) => update({ [f]: v } as Pick<Wall, CornersField>) }}
     />
   );
+  // CollapsibleSection header badges -- a status summary visible even while
+  // collapsed, echoing the "Estimate structure (N)" pattern already used in
+  // the sidebar heading.
+  const profileLabel = active.profile === "standard" ? "Standard" : active.profile === "rake" ? "Raked" : "Gable";
+  const edgeCount = edgesLocked ? 4 : Object.values(active.edges).filter(Boolean).length;
+  const edgesBadge = `${edgeCount} edge${edgeCount === 1 ? "" : "s"}`;
 
   // Phone and web have genuinely different visual languages now (segmented
   // pill controls + one continuous "sheet" card on phone vs. the app's
@@ -254,14 +257,13 @@ export function InternalCalculator({
   // than a tangle of conditionals that differ in more than just wrapping.
   const phoneWorkspaceNode = (
     <>
-      <SheetCardPhone>
-        <SheetHeaderPhone title={sheetTitle} crumb={sheetCrumb} status={sheetStatus} stats={selectedItemStats} />
-        {selectedKit && (
+      {selectedKit && (
+        <SheetCardPhone>
           <SheetSectionPhone icon={<Link2 size={13} />} label="Connection workspace" noDivider>
             <KitWorkspacePhone kit={selectedKit} onSelect={handleSelectNavItem} />
           </SheetSectionPhone>
-        )}
-      </SheetCardPhone>
+        </SheetCardPhone>
+      )}
       {!selectedKit && (
         <>
           <SystemConfigSectionPhone
@@ -272,7 +274,7 @@ export function InternalCalculator({
           />
           <GeometrySectionPhone
             active={active} update={update} toDisp={toDisp} updDim={updDim} out={out} orient={orient}
-            walls={walls} dimUnit={dimUnit} switchDimUnit={switchDimUnit} project={project}
+            walls={walls} dimUnit={dimUnit} switchDimUnit={switchDimUnit}
           />
           <PanelLengthSectionPhone
             dimUnit={dimUnit} out={out} active={active} walls={walls}
@@ -284,24 +286,14 @@ export function InternalCalculator({
           />
           <TracksFlashingSectionPhone active={active} update={update} orient={orient} />
 
-          {/* WallWorkspaceTabs only replaces this in single-wall mode --
-              project mode's EstimateResultsCard (below, in mainNode) already
-              has its own Selected Wall/Connections/Order tabs covering the
-              same per-wall content, so showing both would stack two
-              redundant tab strips on one phone screen. */}
-          {!project ? (
-            <WallWorkspaceTabs
-              active={active} out={out} orient={orient} layoutMode={layoutMode}
-              walls={walls} cornerPair={cornerPair} shaftPair={shaftPair} ScheduleComp={ScheduleComp}
-              dimUnit={dimUnit} toDisp={toDisp}
-            />
-          ) : (
-            <SheetCardPhone>
-              <SheetSectionPhone label="Warnings" noDivider>
-                <WarningsListPhone warnings={!out.empty ? out.warnings : null} />
-              </SheetSectionPhone>
-            </SheetCardPhone>
-          )}
+          {/* Per-wall Schedule/Connections/Warnings live in EstimateResultsCard's
+              own Selected Wall/Connections/Order tabs below (in mainNode) --
+              this is just the project-level warnings list. */}
+          <SheetCardPhone>
+            <SheetSectionPhone label="Warnings" noDivider>
+              <WarningsListPhone warnings={!out.empty ? out.warnings : null} />
+            </SheetSectionPhone>
+          </SheetCardPhone>
         </>
       )}
     </>
@@ -326,18 +318,16 @@ export function InternalCalculator({
             onJunctionLink={linkJunctionPartner}
           />
 
-          <CollapsibleSection icon={<Frame size={13} />} label="Wall geometry" defaultOpen>
-            <div className={cx.section}>
-              {geometryContent}
-              {panelLengthContent}
-            </div>
+          <CollapsibleSection icon={<Frame size={13} />} label="Wall geometry" badge={profileLabel} defaultOpen>
+            {geometryContent}
+            {panelLengthContent}
           </CollapsibleSection>
 
           {/* Tracks and flashing -- defaults open now that this lives in the
               wider main-column workspace, not the space-constrained sidebar
               (see Phase B's CollapsibleSection doc comment for that original
               rationale, which no longer applies here). */}
-          <CollapsibleSection icon={<Lock size={13} />} label="Tracks and flashing" defaultOpen>
+          <CollapsibleSection icon={<Lock size={13} />} label="Tracks and flashing" badge={edgesBadge} defaultOpen>
             {tracksContent}
           </CollapsibleSection>
 
@@ -347,51 +337,28 @@ export function InternalCalculator({
     </>
   );
 
-  const workspaceNode = (
-    <>
-      <EstimateModeSelector visible={!out.empty} mode={mode} setMode={setMode} />
-      {layoutMode === "phone" ? phoneWorkspaceNode : webWorkspaceNode}
-    </>
-  );
+  const workspaceNode = layoutMode === "phone" ? phoneWorkspaceNode : webWorkspaceNode;
 
   const mainNode = (
     <div ref={resultsRef}>
       {workspaceNode}
 
-      {/* Single wall estimate -- superseded by WallWorkspaceTabs's Schedule
-          tab on phone (see workspaceNode above), so only rendered on web. */}
-      {!project && layoutMode !== "phone" && (
-        <SingleWallEstimateSection
-          active={active} out={out} orient={orient} layoutMode={layoutMode}
-          showWall={showWall} setShowWall={setShowWall} ScheduleComp={ScheduleComp}
-          walls={walls} cornerPair={cornerPair} shaftPair={shaftPair}
-        />
-      )}
-
       {/* Estimate Results: Overview / Selected Wall / Connections / Order tabs */}
-      {project && (
-        <>
-          <ProjectSeparator />
-          <EstimateResultsCard
-            layoutMode={layoutMode} results={results} walls={walls} kits={kits}
-            activeId={activeId} onSelectWall={wallId => handleSelectNavItem({ type: "wall", wallId })}
-            warnById={warnById} toDisp={toDisp} dimUnit={dimUnit}
-            projChosenAgg={projChosenAgg} combinedEstimate={combinedEstimate}
-            active={active} out={out} orient={orient} cornerPair={cornerPair} shaftPair={shaftPair}
-            ScheduleComp={ScheduleComp}
-            onReviewOrder={() => setOrderDrawerOpen(true)} orderLineItemCount={orderLineItemCount}
-          />
-        </>
-      )}
+      <ProjectSeparator />
+      <EstimateResultsCard
+        layoutMode={layoutMode} results={results} walls={walls} kits={kits}
+        projChosenAgg={projChosenAgg} combinedEstimate={combinedEstimate}
+        active={active} out={out} orient={orient} cornerPair={cornerPair} shaftPair={shaftPair}
+        ScheduleComp={ScheduleComp}
+        onReviewOrder={() => setOrderDrawerOpen(true)} orderLineItemCount={orderLineItemCount}
+      />
     </div>
   );
 
-  const hasExportData = project
-    ? !!(projChosenAgg && projChosenAgg.totalPanels > 0)
-    : !(out.empty || !out.chosen || out.chosen.invalid);
+  const hasExportData = !!(projChosenAgg && projChosenAgg.totalPanels > 0);
   const handleExport = () => exportEstimateToExcel(buildInternalReportData({
-    mode, orient, dimUnit, toDisp, walls, results, warnById, active, out,
-    projChosenAgg, combinedEstimate, cornerPair, shaftPair,
+    orient, dimUnit, toDisp, walls, results, warnById,
+    projChosenAgg, combinedEstimate,
   }));
   const footerNode = (
     <LockedDataFooter title="Locked system data" table={<LockedDataInt />} onExport={handleExport} disabled={!hasExportData} />
@@ -404,10 +371,7 @@ export function InternalCalculator({
       onExport={handleExport} exportDisabled={!hasExportData}
     />
   );
-  // Mobile-only sticky summary bar -- shown regardless of single-wall/project
-  // mode (projChosenAgg/orderDrawerNode are already computed unconditionally,
-  // so this degrades correctly to that one wall's own totals outside project
-  // mode); single-wall mode's existing footer Export button is untouched.
+  // Mobile-only sticky summary bar.
   const stickyBarNode = layoutMode === "phone" && (
     <StickyBarTilesPhone
       stats={stickyProjectStats}
@@ -430,11 +394,23 @@ export function InternalCalculator({
     />
   );
 
-  if (layoutMode === "phone") return <>{topCardNode}{sidebarNode}{mainNode}{footerNode}{stickyBarNode}{orderDrawerNode}</>;
+  if (allWallsOpen) {
+    return (
+      <AllWallsPage
+        walls={walls} results={results} warnById={warnById} toDisp={toDisp} dimUnit={dimUnit}
+        onSelectWall={id => { handleSelectNavItem({ type: "wall", wallId: id }); setAllWallsOpen(false); }}
+        duplicateWallById={duplicateWallById} deleteWallById={deleteWallById}
+        onBack={() => setAllWallsOpen(false)}
+      />
+    );
+  }
+
+  if (layoutMode === "phone") return <>{topCardNode}{wallNavNode}{mainNode}{footerNode}{stickyBarNode}{orderDrawerNode}</>;
   return (
     <>
       {topCardNode}
-      <CalculatorShell sidebar={sidebarNode} main={mainNode} footer={footerNode} sidebarWidth={320} />
+      {wallNavNode}
+      <CalculatorShell main={mainNode} footer={footerNode} />
       {orderDrawerNode}
     </>
   );

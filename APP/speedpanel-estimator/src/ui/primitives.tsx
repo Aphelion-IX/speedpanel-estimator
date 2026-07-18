@@ -38,7 +38,7 @@ export const IconButton = ({ onClick, title, ariaLabel, className = "", variant 
       title={title}
       aria-label={ariaLabel ?? title}
       disabled={disabled}
-      className={`grid place-items-center border bg-white dark:bg-slate-800 shadow-sm active:scale-95 transition-all disabled:opacity-50 disabled:pointer-events-none ${sizeCx} ${variantCx} ${className}`}
+      className={`grid place-items-center border bg-white dark:bg-slate-800 shadow-sm hover:-translate-y-0.5 hover:shadow-md active:translate-y-0 active:scale-95 transition-all disabled:opacity-50 disabled:pointer-events-none disabled:hover:translate-y-0 disabled:hover:shadow-sm ${sizeCx} ${variantCx} ${className}`}
     >
       {children}
     </button>
@@ -84,24 +84,41 @@ export const SectionLabel = ({ icon, children }: { icon: React.ReactNode; childr
 );
 
 // --- CollapsibleSection -----------------------------------------------------
-// Same header/chevron visual language as the "Wall estimate" accordion
-// (cx.accordion) and SpanTable's inline accordion, generalized into a
-// sidebar section header that can be toggled shut -- used to shrink the
-// sidebar's default rendered height (Wall geometry stays open, Tracks and
-// flashing starts closed) so the sticky sidebar isn't routinely taller than
-// the main column it sits beside.
-export const CollapsibleSection = ({ icon, label, defaultOpen = true, children }: {
-  icon: React.ReactNode; label: React.ReactNode; defaultOpen?: boolean; children: React.ReactNode;
+// Header used to be a bare uppercase label (cx.sectionLbl) floating above a
+// separately-padded cx.card/cx.section -- two visually disconnected pieces.
+// Now a single cx.cardShell wraps both: an integrated header strip (icon
+// chip + label + optional status badge) with its own tinted background and
+// bottom border, and a padded body below it -- so the card reads as one
+// object with a real header region (Stripe/Linear-style), the way an
+// unrelated flat label never could. Callers that used to wrap their own
+// children in `<div className={cx.section}>` should stop doing that -- this
+// component's body wrapper now supplies that padding/spacing instead, so
+// nesting cx.section here would double up the border/shadow/padding.
+export const CollapsibleSection = ({ icon, label, badge, defaultOpen = true, children }: {
+  icon: React.ReactNode; label: React.ReactNode; badge?: React.ReactNode; defaultOpen?: boolean; children: React.ReactNode;
 }) => {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <>
-      <button onClick={() => setOpen(v => !v)} className={`${cx.sectionLbl} w-full justify-between`}>
-        <span className="flex items-center gap-2"><span style={{ color: BLUE }}>{icon}</span>{label}</span>
-        <ChevronDown size={14} className={`text-slate-400 dark:text-slate-400 transition-transform ${open ? "rotate-180" : ""}`} />
+    <div className={`mt-5 ${cx.cardShell}`}>
+      <button onClick={() => setOpen(v => !v)}
+        className="flex w-full items-center justify-between gap-2 border-b border-slate-200 bg-slate-50/80 px-5 py-3.5 transition-colors hover:bg-slate-100/70 dark:border-slate-600 dark:bg-slate-900/40 dark:hover:bg-slate-900/60">
+        <span className="flex min-w-0 items-center gap-2.5">
+          <span className="grid h-6 w-6 shrink-0 place-items-center rounded-lg border border-blue-100 bg-blue-50 shadow-[inset_0_1px_1px_rgba(255,255,255,0.6)] dark:border-blue-800/50 dark:bg-blue-500/15 dark:shadow-[inset_0_1px_1px_rgba(255,255,255,0.06)]" style={{ color: BLUE }}>
+            {icon}
+          </span>
+          <span className="truncate text-xs font-bold uppercase tracking-widest text-slate-700 dark:text-slate-200">{label}</span>
+        </span>
+        <span className="flex shrink-0 items-center gap-2">
+          {badge && (
+            <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-bold text-slate-400 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-400">
+              {badge}
+            </span>
+          )}
+          <ChevronDown size={14} className={`text-slate-400 dark:text-slate-400 transition-transform ${open ? "rotate-180" : ""}`} />
+        </span>
       </button>
-      {open && children}
-    </>
+      {open && <div className="space-y-4 p-6 lg:p-7">{children}</div>}
+    </div>
   );
 };
 
@@ -133,11 +150,12 @@ export const ToggleSwitch = ({ active, onToggle, label }: { active: boolean; onT
     <span style={{
       display: "inline-flex", width: 32, height: 18, borderRadius: 9,
       background: active ? BLUE : MUTED,
-      position: "relative", flexShrink: 0, transition: "background 0.2s",
+      boxShadow: active ? `0 0 0 4px color-mix(in srgb, ${BLUE} 14%, transparent), inset 0 1px 1px rgba(255,255,255,0.25)` : "inset 0 1px 2px rgba(12,35,64,0.15)",
+      position: "relative", flexShrink: 0, transition: "background 0.2s, box-shadow 0.2s",
     }}>
       <span style={{
         position: "absolute", top: 2, width: 14, height: 14, borderRadius: "50%",
-        background: "#fff", boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
+        background: "#fff", boxShadow: "0 1px 3px rgba(0,0,0,0.25)",
         left: active ? 16 : 2, transition: "left 0.2s",
       }} />
     </span>
@@ -182,7 +200,9 @@ export const ProjectLockNote = ({ wallCount, stock, dimUnit, numM, customActive 
 };
 
 export const Stat = ({ value, label }: { value: string | number; label: string }) => (
-  <div className="rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-2 py-4 text-center shadow-sm" style={{ borderTop: `2px solid ${GOLD}` }}>
+  <div
+    className="rounded-xl border border-slate-200 dark:border-slate-600 bg-gradient-to-b from-white to-amber-50/70 dark:from-slate-800 dark:to-amber-900/10 px-2 py-4 text-center shadow-[0_1px_1px_rgba(15,23,42,0.04),0_14px_26px_-18px_rgba(12,35,64,0.4)] dark:shadow-[0_1px_1px_rgba(0,0,0,0.25),0_14px_26px_-16px_rgba(0,0,0,0.5)] transition-all hover:-translate-y-0.5 hover:shadow-[0_1px_1px_rgba(15,23,42,0.05),0_18px_30px_-16px_rgba(12,35,64,0.45)] dark:hover:shadow-[0_1px_1px_rgba(0,0,0,0.3),0_18px_30px_-14px_rgba(0,0,0,0.55)]"
+    style={{ borderTop: `2px solid ${GOLD}` }}>
     <div className="text-xl font-extrabold leading-none tracking-tight" style={{ color: BLUE }}>{value}</div>
     <div className="mt-2 text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-400">{label}</div>
   </div>
@@ -229,23 +249,6 @@ export const AccordionCard = ({ summary, children }: { summary: React.ReactNode;
     </div>
   );
 };
-// --- EstimateModeSelector -----------------------------------------------------
-export const EstimateModeSelector = ({ visible, mode, setMode }: { visible: boolean; mode: string; setMode: (m: string) => void }) => {
-  if (!visible) return null;
-  return (
-    <div className="mt-4 grid grid-cols-2 items-end gap-2">
-      {[["single","Selected wall estimate"],["project","Combined wall estimate"]].map(([k, lbl]) => {
-        const on = mode === k;
-        return (
-          <button key={k} onClick={() => setMode(k)}
-            className={"w-full rounded-xl border-2 py-3.5 px-4 text-sm font-semibold text-center active:scale-95 transition-all " + (on ? "" : "border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800")}
-            style={on ? { borderColor: BLUE, background: BLUE, color: "#fff" } : { color: BLUE }}>{lbl}</button>
-        );
-      })}
-    </div>
-  );
-};
-
 // --- WarningsList -------------------------------------------------------------
 export const WarningsList = ({ warnings }: { warnings?: string[] | null }) => {
   if (!warnings || warnings.length === 0) return null;
@@ -264,8 +267,14 @@ export const WarningsList = ({ warnings }: { warnings?: string[] | null }) => {
 // layout mode. Phone reproduces today's stacked order exactly (byte-for-byte
 // equivalent JSX, just relocated into variables); web arranges it as a sticky
 // sidebar + wider main column.
+//
+// `sidebar` is optional -- the Estimate Structure wall nav used to be the
+// sidebar's only content, but now renders as its own full-width card
+// carousel above this shell instead (see each calculator's web branch), so
+// there's nothing left to put in a sidebar column. Omitting it collapses to
+// a single full-width column rather than reserving an empty aside.
 export const CalculatorShell = ({ sidebar, main, footer, sidebarWidth = 400 }: {
-  sidebar: React.ReactNode; main: React.ReactNode; footer: React.ReactNode;
+  sidebar?: React.ReactNode; main: React.ReactNode; footer: React.ReactNode;
   sidebarWidth?: number; // narrower once a sidebar is nav-only (see InternalCalculator's Estimate Structure nav) -- default keeps every existing caller byte-identical
 }) => (
   // No space-y-* here: every child component already carries its own correct
@@ -274,8 +283,8 @@ export const CalculatorShell = ({ sidebar, main, footer, sidebarWidth = 400 }: {
   // specificity than a plain utility class like mt-5, so it was silently
   // overriding every child's real margin down to a flat 4px -- the actual
   // cause of web layout's spacing looking compressed/inconsistent vs phone.
-  <div className="grid items-start gap-8" style={{ gridTemplateColumns: `${sidebarWidth}px 1fr` }}>
-    <aside className="sticky top-5">{sidebar}</aside>
+  <div className="grid items-start gap-8" style={{ gridTemplateColumns: sidebar ? `${sidebarWidth}px 1fr` : "1fr" }}>
+    {sidebar && <aside className="sticky top-5">{sidebar}</aside>}
     <div className="min-w-0">{main}{footer}</div>
   </div>
 );

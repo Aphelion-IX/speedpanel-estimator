@@ -202,16 +202,12 @@ export const SystemConfigSectionPhone = ({
 
 // --- Wall geometry -----------------------------------------------------------
 export const GeometrySectionPhone = ({
-  active, update, toDisp, updDim, out, orient, walls, dimUnit, switchDimUnit, project,
+  active, update, toDisp, updDim, out, orient, walls, dimUnit, switchDimUnit,
 }: {
   active: Wall; update: (patch: Partial<Wall>) => void;
   toDisp: (m: string) => string; updDim: (field: DimField, d: string) => void;
   out: ComputeOut; orient: "vertical" | "horizontal"; walls: Wall[];
   dimUnit: string; switchDimUnit: (u: string) => void;
-  // Preview is pulled out into WallWorkspaceTabs's own Preview tab in
-  // single-wall mode on phone -- only shown inline here in project mode,
-  // same gate Internal's uses (this component only ever renders on phone).
-  project: boolean;
 }) => (
   <SheetCardPhone>
   <SheetSectionPhone icon={<Frame size={13} />} label="Wall geometry" noDivider>
@@ -233,7 +229,7 @@ export const GeometrySectionPhone = ({
       <DimensionInputs active={active} toDisp={toDisp} updDim={updDim} out={out} orient={orient} />
     </div>
 
-    {project && <WallPreviewSection active={active} walls={walls} out={out} dimUnit={dimUnit} toDisp={toDisp} />}
+    <WallPreviewSection active={active} walls={walls} out={out} dimUnit={dimUnit} toDisp={toDisp} />
 
     <div className="mt-3"><SpanTable orient={orient} type={78} /></div>
   </SheetSectionPhone>

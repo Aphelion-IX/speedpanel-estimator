@@ -37,7 +37,14 @@ export const Table = <T,>({ columns, rows, rowKey, className = "", rowStyle, row
   // without every caller re-implementing the row/cursor/hover wiring.
   onRowClick?: (row: T, index: number) => void;
 }) => (
-  <div className={`overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-600 ${className}`}>
+  // Real elevation instead of a hairline border -- same layered-shadow
+  // language as cx.card, so a table doesn't read as flatter than the card
+  // it's usually sitting inside. Clickable rows additionally lift half a
+  // pixel and pick up their own small shadow on hover (rather than just a
+  // flat background swap), matching the hover treatment icon buttons/nav
+  // rows use elsewhere -- "this row is a small card" rather than "this row
+  // has a divider".
+  <div className={`overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-600 shadow-[0_1px_2px_rgba(15,23,42,0.05),0_20px_36px_-22px_rgba(15,23,42,0.28)] dark:shadow-[0_1px_2px_rgba(0,0,0,0.25),0_20px_36px_-20px_rgba(0,0,0,0.45)] ${className}`}>
     <table className="w-full border-collapse text-sm">
       <thead>
         <tr className="bg-slate-50 dark:bg-slate-900/60">
@@ -57,7 +64,7 @@ export const Table = <T,>({ columns, rows, rowKey, className = "", rowStyle, row
             key={rowKey(row, i)}
             style={rowStyle?.(row, i)}
             onClick={onRowClick ? () => onRowClick(row, i) : undefined}
-            className={`border-t border-slate-100 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800/60 ${onRowClick ? "cursor-pointer" : ""} ${rowClassName?.(row, i) ?? ""}`}
+            className={`relative border-t border-slate-100 transition-all dark:border-slate-700 ${onRowClick ? "cursor-pointer hover:-translate-y-px hover:shadow-[0_8px_16px_-12px_rgba(15,23,42,0.35)] dark:hover:shadow-[0_8px_16px_-12px_rgba(0,0,0,0.5)] hover:bg-slate-50 dark:hover:bg-slate-800/60" : ""} ${rowClassName?.(row, i) ?? ""}`}
           >
             {columns.map(col => (
               <td key={col.key} className={`px-4 py-3 ${alignCx(col.align)} ${col.align === "right" ? "tabular-nums" : ""} ${col.className ?? ""}`}>

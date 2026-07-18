@@ -8,7 +8,7 @@
 // =============================================================================
 import type { WallStore } from "../wallStore";
 
-export function useCornerShaftLinking(store: WallStore, setShowWall: (v: boolean) => void) {
+export function useCornerShaftLinking(store: WallStore) {
   const { setWalls, active, update } = store;
 
   // Symmetric corner-wall linking: setting the active wall's partner to
@@ -62,7 +62,6 @@ export function useCornerShaftLinking(store: WallStore, setShowWall: (v: boolean
     } else {
       update({ orient: o });
     }
-    setShowWall(true);
   };
 
   return { linkCornerPartner, linkShaftPartner, switchOrient };

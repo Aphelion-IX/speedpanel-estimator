@@ -6,7 +6,6 @@ import type { EstimateReportData } from "./reportTypes";
 function baseReport(overrides: Partial<EstimateReportData> = {}): EstimateReportData {
   return {
     systemLabel: "Internal calculator - Vertical",
-    modeLabel: "Project",
     generatedAt: new Date("2026-01-01T00:00:00Z"),
     totals: { area: 12.34, panels: 5, packs: 2, wastePct: 8.1 },
     walls: [

@@ -1,3 +1,5 @@
+import type { CSSProperties } from "react";
+
 // --- Design tokens ------------------------------------------------------------
 // Each references a CSS custom property (defined in index.css for :root and
 // overridden under .dark) instead of a literal hex code, so every existing
@@ -10,6 +12,40 @@ export const BLUE      = "var(--blue)";      // primary brand colour -- selected
 export const GOLD      = "var(--gold)";      // accent colour -- highlights, warnings, custom/special-order badge
 export const WHITE     = "var(--on-fill)";   // text/icon colour on filled (BLUE/GOLD) backgrounds
 export const MUTED     = "var(--muted)";     // inactive/unselected text & icon colour
+
+// --- Selected-option fill (buttons, nav rows, pills, chips) ------------------
+// Every button-grid-style selector in the app (Orientation, Wall type, Wall
+// system, Panel type/configuration, Profile, link/partner pickers, the
+// Estimate Structure nav, the phone pill scroller, colour swatches...) is its
+// own hand-rolled button, not one shared component -- so without a shared
+// style object here, each one's "selected" state drifts independently. This
+// used to be a flat `background: BLUE` with no shadow at all; spread into the
+// "on" branch of each call site's inline style (alongside `color`, which
+// still varies per call site since some set it on child elements instead of
+// the button itself) for a gradient fill + glow-lift matching EdgeBtn/
+// ToggleSwitch's existing treatment instead of a flat colour swap.
+export const selectedFill: CSSProperties = {
+  borderColor: BLUE,
+  background: `linear-gradient(180deg, color-mix(in srgb, ${BLUE} 100%, white 12%), ${BLUE})`,
+  boxShadow: `inset 0 1px 1px rgba(255,255,255,0.28), 0 12px 22px -10px color-mix(in srgb, ${BLUE} 60%, transparent)`,
+};
+
+// -- Small "bubble" accents: warning dots, notification-count badges -----------
+// Was a flat GOLD disc (`style={{ background: GOLD }}`), duplicated across the
+// notification bell badge and three separate warning-dot call sites (Internal/
+// External Estimate Structure nav, the phone pill scroller) -- a radial
+// highlight + soft glow instead, so it reads as a lit indicator rather than a
+// coloured sticker. Spread/assign wherever one of those bare GOLD dots lives.
+export const goldBubbleFill: CSSProperties = {
+  background: `radial-gradient(circle at 35% 30%, color-mix(in srgb, ${GOLD} 100%, white 30%), ${GOLD})`,
+  boxShadow: `inset 0 1px 1px rgba(255,255,255,0.3), 0 3px 8px -1px color-mix(in srgb, ${GOLD} 60%, transparent)`,
+};
+// className fragment for the *resting* (unselected) branch of the same
+// buttons -- a real contact shadow instead of a bare hairline border, and a
+// hover-lift/border-tint so an unselected option reads as clickable before
+// it's ever pressed. Append after the existing
+// "border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800".
+export const selectableOffCx = "shadow-[0_1px_2px_rgba(15,23,42,0.05)] hover:-translate-y-0.5 hover:border-blue-200 dark:hover:border-blue-700";
 
 // --- Status tone -> class string ---------------------------------------------
 // Single source for status-colour classes. Domain files (companyTypes.ts,
@@ -52,17 +88,34 @@ export const tone = (t: StatusTone): string => {
 //
 export const cx = {
   // -- Inputs & labels --------------------------------------------------------
-  input:     "w-full rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-4 py-3 text-sm text-slate-800 dark:text-slate-100 shadow-sm transition-shadow focus:border-blue-300 dark:focus:border-blue-600 focus:shadow-md focus:outline-none",
+  // Resting shadow is a real (if small) contact shadow rather than shadow-sm,
+  // hover nudges the border toward brand-blue so a field reads as "live"
+  // before it's even focused, and focus swaps the old flat focus:shadow-md
+  // for an actual glow ring (halo + crisp border) -- the same language
+  // buttons/chips below use for their own selected/focus state.
+  input:     "w-full rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-4 py-3 text-sm text-slate-800 dark:text-slate-100 shadow-[0_1px_2px_rgba(15,23,42,0.05)] transition-all hover:border-blue-200 dark:hover:border-blue-700 focus:border-blue-400 dark:focus:border-blue-500 focus:shadow-[0_0_0_3.5px_rgba(0,103,185,0.15)] dark:focus:shadow-[0_0_0_3.5px_rgba(58,168,255,0.22)] focus:outline-none",
   lbl:       "mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300 pl-1",
-  wallName:  "min-w-0 flex-1 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-4 py-3 text-sm font-semibold text-slate-800 dark:text-slate-100 shadow-sm outline-none transition-shadow focus:border-blue-300 dark:focus:border-blue-600 focus:shadow-md",
+  wallName:  "min-w-0 flex-1 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-4 py-3 text-sm font-semibold text-slate-800 dark:text-slate-100 shadow-[0_1px_2px_rgba(15,23,42,0.05)] outline-none transition-all hover:border-blue-200 dark:hover:border-blue-700 focus:border-blue-400 dark:focus:border-blue-500 focus:shadow-[0_0_0_3.5px_rgba(0,103,185,0.15)] dark:focus:shadow-[0_0_0_3.5px_rgba(58,168,255,0.22)]",
 
   // -- Layout containers ------------------------------------------------------
   // Raised baseline -- bigger radius + a layered shadow (soft contact shadow
-  // + a wider ambient one), matching the depth already used on the sign-in
-  // card and the signed-in home screen's workspace cards, instead of the
-  // flatter shadow-sm every other page used previously.
-  card:      "rounded-2xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 p-6 lg:p-7 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_20px_40px_-28px_rgba(15,23,42,0.18)] dark:shadow-[0_1px_2px_rgba(0,0,0,0.2),0_20px_40px_-24px_rgba(0,0,0,0.35)]",
-  section:   "rounded-2xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 p-6 lg:p-7 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_20px_40px_-28px_rgba(15,23,42,0.18)] dark:shadow-[0_1px_2px_rgba(0,0,0,0.2),0_20px_40px_-24px_rgba(0,0,0,0.35)] space-y-4",
+  // + a wider, deeper ambient one) plus a hairline top rim-highlight (inset),
+  // matching the depth already used on the sign-in card and the signed-in
+  // home screen's workspace cards, instead of the flatter shadow-sm every
+  // other page used previously. The ambient layer is deliberately stronger
+  // than the original -- at the old opacity/spread, cards read as barely
+  // elevated above the page (see estimator visual-flatness feedback).
+  card:      "rounded-2xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 p-6 lg:p-7 shadow-[inset_0_1px_0_rgba(255,255,255,0.7),0_1px_2px_rgba(15,23,42,0.05),0_28px_48px_-24px_rgba(15,23,42,0.26)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.04),0_1px_2px_rgba(0,0,0,0.25),0_28px_48px_-22px_rgba(0,0,0,0.45)]",
+  section:   "rounded-2xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 p-6 lg:p-7 shadow-[inset_0_1px_0_rgba(255,255,255,0.7),0_1px_2px_rgba(15,23,42,0.05),0_28px_48px_-24px_rgba(15,23,42,0.26)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.04),0_1px_2px_rgba(0,0,0,0.25),0_28px_48px_-22px_rgba(0,0,0,0.45)] space-y-4",
+  // Recessed "well" surface for content nested inside a card (e.g. a preview
+  // box) -- tinted background + inset shadow so it reads as sunken rather
+  // than another flat white rectangle stacked on the card behind it.
+  panel:     "rounded-xl border border-slate-200/80 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-900/50 shadow-[inset_0_1px_3px_rgba(15,23,42,0.06)] dark:shadow-[inset_0_1px_3px_rgba(0,0,0,0.25)]",
+  // Same border/radius/shadow as cx.card, but no padding and overflow-hidden
+  // instead -- for CollapsibleSection's integrated header-bar treatment,
+  // where the header strip and the padded body are two regions inside one
+  // shell rather than a bare label floating above a separately-padded card.
+  cardShell: "rounded-2xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 overflow-hidden shadow-[inset_0_1px_0_rgba(255,255,255,0.7),0_1px_2px_rgba(15,23,42,0.05),0_28px_48px_-24px_rgba(15,23,42,0.26)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.04),0_1px_2px_rgba(0,0,0,0.25),0_28px_48px_-22px_rgba(0,0,0,0.45)]",
 
   // -- Page heading scale -------------------------------------------------------
   // Colour fades from full-strength Navy (H1) through two mid-steps to the
@@ -125,9 +178,14 @@ export const cx = {
   // Click-to-switch pill tab bar (src/ui/tabs.tsx) -- same pill visual
   // language as SectionNav's scroll-spy pills, but a plain non-sticky row
   // since tab switching stays within one card, not the whole page.
-  tabList:     "flex gap-1.5 overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900/40 p-1.5",
-  tabActive:   "shrink-0 rounded-lg px-3.5 py-2 text-xs font-bold uppercase tracking-wide whitespace-nowrap text-white bg-[color:var(--blue)]",
-  tabInactive: "shrink-0 rounded-lg px-3.5 py-2 text-xs font-bold uppercase tracking-wide whitespace-nowrap text-slate-400 dark:text-slate-400 hover:text-[color:var(--blue)]",
+  // Track is a recessed groove (inset shadow, same idea as cx.panel) instead
+  // of a flat grey box; the active tab is a small raised chip sitting inside
+  // it (real elevation + brand-blue text) rather than a flat solid-blue fill
+  // -- matches the "pill in a groove" pattern used by Stripe/Linear segmented
+  // controls instead of a plain colour swap.
+  tabList:     "flex gap-1.5 overflow-x-auto rounded-xl border border-slate-200/80 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-900/50 p-1.5 shadow-[inset_0_1px_3px_rgba(15,23,42,0.06)] dark:shadow-[inset_0_1px_3px_rgba(0,0,0,0.25)]",
+  tabActive:   "shrink-0 rounded-lg px-3.5 py-2 text-xs font-bold uppercase tracking-wide whitespace-nowrap text-[color:var(--blue)] bg-white dark:bg-slate-800 shadow-[0_1px_1px_rgba(15,23,42,0.04),0_8px_16px_-10px_rgba(12,35,64,0.35)] dark:shadow-[0_1px_1px_rgba(0,0,0,0.2),0_8px_16px_-8px_rgba(0,0,0,0.4)]",
+  tabInactive: "shrink-0 rounded-lg px-3.5 py-2 text-xs font-bold uppercase tracking-wide whitespace-nowrap text-slate-400 dark:text-slate-400 transition-colors hover:text-[color:var(--blue)]",
 
   // -- Drawer / slide-over ------------------------------------------------------
   // src/ui/drawer.tsx -- right-side panel on web layout, bottom sheet on phone

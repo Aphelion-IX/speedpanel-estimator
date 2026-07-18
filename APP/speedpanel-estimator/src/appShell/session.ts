@@ -1,18 +1,18 @@
 // =============================================================================
 // Session persistence
 // =============================================================================
-// The current view (which system/orientation, project-vs-single mode, and
-// unit) is saved alongside the wall project so reopening the app restores
-// the exact screen. Kept separate from the wall data (PROJECT_KEY) since
-// it's parent-level.
+// The current view (which system/orientation and unit) is saved alongside
+// the wall project so reopening the app restores the exact screen. Kept
+// separate from the wall data (PROJECT_KEY) since it's parent-level.
 //
 // PersistedSession is a Zod schema (not a plain interface) so loadSession()
 // can validate what it actually finds in localStorage before trusting it --
 // same reasoning as wallStore.ts's PersistedProjectSchema, though much lower
-// stakes here: mode/dimUnit only ever pick which UI branch renders or which
-// unit a value displays in (computeUtils.ts's makeToM/makeToDisp already
-// fall back safely on any dimUnit that isn't exactly "mm"), not the compute
-// engine's own inputs.
+// stakes here: dimUnit only ever picks which unit a value displays in
+// (computeUtils.ts's makeToM/makeToDisp already fall back safely on any
+// dimUnit that isn't exactly "mm"), not the compute engine's own inputs.
+// A stored `mode` field from before single-wall mode was retired is simply
+// ignored -- Zod drops unknown keys on parse rather than rejecting them.
 // =============================================================================
 import { z } from "zod";
 import { SYSTEMS } from "./systems";
@@ -22,7 +22,6 @@ const SESSION_KEY = "speedpanel:session";
 export const PersistedSessionSchema = z.object({
   v: z.number(),
   system: z.string().refine(id => SYSTEMS.some(sys => sys.id === id), "Unknown system id"),
-  mode: z.string(),
   dimUnit: z.string(),
 });
 export type PersistedSession = z.infer<typeof PersistedSessionSchema>;

@@ -6,7 +6,7 @@
 // =============================================================================
 import { Smartphone, Monitor, Sun, Moon, Bell } from "lucide-react";
 import { IconButton } from "../ui/primitives";
-import { GOLD } from "../styleTokens";
+import { goldBubbleFill } from "../styleTokens";
 import type { EffectiveLayout } from "../useLayoutMode";
 import type { EffectiveTheme } from "../useThemeMode";
 
@@ -29,12 +29,12 @@ export const ThemeToggle = ({ effective, onToggle }: { effective: EffectiveTheme
 // extra when there's nothing to show" posture as WarningsList/
 // NextActionsCallout elsewhere in this app.
 export const NotificationBell = ({ count, onClick }: { count: number; onClick: () => void }) => (
-  <span className="relative inline-block">
+  <span className="group relative inline-block">
     <IconButton onClick={onClick} title={count > 0 ? `${count} open request${count !== 1 ? "s" : ""}` : "My Requests"}>
       <Bell size={16} />
     </IconButton>
     {count > 0 && (
-      <span className="absolute -top-1 -right-1 grid h-4 min-w-[16px] place-items-center rounded-full px-1 text-[10px] font-bold text-white" style={{ background: GOLD }}>
+      <span className="pointer-events-none absolute -top-1 -right-1 grid h-4 min-w-[16px] place-items-center rounded-full px-1 text-[10px] font-bold text-white transition-transform group-hover:scale-110" style={goldBubbleFill}>
         {count > 9 ? "9+" : count}
       </span>
     )}

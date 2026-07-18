@@ -16,7 +16,7 @@
 // =============================================================================
 import { useState } from "react";
 import { ChevronDown, AlertTriangle } from "lucide-react";
-import { cx, NAVY, BLUE, MUTED } from "../styleTokens";
+import { cx, NAVY, BLUE, MUTED, selectedFill, selectableOffCx } from "../styleTokens";
 import {
   SPAN_TABLE_VERT, SPAN_TABLE_HORIZ, RAKE_NOTE, CUSTOM_MAX_LENGTH,
 } from "../data";
@@ -83,8 +83,8 @@ export const ProfileSelector = ({ value, onChange }: { value: ProfileId; onChang
       const on = value === id;
       return (
         <button key={id} onClick={() => onChange(id)}
-          className={"w-full rounded-xl border-2 py-3.5 px-4 text-sm font-semibold text-center active:scale-95 transition-all " + (on ? "" : "border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800")}
-          style={on ? { borderColor: BLUE, background: BLUE, color: "#fff" } : { color: BLUE }}>{lbl}</button>
+          className={"w-full rounded-xl border-2 py-3.5 px-4 text-sm font-semibold text-center active:scale-95 transition-all " + (on ? "" : `border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 ${selectableOffCx}`)}
+          style={on ? { ...selectedFill, color: "#fff" } : { color: BLUE }}>{lbl}</button>
       );
     })}
   </div>
@@ -109,8 +109,10 @@ const EdgeBtn = ({ edgeKey, label, edges, locked, onEdgeToggle }: {
   const on = locked || edges[edgeKey];
   return (
     <button onClick={locked ? undefined : () => onEdgeToggle(edgeKey)} disabled={locked}
-      className={"w-full rounded-xl border-2 py-3.5 px-4 text-sm font-semibold text-center transition-all " + (locked ? "cursor-default" : "active:scale-95") + (on ? "" : " border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800")}
-      style={on ? { borderColor: BLUE, background: BLUE, color: "#fff", opacity: locked ? 0.85 : 1 } : { color: MUTED }}>
+      className={"w-full rounded-xl border-2 py-3.5 px-4 text-sm font-semibold text-center transition-all " + (locked ? "cursor-default" : "active:scale-95 hover:-translate-y-0.5") + (on ? "" : " border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 shadow-[0_1px_2px_rgba(15,23,42,0.05)] hover:border-blue-200 dark:hover:border-blue-700")}
+      style={on
+        ? { borderColor: BLUE, background: BLUE, color: "#fff", opacity: locked ? 0.85 : 1, boxShadow: locked ? undefined : `0 10px 20px -10px color-mix(in srgb, ${BLUE} 55%, transparent), inset 0 1px 1px rgba(255,255,255,0.25)` }
+        : { color: MUTED }}>
       {on ? "✓ " : ""}{label}
     </button>
   );
@@ -142,12 +144,14 @@ export const HeadFlashingToggle = ({ flashOption }: { flashOption: EdgeOption })
       style={{
         background: flashOption.value ? BLUE : MUTED,
         width: 44, height: 24, borderRadius: 12, position: "relative",
-        border: "none", cursor: "pointer", transition: "background 0.2s", flexShrink: 0,
+        border: "none", cursor: "pointer",
+        boxShadow: flashOption.value ? `0 0 0 4px color-mix(in srgb, ${BLUE} 14%, transparent), inset 0 1px 1px rgba(255,255,255,0.25)` : "inset 0 1px 2px rgba(12,35,64,0.15)",
+        transition: "background 0.2s, box-shadow 0.2s", flexShrink: 0,
       }}>
       <span style={{
         position: "absolute", top: 2, left: flashOption.value ? 22 : 2,
         width: 20, height: 20, borderRadius: "50%", background: "#fff",
-        boxShadow: "0 1px 3px rgba(0,0,0,0.2)", transition: "left 0.2s", display: "block",
+        boxShadow: "0 1px 3px rgba(0,0,0,0.25)", transition: "left 0.2s", display: "block",
       }} />
     </button>
   </div>
@@ -182,12 +186,15 @@ export const EdgeRestraintSelector = ({
 }: EdgeRestraintProps) => {
   const flashOption = options.find(o => o.key === "headFlash");
 
+  // No wrapping cx.section here -- the sole caller (ExternalCalculator's
+  // tracksContent) always renders this inside a CollapsibleSection, whose
+  // own body wrapper now supplies that padding/spacing/card shell.
   return (
-    <div className={cx.section}>
+    <>
       <RestrainedEdgesBlock edges={edges} onEdgeToggle={onEdgeToggle} locked={locked} />
       {flashOption && <HeadFlashingToggle flashOption={flashOption} />}
       <CornerAnglesBlock corners={corners} />
-    </div>
+    </>
   );
 };
 // --- Shared layout components -------------------------------------------------
@@ -231,7 +238,7 @@ export const CustomLengthSection = ({ dimUnit, customLengthInput, customActive, 
         style={{
           color: NAVY,
           borderColor: overMax ? "#f59e0b" : customActive ? BLUE : undefined,
-          boxShadow: customActive && !overMax ? `0 0 0 2px ${BLUE}22` : undefined,
+          boxShadow: customActive && !overMax ? `0 0 0 3px color-mix(in srgb, ${BLUE} 18%, transparent)` : undefined,
           opacity: customActive ? 1 : 0.5,
         }} />
       {overMax && customActive && (

@@ -201,32 +201,40 @@ export function useWallStore({ dimUnit, onWallAdded, persistLocally = true }: { 
   const addCornerWall = () => addWall({ orient: "horizontal", wallSystem: "corner" });
   const addShaftWall = () => addWall({ orient: "horizontal", wallSystem: "shaft", type: 78 });
 
-  const duplicateWall = () => {
-    const id = nextId;
+  // Id-parameterized variants, needed by the All Walls page's per-row
+  // Duplicate/Delete buttons (any row, not just the active wall).
+  // duplicateWall/deleteWall stay as the zero-arg wrappers every existing
+  // caller (WallNameAndActions, etc.) already uses unchanged.
+  const duplicateWallById = (id: number) => {
+    const src = walls.find(w => w.id === id);
+    if (!src) return;
+    const newId = nextId;
     setWalls(ws => [...ws, {
-      ...active, id,
-      name: `${active.name} copy`,
-      forcedStock: projectLock ? projectForcedStock() : active.forcedStock,
+      ...src, id: newId,
+      name: `${src.name} copy`,
+      forcedStock: projectLock ? projectForcedStock() : src.forcedStock,
     }]);
-    setNextId(id + 1);
-    setActiveId(id);
+    setNextId(newId + 1);
+    setActiveId(newId);
     onWallAdded?.();
   };
+  const duplicateWall = () => duplicateWallById(activeId);
 
-  const deleteWall = () => {
+  const deleteWallById = (id: number) => {
     if (walls.length === 1) return;
     const rest = walls
-      .filter(w => w.id !== activeId)
+      .filter(w => w.id !== id)
       // If the deleted wall was linked to another (Corner or Shaft wall
       // pairing), clear the surviving wall's side of the link too -- a
       // dangling cornerPartnerId/shaftPartnerId would point at a wall that no
       // longer exists.
-      .map(w => w.cornerPartnerId === activeId ? { ...w, cornerPartnerId: null } : w)
-      .map(w => w.shaftPartnerId === activeId ? { ...w, shaftPartnerId: null } : w)
-      .map(w => w.junctionPartnerId === activeId ? { ...w, junctionPartnerId: null } : w);
+      .map(w => w.cornerPartnerId === id ? { ...w, cornerPartnerId: null } : w)
+      .map(w => w.shaftPartnerId === id ? { ...w, shaftPartnerId: null } : w)
+      .map(w => w.junctionPartnerId === id ? { ...w, junctionPartnerId: null } : w);
     setWalls(rest);
-    setActiveId(rest[0].id);
+    if (id === activeId) setActiveId(rest[0].id);
   };
+  const deleteWall = () => deleteWallById(activeId);
 
   // Commit the typed custom length to forcedStock on the active wall (or all
   // walls if locked). If raw is empty or invalid, clears forcedStock so the
@@ -321,7 +329,7 @@ export function useWallStore({ dimUnit, onWallAdded, persistLocally = true }: { 
     projectStock, projectLock, customLengthInput, customActive,
     active, update, toDisp, toM, updDim,
     setProjectLength, projectForcedStock,
-    addBlankWall, addCornerWall, addShaftWall, duplicateWall, deleteWall,
+    addBlankWall, addCornerWall, addShaftWall, duplicateWall, deleteWall, duplicateWallById, deleteWallById,
     commitCustomLength, toggleCustom, resetWalls, clearCustomLength,
     linkJunctionPartner, loadFrom, exportSnapshot,
     lastEditedAt, draftLabel, setDraftLabel,

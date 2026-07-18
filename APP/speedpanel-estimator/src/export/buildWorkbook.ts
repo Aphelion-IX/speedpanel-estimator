@@ -44,7 +44,6 @@ export async function buildWorkbook(data: EstimateReportData): Promise<XLSXType.
   const summaryRows: (string | number)[][] = [
     ["Report", "Speedpanel material estimate"],
     ["System", data.systemLabel],
-    ["Mode", data.modeLabel],
     ["Generated", data.generatedAt.toLocaleString()],
     ["", ""],
     ["Total area (m2)", data.totals.area],

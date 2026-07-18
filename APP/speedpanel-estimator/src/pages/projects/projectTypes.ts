@@ -5,7 +5,7 @@
 // convention as projects/requests/requestTypes.ts. SavedProjectData is the shape
 // stored in the `data` jsonb column -- wallStore.ts's PersistedProject
 // extended with the view-state fields appShell/session.ts persists separately
-// today (system/mode/dimUnit), so reopening a project restores the exact
+// today (system/dimUnit), so reopening a project restores the exact
 // screen, not just the wall list. Deliberately not merged into
 // PersistedProject itself -- that type is the device-local single-project
 // shape and stays independent of the multi-project Supabase shape built here.
@@ -28,11 +28,11 @@ export const REVIEW_STATUSES = ["pending", "approved", "changes_requested"] as c
 export type ReviewStatus = typeof REVIEW_STATUSES[number];
 
 export const SavedProjectDataSchema = PersistedProjectSchema.extend({
-  system: z.string(), mode: z.string(), dimUnit: z.string(),
+  system: z.string(), dimUnit: z.string(),
   // Optional project metadata, editable from the Projects list's create form
   // and ProjectDetailPage.tsx -- stored here (not new `projects` SQL columns)
   // since this jsonb `data` blob already carries exactly this kind of
-  // project-level-but-not-wall-config metadata (system/mode/dimUnit above).
+  // project-level-but-not-wall-config metadata (system/dimUnit above).
   // Optional so projects saved before these fields existed still validate.
   reference: z.string().optional(),
   siteAddress: z.string().optional(),

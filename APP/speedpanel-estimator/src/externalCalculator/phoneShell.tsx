@@ -47,7 +47,10 @@ export const deriveWallStatus = (wall: Wall, out: ComputeOut): ItemStatusKey => 
 };
 
 // --- Wall pill strip -------------------------------------------------------
-export interface PhonePillItem { id: string; label: string; sublabel?: string; active: boolean; status: ItemStatusKey; }
+// `thumbnail` (a small WallPreviewSection size="thumb") sits in its own
+// backing chip above the text -- needed regardless of the pill's own
+// background so the image reads the same selected or not.
+export interface PhonePillItem { id: string; label: string; sublabel?: string; active: boolean; status: ItemStatusKey; thumbnail?: React.ReactNode; }
 
 export const WallPillStripPhone = ({ items, onSelect }: {
   items: PhonePillItem[]; onSelect: (id: string) => void;
@@ -57,9 +60,14 @@ export const WallPillStripPhone = ({ items, onSelect }: {
     <div className="-mx-1 flex snap-x gap-2 overflow-x-auto px-1 pb-1" style={{ scrollbarWidth: "none" }}>
       {items.map(item => (
         <button key={item.id} onClick={() => onSelect(item.id)}
-          className={"min-w-[168px] shrink-0 snap-start rounded-xl border bg-white dark:bg-slate-800 px-3.5 py-3 text-left active:scale-95 transition-all " +
+          className={"min-w-[190px] shrink-0 snap-start rounded-xl border bg-white dark:bg-slate-800 px-3.5 py-3 text-left active:scale-95 transition-all " +
             (item.active ? "border-2 shadow-[0_0_0_2px_rgba(0,103,185,0.12)]" : "border-slate-200 dark:border-slate-600")}
           style={item.active ? { borderColor: BLUE } : undefined}>
+          {item.thumbnail && (
+            <div className="mb-2 overflow-hidden rounded-lg bg-white dark:bg-slate-900/70">
+              {item.thumbnail}
+            </div>
+          )}
           <div className="truncate text-sm font-bold" style={{ color: NAVY }}>{item.label}</div>
           {item.sublabel && <div className="mt-1 truncate text-xs font-medium" style={{ color: MUTED }}>{item.sublabel}</div>}
           <span className={`mt-2 inline-flex ${statusChipCx(item.status)}`}>{statusLabel(item.status)}</span>
@@ -69,7 +77,12 @@ export const WallPillStripPhone = ({ items, onSelect }: {
   </div>
 );
 
-// --- Sheet header + metrics grid ----------------------------------------------
+// --- Metrics grid ----------------------------------------------
+// SheetHeaderPhone (the title/crumb/status header this used to sit under)
+// was removed -- it duplicated the wall card carousel directly above it
+// (estimateStructureNav.tsx) plus the Panel Schedule/Orientation/Panel
+// configuration sections further down. This grid stays: it's independently
+// reused by estimateResultsCard.tsx's phone Overview stats.
 export const MetricsGridPhone = ({ stats }: { stats: { value: string | number; label: string }[] }) => (
   <div className="grid grid-cols-3 divide-x divide-slate-100 dark:divide-slate-700">
     {stats.map((s, i) => (
@@ -79,27 +92,6 @@ export const MetricsGridPhone = ({ stats }: { stats: { value: string | number; l
       </div>
     ))}
   </div>
-);
-
-// No self-wrapping card (mt-3/cx.section) -- nested flush as the first two
-// blocks of SheetCardPhone (see phoneSections.tsx), matching the mockup's
-// single continuous "sheet". Only consumer is ExternalCalculator.tsx.
-export const SheetHeaderPhone = ({ title, crumb, status, stats }: {
-  title: string; crumb: string; status: ItemStatusKey;
-  stats: { value: string | number; label: string }[];
-}) => (
-  <>
-    <div className="flex items-start justify-between gap-3 border-b border-slate-100 dark:border-slate-700 px-4 py-4">
-      <div className="min-w-0">
-        <div className="truncate text-lg font-extrabold" style={{ color: NAVY }}>{title}</div>
-        <div className="mt-0.5 truncate text-xs font-medium text-slate-400 dark:text-slate-400">{crumb}</div>
-      </div>
-      <span className={`shrink-0 ${statusChipCx(status)}`}>{statusLabel(status)}</span>
-    </div>
-    <div className="border-b border-slate-100 dark:border-slate-700 px-2 py-3.5">
-      <MetricsGridPhone stats={stats} />
-    </div>
-  </>
 );
 
 // --- Sticky bottom bar (tiled) -------------------------------------------------

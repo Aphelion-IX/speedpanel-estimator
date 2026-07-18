@@ -14,7 +14,6 @@ import { cx, NAVY } from "../styleTokens";
 import { Row, StatsGrid, WarningsList } from "../ui/primitives";
 import { Button } from "../ui/button";
 import { Tabs, TabPanel } from "../ui/tabs";
-import { WallsSummaryTable } from "./wallsCard";
 import { ConnectionBreakdownCard, type PanelScheduleCard } from "../ui/scheduleCards";
 import { buildExtProjAgg } from "../estimate/aggregate";
 import type { CombinedEstimate } from "../estimate/calculateCombinedEstimate";
@@ -33,15 +32,13 @@ function collectProjectWarnings(results: WallResult[], combinedEstimate: Combine
 }
 
 export const EstimateResultsCard = ({
-  layoutMode, results, activeId, onSelectWall, warnById, toDisp, dimUnit,
+  layoutMode, results,
   projAgg, combinedEstimate,
   active, out, orient, ScheduleComp,
   onReviewOrder, orderLineItemCount,
 }: {
   layoutMode: EffectiveLayout;
   results: WallResult[];
-  activeId: number; onSelectWall: (id: number) => void;
-  warnById: Record<number, boolean>; toDisp: (m: string) => string; dimUnit: string;
   projAgg: ReturnType<typeof buildExtProjAgg>; combinedEstimate: CombinedEstimate;
   active: Wall; out: ComputeOut; orient: "vertical" | "horizontal";
   ScheduleComp: typeof PanelScheduleCard;
@@ -85,9 +82,6 @@ export const EstimateResultsCard = ({
             ? <div className={cx.section}><MetricsGridPhone stats={overviewStats} /></div>
             : <StatsGrid stats={overviewStats} />;
         })()}
-        <div className="mt-3">
-          <WallsSummaryTable results={results} activeId={activeId} setActiveId={onSelectWall} warnById={warnById} toDisp={toDisp} dimUnit={dimUnit} />
-        </div>
         {layoutMode === "phone"
           ? <WarningsListPhone warnings={projectWarnings} emptyLabel="No active warnings for this project." />
           : <WarningsList warnings={projectWarnings} />}

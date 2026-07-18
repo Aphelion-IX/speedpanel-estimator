@@ -53,11 +53,11 @@ export type WallSystemId = "standard" | "corner" | "shaft";
 function snapshotKey(d: {
   v: number; walls: unknown; activeId: number; nextId: number;
   projectStock: string; projectLock: boolean; customLengthInput: string; customActive: boolean;
-  system: string; mode: string; dimUnit: string;
+  system: string; dimUnit: string;
 }): string {
   return JSON.stringify([
     d.v, d.walls, d.activeId, d.nextId, d.projectStock, d.projectLock, d.customLengthInput, d.customActive,
-    d.system, d.mode, d.dimUnit,
+    d.system, d.dimUnit,
   ]);
 }
 
@@ -65,8 +65,6 @@ function snapshotKey(d: {
 export default function SpeedpanelEstimator() {
   const savedSession = loadSession();
   const [system, setSystem] = useState(() => savedSession ? savedSession.system : "int-vert");
-  const [mode, setMode]     = useState(() => savedSession ? savedSession.mode : "project");
-  const [showWall, setShowWall]               = useState(true);
   const [dimUnit, setDimUnit] = useState(() => savedSession ? savedSession.dimUnit : "m");
   const { route, navigate } = useHashRoute();
   const switchTab = (tab: TopNavTab) =>
@@ -104,8 +102,8 @@ export default function SpeedpanelEstimator() {
   // Persist the current view on change (skipped while a saved project is open).
   useEffect(() => {
     if (openProject) return;
-    saveSession({ v: 1, system, mode, dimUnit });
-  }, [system, mode, dimUnit, openProject]);
+    saveSession({ v: 1, system, dimUnit });
+  }, [system, dimUnit, openProject]);
 
   const sys    = SYSTEMS.find(s => s.id === system) || SYSTEMS[0];
   const isExt  = sys.ext;
@@ -113,7 +111,7 @@ export default function SpeedpanelEstimator() {
   // Single SHARED wall store (persisted); the Internal and External calculators
   // each independently destructure/compute what they need from it, so walls
   // survive switching in/out of External mode and between orientations.
-  const store = useWallStore({ dimUnit, onWallAdded: () => setShowWall(true), persistLocally: !openProject });
+  const store = useWallStore({ dimUnit, persistLocally: !openProject });
   const { active, resetWalls, clearCustomLength, loadFrom, exportSnapshot } = store;
   // Orientation is per-wall (see Wall.orient) -- this is the ACTIVE wall's own
   // orientation, used only to drive which fields/selectors are shown for it.
@@ -129,12 +127,12 @@ export default function SpeedpanelEstimator() {
   const [projectDirty, setProjectDirty] = useState(false);
   useEffect(() => {
     if (!openProject) { setProjectDirty(false); return; }
-    const current = snapshotKey({ ...exportSnapshot(), system, mode, dimUnit });
+    const current = snapshotKey({ ...exportSnapshot(), system, dimUnit });
     setProjectDirty(current !== lastSavedSnapshotRef.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [openProject, store.walls, store.activeId, store.nextId, store.projectStock, store.projectLock, store.customLengthInput, store.customActive, system, mode, dimUnit]);
+  }, [openProject, store.walls, store.activeId, store.nextId, store.projectStock, store.projectLock, store.customLengthInput, store.customActive, system, dimUnit]);
 
-  const { linkCornerPartner, linkShaftPartner, switchOrient } = useCornerShaftLinking(store, setShowWall);
+  const { linkCornerPartner, linkShaftPartner, switchOrient } = useCornerShaftLinking(store);
 
   const switchDimUnit = (u: string) => { setDimUnit(u); clearCustomLength(); };
   // Deliberate "start over": reset the shared store + view, and close any
@@ -143,11 +141,11 @@ export default function SpeedpanelEstimator() {
   // immediately re-save the clean default, so a later reload stays clear.
   const resetAll = () => {
     setConfirmReset(false);
-    resetWalls(); setMode("project"); setSystem("int-vert"); setDimUnit("m"); setOpenProject(null);
+    resetWalls(); setSystem("int-vert"); setDimUnit("m"); setOpenProject(null);
   };
   // Switching system no longer clears walls -- the shared store is preserved
   // across every orientation/wall-type change.
-  const switchSystem = (id: string) => { setSystem(id); setShowWall(true); };
+  const switchSystem = (id: string) => { setSystem(id); };
   const findSys = (orientVal: "vertical" | "horizontal", ext: boolean) =>
     SYSTEMS.find(s => s.orient === orientVal && s.ext === ext)!;
   // Phone "External Wall" add-tile: add a wall to the shared store, then
@@ -171,7 +169,6 @@ export default function SpeedpanelEstimator() {
   const openProjectInEstimator = (project: ProjectRow) => {
     loadFrom(project.data);
     setSystem(project.data.system);
-    setMode(project.data.mode);
     setDimUnit(project.data.dimUnit);
     setOpenProject({ id: project.id, name: project.name, updatedAt: project.updated_at });
     setSaveProjectError(null);
@@ -184,7 +181,7 @@ export default function SpeedpanelEstimator() {
     if (!openProject) return;
     setSavingProject(true);
     setSaveProjectError(null);
-    const snapshot: SavedProjectData = { ...exportSnapshot(), system, mode, dimUnit };
+    const snapshot: SavedProjectData = { ...exportSnapshot(), system, dimUnit };
     const err = await saveProjectSnapshot(openProject.id, snapshot);
     setSavingProject(false);
     if (err) setSaveProjectError(err);
@@ -226,7 +223,7 @@ export default function SpeedpanelEstimator() {
   // saveOpenProject already builds a snapshot for on update, just routed
   // through a fresh insert instead.
   const doSaveDraftAsProject = async (name: string): Promise<string | null> => {
-    const snapshot: SavedProjectData = { ...exportSnapshot(), system, mode, dimUnit };
+    const snapshot: SavedProjectData = { ...exportSnapshot(), system, dimUnit };
     const { project, error } = await insertProject(auth.user!.id, name, snapshot, company.activeCompanyId);
     if (error || !project) return error;
     openProjectInEstimator(project);
@@ -346,7 +343,6 @@ export default function SpeedpanelEstimator() {
             <ExternalCalculator store={store} orient={orient} dimUnit={dimUnit} setDimUnit={switchDimUnit}
               systemSelector={<SystemRows orient={orient} switchOrient={switchOrient} isExt={isExt} switchSystem={switchSystem} findSys={findSys} />}
               layoutMode={layoutMode}
-              mode={mode} setMode={setMode}
               onAddInternalWall={addInternalWall}
               switchOrient={switchOrient} switchToInternal={switchToInternal}
               openProject={openProject} draftLabel={store.draftLabel} onSetDraftLabel={store.setDraftLabel}
@@ -360,8 +356,6 @@ export default function SpeedpanelEstimator() {
               store={store} orient={orient} dimUnit={dimUnit} setDimUnit={switchDimUnit}
               systemSelector={<SystemRows orient={orient} switchOrient={switchOrient} isExt={isExt} switchSystem={switchSystem} findSys={findSys} />}
               layoutMode={layoutMode}
-              mode={mode} setMode={setMode}
-              showWall={showWall} setShowWall={setShowWall}
               linkCornerPartner={linkCornerPartner} linkShaftPartner={linkShaftPartner}
               onAddExternalWall={addExternalWall}
               switchOrient={switchOrient} switchToExternal={switchToExternal}

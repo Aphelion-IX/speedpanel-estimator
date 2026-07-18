@@ -36,7 +36,7 @@ export function blankSnapshot(): SavedProjectData {
   return {
     v: 1, walls: [defaultWall(1, "vertical")], activeId: 1, nextId: 2,
     projectStock: "", projectLock: false, customLengthInput: "", customActive: false,
-    system: "int-vert", mode: "project", dimUnit: "m",
+    system: "int-vert", dimUnit: "m",
   };
 }
 
@@ -50,7 +50,7 @@ export function seedSnapshotForSystem(system: string, wallSystem?: WallSystemId)
   return {
     v: 1, walls: [{ ...defaultWall(1, orient), wallSystem: wallSystem ?? "standard" }], activeId: 1, nextId: 2,
     projectStock: "", projectLock: false, customLengthInput: "", customActive: false,
-    system, mode: "project", dimUnit: "m",
+    system, dimUnit: "m",
   };
 }
 

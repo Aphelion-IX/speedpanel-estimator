@@ -7,7 +7,7 @@ const emptyCatalog: ProductCatalog = { panels: [], tracks: [], fixings: [], seal
 
 function baseReport(overrides: Partial<EstimateReportData> = {}): EstimateReportData {
   return {
-    systemLabel: "Internal calculator - Vertical", modeLabel: "Project", generatedAt: new Date(),
+    systemLabel: "Internal calculator - Vertical", generatedAt: new Date(),
     totals: { area: 10, panels: 5 },
     walls: [], panelGroups: [], customPanels: [], trackLines: [],
     fixings: { fix30: 0, boxes30: 0, fix16: 0, boxes16: 0, sealantLabel: "Sealant", sealantBoxes: 0, sausages: 0, area: 0 },
