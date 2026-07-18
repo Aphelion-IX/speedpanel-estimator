@@ -277,7 +277,6 @@ export function ExternalCalculator({
         layoutMode={layoutMode} results={results}
         projAgg={projAgg} combinedEstimate={combinedEstimate}
         active={active} out={out} orient={orient} ScheduleComp={ScheduleComp}
-        onReviewOrder={() => setOrderDrawerOpen(true)} orderLineItemCount={orderLineItemCount}
       />
     </div>
   );

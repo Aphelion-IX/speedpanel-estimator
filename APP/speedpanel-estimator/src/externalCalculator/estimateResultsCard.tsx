@@ -11,9 +11,8 @@
 // =============================================================================
 import { useState } from "react";
 import { ClipboardList } from "lucide-react";
-import { NAVY } from "../styleTokens";
+import { cx, NAVY } from "../styleTokens";
 import { Card, Row, StatsGrid, WarningsList } from "../ui/primitives";
-import { Button } from "../ui/button";
 import { Tabs, TabPanel } from "../ui/tabs";
 import { ConnectionBreakdownCard, type PanelScheduleCard } from "../ui/scheduleCards";
 import { buildExtProjAgg } from "../estimate/aggregate";
@@ -36,23 +35,19 @@ export const EstimateResultsCard = ({
   layoutMode, results,
   projAgg, combinedEstimate,
   active, out, orient, ScheduleComp,
-  onReviewOrder, orderLineItemCount,
 }: {
   layoutMode: EffectiveLayout;
   results: WallResult[];
   projAgg: ReturnType<typeof buildExtProjAgg>; combinedEstimate: CombinedEstimate;
   active: Wall; out: ComputeOut; orient: "vertical" | "horizontal";
   ScheduleComp: typeof PanelScheduleCard;
-  // Opens the Order Review drawer -- rendered next to the tab pills so it's
-  // reachable from every tab, not just the Order one.
-  onReviewOrder: () => void; orderLineItemCount: number;
 }) => {
   const [activeTab, setActiveTab] = useState("overview");
   const projectWarnings = collectProjectWarnings(results, combinedEstimate);
 
   return (
     <div className="mt-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
+      <div className={cx.card}>
         <Tabs
           tabs={[
             { id: "overview", label: "Overview" },
@@ -63,9 +58,6 @@ export const EstimateResultsCard = ({
           activeId={activeTab}
           onChange={setActiveTab}
         />
-        <Button variant="secondary" onClick={onReviewOrder}>
-          Review order · {orderLineItemCount} item{orderLineItemCount === 1 ? "" : "s"}
-        </Button>
       </div>
 
       <TabPanel id="overview" activeId={activeTab}>
