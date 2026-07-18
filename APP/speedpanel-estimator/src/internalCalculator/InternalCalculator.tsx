@@ -347,7 +347,6 @@ export function InternalCalculator({
         projChosenAgg={projChosenAgg} combinedEstimate={combinedEstimate}
         active={active} out={out} orient={orient} cornerPair={cornerPair} shaftPair={shaftPair}
         ScheduleComp={ScheduleComp}
-        onReviewOrder={() => setOrderDrawerOpen(true)} orderLineItemCount={orderLineItemCount}
       />
     </div>
   );
