@@ -63,9 +63,12 @@ whole `src/` tree or a scoped subfolder, e.g.
   concatenating a percentage directly onto a `var(--...)` value (e.g.
   `` `${BLUE}22` ``) produces invalid CSS that silently drops the whole
   declaration.
-- **Visual verification**: the estimator is reachable without signing in at
-  `/#estimator` (hash routing via `useHashRoute`, see `App.tsx`) — only the
-  `home` tab requires a session. For Playwright checks, launch with
+- **Visual verification**: the whole portal requires a signed-in session —
+  an anonymous visitor hitting any tab (`/#estimator`, `/#selector`, etc.,
+  hash routing via `useHashRoute`, see `App.tsx`) is shown the sign-in/
+  sign-up `LandingPage` instead, no exceptions. Playwright checks against
+  `/#estimator` therefore need to sign in first (or the check will just see
+  the landing page). For Playwright checks, launch with
   `executablePath: '/opt/pw-browsers/chromium'`, and don't touch the manual
   layout-mode toggle button when testing phone layout — just set a narrow
   viewport, since the toggle flips relative to the *currently effective*

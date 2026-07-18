@@ -64,11 +64,11 @@ export interface EstimateTopCardProps {
   onGoToProjects: () => void;
   onViewDetails: () => void;
   // "Work on an existing project" card in the empty state -- the current
-  // user's saved projects (already fetched at App.tsx's root for the header
-  // bell badge, reused here rather than fetched twice) and whether they're
-  // signed in at all (Projects requires a session, the Estimator tab doesn't).
+  // user's saved projects, already fetched at App.tsx's root for the header
+  // bell badge and reused here rather than fetched twice. No signed-out
+  // handling needed -- App.tsx now gates the whole portal behind a session,
+  // so this component can never render for an anonymous visitor.
   recentProjects: ProjectRow[];
-  signedIn: boolean;
 }
 
 function formatLastEdited(value?: number | string | null): string {
@@ -88,7 +88,7 @@ export const EstimateTopCard = ({
   results, projAgg, addBlankWall, onAddInternalWall,
   openProject, draftLabel, onSetDraftLabel, onDuplicateDraft, lastEditedAt,
   onSaveDraftAsProject, onSaveOpenProject, savingProject, saveProjectError, projectDirty,
-  onGoToProjects, onViewDetails, recentProjects, signedIn,
+  onGoToProjects, onViewDetails, recentProjects,
 }: EstimateTopCardProps) => {
   const nameFieldRef = useRef<HTMLInputElement>(null);
   const totalItems = results.length;
@@ -151,7 +151,7 @@ export const EstimateTopCard = ({
             </div>
           </div>
         </div>
-        <RecentProjectsCard recentProjects={recentProjects} signedIn={signedIn} onGoToProjects={onGoToProjects} />
+        <RecentProjectsCard recentProjects={recentProjects} onGoToProjects={onGoToProjects} />
         <div className={`mt-3 ${cx.section}`}>
           <div className={cx.cardHd} style={{ marginTop: 0 }}>Add a new wall</div>
           <div className="mb-3 text-sm text-slate-400 dark:text-slate-400">Choose the type of wall you want to add.</div>
@@ -267,16 +267,12 @@ export const EstimateTopCard = ({
 // inline "open directly" picker: clicking through always routes back to the
 // Projects page via the same onGoToProjects navigation the app already has
 // (just promoted from a buried text link to its own information card).
-const RecentProjectsCard = ({ recentProjects, signedIn, onGoToProjects }: {
-  recentProjects: ProjectRow[]; signedIn: boolean; onGoToProjects: () => void;
+const RecentProjectsCard = ({ recentProjects, onGoToProjects }: {
+  recentProjects: ProjectRow[]; onGoToProjects: () => void;
 }) => (
   <div className={`mt-3 ${cx.section}`}>
     <div className={cx.cardHd} style={{ marginTop: 0 }}>Work on an existing project</div>
-    {!signedIn ? (
-      <p className="mt-2 text-sm text-slate-500 dark:text-slate-300">
-        Sign in to see and open your saved projects.
-      </p>
-    ) : recentProjects.length === 0 ? (
+    {recentProjects.length === 0 ? (
       <p className="mt-2 text-sm text-slate-500 dark:text-slate-300">
         You haven't saved any projects yet.
       </p>

@@ -64,7 +64,7 @@ export function InternalCalculator({
   onAddExternalWall, switchOrient, switchToExternal,
   openProject, draftLabel, onSetDraftLabel, lastEditedAt,
   onSaveDraftAsProject, onSaveOpenProject, savingProject, saveProjectError, projectDirty, onGoToProjects,
-  recentProjects, signedIn,
+  recentProjects,
 }: {
   store: WallStore; orient: "vertical" | "horizontal"; dimUnit: string;
   setDimUnit: (u: string) => void; systemSelector?: React.ReactNode; layoutMode: EffectiveLayout;
@@ -101,7 +101,6 @@ export function InternalCalculator({
   // reuses App.tsx's existing header-bell useProjects() call rather than
   // fetching a second time.
   recentProjects: ProjectRow[];
-  signedIn: boolean;
 }) {
   const [showTrackFinish, setShowTrackFinish] = useState(false);
   const [orderDrawerOpen, setOrderDrawerOpen] = useState(false);
@@ -399,7 +398,7 @@ export function InternalCalculator({
       onSaveDraftAsProject={onSaveDraftAsProject} onSaveOpenProject={onSaveOpenProject}
       savingProject={savingProject} saveProjectError={saveProjectError} projectDirty={projectDirty}
       onGoToProjects={onGoToProjects} onViewDetails={scrollToResults}
-      recentProjects={recentProjects} signedIn={signedIn}
+      recentProjects={recentProjects}
     />
   );
 
