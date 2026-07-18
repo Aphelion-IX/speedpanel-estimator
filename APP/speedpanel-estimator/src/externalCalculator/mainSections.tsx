@@ -2,18 +2,16 @@
 // External Calculator -- main-column sections
 // =============================================================================
 // WallEstimateCardsExt is the shared per-wall detail (colour note, panel
-// schedule, tracks/flashing, fixings/sealant) used both by
-// SingleWallMaterialsSection's accordion (single-wall mode) and by
-// estimateResultsCard.tsx's "Selected Wall" tab (project mode). System
-// breakdown (every wall stacked) and the old combined "Easy to order"
-// section were retired in favor of the Estimate Structure nav + Estimate
-// Results tabs (see estimateResultsCard.tsx); their old homes here
-// (SystemBreakdownSection, EasyToOrderSectionExt) had no other callers and
-// were removed rather than left as dead exports -- mirrors
-// internalCalculator/mainSections.tsx.
+// schedule, tracks/flashing, fixings/sealant) rendered by
+// estimateResultsCard.tsx's "Selected Wall" tab. System breakdown (every wall
+// stacked) and the old combined "Easy to order" section were retired in
+// favor of the Estimate Structure nav + Estimate Results tabs (see
+// estimateResultsCard.tsx); their old homes here (SystemBreakdownSection,
+// EasyToOrderSectionExt) had no other callers and were removed rather than
+// left as dead exports -- mirrors internalCalculator/mainSections.tsx.
 // =============================================================================
-import { ChevronDown, Box } from "lucide-react";
-import { cx, NAVY, GOLD } from "../styleTokens";
+import { Box } from "lucide-react";
+import { NAVY, GOLD } from "../styleTokens";
 import { EXT_STOCKED_COLOURS, EXT_STOCK, EXT_PACK } from "../data";
 import type { ComputeOut, Wall, PanelGroup } from "../estimate/wall.types";
 import type { EffectiveLayout } from "../useLayoutMode";
@@ -57,31 +55,6 @@ export const WallEstimateCardsExt = ({ active, out, orient, layoutMode, Schedule
           sealantLabel="Sikaflex 400 Fire PU" sealantRate={2} footnote="Est. fixings -- 1000/box." />
       </CardGrid>
       {out.notes && out.notes.length > 0 && <NotesList notes={out.notes} />}
-    </>
-  );
-};
-
-// --- SingleWallMaterialsSection -----------------------------------------------
-// "Material quantities" accordion shown in single-wall mode: the accordion
-// toggle wraps WallEstimateCardsExt above.
-export const SingleWallMaterialsSection = ({
-  active, out, orient, layoutMode, showTakeoff, setShowTakeoff, ScheduleComp,
-}: {
-  active: Wall; out: ComputeOut; orient: "vertical" | "horizontal"; layoutMode: EffectiveLayout;
-  showTakeoff: boolean; setShowTakeoff: (v: boolean) => void; ScheduleComp: typeof PanelScheduleCard;
-}) => {
-  if (out.empty || !out.result) return null;
-  return (
-    <>
-      <button onClick={() => setShowTakeoff(!showTakeoff)} className={cx.accordion}>
-        <span>Material quantities</span>
-        <ChevronDown size={15} className={`transition-transform ${showTakeoff ? "rotate-180" : ""}`} />
-      </button>
-      {showTakeoff && (
-        <div className="mt-3">
-          <WallEstimateCardsExt active={active} out={out} orient={orient} layoutMode={layoutMode} ScheduleComp={ScheduleComp} />
-        </div>
-      )}
     </>
   );
 };

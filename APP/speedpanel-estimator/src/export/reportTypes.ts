@@ -68,7 +68,6 @@ export interface ConnectionRow {
 
 export interface EstimateReportData {
   systemLabel: string; // e.g. "Internal calculator - Vertical"
-  modeLabel: "Project" | "Single wall";
   generatedAt: Date;
   totals: { area: number; panels: number; packs?: number; wastePct?: number };
   walls: WallSummaryRow[];

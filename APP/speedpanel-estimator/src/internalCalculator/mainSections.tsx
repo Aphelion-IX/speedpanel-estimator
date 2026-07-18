@@ -2,17 +2,14 @@
 // Internal Calculator -- main-column sections
 // =============================================================================
 // WallEstimateCards is the shared per-wall detail (panel schedule, tracks/
-// flashing, corner/shaft kit cards, fixings/sealant) used both by
-// SingleWallEstimateSection's accordion (single-wall mode) and by
-// estimateResultsCard.tsx's "Selected Wall" tab (project mode) -- one set of
-// cards, two places that show them. System breakdown (every wall stacked)
+// flashing, corner/shaft kit cards, fixings/sealant) rendered by
+// estimateResultsCard.tsx's "Selected Wall" tab. System breakdown (every wall stacked)
 // and the old combined "Easy to order" section were retired in favor of the
 // Estimate Structure nav + Estimate Results tabs (see estimateResultsCard.tsx);
 // their old homes here (SystemBreakdownSection, EasyToOrderSection) had no
 // other callers and were removed rather than left as dead exports.
 // =============================================================================
-import { ChevronDown, Box } from "lucide-react";
-import { cx } from "../styleTokens";
+import { Box } from "lucide-react";
 import { PACK, STOCK_LENGTHS } from "../data";
 import type { CornerPairResult, ShaftPairResult } from "../estimate/cornerShaftKits";
 import type { ComputeOut, Wall } from "../estimate/wall.types";
@@ -62,35 +59,6 @@ export const WallEstimateCards = ({
           p2pNote={out.p2pNote} p2pEnhanced={out.p2pEnhanced} />
       </CardGrid>
       {out.notes && out.notes.length > 0 && <NotesList notes={out.notes} />}
-    </>
-  );
-};
-
-// --- SingleWallEstimateSection ---------------------------------------------
-// "Wall estimate -- {name}" accordion shown in single-wall mode: the
-// accordion toggle wraps WallEstimateCards above.
-export const SingleWallEstimateSection = ({
-  active, out, orient, layoutMode, showWall, setShowWall, ScheduleComp, walls, cornerPair, shaftPair,
-}: {
-  active: Wall; out: ComputeOut; orient: "vertical" | "horizontal"; layoutMode: EffectiveLayout;
-  showWall: boolean; setShowWall: (v: boolean) => void; ScheduleComp: typeof PanelScheduleCard;
-  walls: Wall[]; cornerPair: CornerPairResult | null; shaftPair: ShaftPairResult | null;
-}) => {
-  if (out.empty || !out.chosen || out.chosen.invalid) return null;
-  return (
-    <>
-      <button onClick={() => setShowWall(!showWall)} className={cx.accordion}>
-        <span>Wall estimate -- {active.name}</span>
-        <ChevronDown size={15} className={`transition-transform ${showWall ? "rotate-180" : ""}`} />
-      </button>
-      {showWall && (
-        <div className="mt-3">
-          <WallEstimateCards
-            active={active} out={out} orient={orient} layoutMode={layoutMode}
-            ScheduleComp={ScheduleComp} walls={walls} cornerPair={cornerPair} shaftPair={shaftPair}
-          />
-        </div>
-      )}
     </>
   );
 };

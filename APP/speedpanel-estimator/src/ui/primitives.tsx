@@ -10,7 +10,7 @@
 // =============================================================================
 import { useState } from "react";
 import { r1 } from "../estimate/mathUtils";
-import { cx, BLUE, GOLD, WHITE, NAVY, MUTED, selectedFill, selectableOffCx } from "../styleTokens";
+import { cx, BLUE, GOLD, WHITE, NAVY, MUTED } from "../styleTokens";
 import type { EffectiveLayout } from "../useLayoutMode";
 import { AlertTriangle, ChevronDown } from "lucide-react";
 
@@ -249,23 +249,6 @@ export const AccordionCard = ({ summary, children }: { summary: React.ReactNode;
     </div>
   );
 };
-// --- EstimateModeSelector -----------------------------------------------------
-export const EstimateModeSelector = ({ visible, mode, setMode }: { visible: boolean; mode: string; setMode: (m: string) => void }) => {
-  if (!visible) return null;
-  return (
-    <div className="mt-4 grid grid-cols-2 items-end gap-2">
-      {[["single","Selected wall estimate"],["project","Combined wall estimate"]].map(([k, lbl]) => {
-        const on = mode === k;
-        return (
-          <button key={k} onClick={() => setMode(k)}
-            className={"w-full rounded-xl border-2 py-3.5 px-4 text-sm font-semibold text-center active:scale-95 transition-all " + (on ? "" : `border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 ${selectableOffCx}`)}
-            style={on ? { ...selectedFill, color: "#fff" } : { color: BLUE }}>{lbl}</button>
-        );
-      })}
-    </div>
-  );
-};
-
 // --- WarningsList -------------------------------------------------------------
 export const WarningsList = ({ warnings }: { warnings?: string[] | null }) => {
   if (!warnings || warnings.length === 0) return null;
