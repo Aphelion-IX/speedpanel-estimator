@@ -29,7 +29,6 @@ import { Button } from "../ui/button";
 import { IconButton } from "../ui/primitives";
 import type { WallResult } from "../estimate/wall.types";
 import type { buildExtProjAgg } from "../estimate/aggregate";
-import type { ProjectRow } from "../pages/projects/projectTypes";
 import { isConfigured, deriveWallStatus } from "./phoneShell";
 
 type ProjAgg = ReturnType<typeof buildExtProjAgg>;
@@ -63,12 +62,6 @@ export interface EstimateTopCardProps {
   projectDirty: boolean;
   onGoToProjects: () => void;
   onViewDetails: () => void;
-  // "Work on an existing project" card in the empty state -- the current
-  // user's saved projects, already fetched at App.tsx's root for the header
-  // bell badge and reused here rather than fetched twice. No signed-out
-  // handling needed -- App.tsx now gates the whole portal behind a session,
-  // so this component can never render for an anonymous visitor.
-  recentProjects: ProjectRow[];
 }
 
 function formatLastEdited(value?: number | string | null): string {
@@ -88,7 +81,7 @@ export const EstimateTopCard = ({
   results, projAgg, addBlankWall, onAddInternalWall,
   openProject, draftLabel, onSetDraftLabel, onDuplicateDraft, lastEditedAt,
   onSaveDraftAsProject, onSaveOpenProject, savingProject, saveProjectError, projectDirty,
-  onGoToProjects, onViewDetails, recentProjects,
+  onGoToProjects, onViewDetails,
 }: EstimateTopCardProps) => {
   const nameFieldRef = useRef<HTMLInputElement>(null);
   const totalItems = results.length;
@@ -151,7 +144,6 @@ export const EstimateTopCard = ({
             </div>
           </div>
         </div>
-        <RecentProjectsCard recentProjects={recentProjects} onGoToProjects={onGoToProjects} />
         <div className={`mt-3 ${cx.section}`}>
           <div className={cx.cardHd} style={{ marginTop: 0 }}>Add a new wall</div>
           <div className="mb-3 text-sm text-slate-400 dark:text-slate-400">Choose the type of wall you want to add.</div>
@@ -261,38 +253,6 @@ export const EstimateTopCard = ({
     </div>
   );
 };
-
-// "No project active" empty state's other path -- lets a user jump to a
-// saved project instead of building a fresh draft. Deliberately not an
-// inline "open directly" picker: clicking through always routes back to the
-// Projects page via the same onGoToProjects navigation the app already has
-// (just promoted from a buried text link to its own information card).
-const RecentProjectsCard = ({ recentProjects, onGoToProjects }: {
-  recentProjects: ProjectRow[]; onGoToProjects: () => void;
-}) => (
-  <div className={`mt-3 ${cx.section}`}>
-    <div className={cx.cardHd} style={{ marginTop: 0 }}>Work on an existing project</div>
-    {recentProjects.length === 0 ? (
-      <p className="mt-2 text-sm text-slate-500 dark:text-slate-300">
-        You haven't saved any projects yet.
-      </p>
-    ) : (
-      <div className="mt-2 space-y-2">
-        {recentProjects.slice(0, 3).map(p => (
-          <div key={p.id} className="text-sm">
-            <div className="font-bold" style={{ color: NAVY }}>{p.name}</div>
-            <div className="text-xs text-slate-400 dark:text-slate-400">
-              Created {formatLastEdited(p.created_at)} · Edited {formatLastEdited(p.updated_at)}
-            </div>
-          </div>
-        ))}
-      </div>
-    )}
-    <button onClick={onGoToProjects} className="mt-3 flex items-center gap-1 text-xs font-bold" style={{ color: BLUE }}>
-      Go to Projects <ChevronRight size={12} />
-    </button>
-  </div>
-);
 
 // "No project active" empty state's Edit/Duplicate row -- matches the
 // Project Name input's own rendered height exactly, via an explicit w-11 +

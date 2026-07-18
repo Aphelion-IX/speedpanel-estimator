@@ -360,7 +360,6 @@ export default function SpeedpanelEstimator() {
               onSaveDraftAsProject={saveDraftAsProject} onSaveOpenProject={saveOpenProject}
               savingProject={savingProject} saveProjectError={saveProjectError} projectDirty={projectDirty}
               onGoToProjects={() => navigate({ tab: "projects" })}
-              recentProjects={myProjects}
             />
           ) : (
             <InternalCalculator
@@ -375,7 +374,6 @@ export default function SpeedpanelEstimator() {
               onSaveDraftAsProject={saveDraftAsProject} onSaveOpenProject={saveOpenProject}
               savingProject={savingProject} saveProjectError={saveProjectError} projectDirty={projectDirty}
               onGoToProjects={() => navigate({ tab: "projects" })}
-              recentProjects={myProjects}
             />
           )
         )}
