@@ -30,6 +30,37 @@ gate almost everything server-side, not just client-side nav.
 - Run `npm run typecheck`, `npm test`, and `npm run build` before
   considering a task complete.
 
+## Estimator UI architecture (src/internalCalculator, src/externalCalculator)
+
+- **Fork-not-share convention**: Internal and External calculators keep
+  separate copies of calculator-specific UI (`wallsCard.tsx`,
+  `estimateStructureNav.tsx`, `estimateResultsCard.tsx`, `mainSections.tsx`,
+  `phoneShell.tsx`, `phoneSections.tsx`, `allWallsPage.tsx`, etc.) rather
+  than sharing one component tree. This is deliberate — each calculator can
+  evolve its own UI without risking a change leaking into the other. Only
+  genuinely calculator-agnostic pieces live in `src/ui/` (e.g. `Table`,
+  `Drawer`, `CardCarousel`, `primitives.tsx`) or `src/wallStore.ts` (the one
+  shared wall-list state hook both calculators read/write).
+- **Single mode**: the estimator always runs as the combined "project" view
+  (wall carousel + `EstimateResultsCard`'s Overview/Selected Wall/
+  Connections/Order tabs), regardless of wall count. A "single-wall mode"
+  toggle (`EstimateModeSelector`) existed earlier and was deliberately
+  retired — don't reintroduce a mode switch here without asking first.
+- **Design tokens**: `src/styleTokens.ts` — `NAVY`/`BLUE`/`GOLD`/`WHITE`/
+  `MUTED` (all `var(--...)` CSS custom properties) plus the `cx` object of
+  reusable Tailwind class strings. Use `color-mix(in srgb, ${VAR} X%,
+  transparent)` when adapting a token's opacity in a CSS string — string-
+  concatenating a percentage directly onto a `var(--...)` value (e.g.
+  `` `${BLUE}22` ``) produces invalid CSS that silently drops the whole
+  declaration.
+- **Visual verification**: the estimator is reachable without signing in at
+  `/#estimator` (hash routing via `useHashRoute`, see `App.tsx`) — only the
+  `home` tab requires a session. For Playwright checks, launch with
+  `executablePath: '/opt/pw-browsers/chromium'`, and don't touch the manual
+  layout-mode toggle button when testing phone layout — just set a narrow
+  viewport, since the toggle flips relative to the *currently effective*
+  auto-detected layout and can flip the wrong way on an already-narrow page.
+
 ## Debugging an auth/RLS failure ("permission denied for table ...", etc.)
 
 Do NOT bypass the failure by disabling RLS, weakening a policy, or reaching
