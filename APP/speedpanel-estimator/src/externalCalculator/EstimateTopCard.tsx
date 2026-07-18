@@ -20,9 +20,9 @@
 // Deliberately its own copy, not shared with internalCalculator's mirror --
 // same fork-not-share convention as phoneShell.tsx (see its header comment).
 // =============================================================================
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
-  House, CloudRain, Info, Plus, ChevronRight, Pencil, Save, CheckCircle2, FileText, FolderPlus,
+  House, CloudRain, Info, Plus, ChevronRight, Pencil, Copy, Trash2, Save, CheckCircle2, FileText, FolderPlus,
 } from "lucide-react";
 import { cx, tone, BLUE, NAVY, WHITE, selectableOffCx } from "../styleTokens";
 import { Button } from "../ui/button";
@@ -47,6 +47,14 @@ export interface EstimateTopCardProps {
   openProject: OpenProjectInfo | null;
   draftLabel: string | null;
   onSetDraftLabel: (label: string | null) => void;
+  // "No project active" empty state's Duplicate/Delete icon buttons -- there's
+  // no saved project yet to act on, so these act on the current local draft
+  // (the one wall the store always seeds): onDuplicateDraft is the store's
+  // existing duplicateWall, onDeleteDraft reopens the same "Reset the
+  // estimator" confirm dialog the header's reset button already triggers
+  // (see App.tsx) rather than deleting anything silently.
+  onDuplicateDraft: () => void;
+  onDeleteDraft: () => void;
   lastEditedAt?: number;
   onSaveDraftAsProject: (name: string) => Promise<string | null>;
   onSaveOpenProject: () => Promise<void>;
@@ -74,10 +82,11 @@ function formatLastEdited(value?: number | string | null): string {
 
 export const EstimateTopCard = ({
   results, projAgg, addBlankWall, onAddInternalWall,
-  openProject, draftLabel, onSetDraftLabel, lastEditedAt,
+  openProject, draftLabel, onSetDraftLabel, onDuplicateDraft, onDeleteDraft, lastEditedAt,
   onSaveDraftAsProject, onSaveOpenProject, savingProject, saveProjectError, projectDirty,
   onGoToProjects, onViewDetails,
 }: EstimateTopCardProps) => {
+  const nameFieldRef = useRef<HTMLInputElement>(null);
   const totalItems = results.length;
   const configuredCount = results.filter(r => isConfigured(deriveWallStatus(r.wall, r.out))).length;
   const warningsCount = results.filter(r => r.out.warnings.length > 0).length;
@@ -113,33 +122,32 @@ export const EstimateTopCard = ({
         <span className={`${cx.badge} ${tone("neutral")}`}>NO PROJECT ACTIVE</span>
         <div className={`mt-2 ${cx.section}`}>
           <div className="flex items-center gap-3">
-            <button onClick={addBlankWall} title="Create Project" aria-label="Create Project"
-              className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-white/30 text-white transition-all hover:brightness-95 hover:-translate-y-px active:scale-95"
-              style={{
-                background: `linear-gradient(155deg, color-mix(in srgb, ${BLUE} 100%, white 18%), ${BLUE})`,
-                boxShadow: `inset 0 1px 1px rgba(255,255,255,0.3), 0 14px 24px -12px color-mix(in srgb, ${BLUE} 55%, transparent)`,
-              }}>
+            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full border-2 bg-blue-50 dark:bg-blue-900/40"
+              style={{ borderColor: BLUE, color: BLUE }}>
               <FolderPlus size={20} />
-            </button>
-            <div>
-              <div className="text-base font-extrabold" style={{ color: NAVY }}>Start a new project</div>
-              <div className="mt-0.5 text-sm text-slate-400 dark:text-slate-400">Choose a wall type below to start building -- it'll be saved in your Projects tab.</div>
-            </div>
+            </span>
+            <div className="text-base font-extrabold" style={{ color: NAVY }}>Create a new project</div>
+          </div>
+          <div className="mt-2 flex items-center gap-1.5 text-sm" style={{ color: BLUE }}>
+            <Info size={14} className="shrink-0" />
+            <span>You can view your created project in the <button onClick={onGoToProjects} className="font-bold underline decoration-2 underline-offset-2">Projects page</button>.</span>
           </div>
           <div className="mt-4">
             <label className={cx.lbl}>Project name (optional)</label>
-            <input
-              value={draftLabel ?? ""}
-              onChange={e => onSetDraftLabel(e.target.value || null)}
-              placeholder="e.g. Front Lobby Project"
-              className={cx.input}
-              style={{ color: NAVY }}
-            />
+            <div className="flex items-stretch gap-2">
+              <input
+                ref={nameFieldRef}
+                value={draftLabel ?? ""}
+                onChange={e => onSetDraftLabel(e.target.value || null)}
+                placeholder="e.g. Front Lobby Project"
+                className={cx.input + " min-w-0 flex-1"}
+                style={{ color: NAVY }}
+              />
+              <NameActionButton title="Edit project name" icon={<Pencil size={15} />} onClick={() => nameFieldRef.current?.focus()} />
+              <NameActionButton title="Duplicate project" icon={<Copy size={15} />} onClick={onDuplicateDraft} />
+              <NameActionButton title="Delete project" icon={<Trash2 size={15} />} onClick={onDeleteDraft} variant="danger" />
+            </div>
           </div>
-        </div>
-        <div className={cx.infoNote}>
-          <Info size={15} className="mt-0.5 shrink-0" />
-          <span>You can view your projects in the <button onClick={onGoToProjects} className="font-bold underline decoration-2 underline-offset-2">Projects</button> tab.</span>
         </div>
         <div className={`mt-3 ${cx.section}`}>
           <div className={cx.cardHd} style={{ marginTop: 0 }}>Add a new wall</div>
@@ -255,6 +263,25 @@ export const EstimateTopCard = ({
     </div>
   );
 };
+
+// "No project active" empty state's Edit/Duplicate/Delete row -- same
+// bordered-square visual language as ui/primitives.tsx's IconButton
+// (default/danger variants), but sized with self-stretch + aspect-square
+// instead of a fixed h-10 so it matches the actual rendered height of
+// whatever input it sits next to in a flex items-stretch row, rather than
+// just visually approximating it.
+const NameActionButton = ({ onClick, title, icon, variant = "default" }: {
+  onClick: () => void; title: string; icon: React.ReactNode; variant?: "default" | "danger";
+}) => (
+  <button onClick={onClick} title={title} aria-label={title}
+    className={`grid aspect-square shrink-0 place-items-center self-stretch rounded-xl border bg-white dark:bg-slate-800 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md active:translate-y-0 active:scale-95 ${
+      variant === "danger"
+        ? "border-red-100 dark:border-red-800/60 text-red-600 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-950/30 hover:border-red-300 dark:hover:border-red-700"
+        : "border-slate-200 dark:border-slate-600 text-slate-400 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700/60 hover:text-blue-600 dark:hover:text-blue-400 hover:border-blue-300 dark:hover:border-blue-600"
+    }`}>
+    {icon}
+  </button>
+);
 
 // Leading icon box denotes wall type (House/CloudRain); trailing "+" circle
 // carries the highlight styling -- BLUE fill for this calculator's own

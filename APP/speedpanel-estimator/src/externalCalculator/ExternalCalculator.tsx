@@ -64,6 +64,7 @@ export function ExternalCalculator({
   onAddInternalWall, switchOrient, switchToInternal,
   openProject, draftLabel, onSetDraftLabel, lastEditedAt,
   onSaveDraftAsProject, onSaveOpenProject, savingProject, saveProjectError, projectDirty, onGoToProjects,
+  onResetDraft,
 }: {
   store: WallStore; orient: "vertical" | "horizontal"; dimUnit: string;
   setDimUnit: (u: string) => void; systemSelector?: React.ReactNode; layoutMode: EffectiveLayout;
@@ -95,6 +96,11 @@ export function ExternalCalculator({
   // openProject is set; harmless/ignored otherwise.
   projectDirty: boolean;
   onGoToProjects: () => void;
+  // "No project active" empty state's Delete-project icon -- reopens
+  // App.tsx's existing "Reset the estimator" confirm dialog, same one the
+  // header's reset button triggers, since there's no saved project yet to
+  // delete, only the current local draft.
+  onResetDraft: () => void;
 }) {
   const [orderDrawerOpen, setOrderDrawerOpen] = useState(false);
   const [allWallsOpen, setAllWallsOpen] = useState(false);
@@ -317,6 +323,7 @@ export function ExternalCalculator({
       results={results} projAgg={projAgg}
       addBlankWall={addBlankWall} onAddInternalWall={onAddInternalWall}
       openProject={openProject} draftLabel={draftLabel} onSetDraftLabel={onSetDraftLabel}
+      onDuplicateDraft={duplicateWall} onDeleteDraft={onResetDraft}
       lastEditedAt={lastEditedAt}
       onSaveDraftAsProject={onSaveDraftAsProject} onSaveOpenProject={onSaveOpenProject}
       savingProject={savingProject} saveProjectError={saveProjectError} projectDirty={projectDirty}
