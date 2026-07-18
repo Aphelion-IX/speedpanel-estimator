@@ -2,12 +2,14 @@
 // Saved projects -- the signed-in user's own list
 // =============================================================================
 // Same live-Supabase-fetch shape as admin/requests/requestsStore.ts's
-// useAdminRequests -- load() does a full refetch, single-row mutations
+// useAdminRequests -- reload() does a full refetch, single-row mutations
 // optimistically patch local state on success rather than refetching.
 // Requires a signed-in user (see useAuth.ts); returns a stub state with no
 // user, mirroring useAdminRequests' "not configured" stub for !supabase.
+// Fetch/loading/error plumbing lives in useAsyncResource.ts, shared by every
+// store in this tree.
 // =============================================================================
-import { useCallback, useEffect, useState } from "react";
+import { useCallback } from "react";
 import type { User } from "@supabase/supabase-js";
 import { supabase } from "../../lib/supabaseClient";
 import { defaultWall } from "../../wallStore";
@@ -15,16 +17,11 @@ import { SYSTEMS } from "../../appShell/systems";
 import type { WallSystemId } from "../../App";
 import { saveProjectSnapshot } from "./saveProjectSnapshot";
 import { ProjectRowSchema, type ProjectRow, type SavedProjectData } from "./projectTypes";
+import { useAsyncResource, useStableIds } from "./useAsyncResource";
 
 const NOT_CONFIGURED = "Projects aren't configured for this environment.";
 const NOT_SIGNED_IN = "Sign in to see your projects.";
 const BAD_SHAPE = "Unexpected data shape from the server.";
-
-interface ProjectsState {
-  projects: ProjectRow[];
-  loading: boolean;
-  error: string | null;
-}
 
 // One default wall, not an empty list -- useWallStore's own initial state and
 // resetWalls() never allow zero walls either (see wallStore.ts's
@@ -73,31 +70,27 @@ export async function insertProject(userId: string, name: string, data: SavedPro
 
 // activeCompanyId (from useCompanyMemberships) is threaded through so
 // createProject() below auto-assigns new projects to it -- the list itself
-// no longer filters by owner_id client-side (see load()), trusting RLS
-// (now company/project-membership-aware, see schema.sql's
+// no longer filters by owner_id client-side (see fetchProjects()), trusting
+// RLS (now company/project-membership-aware, see schema.sql's
 // can_view_project()) the same "server is the real gate" way most other
 // stores in this app already do, so a company's shared projects show up
 // here without any client-side company filter either.
 export function useProjects(user: User | null, activeCompanyId?: string | null) {
-  const [state, setState] = useState<ProjectsState>(() =>
-    !supabase ? { projects: [], loading: false, error: NOT_CONFIGURED }
-    : !user ? { projects: [], loading: false, error: NOT_SIGNED_IN }
-    : { projects: [], loading: true, error: null },
-  );
-
-  const load = useCallback(async () => {
-    if (!supabase || !user) return;
-    setState(s => ({ ...s, loading: true, error: null }));
+  const fetchProjects = useCallback(async (): Promise<{ data: ProjectRow[]; error: string | null }> => {
+    if (!supabase || !user) return { data: [], error: null };
     const { data, error } = await supabase.from("projects").select("*")
       .is("deleted_at", null)
       .order("updated_at", { ascending: false });
-    if (error) { setState({ projects: [], loading: false, error: error.message }); return; }
+    if (error) return { data: [], error: error.message };
     const parsed = ProjectRowSchema.array().safeParse(data ?? []);
-    if (!parsed.success) { setState({ projects: [], loading: false, error: BAD_SHAPE }); return; }
-    setState({ projects: parsed.data, loading: false, error: null });
+    return parsed.success ? { data: parsed.data, error: null } : { data: [], error: BAD_SHAPE };
   }, [user]);
 
-  useEffect(() => { load(); }, [load]);
+  const { data: projects, loading, error, reload, setData } = useAsyncResource(fetchProjects, [user], {
+    initialData: [] as ProjectRow[],
+    skip: !supabase || !user,
+    skipError: !supabase ? NOT_CONFIGURED : NOT_SIGNED_IN,
+  });
 
   const createProject = async (
     name: string,
@@ -106,7 +99,7 @@ export function useProjects(user: User | null, activeCompanyId?: string | null) 
     if (!user) return { id: null, error: NOT_SIGNED_IN };
     const { project, error } = await insertProject(user.id, name, { ...blankSnapshot(), ...meta }, activeCompanyId);
     if (error || !project) return { id: null, error };
-    setState(s => ({ ...s, projects: [project, ...s.projects] }));
+    setData(prev => [project, ...prev]);
     return { id: project.id, error: null };
   };
 
@@ -114,14 +107,14 @@ export function useProjects(user: User | null, activeCompanyId?: string | null) 
     if (!supabase) return NOT_CONFIGURED;
     const { error } = await supabase.from("projects").update({ name, updated_at: new Date().toISOString() }).eq("id", id);
     if (error) return error.message;
-    setState(s => ({ ...s, projects: s.projects.map(p => p.id === id ? { ...p, name } : p) }));
+    setData(prev => prev.map(p => p.id === id ? { ...p, name } : p));
     return null;
   };
 
   const saveSnapshot = async (id: string, data: SavedProjectData): Promise<string | null> => {
     const err = await saveProjectSnapshot(id, data);
     if (err) return err;
-    setState(s => ({ ...s, projects: s.projects.map(p => p.id === id ? { ...p, data, updated_at: new Date().toISOString() } : p) }));
+    setData(prev => prev.map(p => p.id === id ? { ...p, data, updated_at: new Date().toISOString() } : p));
     return null;
   };
 
@@ -129,11 +122,11 @@ export function useProjects(user: User | null, activeCompanyId?: string | null) 
     if (!supabase) return NOT_CONFIGURED;
     const { error } = await supabase.from("projects").update({ deleted_at: new Date().toISOString() }).eq("id", id);
     if (error) return error.message;
-    setState(s => ({ ...s, projects: s.projects.filter(p => p.id !== id) }));
+    setData(prev => prev.filter(p => p.id !== id));
     return null;
   };
 
-  return { ...state, reload: load, createProject, renameProject, saveSnapshot, deleteProject };
+  return { projects, loading, error, reload, createProject, renameProject, saveSnapshot, deleteProject };
 }
 
 // Small, separate lookup for the "client" (company) name shown on
@@ -142,17 +135,19 @@ export function useProjects(user: User | null, activeCompanyId?: string | null) 
 // (shared by projectDetailStore.ts/adminProjectsStore.ts/insertProject's own
 // plain `select("*")` calls) doesn't have to grow a field only this page
 // needs. Same "batched .in() lookup, keyed map" convention as
-// myCompaniesStore.ts.
+// myCompaniesStore.ts. useStableIds keeps the fetch from re-running just
+// because the caller passed a freshly-allocated (but content-identical)
+// array this render.
 export function useProjectCompanyNames(companyIds: string[]) {
-  const [names, setNames] = useState<Map<string, string>>(new Map());
+  const stableIds = useStableIds(companyIds);
 
-  const load = useCallback(async () => {
-    if (!supabase || companyIds.length === 0) { setNames(new Map()); return; }
-    const { data } = await supabase.from("companies").select("id, legal_name, trading_name").in("id", companyIds);
-    setNames(new Map((data ?? []).map((c: { id: string; legal_name: string; trading_name: string | null }) => [c.id, c.trading_name || c.legal_name])));
-  }, [companyIds.join(",")]);
+  const fetchNames = useCallback(async (): Promise<{ data: Map<string, string>; error: string | null }> => {
+    if (!supabase || stableIds.length === 0) return { data: new Map(), error: null };
+    const { data } = await supabase.from("companies").select("id, legal_name, trading_name").in("id", stableIds);
+    return { data: new Map((data ?? []).map((c: { id: string; legal_name: string; trading_name: string | null }) => [c.id, c.trading_name || c.legal_name])), error: null };
+  }, [stableIds]);
 
-  useEffect(() => { load(); }, [load]);
+  const { data: names } = useAsyncResource(fetchNames, [stableIds], { initialData: new Map<string, string>() });
 
   return names;
 }

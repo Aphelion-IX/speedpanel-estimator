@@ -8,35 +8,33 @@
 // unreferenced bytes behind; if that cleanup itself fails, it's a harmless
 // orphan (never surfaced anywhere, no billing/quota concern at this scale)
 // rather than something worth surfacing a second error for.
+//
+// Fetch/loading/error plumbing lives in useAsyncResource.ts, shared by every
+// store in this tree.
 // =============================================================================
-import { useCallback, useEffect, useState } from "react";
+import { useCallback } from "react";
 import { supabase } from "../../../lib/supabaseClient";
 import { ProjectDocumentRowSchema, PROJECT_DOCUMENTS_BUCKET, type ProjectDocumentRow } from "./projectDocumentsTypes";
+import { useAsyncResource } from "../useAsyncResource";
 
 const NOT_CONFIGURED = "Documents aren't configured for this environment.";
 const BAD_SHAPE = "Unexpected data shape from the server.";
 
-interface DocumentsState { documents: ProjectDocumentRow[]; loading: boolean; error: string | null; }
-
 export function useProjectDocuments(projectId: string, userId: string | null) {
-  const [state, setState] = useState<DocumentsState>(() =>
-    supabase
-      ? { documents: [], loading: true, error: null }
-      : { documents: [], loading: false, error: NOT_CONFIGURED },
-  );
-
-  const load = useCallback(async () => {
-    if (!supabase) return;
-    setState(s => ({ ...s, loading: true, error: null }));
+  const fetchDocuments = useCallback(async (): Promise<{ data: ProjectDocumentRow[]; error: string | null }> => {
+    if (!supabase) return { data: [], error: null };
     const { data, error } = await supabase.from("project_documents").select("*")
       .eq("project_id", projectId).order("created_at", { ascending: false });
-    if (error) { setState({ documents: [], loading: false, error: error.message }); return; }
+    if (error) return { data: [], error: error.message };
     const parsed = ProjectDocumentRowSchema.array().safeParse(data ?? []);
-    if (!parsed.success) { setState({ documents: [], loading: false, error: BAD_SHAPE }); return; }
-    setState({ documents: parsed.data, loading: false, error: null });
+    return parsed.success ? { data: parsed.data, error: null } : { data: [], error: BAD_SHAPE };
   }, [projectId]);
 
-  useEffect(() => { load(); }, [load]);
+  const { data: documents, loading, error, reload, setData } = useAsyncResource(fetchDocuments, [projectId], {
+    initialData: [] as ProjectDocumentRow[],
+    skip: !supabase,
+    skipError: NOT_CONFIGURED,
+  });
 
   const uploadDocument = async (file: File): Promise<string | null> => {
     if (!supabase) return NOT_CONFIGURED;
@@ -55,7 +53,7 @@ export function useProjectDocuments(projectId: string, userId: string | null) {
     }
     const parsed = ProjectDocumentRowSchema.safeParse(data);
     if (!parsed.success) return BAD_SHAPE;
-    setState(s => ({ ...s, documents: [parsed.data, ...s.documents] }));
+    setData(prev => [parsed.data, ...prev]);
     return null;
   };
 
@@ -64,7 +62,7 @@ export function useProjectDocuments(projectId: string, userId: string | null) {
     const { error } = await supabase.from("project_documents").delete().eq("id", doc.id);
     if (error) return error.message;
     await supabase.storage.from(PROJECT_DOCUMENTS_BUCKET).remove([doc.storage_path]);
-    setState(s => ({ ...s, documents: s.documents.filter(d => d.id !== doc.id) }));
+    setData(prev => prev.filter(d => d.id !== doc.id));
     return null;
   };
 
@@ -75,5 +73,5 @@ export function useProjectDocuments(projectId: string, userId: string | null) {
     return data.signedUrl;
   };
 
-  return { ...state, reload: load, uploadDocument, removeDocument, downloadDocument };
+  return { documents, loading, error, reload, uploadDocument, removeDocument, downloadDocument };
 }

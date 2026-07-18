@@ -13,6 +13,11 @@
 // generic fallback) plus a ring, later steps stay muted. No stage-specific
 // knowledge lives here -- callers (ProjectJourneyTimeline.tsx,
 // StageStepper.tsx) map their own stage enum into `steps` first.
+//
+// size="compact" renders a small dot-only row (no labels/icons) for
+// contexts too narrow for the full tracker, e.g. a list-page table row --
+// same done/current/upcoming color system, just without the space the full
+// tracker needs.
 // =============================================================================
 import { Check, Settings } from "lucide-react";
 import { MUTED } from "../../styleTokens";
@@ -23,10 +28,28 @@ export interface TrackerStep {
   icon?: React.ElementType;
 }
 
-export const StepTracker = ({ steps, activeIndex, layoutMode }: {
-  steps: TrackerStep[]; activeIndex: number; layoutMode: EffectiveLayout;
+export const StepTracker = ({ steps, activeIndex, layoutMode, size = "default" }: {
+  steps: TrackerStep[]; activeIndex: number; layoutMode: EffectiveLayout; size?: "default" | "compact";
 }) => (
-  layoutMode === "phone" ? <PhoneStepTracker steps={steps} activeIndex={activeIndex} /> : <WebStepTracker steps={steps} activeIndex={activeIndex} />
+  size === "compact" ? <CompactStepTracker steps={steps} activeIndex={activeIndex} />
+  : layoutMode === "phone" ? <PhoneStepTracker steps={steps} activeIndex={activeIndex} /> : <WebStepTracker steps={steps} activeIndex={activeIndex} />
+);
+
+const CompactStepTracker = ({ steps, activeIndex }: { steps: TrackerStep[]; activeIndex: number }) => (
+  <div className="flex items-center gap-1" title={steps[activeIndex]?.label}>
+    {steps.map((s, i) => {
+      const done = i < activeIndex;
+      const current = i === activeIndex;
+      return (
+        <span key={s.label} className={[
+          "h-1.5 w-1.5 shrink-0 rounded-full",
+          done ? "bg-emerald-400 dark:bg-emerald-500"
+            : current ? "bg-blue-600 ring-2 ring-blue-100 dark:bg-blue-500 dark:ring-blue-900/40"
+            : "bg-slate-200 dark:bg-slate-700",
+        ].join(" ")} />
+      );
+    })}
+  </div>
 );
 
 const WebStepTracker = ({ steps, activeIndex }: { steps: TrackerStep[]; activeIndex: number }) => (
