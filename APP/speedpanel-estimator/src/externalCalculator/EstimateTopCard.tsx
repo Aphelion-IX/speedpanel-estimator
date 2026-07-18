@@ -22,7 +22,7 @@
 // =============================================================================
 import { useRef, useState } from "react";
 import {
-  House, CloudRain, Info, Plus, ChevronRight, Pencil, Copy, Trash2, Save, CheckCircle2, FileText, FolderPlus,
+  House, CloudRain, Info, Plus, ChevronRight, Pencil, Copy, Save, CheckCircle2, FileText, FolderPlus,
 } from "lucide-react";
 import { cx, tone, BLUE, NAVY, WHITE, selectableOffCx } from "../styleTokens";
 import { Button } from "../ui/button";
@@ -47,14 +47,11 @@ export interface EstimateTopCardProps {
   openProject: OpenProjectInfo | null;
   draftLabel: string | null;
   onSetDraftLabel: (label: string | null) => void;
-  // "No project active" empty state's Duplicate/Delete icon buttons -- there's
-  // no saved project yet to act on, so these act on the current local draft
-  // (the one wall the store always seeds): onDuplicateDraft is the store's
-  // existing duplicateWall, onDeleteDraft reopens the same "Reset the
-  // estimator" confirm dialog the header's reset button already triggers
-  // (see App.tsx) rather than deleting anything silently.
+  // "No project active" empty state's Duplicate icon button -- there's no
+  // saved project yet to act on, so this acts on the current local draft
+  // (the one wall the store always seeds), reusing the store's existing
+  // duplicateWall.
   onDuplicateDraft: () => void;
-  onDeleteDraft: () => void;
   lastEditedAt?: number;
   onSaveDraftAsProject: (name: string) => Promise<string | null>;
   onSaveOpenProject: () => Promise<void>;
@@ -82,7 +79,7 @@ function formatLastEdited(value?: number | string | null): string {
 
 export const EstimateTopCard = ({
   results, projAgg, addBlankWall, onAddInternalWall,
-  openProject, draftLabel, onSetDraftLabel, onDuplicateDraft, onDeleteDraft, lastEditedAt,
+  openProject, draftLabel, onSetDraftLabel, onDuplicateDraft, lastEditedAt,
   onSaveDraftAsProject, onSaveOpenProject, savingProject, saveProjectError, projectDirty,
   onGoToProjects, onViewDetails,
 }: EstimateTopCardProps) => {
@@ -128,9 +125,9 @@ export const EstimateTopCard = ({
             </span>
             <div className="text-base font-extrabold" style={{ color: NAVY }}>Create a new project</div>
           </div>
-          <div className="mt-2 flex items-center gap-1.5 text-sm" style={{ color: BLUE }}>
-            <Info size={14} className="shrink-0" />
-            <span>You can view your created project in the <button onClick={onGoToProjects} className="font-bold underline decoration-2 underline-offset-2">Projects page</button>.</span>
+          <div className="mt-2 flex items-start gap-1.5 text-sm text-slate-500 dark:text-slate-300">
+            <Info size={14} className="mt-0.5 shrink-0" style={{ color: BLUE }} />
+            <span>You can view your created project in the <button onClick={onGoToProjects} className="font-bold underline decoration-2 underline-offset-2" style={{ color: BLUE }}>Projects page</button>.</span>
           </div>
           <div className="mt-4">
             <label className={cx.lbl}>Project name (optional)</label>
@@ -145,7 +142,6 @@ export const EstimateTopCard = ({
               />
               <NameActionButton title="Edit project name" icon={<Pencil size={15} />} onClick={() => nameFieldRef.current?.focus()} />
               <NameActionButton title="Duplicate project" icon={<Copy size={15} />} onClick={onDuplicateDraft} />
-              <NameActionButton title="Delete project" icon={<Trash2 size={15} />} onClick={onDeleteDraft} variant="danger" />
             </div>
           </div>
         </div>
@@ -264,21 +260,19 @@ export const EstimateTopCard = ({
   );
 };
 
-// "No project active" empty state's Edit/Duplicate/Delete row -- same
-// bordered-square visual language as ui/primitives.tsx's IconButton
-// (default/danger variants), but sized with self-stretch + aspect-square
-// instead of a fixed h-10 so it matches the actual rendered height of
-// whatever input it sits next to in a flex items-stretch row, rather than
-// just visually approximating it.
-const NameActionButton = ({ onClick, title, icon, variant = "default" }: {
-  onClick: () => void; title: string; icon: React.ReactNode; variant?: "default" | "danger";
+// "No project active" empty state's Edit/Duplicate row -- same bordered-
+// square visual language as ui/primitives.tsx's IconButton, but sized with
+// an explicit w-11 + self-stretch instead of a fixed h-10, so its height
+// always matches whatever input it sits next to in a flex items-stretch
+// row. Deliberately NOT aspect-square: aspect-ratio can't reliably derive a
+// flex row child's width from a height that's only resolved via
+// align-items: stretch (the two are computed in different passes), so it
+// silently produced tall, narrow pill buttons instead of actual squares.
+const NameActionButton = ({ onClick, title, icon }: {
+  onClick: () => void; title: string; icon: React.ReactNode;
 }) => (
   <button onClick={onClick} title={title} aria-label={title}
-    className={`grid aspect-square shrink-0 place-items-center self-stretch rounded-xl border bg-white dark:bg-slate-800 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md active:translate-y-0 active:scale-95 ${
-      variant === "danger"
-        ? "border-red-100 dark:border-red-800/60 text-red-600 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-950/30 hover:border-red-300 dark:hover:border-red-700"
-        : "border-slate-200 dark:border-slate-600 text-slate-400 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700/60 hover:text-blue-600 dark:hover:text-blue-400 hover:border-blue-300 dark:hover:border-blue-600"
-    }`}>
+    className="grid w-11 shrink-0 place-items-center self-stretch rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-400 dark:text-slate-400 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md hover:text-blue-600 dark:hover:text-blue-400 hover:border-blue-300 dark:hover:border-blue-600 active:translate-y-0 active:scale-95">
     {icon}
   </button>
 );

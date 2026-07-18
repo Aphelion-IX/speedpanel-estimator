@@ -350,7 +350,6 @@ export default function SpeedpanelEstimator() {
               onSaveDraftAsProject={saveDraftAsProject} onSaveOpenProject={saveOpenProject}
               savingProject={savingProject} saveProjectError={saveProjectError} projectDirty={projectDirty}
               onGoToProjects={() => navigate({ tab: "projects" })}
-              onResetDraft={() => setConfirmReset(true)}
             />
           ) : (
             <InternalCalculator
@@ -365,7 +364,6 @@ export default function SpeedpanelEstimator() {
               onSaveDraftAsProject={saveDraftAsProject} onSaveOpenProject={saveOpenProject}
               savingProject={savingProject} saveProjectError={saveProjectError} projectDirty={projectDirty}
               onGoToProjects={() => navigate({ tab: "projects" })}
-              onResetDraft={() => setConfirmReset(true)}
             />
           )
         )}
