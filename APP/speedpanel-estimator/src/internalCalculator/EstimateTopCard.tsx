@@ -22,9 +22,9 @@
 // =============================================================================
 import { useRef, useState } from "react";
 import {
-  House, CloudRain, Info, Plus, ChevronRight, Pencil, Copy, Save, CheckCircle2, FileText, FolderPlus,
+  Info, ChevronRight, Pencil, Copy, Save, CheckCircle2, FileText, FolderPlus,
 } from "lucide-react";
-import { cx, tone, BLUE, NAVY, WHITE, selectableOffCx } from "../styleTokens";
+import { cx, tone, BLUE, NAVY } from "../styleTokens";
 import { Button } from "../ui/button";
 import { IconButton } from "../ui/primitives";
 import type { WallResult } from "../estimate/wall.types";
@@ -40,11 +40,6 @@ export interface EstimateTopCardProps {
   results: WallResult[];
   kits: KitEntry[];
   projAgg: ProjAgg;
-  addBlankWall: () => void;
-  // Adds a wall then switches the whole project over to the External
-  // calculator -- see App.tsx's addExternalWall (no per-wall internal/
-  // external flag exists, External-ness is a project-level system choice).
-  onAddExternalWall: () => void;
   openProject: OpenProjectInfo | null;
   draftLabel: string | null;
   onSetDraftLabel: (label: string | null) => void;
@@ -79,7 +74,7 @@ function formatLastEdited(value?: number | string | null): string {
 }
 
 export const EstimateTopCard = ({
-  results, kits, projAgg, addBlankWall, onAddExternalWall,
+  results, kits, projAgg,
   openProject, draftLabel, onSetDraftLabel, onDuplicateDraft, lastEditedAt,
   onSaveDraftAsProject, onSaveOpenProject, savingProject, saveProjectError, projectDirty,
   onGoToProjects, onViewDetails,
@@ -143,14 +138,6 @@ export const EstimateTopCard = ({
               <NameActionButton title="Edit project name" icon={<Pencil size={16} />} onClick={() => nameFieldRef.current?.focus()} />
               <NameActionButton title="Duplicate project" icon={<Copy size={16} />} onClick={onDuplicateDraft} />
             </div>
-          </div>
-        </div>
-        <div className={`mt-3 ${cx.section}`}>
-          <div className={cx.cardHd} style={{ marginTop: 0 }}>Add a new wall</div>
-          <div className="mb-3 text-sm text-slate-400 dark:text-slate-400">Choose the type of wall you want to add.</div>
-          <div className="grid grid-cols-2 gap-2.5">
-            <AddTile label="Internal Wall" sublabel="Add a new internal wall" onClick={addBlankWall} icon={<House size={16} />} highlighted />
-            <AddTile label="External Wall" sublabel="Add a weather-exposed wall" onClick={onAddExternalWall} icon={<CloudRain size={16} />} />
           </div>
         </div>
       </div>
@@ -243,14 +230,6 @@ export const EstimateTopCard = ({
         <Info size={15} className="mt-0.5 shrink-0" />
         <span>You can view and manage all your projects in the <button onClick={onGoToProjects} className="font-bold underline decoration-2 underline-offset-2">Projects</button> tab.</span>
       </div>
-      <div className={`mt-3 ${cx.section}`}>
-        <div className={cx.cardHd} style={{ marginTop: 0 }}>Continue building your {projectWord}</div>
-        <div className="mb-3 text-sm text-slate-400 dark:text-slate-400">Add more walls to your current {projectWord}.</div>
-        <div className="grid grid-cols-2 gap-2.5">
-          <AddTile label="Internal Wall" sublabel="Add another internal wall" onClick={addBlankWall} icon={<House size={16} />} highlighted />
-          <AddTile label="External Wall" sublabel="Add another weather-exposed wall" onClick={onAddExternalWall} icon={<CloudRain size={16} />} />
-        </div>
-      </div>
     </div>
   );
 };
@@ -268,38 +247,5 @@ const NameActionButton = ({ onClick, title, icon }: {
   <button onClick={onClick} title={title} aria-label={title}
     className="grid w-11 shrink-0 place-items-center self-stretch rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-400 dark:text-slate-400 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md hover:text-blue-600 dark:hover:text-blue-400 hover:border-blue-300 dark:hover:border-blue-600 active:translate-y-0 active:scale-95">
     {icon}
-  </button>
-);
-
-// Leading icon box denotes wall type (House/CloudRain); trailing "+" circle
-// carries the highlight styling -- BLUE fill for this calculator's own
-// primary wall type, tone("info") (the same cyan classes the Custom status
-// chip elsewhere already uses) for the other, rather than inventing a new
-// colour for it.
-const AddTile = ({ label, sublabel, onClick, icon, highlighted = false }: {
-  label: string; sublabel: string; onClick: () => void; icon: React.ReactNode; highlighted?: boolean;
-}) => (
-  <button onClick={onClick}
-    className={`flex min-h-[76px] items-center gap-2.5 rounded-xl border bg-white dark:bg-slate-800 px-3 py-2.5 text-left active:scale-95 transition-all hover:-translate-y-0.5 ${
-      highlighted
-        ? "shadow-[0_1px_1px_rgba(15,23,42,0.04),0_18px_30px_-18px_rgba(0,103,185,0.45)] dark:shadow-[0_1px_1px_rgba(0,0,0,0.2),0_18px_30px_-16px_rgba(58,168,255,0.4)]"
-        : `border-slate-200 dark:border-slate-600 ${selectableOffCx}`
-    }`}
-    style={highlighted ? { borderColor: BLUE } : undefined}>
-    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[11px] bg-slate-100 dark:bg-slate-700 shadow-[inset_0_1px_1px_rgba(255,255,255,0.5),0_1px_2px_rgba(15,23,42,0.06)] dark:shadow-[inset_0_1px_1px_rgba(255,255,255,0.04),0_1px_2px_rgba(0,0,0,0.25)]" style={{ color: BLUE }}>
-      {icon}
-    </span>
-    <span className="min-w-0 flex-1">
-      <span className="block text-[13px] font-bold leading-tight" style={{ color: NAVY }}>{label}</span>
-      <span className="mt-0.5 block text-[10px] leading-tight text-slate-400 dark:text-slate-400">{sublabel}</span>
-    </span>
-    <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-full ${highlighted ? "" : `${tone("info")} shadow-[inset_0_1px_1px_rgba(255,255,255,0.4),0_1px_2px_rgba(15,23,42,0.05)]`}`}
-      style={highlighted ? {
-        background: `linear-gradient(180deg, color-mix(in srgb, ${BLUE} 100%, white 15%), ${BLUE})`,
-        color: WHITE,
-        boxShadow: `inset 0 1px 1px rgba(255,255,255,0.3), 0 6px 12px -4px color-mix(in srgb, ${BLUE} 55%, transparent)`,
-      } : undefined}>
-      <Plus size={14} />
-    </span>
   </button>
 );

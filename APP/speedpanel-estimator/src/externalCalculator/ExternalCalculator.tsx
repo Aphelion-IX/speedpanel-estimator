@@ -61,16 +61,12 @@ import { exportEstimateToExcel } from "../export/exportEstimateToExcel";
 
 export function ExternalCalculator({
   store, orient, dimUnit, setDimUnit, systemSelector, layoutMode,
-  onAddInternalWall, switchOrient, switchToInternal,
+  switchOrient, switchToInternal,
   openProject, draftLabel, onSetDraftLabel, lastEditedAt,
   onSaveDraftAsProject, onSaveOpenProject, savingProject, saveProjectError, projectDirty, onGoToProjects,
 }: {
   store: WallStore; orient: "vertical" | "horizontal"; dimUnit: string;
   setDimUnit: (u: string) => void; systemSelector?: React.ReactNode; layoutMode: EffectiveLayout;
-  // "Internal Wall" add-tile (EstimateTopCard) -- adds a wall then switches
-  // the whole project to the Internal calculator, see App.tsx's
-  // addInternalWall.
-  onAddInternalWall: () => void;
   // Phone-only SystemConfigSectionPhone's Orientation/Wall type segments --
   // same store/App.tsx wiring web's SystemRows uses, just threaded straight
   // through instead of via the opaque systemSelector render-prop, so the
@@ -315,7 +311,6 @@ export function ExternalCalculator({
   const topCardNode = (
     <EstimateTopCard
       results={results} projAgg={projAgg}
-      addBlankWall={addBlankWall} onAddInternalWall={onAddInternalWall}
       openProject={openProject} draftLabel={draftLabel} onSetDraftLabel={onSetDraftLabel}
       onDuplicateDraft={duplicateWall}
       lastEditedAt={lastEditedAt}

@@ -148,18 +148,13 @@ export default function SpeedpanelEstimator() {
   const switchSystem = (id: string) => { setSystem(id); };
   const findSys = (orientVal: "vertical" | "horizontal", ext: boolean) =>
     SYSTEMS.find(s => s.orient === orientVal && s.ext === ext)!;
-  // Phone "External Wall" add-tile: add a wall to the shared store, then
-  // switch the whole project over to the External calculator -- there's no
-  // per-wall internal/external flag, External-ness is a project-level system
-  // choice (see isExt above), so "add an external wall" means both at once.
-  const addExternalWall = () => { store.addBlankWall(); switchSystem(findSys(orient, true).id); };
-  // Phone SystemConfigSectionPhone's "Wall type -> External" segment: same
-  // switch as above but WITHOUT adding a wall, mirroring SystemRows' real
-  // "Wall type" toggle exactly (see systemRows.tsx).
+  // Phone SystemConfigSectionPhone's "Wall type -> External" segment: mirrors
+  // SystemRows' real "Wall type" toggle exactly (see systemRows.tsx), without
+  // adding a wall -- there's no per-wall internal/external flag, External-
+  // ness is a project-level system choice (see isExt above).
   const switchToExternal = () => switchSystem(findSys(orient, true).id);
-  // Mirror image of the two above, for External's own phone project card/
-  // System configuration "Wall type -> Internal" segment.
-  const addInternalWall = () => { store.addBlankWall(); switchSystem(findSys(orient, false).id); };
+  // Mirror image, for External's own phone System configuration
+  // "Wall type -> Internal" segment.
   const switchToInternal = () => switchSystem(findSys(orient, false).id);
 
   // Opening a saved project from Projects loads its snapshot into the shared
@@ -353,7 +348,6 @@ export default function SpeedpanelEstimator() {
             <ExternalCalculator store={store} orient={orient} dimUnit={dimUnit} setDimUnit={switchDimUnit}
               systemSelector={<SystemRows orient={orient} switchOrient={switchOrient} isExt={isExt} switchSystem={switchSystem} findSys={findSys} />}
               layoutMode={layoutMode}
-              onAddInternalWall={addInternalWall}
               switchOrient={switchOrient} switchToInternal={switchToInternal}
               openProject={openProject} draftLabel={store.draftLabel} onSetDraftLabel={store.setDraftLabel}
               lastEditedAt={store.lastEditedAt}
@@ -367,7 +361,6 @@ export default function SpeedpanelEstimator() {
               systemSelector={<SystemRows orient={orient} switchOrient={switchOrient} isExt={isExt} switchSystem={switchSystem} findSys={findSys} />}
               layoutMode={layoutMode}
               linkCornerPartner={linkCornerPartner} linkShaftPartner={linkShaftPartner}
-              onAddExternalWall={addExternalWall}
               switchOrient={switchOrient} switchToExternal={switchToExternal}
               openProject={openProject} draftLabel={store.draftLabel} onSetDraftLabel={store.setDraftLabel}
               lastEditedAt={store.lastEditedAt}
