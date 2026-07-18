@@ -157,7 +157,6 @@ export const EstimateTopCard = ({
     );
   }
 
-  const pillTone = isSaved ? "info" : "ok";
   const noteCx = isSaved ? cx.infoNoteInfo : cx.infoNoteOk;
   const heroFill = isSaved
     ? "bg-gradient-to-br from-cyan-400 to-cyan-600 dark:from-cyan-500 dark:to-cyan-700 shadow-[inset_0_1px_1px_rgba(255,255,255,0.3),0_14px_24px_-12px_rgba(8,145,178,0.5)]"
@@ -177,8 +176,7 @@ export const EstimateTopCard = ({
 
   return (
     <div className="mt-3">
-      <span className={`${cx.badge} ${tone(pillTone)}`}>WORKING ON A {projectWord.toUpperCase()}</span>
-      <div className={`mt-2 ${cx.section}`}>
+      <div className={cx.section}>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="flex min-w-0 items-start gap-3">
             <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-full text-white ${heroFill}`}>
@@ -234,12 +232,9 @@ export const EstimateTopCard = ({
                 <Button type="button" variant="ghost" onClick={() => { setNamingOpen(false); setDraftSaveError(null); }}>Cancel</Button>
               </form>
             ) : (
-              <>
-                <span className={`${cx.badge} ${tone("warn")}`}>Not saved</span>
-                <IconButton onClick={() => { setNameInput(draftLabel ?? ""); setNamingOpen(true); }} title="Save to Projects" ariaLabel="Save to Projects">
-                  <Save size={16} />
-                </IconButton>
-              </>
+              <IconButton onClick={() => { setNameInput(draftLabel ?? ""); setNamingOpen(true); }} title="Save to Projects" ariaLabel="Save to Projects">
+                <Save size={16} />
+              </IconButton>
             )}
           </div>
         </div>
