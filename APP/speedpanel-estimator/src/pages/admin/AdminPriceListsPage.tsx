@@ -9,8 +9,8 @@
 // product to set a price on. Super_admin/null-gated -- omitted from
 // adminSectionAccess.ts's SECTION_ROLES, same as Products/Companies.
 // =============================================================================
-import { useMemo, useState } from "react";
-import { Plus, Search, Copy, Trash2, Pencil, Check, X } from "lucide-react";
+import { useMemo, useRef, useState } from "react";
+import { Plus, Search, Copy, Trash2, Pencil, Check, X, Download, Upload } from "lucide-react";
 import { cx, BLUE, WHITE, NAVY, MUTED } from "../../styleTokens";
 import type { EffectiveLayout } from "../../useLayoutMode";
 import { CardGrid, SectionLabel, IconButton } from "../../ui/primitives";
@@ -25,6 +25,7 @@ import { itemTitle } from "./products/productCategoryViews";
 import type { ProductItem } from "./products/productCard";
 import { useAdminPriceLists, useAdminPriceListPrices } from "./priceLists/priceListsStore";
 import { PRICEABLE_CATEGORIES, priceRowProductId, type PriceListSummaryRow, type PriceableCategory } from "./priceLists/priceListTypes";
+import { buildPriceListCsvRows, exportPriceListCsv, parsePriceListCsv, type ImportParseResult } from "./priceLists/priceListCsv";
 
 const matchesQuery = (item: ProductItem, q: string): boolean => JSON.stringify(item).toLowerCase().includes(q);
 
@@ -87,7 +88,7 @@ const PriceListDetail = ({ pl, layoutMode, onRenamed, onDuplicated, onDeleted }:
   onRenamed: () => void; onDuplicated: (id: string) => void; onDeleted: () => void;
 }) => {
   const { catalog, loading: catalogLoading } = useProductStore();
-  const { prices, loading: pricesLoading, error: pricesError, setPrice, deletePrice } = useAdminPriceListPrices(pl.id);
+  const { prices, loading: pricesLoading, error: pricesError, setPrice, setPrices, deletePrice } = useAdminPriceListPrices(pl.id);
   const { renamePriceList, duplicatePriceList, deletePriceList } = useAdminPriceLists();
   const [category, setCategory] = useState<PriceableCategory>("panel");
   const [query, setQuery] = useState("");
@@ -97,6 +98,10 @@ const PriceListDetail = ({ pl, layoutMode, onRenamed, onDuplicated, onDeleted }:
   const [duplicateName, setDuplicateName] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [busyError, setBusyError] = useState<string | null>(null);
+  const [importPreview, setImportPreview] = useState<ImportParseResult | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [importSummary, setImportSummary] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const list = catalog[CATEGORY_KEY[category]] as ProductItem[];
   const filtered = useMemo(() => {
@@ -134,6 +139,37 @@ const PriceListDetail = ({ pl, layoutMode, onRenamed, onDuplicated, onDeleted }:
     onDeleted();
   };
 
+  const handleExport = () => {
+    exportPriceListCsv(pl.name, buildPriceListCsvRows(catalog, prices));
+  };
+
+  const handleFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // allow re-selecting the same file after a failed/cancelled import
+    if (!file) return;
+    setImportSummary(null);
+    const result = await parsePriceListCsv(file);
+    if (result.missingColumns) {
+      setBusyError('That file is missing one of the required columns: "Category", "Product ID", "Price".');
+      return;
+    }
+    if (result.rows.length === 0) {
+      setBusyError("No usable price rows found in that file.");
+      return;
+    }
+    setImportPreview(result);
+  };
+
+  const handleConfirmImport = async () => {
+    if (!importPreview) return;
+    setImporting(true);
+    const { successCount, errors } = await setPrices(importPreview.rows);
+    setImporting(false);
+    setImportPreview(null);
+    if (errors.length > 0) { setBusyError(`${errors.length} price${errors.length === 1 ? "" : "s"} failed to import: ${errors[0]}`); }
+    setImportSummary(`Imported ${successCount} price${successCount === 1 ? "" : "s"}.`);
+  };
+
   return (
     <div className="mt-2">
       <ConfirmDialog
@@ -145,7 +181,20 @@ const PriceListDetail = ({ pl, layoutMode, onRenamed, onDuplicated, onDeleted }:
         onConfirm={handleDelete}
         onCancel={() => setConfirmDelete(false)}
       />
+      <ConfirmDialog
+        open={!!importPreview}
+        title="Import prices"
+        description={importPreview ? [
+          `This will set ${importPreview.rows.length} price${importPreview.rows.length === 1 ? "" : "s"} on "${pl.name}".`,
+          importPreview.skipped > 0 ? `${importPreview.skipped} row${importPreview.skipped === 1 ? "" : "s"} skipped (blank or unreadable price).` : null,
+          importPreview.unknownCategories > 0 ? `${importPreview.unknownCategories} row${importPreview.unknownCategories === 1 ? "" : "s"} skipped (unrecognized category).` : null,
+        ].filter(Boolean).join(" ") : ""}
+        confirmLabel={importing ? "Importing..." : "Import"}
+        onConfirm={handleConfirmImport}
+        onCancel={() => setImportPreview(null)}
+      />
       <ErrorDialog message={busyError} onDismiss={() => setBusyError(null)} />
+      <input ref={fileInputRef} type="file" accept=".csv" className="hidden" onChange={handleFileSelected} />
       <div className={cx.card}>
         <div className="flex items-center justify-between gap-2">
           {renaming ? (
@@ -167,6 +216,8 @@ const PriceListDetail = ({ pl, layoutMode, onRenamed, onDuplicated, onDeleted }:
                 {pl.is_default && <Badge tone="info">Default</Badge>}
               </div>
               <div className="flex items-center gap-2">
+                <IconButton size="sm" ariaLabel="Export prices to CSV" title="Export CSV" onClick={handleExport} disabled={catalogLoading}><Download size={14} /></IconButton>
+                <IconButton size="sm" ariaLabel="Import prices from CSV" title="Import CSV" onClick={() => fileInputRef.current?.click()}><Upload size={14} /></IconButton>
                 <IconButton size="sm" ariaLabel="Rename price list" onClick={() => setRenaming(true)}><Pencil size={14} /></IconButton>
                 <IconButton size="sm" ariaLabel="Duplicate price list" onClick={startDuplicate}><Copy size={14} /></IconButton>
                 {!pl.is_default && pl.company_count === 0 && (
@@ -176,6 +227,7 @@ const PriceListDetail = ({ pl, layoutMode, onRenamed, onDuplicated, onDeleted }:
             </>
           )}
         </div>
+        {importSummary && <p className="mt-2 text-sm font-semibold" style={{ color: BLUE }}>{importSummary}</p>}
       </div>
 
       <div className="mt-4 flex items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-4 py-3 shadow-sm">
