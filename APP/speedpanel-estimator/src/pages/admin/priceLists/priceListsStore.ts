@@ -118,6 +118,22 @@ export function useAdminPriceListPrices(priceListId: string | null) {
     return null;
   };
 
+  // Bulk variant for CSV import (priceListCsv.ts) -- fires every row's RPC
+  // in parallel and reloads once at the end, instead of setPrice's one-row-
+  // at-a-time "await load() after every call" (fine for a single edit, but
+  // would mean one full refetch per row for a hundred-plus-row import).
+  const setPrices = async (rows: { category: PriceableCategory; productId: string; price: number }[]): Promise<{ successCount: number; errors: string[] }> => {
+    if (!supabase || !priceListId) return { successCount: 0, errors: [NOT_CONFIGURED] };
+    const results = await Promise.all(rows.map(r =>
+      supabase!.rpc("admin_set_price_list_price", {
+        p_price_list_id: priceListId, p_category: r.category, p_product_id: r.productId, p_price: r.price,
+      })
+    ));
+    const errors = results.flatMap(r => r.error ? [r.error.message] : []);
+    await load();
+    return { successCount: rows.length - errors.length, errors };
+  };
+
   const deletePrice = async (id: string): Promise<string | null> => {
     if (!supabase) return NOT_CONFIGURED;
     const { error } = await supabase.rpc("admin_delete_price_list_price", { p_id: id });
@@ -126,7 +142,7 @@ export function useAdminPriceListPrices(priceListId: string | null) {
     return null;
   };
 
-  return { ...state, reload: load, setPrice, deletePrice };
+  return { ...state, reload: load, setPrice, setPrices, deletePrice };
 }
 
 // Current price-list assignment for one company, plus the save action --
