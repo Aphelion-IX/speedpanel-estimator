@@ -29,19 +29,16 @@ import {
 import { cx, tone, NAVY, BLUE, MUTED } from "../../styleTokens";
 import { r1 } from "../../estimate/mathUtils";
 import { Field, SelectField, TextAreaField } from "../shared/fields";
-import { Stat, StatsGrid } from "../../ui/primitives";
+import { Stat } from "../../ui/primitives";
 import { Button } from "../../ui/button";
 import { Drawer } from "../../ui/drawer";
 import { LoadingState, ErrorState, EmptyState } from "../../ui/states";
 import type { EffectiveLayout } from "../../useLayoutMode";
 import { useProjects, useProjectCompanyNames } from "./projectsStore";
 import { useCompanyMembers } from "../company/companyStore";
-import { useOrdersSummary } from "./dashboardStore";
 import { useProjectsJourney, type ProjectJourneyInfo } from "./projectsJourneyStore";
 import { useProjectPhoneStats } from "./projectPhoneStats";
 import { JOURNEY_STAGES, JOURNEY_STAGE_LABELS, JOURNEY_STAGE_BADGE_CLASS, type JourneyStage } from "./journeyStage";
-import { STAGES, STAGE_LABELS } from "./projectTypes";
-import { ORDER_STAGES, ORDER_STAGE_LABELS } from "./orders/orderTypes";
 import { relativeTime } from "./projectActivityStore";
 import { ProjectPickerDrawer } from "./ProjectPickerDrawer";
 import { useProjectServiceRequests } from "./services/serviceRequestsStore";
@@ -280,7 +277,6 @@ export const ProjectsListPage = ({ user, onOpenProject, onQuickOrder, layoutMode
   hasCompany: boolean; activeCompanyId: string | null; onTeam: () => void;
 }) => {
   const { projects, loading, error, reload, createProject } = useProjects(user, activeCompanyId);
-  const { ordersByStage, ordersTotal, totalValue, loading: ordersLoading } = useOrdersSummary(user);
   const { byProject: journeyByProject, loading: journeyLoading } = useProjectsJourney(user, projects);
   const companyNames = useProjectCompanyNames(useMemo(() => [...new Set(projects.map(p => p.company_id).filter((id): id is string => !!id))], [projects]));
   const { members: companyMembers } = useCompanyMembers(activeCompanyId ?? null);
@@ -329,11 +325,6 @@ export const ProjectsListPage = ({ user, onOpenProject, onQuickOrder, layoutMode
     // "updated" (default) -- already ordered by updated_at desc from useProjects()'s own query.
     return arr;
   }, [filtered, sortBy, journeyByProject]);
-
-  const projectsByStage = useMemo(
-    () => Object.fromEntries(STAGES.map(s => [s, projects.filter(p => p.stage === s).length])) as Record<typeof STAGES[number], number>,
-    [projects],
-  );
 
   const handleCreate = async (name: string, meta: NewProjectMeta, fields: { builderName?: string; startDate?: string; projectManagerUserId?: string }) => {
     const { id, error: err } = await createProject(name, meta, fields);
@@ -432,19 +423,6 @@ export const ProjectsListPage = ({ user, onOpenProject, onQuickOrder, layoutMode
       {!loading && !error && (
         <p className="mt-3 text-sm" style={{ color: MUTED }}>Showing {sorted.length} of {projects.length} projects</p>
       )}
-
-      <div className={cx.cardHd + " mt-8"}>Projects</div>
-      <StatsGrid stats={[
-        { value: projects.length, label: "Total" },
-        ...STAGES.map(s => ({ value: projectsByStage[s], label: STAGE_LABELS[s] })),
-      ]} />
-
-      <div className={cx.cardHd + " mt-5"}>Orders</div>
-      <StatsGrid stats={[
-        { value: ordersLoading ? "--" : ordersTotal, label: "Total" },
-        ...ORDER_STAGES.map(s => ({ value: ordersLoading ? "--" : ordersByStage[s], label: ORDER_STAGE_LABELS[s] })),
-        { value: ordersLoading ? "--" : `$${totalValue.toFixed(0)}`, label: "Total value" },
-      ]} />
 
       {showCreate && <CreateProjectDrawer layoutMode={layoutMode} activeCompanyId={activeCompanyId} onCreate={handleCreate} onClose={() => setShowCreate(false)} />}
 
