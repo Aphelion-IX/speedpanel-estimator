@@ -13,7 +13,8 @@
 // wallConfig/lengthExplorer fork (each calculator owns everything it
 // renders, so a change to one can never accidentally affect the other).
 // =============================================================================
-import { Layers, Copy, Trash2, Plus } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Layers, Copy, Trash2, Plus, ChevronLeft, ChevronRight } from "lucide-react";
 import { cx, tone, BLUE, NAVY, MUTED } from "../styleTokens";
 import type { Wall, ComputeOut } from "../estimate/wall.types";
 
@@ -58,7 +59,30 @@ export interface PhonePillItem {
 
 export const WallPillStripPhone = ({ items, onSelect, onAddWall }: {
   items: PhonePillItem[]; onSelect: (id: string) => void; onAddWall: () => void;
-}) => (
+}) => {
+  // Pills already swipe-scroll natively (touch), but that's not discoverable
+  // from a static screenshot/screen-reader, and this same strip is also used
+  // in the phone-width web dev viewport where a mouse has no swipe gesture --
+  // so add explicit prev/next arrows too, same as the web card carousel
+  // (ui/cardCarousel.tsx). No IntersectionObserver here (pills are cheap,
+  // uniform width, no per-card "active" concept to derive) -- plain
+  // scrollLeft/scrollWidth bounds checked on scroll are enough to know
+  // whether each arrow has anywhere left to go.
+  const trackRef = useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+
+  const updateScrollState = () => {
+    const el = trackRef.current;
+    if (!el) return;
+    setCanScrollLeft(el.scrollLeft > 4);
+    setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 4);
+  };
+  useEffect(updateScrollState, [items.length]);
+
+  const scrollByStep = (dir: 1 | -1) => trackRef.current?.scrollBy({ left: dir * 200, behavior: "smooth" });
+
+  return (
   <div className={`mt-3 ${cx.section}`}>
     <div className="flex items-center justify-between" style={{ marginTop: 0 }}>
       <div className={`${cx.cardHd} flex items-center gap-1.5`} style={{ marginTop: 0 }}>
@@ -70,7 +94,14 @@ export const WallPillStripPhone = ({ items, onSelect, onAddWall }: {
         <Plus size={13} />Add wall
       </button>
     </div>
-    <div className="-mx-1 flex snap-x gap-2 overflow-x-auto px-1 pb-1" style={{ scrollbarWidth: "none" }}>
+    <div className="relative">
+      {canScrollLeft && (
+        <button type="button" onClick={() => scrollByStep(-1)} aria-label="Scroll to previous"
+          className="absolute left-0 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2 grid h-7 w-7 place-items-center rounded-full border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 shadow-md active:scale-95 transition-all">
+          <ChevronLeft size={14} style={{ color: BLUE }} />
+        </button>
+      )}
+      <div ref={trackRef} onScroll={updateScrollState} className="-mx-1 flex snap-x gap-2 overflow-x-auto px-1 pb-1" style={{ scrollbarWidth: "none" }}>
       {items.map(item => (
         <div
           key={item.id}
@@ -114,9 +145,17 @@ export const WallPillStripPhone = ({ items, onSelect, onAddWall }: {
         </span>
         <span className="text-xs font-bold" style={{ color: BLUE }}>Add wall</span>
       </button>
+      </div>
+      {canScrollRight && (
+        <button type="button" onClick={() => scrollByStep(1)} aria-label="Scroll to next"
+          className="absolute right-0 top-1/2 z-10 -translate-y-1/2 translate-x-1/2 grid h-7 w-7 place-items-center rounded-full border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 shadow-md active:scale-95 transition-all">
+          <ChevronRight size={14} style={{ color: BLUE }} />
+        </button>
+      )}
     </div>
   </div>
-);
+  );
+};
 
 // --- Metrics grid ----------------------------------------------
 // SheetHeaderPhone (the title/crumb/status header this used to sit under)
