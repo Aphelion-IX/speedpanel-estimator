@@ -23,10 +23,11 @@ import { IconButton } from "../ui/primitives";
 // still part of this union purely so route.tab (which includes them)
 // type-checks as an activeTab value -- they just never match any
 // TOP_NAV_ITEMS key, so no button ever highlights for them.
-export type TopNavTab = "home" | "estimator" | "selector" | "education" | "projects" | "admin" | "company" | "myRequests";
+export type TopNavTab = "home" | "order" | "estimator" | "selector" | "education" | "projects" | "admin" | "company" | "myRequests";
 
 const TOP_NAV_ITEMS: { key: TopNavTab; label: string }[] = [
   { key: "home",      label: "Home" },
+  { key: "order",     label: "Order" },
   { key: "projects",  label: "Projects" },
   { key: "selector",  label: "System Selector" },
   { key: "estimator", label: "System Estimator" },
