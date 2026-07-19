@@ -171,14 +171,14 @@ export const SystemConfigSectionPhone = ({
 }) => (
   <SheetCardPhone>
   <SheetSectionPhone icon={<Settings size={13} />} label="System configuration" noDivider>
-    <div className={cx.cardHd}>Orientation</div>
+    <div className={cx.cardHd}>Panel orientation</div>
     <SegPhone
       options={[{ id: "vertical" as const, label: "Vertical" }, { id: "horizontal" as const, label: "Horizontal" }]}
       value={orient} onChange={switchOrient}
     />
 
     <div className="mt-3">
-      <div className={cx.cardHd}>Wall type</div>
+      <div className={cx.cardHd}>Wall location</div>
       <SegPhone
         options={[{ id: "internal" as const, label: "Internal" }, { id: "external" as const, label: "External" }]}
         value="external" onChange={id => { if (id === "internal") switchToInternal(); }}
