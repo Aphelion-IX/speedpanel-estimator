@@ -29,7 +29,7 @@ const TOP_NAV_ITEMS: { key: TopNavTab; label: string }[] = [
   { key: "home",      label: "Home" },
   { key: "projects",  label: "Projects" },
   { key: "selector",  label: "System Selector" },
-  { key: "estimator", label: "System Estimator" },
+  { key: "estimator", label: "Project Estimator" },
   { key: "education", label: "Education Hub" },
 ];
 
