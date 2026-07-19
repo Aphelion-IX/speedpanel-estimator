@@ -28,6 +28,7 @@ import { AdminMathsPage } from "./AdminMathsPage";
 import { AdminDocumentsPage } from "./AdminDocumentsPage";
 import { AdminRequestsPage } from "./AdminRequestsPage";
 import { AdminProjectsPage } from "./projects/AdminProjectsPage";
+import { AdminProjectsAdministrationPage } from "./projects/AdminProjectsAdministrationPage";
 import { AdminUsersPage } from "./AdminUsersPage";
 import { AdminAnalyticsPage } from "./AdminAnalyticsPage";
 import { AdminAuditLogPage } from "./AdminAuditLogPage";
@@ -77,6 +78,7 @@ export const AdminRoot = ({ route, navigate, layoutMode, auth }: {
             {allowed && route.sub === "documents" && <AdminDocumentsPage layoutMode={layoutMode} />}
             {allowed && route.sub === "requests"  && <AdminRequestsPage userId={auth.user?.id ?? null} staffRole={staffRole} staffRoleLoading={roleLoading} />}
             {allowed && route.sub === "projectReviews" && <AdminProjectsPage userId={auth.user?.id ?? null} staffRole={staffRole} staffRoleLoading={roleLoading} />}
+            {allowed && route.sub === "projectsAdmin" && <AdminProjectsAdministrationPage userId={auth.user?.id ?? null} />}
             {allowed && route.sub === "users"     && <AdminUsersPage auth={auth} />}
             {allowed && route.sub === "analytics" && <AdminAnalyticsPage />}
             {allowed && route.sub === "auditLog"  && <AdminAuditLogPage />}

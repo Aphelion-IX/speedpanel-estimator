@@ -4624,3 +4624,404 @@ grant execute on function public.archive_project(uuid, integer)
 revoke execute on function public.restore_project(uuid, integer) from public, anon;
 grant execute on function public.restore_project(uuid, integer)
   to authenticated;
+
+-- =============================================================================
+-- Projects Administration: server-assigned project_number/builder_name/
+-- start_date, admin-side project creation/browsing/dashboard stats, and the
+-- full service_requests write RPC surface
+-- =============================================================================
+-- projectTypes.ts's ProjectRowSchema (and ProjectsListPage.tsx/
+-- ProjectDetailPage.tsx/projectsStore.ts's insertProject) already reference
+-- builder_name/start_date/project_number/assign_project_number() -- none of
+-- these were ever actually committed to this file at any point in its
+-- history (confirmed via full git log search), so the customer-facing "My
+-- Projects" list has been Zod-parse-failing on every fetch this whole time,
+-- independent of anything else in this migration. Added here since it's a
+-- hard prerequisite for admin_list_projects_overview() below to be
+-- meaningful, not a scope decision -- see "Support & Services" section
+-- above for the same kind of "frontend already assumes this" gap.
+-- =============================================================================
+
+create sequence if not exists project_number_seq start 1000;
+
+alter table projects add column if not exists project_number text;
+alter table projects add column if not exists builder_name text;
+alter table projects add column if not exists start_date date;
+
+create unique index if not exists idx_projects_project_number on projects (project_number) where project_number is not null;
+
+create or replace function public.assign_project_number() returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  if new.project_number is null then
+    new.project_number := 'SP-' || nextval('project_number_seq')::text;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists projects_assign_project_number on projects;
+create trigger projects_assign_project_number
+  before insert on projects
+  for each row execute function public.assign_project_number();
+
+update projects set project_number = 'SP-' || nextval('project_number_seq')::text where project_number is null;
+
+insert into public.permissions (key, description, category) values
+  ('projects.create', 'Create a project on behalf of a company', 'projects'),
+  ('projects.list_all', 'Browse every project for administration', 'projects'),
+  ('admin.section.projectsAdmin', 'See the Projects Administration admin section', 'nav'),
+  -- admin.section.serviceRequests: referenced by adminSectionAccess.ts since
+  -- the Support Requests admin page was brought back, but never actually
+  -- seeded in the permission catalog -- same "frontend already assumes
+  -- this" gap as the rest of this section.
+  ('admin.section.serviceRequests', 'See the Support Requests admin section', 'nav')
+on conflict (key) do nothing;
+
+-- =============================================================================
+-- Admin-side project creation
+-- =============================================================================
+-- p_data is the exact SavedProjectData shape the customer-facing
+-- insertProject()/blankSnapshot() already build client-side (see
+-- projectsStore.ts) -- deliberately NOT reconstructed here in PL/pgSQL: the
+-- wall-shape business logic (defaultWall(), orientation, system defaults)
+-- lives once, in TypeScript, and App.tsx reads active.orient unconditionally
+-- the moment a project's snapshot loads into the Estimator, so a
+-- hand-rolled empty/malformed jsonb here would silently break that page.
+-- =============================================================================
+create or replace function public.admin_create_project(
+  p_company_id uuid,
+  p_owner_user_id uuid,
+  p_name text,
+  p_data jsonb,
+  p_builder_name text default null,
+  p_start_date date default null,
+  p_project_manager_user_id uuid default null
+) returns uuid
+language plpgsql security definer
+set search_path = public
+as $$
+declare
+  v_id uuid;
+begin
+  if not public.has_permission('projects.create') then raise exception 'Not authorized'; end if;
+  if coalesce(trim(p_name), '') = '' then raise exception 'Project name is required'; end if;
+  if not exists (select 1 from companies where id = p_company_id) then raise exception 'Company not found'; end if;
+  if not exists (
+    select 1 from company_memberships
+    where company_id = p_company_id and user_id = p_owner_user_id and status = 'active'
+  ) then
+    raise exception 'Owner must be an active member of the selected company';
+  end if;
+
+  insert into projects (owner_id, company_id, name, data, builder_name, start_date, project_manager_user_id)
+  values (p_owner_user_id, p_company_id, p_name, p_data, p_builder_name, p_start_date, p_project_manager_user_id)
+  returning id into v_id;
+
+  perform public.log_audit(p_company_id, auth.uid(), 'project_created_by_admin', p_owner_user_id, v_id, jsonb_build_object('name', p_name));
+  return v_id;
+end;
+$$;
+revoke execute on function public.admin_create_project(uuid, uuid, text, jsonb, text, date, uuid) from public, anon;
+grant execute on function public.admin_create_project(uuid, uuid, text, jsonb, text, date, uuid) to authenticated;
+
+-- =============================================================================
+-- Admin-side project browsing + dashboard stats
+-- =============================================================================
+create or replace function public.admin_list_projects_overview()
+returns table (
+  id uuid, name text, project_number text, stage text,
+  company_id uuid, company_name text,
+  operational_status public.project_operational_status,
+  project_manager_user_id uuid, project_manager_name text,
+  open_orders bigint, open_services bigint,
+  archived_at timestamptz, updated_at timestamptz, created_at timestamptz
+)
+language sql security definer stable
+set search_path = public
+as $$
+  select
+    p.id, p.name, p.project_number, p.stage,
+    p.company_id, coalesce(c.trading_name, c.legal_name),
+    po.status,
+    p.project_manager_user_id, coalesce(pm_profile.display_name, pm_user.email),
+    (select count(*) from orders o where o.project_id = p.id and o.stage <> 'cancelled'),
+    (select count(*) from service_requests sr where sr.project_id = p.id and sr.status in ('submitted', 'assigned', 'under_review', 'info_required')),
+    po.archived_at, p.updated_at, p.created_at
+  from projects p
+  left join companies c on c.id = p.company_id
+  left join project_operations po on po.project_id = p.id
+  left join auth.users pm_user on pm_user.id = p.project_manager_user_id
+  left join profiles pm_profile on pm_profile.id = p.project_manager_user_id
+  where public.has_permission('projects.list_all') and p.deleted_at is null
+  order by p.updated_at desc;
+$$;
+revoke execute on function public.admin_list_projects_overview() from public, anon;
+grant execute on function public.admin_list_projects_overview() to authenticated;
+
+create or replace function public.admin_projects_requiring_action(p_limit integer default 10)
+returns table (id uuid, name text, project_number text, reason text, project_manager_name text)
+language sql security definer stable
+set search_path = public
+as $$
+  select p.id, p.name, p.project_number,
+    case
+      when p.project_manager_user_id is null then 'No project manager'
+      when po.status = 'delivery' and exists (
+        select 1 from order_deliveries d join orders o on o.id = d.order_id
+        where o.project_id = p.id and o.stage <> 'cancelled' and d.status <> 'delivered'
+      ) then 'Delivery review'
+      else 'Needs attention'
+    end,
+    coalesce(pm_profile.display_name, pm_user.email)
+  from projects p
+  join project_operations po on po.project_id = p.id
+  left join auth.users pm_user on pm_user.id = p.project_manager_user_id
+  left join profiles pm_profile on pm_profile.id = p.project_manager_user_id
+  where public.has_permission('projects.list_all') and p.deleted_at is null and po.archived_at is null
+    and (
+      p.project_manager_user_id is null
+      or (po.status = 'delivery' and exists (
+        select 1 from order_deliveries d join orders o on o.id = d.order_id
+        where o.project_id = p.id and o.stage <> 'cancelled' and d.status <> 'delivered'
+      ))
+    )
+  order by p.updated_at desc
+  limit p_limit;
+$$;
+revoke execute on function public.admin_projects_requiring_action(integer) from public, anon;
+grant execute on function public.admin_projects_requiring_action(integer) to authenticated;
+
+create or replace function public.admin_projects_dashboard_stats()
+returns jsonb
+language plpgsql security definer stable
+set search_path = public
+as $$
+declare
+  v_active integer;
+  v_unassigned integer;
+  v_completion_blocked integer;
+  v_open_services integer;
+  v_workload jsonb;
+begin
+  if not public.has_permission('projects.list_all') then raise exception 'Not authorized'; end if;
+
+  select count(*) into v_active
+  from projects p join project_operations po on po.project_id = p.id
+  where p.deleted_at is null and po.archived_at is null and po.status <> 'completed';
+
+  select count(*) into v_unassigned
+  from projects p join project_operations po on po.project_id = p.id
+  where p.deleted_at is null and po.archived_at is null and p.project_manager_user_id is null;
+
+  select count(*) into v_completion_blocked
+  from projects p
+  join project_operations po on po.project_id = p.id
+  where p.deleted_at is null and po.archived_at is null and po.status = 'delivery'
+    and (
+      exists (
+        select 1 from order_deliveries d join orders o on o.id = d.order_id
+        where o.project_id = p.id and o.stage <> 'cancelled' and d.status <> 'delivered'
+      )
+      or exists (
+        select 1 from orders o where o.project_id = p.id and o.stage <> 'cancelled'
+          and not exists (select 1 from order_deliveries d where d.order_id = o.id)
+      )
+    );
+
+  select count(*) into v_open_services
+  from service_requests where status in ('submitted', 'assigned', 'under_review', 'info_required');
+
+  select coalesce(jsonb_object_agg(request_type, cnt), '{}'::jsonb) into v_workload
+  from (
+    select request_type, count(*) as cnt
+    from service_requests
+    where status in ('submitted', 'assigned', 'under_review', 'info_required')
+    group by request_type
+  ) w;
+
+  return jsonb_build_object(
+    'activeProjects', v_active,
+    'unassigned', v_unassigned,
+    'completionBlocked', v_completion_blocked,
+    'openServices', v_open_services,
+    'serviceWorkload', v_workload
+  );
+end;
+$$;
+revoke execute on function public.admin_projects_dashboard_stats() from public, anon;
+grant execute on function public.admin_projects_dashboard_stats() to authenticated;
+
+-- =============================================================================
+-- Support & Services -- write RPC surface (fills the gap left deliberately
+-- open in the "Support & Services" section above)
+-- =============================================================================
+create or replace function public.create_service_request(
+  p_project_id uuid,
+  p_request_type text,
+  p_category text default null,
+  p_question text default null,
+  p_description text default null,
+  p_drawing_reference text default null,
+  p_meeting_details jsonb default null
+) returns uuid
+language plpgsql security definer
+set search_path = public
+as $$
+declare
+  v_owner uuid;
+  v_company uuid;
+  v_id uuid;
+begin
+  select owner_id, company_id into v_owner, v_company from projects where id = p_project_id;
+  if v_owner is null then raise exception 'Project not found'; end if;
+  if not public.can_edit_project(v_owner, v_company, p_project_id) then raise exception 'Not authorized'; end if;
+  if p_request_type not in ('technical_review', 'pre_start_meeting', 'installation_review', 'product_warranty') then
+    raise exception 'Invalid request type';
+  end if;
+
+  insert into service_requests (project_id, company_id, created_by, request_type, status, category, question, description, drawing_reference, meeting_details)
+  values (p_project_id, v_company, auth.uid(), p_request_type, 'submitted', p_category, p_question, p_description, p_drawing_reference, p_meeting_details)
+  returning id into v_id;
+
+  perform public.log_audit(v_company, auth.uid(), 'service_request_submitted', null, p_project_id, jsonb_build_object('request_type', p_request_type, 'service_request_id', v_id));
+  return v_id;
+end;
+$$;
+revoke execute on function public.create_service_request(uuid, text, text, text, text, text, jsonb) from public, anon;
+grant execute on function public.create_service_request(uuid, text, text, text, text, text, jsonb) to authenticated;
+
+-- Eligibility rules sourced from this bundle's own ProjectLifecycleCard.tsx
+-- copy ("Installation Review becomes available after the first completed
+-- delivery. Product Warranty becomes available after project completion.")
+-- and the internal Lifecycle & Completion design reference's "Service
+-- Eligibility" panel -- both independently describe the same four rules, so
+-- this isn't a guess.
+create or replace function public.service_request_eligibility(p_project_id uuid, p_request_type text)
+returns jsonb
+language plpgsql security definer stable
+set search_path = public
+as $$
+declare
+  v_owner uuid;
+  v_company uuid;
+  v_status public.project_operational_status;
+  v_archived timestamptz;
+  v_has_delivery boolean;
+begin
+  select owner_id, company_id into v_owner, v_company from projects where id = p_project_id;
+  if v_owner is null then raise exception 'Project not found'; end if;
+  if not public.can_view_project(v_owner, v_company, p_project_id) then raise exception 'Not authorised'; end if;
+
+  select status, archived_at into v_status, v_archived from project_operations where project_id = p_project_id;
+
+  if p_request_type in ('technical_review', 'pre_start_meeting') then
+    if v_archived is not null then
+      return jsonb_build_object('available', false, 'reasonCode', 'archived', 'message', 'This project is archived.');
+    end if;
+    return jsonb_build_object('available', true);
+  end if;
+
+  if p_request_type = 'installation_review' then
+    select exists (
+      select 1 from order_deliveries d join orders o on o.id = d.order_id
+      where o.project_id = p_project_id and d.status = 'delivered'
+    ) into v_has_delivery;
+    if v_has_delivery then
+      return jsonb_build_object('available', true);
+    end if;
+    return jsonb_build_object('available', false, 'reasonCode', 'no_completed_delivery', 'message', 'Available after the first completed delivery.');
+  end if;
+
+  if p_request_type = 'product_warranty' then
+    if v_status = 'completed' then
+      return jsonb_build_object('available', true);
+    end if;
+    return jsonb_build_object('available', false, 'reasonCode', 'not_completed', 'message', 'Available after project completion.');
+  end if;
+
+  raise exception 'Invalid request type';
+end;
+$$;
+revoke execute on function public.service_request_eligibility(uuid, text) from public, anon;
+grant execute on function public.service_request_eligibility(uuid, text) to authenticated;
+
+create or replace function public.add_service_request_message(p_service_request_id uuid, p_body text)
+returns uuid
+language plpgsql security definer
+set search_path = public
+as $$
+declare
+  v_owner uuid;
+  v_company uuid;
+  v_project uuid;
+  v_kind text;
+  v_id uuid;
+begin
+  select p.owner_id, p.company_id, sr.project_id into v_owner, v_company, v_project
+  from service_requests sr join projects p on p.id = sr.project_id
+  where sr.id = p_service_request_id;
+  if v_project is null then raise exception 'Service request not found'; end if;
+
+  if public.has_permission('service_requests.manage') then
+    v_kind := 'staff';
+  elsif public.can_view_project(v_owner, v_company, v_project) then
+    v_kind := 'customer';
+  else
+    raise exception 'Not authorized';
+  end if;
+
+  if coalesce(trim(p_body), '') = '' then raise exception 'Message cannot be empty'; end if;
+
+  insert into service_request_messages (service_request_id, author_id, author_kind, body)
+  values (p_service_request_id, auth.uid(), v_kind, trim(p_body))
+  returning id into v_id;
+  return v_id;
+end;
+$$;
+revoke execute on function public.add_service_request_message(uuid, text) from public, anon;
+grant execute on function public.add_service_request_message(uuid, text) to authenticated;
+
+create or replace function public.admin_update_service_request_status(p_service_request_id uuid, p_status text)
+returns void
+language plpgsql security definer
+set search_path = public
+as $$
+begin
+  if not public.has_permission('service_requests.manage') then raise exception 'Not authorized'; end if;
+  if p_status not in ('draft', 'submitted', 'assigned', 'under_review', 'info_required', 'response_issued', 'closed') then
+    raise exception 'Invalid status';
+  end if;
+  update service_requests
+  set status = p_status,
+      closed_at = case when p_status = 'closed' then now() else closed_at end,
+      updated_at = now()
+  where id = p_service_request_id;
+  if not found then raise exception 'Service request not found'; end if;
+end;
+$$;
+revoke execute on function public.admin_update_service_request_status(uuid, text) from public, anon;
+grant execute on function public.admin_update_service_request_status(uuid, text) to authenticated;
+
+create or replace function public.admin_assign_service_request(p_service_request_id uuid, p_staff_user_id uuid)
+returns void
+language plpgsql security definer
+set search_path = public
+as $$
+begin
+  if not public.has_permission('service_requests.manage') then raise exception 'Not authorized'; end if;
+  if not exists (select 1 from profiles where id = p_staff_user_id and role = 'admin') then
+    raise exception 'Assignee must be a Speedpanel staff account';
+  end if;
+  update service_requests
+  set assigned_to = p_staff_user_id,
+      status = case when status = 'submitted' then 'assigned' else status end,
+      updated_at = now()
+  where id = p_service_request_id;
+  if not found then raise exception 'Service request not found'; end if;
+end;
+$$;
+revoke execute on function public.admin_assign_service_request(uuid, uuid) from public, anon;
+grant execute on function public.admin_assign_service_request(uuid, uuid) to authenticated;

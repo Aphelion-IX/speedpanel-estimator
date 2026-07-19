@@ -2,21 +2,19 @@
 // My internal staff role + section/action grants -- for client-side Admin
 // section gating
 // =============================================================================
-// profiles.staff_role and role_permissions no longer exist (see
-// supabase/schema.sql -- the fine-grained internal-role/permissions system
-// was deleted along with the rest of the business layer, calculator-only
-// tables are all that's left). staffRole/myPermissions are kept as fixed
-// null/empty rather than removed from this hook's return shape, so every
-// existing caller (AuthStatus.tsx, adminSectionAccess.ts's canAccessSection,
-// OverviewDashboardPage.tsx) keeps working unchanged -- canAccessSection's
-// own "myRole === null -> always allowed" fallback means a fixed null here
-// makes every Admin section reachable for any profiles.role = 'admin'
-// account, which is exactly the "no more tiers, one admin role" reality now.
+// profiles.staff_role and role_permissions are back (see supabase/schema.sql
+// -- the business layer/dynamic RBAC was restored). staffRole comes straight
+// off profiles.staff_role; myPermissions is built from role_permissions
+// filtered to that role, readable via its own "Staff can read grants for
+// their own role" RLS policy (see schema.sql's "Dynamic RBAC" section) --
+// no RPC needed for that path, same as adminSectionAccess.ts's own comment
+// already expected once this table existed again. staffRole stays null (not
+// an error) for a non-staff account or one with no staff_role assigned yet
+// -- canAccessSection's grandfather clause treats that the same as
+// super_admin, matching has_staff_role()'s own server-side semantics.
 //
-// isInternalStaff (profiles.role = 'admin', the same column is_admin() used
-// to check server-side before that function was deleted too) is the one
-// real signal left -- still a single plain table read, covered by the
-// existing "Users can read own profile" RLS policy.
+// isInternalStaff (profiles.role = 'admin') is unchanged -- still the one
+// plain table read, covered by "Users can read own profile" RLS.
 // =============================================================================
 import { useEffect, useState } from "react";
 import { supabase } from "../../lib/supabaseClient";
@@ -29,22 +27,36 @@ export function useMyInternalRole(userId: string | null): {
   loading: boolean;
 } {
   const [isInternalStaff, setIsInternalStaff] = useState(false);
+  const [staffRole, setStaffRole] = useState<InternalRole | null>(null);
+  const [myPermissions, setMyPermissions] = useState<ReadonlySet<string>>(EMPTY_PERMISSIONS);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!supabase || !userId) { setLoading(false); return; }
     let cancelled = false;
     setLoading(true);
-    supabase.from("profiles").select("role").eq("id", userId).single()
-      .then((result: { data: { role: string | null } | null }) => {
-        if (cancelled) return;
-        setIsInternalStaff(result.data?.role === "admin");
+    (async () => {
+      const { data: profile } = await supabase!.from("profiles").select("role, staff_role").eq("id", userId).single();
+      if (cancelled) return;
+      const admin = profile?.role === "admin";
+      const role = (profile?.staff_role ?? null) as InternalRole | null;
+      setIsInternalStaff(admin);
+      setStaffRole(role);
+
+      if (!admin || !role || role === "super_admin") {
+        setMyPermissions(EMPTY_PERMISSIONS);
         setLoading(false);
-      });
+        return;
+      }
+      const { data: grants } = await supabase!.from("role_permissions").select("permission_key").eq("role", role);
+      if (cancelled) return;
+      setMyPermissions(new Set((grants ?? []).map((g: { permission_key: string }) => g.permission_key)));
+      setLoading(false);
+    })();
     return () => { cancelled = true; };
   }, [userId]);
 
-  return { isInternalStaff, staffRole: null, myPermissions: EMPTY_PERMISSIONS, loading };
+  return { isInternalStaff, staffRole, myPermissions, loading };
 }
 
 const EMPTY_PERMISSIONS: ReadonlySet<string> = new Set();
