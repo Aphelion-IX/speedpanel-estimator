@@ -3,8 +3,7 @@
 // =============================================================================
 // Wall-list management UI: horizontal-only wall system selector (Standard/
 // Corner/Shaft) plus its Corner/Shaft/generic junction link pickers, and the
-// WallsCard itself (system buttons, panel type, name/duplicate/delete). The
-// read-only project-wide walls table now lives in allWallsPage.tsx instead.
+// WallsCard itself (system buttons, panel type, name/duplicate/delete).
 //
 // Forked from what used to be a single file shared with ExternalCalculator
 // (see externalCalculator/wallsCard.tsx for its own, independent copy) --

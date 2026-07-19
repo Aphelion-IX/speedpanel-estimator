@@ -47,7 +47,6 @@ import { WallPreviewSection } from "../ui/wallPreview";
 import { PanelScheduleCard, PanelScheduleTable } from "../ui/scheduleCards";
 import { PanelColourSection } from "./panelColourSection";
 import { EstimateResultsCard } from "./estimateResultsCard";
-import { AllWallsPage } from "./allWallsPage";
 import { OrderReviewDrawer } from "./orderReviewDrawer";
 import { StickyBarTilesPhone } from "./phoneShell";
 import { EstimateTopCard } from "./EstimateTopCard";
@@ -93,7 +92,6 @@ export function ExternalCalculator({
   onGoToProjects: () => void;
 }) {
   const [orderDrawerOpen, setOrderDrawerOpen] = useState(false);
-  const [allWallsOpen, setAllWallsOpen] = useState(false);
   // EstimateTopCard's "View estimate details" link scrolls here rather than
   // navigating anywhere new -- no separate estimate-detail route exists.
   const resultsRef = useRef<HTMLDivElement>(null);
@@ -139,15 +137,16 @@ export function ExternalCalculator({
   ];
 
   // Renders as a full-width card carousel on web (see estimateStructureNav.tsx)
-  // -- rendered inside mainNode below, as the first thing under the "Project
-  // quantities" divider, rather than at the top of the page.
+  // -- rendered inside webWorkspaceNode below, directly under the web "system
+  // configuration" card, and inside mainNode on phone as the first thing
+  // under the "Project quantities" divider.
   const wallNavNode = (
     <EstimateStructureNav
       walls={walls} results={results} activeId={activeId} onSelectWall={setActiveId}
       warnById={warnById} addBlankWall={addBlankWall}
+      duplicateWallById={duplicateWallById} deleteWallById={deleteWallById}
       layoutMode={layoutMode}
       dimUnit={dimUnit} toDisp={toDisp}
-      onViewAll={() => setAllWallsOpen(true)}
     />
   );
 
@@ -247,6 +246,7 @@ export function ExternalCalculator({
         systemSelector={systemSelector}
         onJunctionLink={linkJunctionPartner}
       />
+      {wallNavNode}
 
       <CollapsibleSection icon={<Box size={13} />} label="Panel configuration" badge={panelBadge} defaultOpen>
         <PanelColourSection active={active} update={update} />
@@ -272,7 +272,10 @@ export function ExternalCalculator({
       {workspaceNode}
 
       <ProjectSeparator />
-      {wallNavNode}
+      {/* On web, My Walls now renders up in webWorkspaceNode (directly under
+          WallsCard) instead of here -- phone keeps it here, as the first
+          thing under this separator, same as before. */}
+      {layoutMode === "phone" && wallNavNode}
       <EstimateResultsCard
         layoutMode={layoutMode} results={results}
         projAgg={projAgg} combinedEstimate={combinedEstimate}
@@ -319,17 +322,6 @@ export function ExternalCalculator({
       onGoToProjects={onGoToProjects} onViewDetails={scrollToResults}
     />
   );
-
-  if (allWallsOpen) {
-    return (
-      <AllWallsPage
-        walls={walls} results={results} warnById={warnById} toDisp={toDisp} dimUnit={dimUnit}
-        onSelectWall={id => { setActiveId(id); setAllWallsOpen(false); }}
-        duplicateWallById={duplicateWallById} deleteWallById={deleteWallById}
-        onBack={() => setAllWallsOpen(false)}
-      />
-    );
-  }
 
   if (layoutMode === "phone") return <>{topCardNode}{mainNode}{footerNode}{stickyBarNode}{orderDrawerNode}</>;
   return (

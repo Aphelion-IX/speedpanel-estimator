@@ -17,7 +17,7 @@
 // a Link2-icon thumbnail instead. Phone keeps its own WallPillStripPhone
 // (phoneShell.tsx), now also carrying a thumbnail per pill.
 // =============================================================================
-import { Plus, Link2, Layers } from "lucide-react";
+import { Plus, Link2, Layers, Pencil, Copy, Trash2 } from "lucide-react";
 import { cx, BLUE, NAVY, MUTED, selectableOffCx, goldBubbleFill } from "../styleTokens";
 import type { Wall, WallResult } from "../estimate/wall.types";
 import { kitLabel, type KitEntry } from "../estimate/synthesizeKits";
@@ -69,21 +69,80 @@ const KitThumbnail = () => (
   </div>
 );
 
-type CardItem = ({ type: "wall" } & WallResult) | { type: "kit"; kit: KitEntry };
+// --- WallCard -----------------------------------------------------------------
+// The "My Walls" grid's per-wall card: unlike CardShell (a single <button>,
+// used for kit cards which have no per-card actions), this is a div with its
+// own click handler so Duplicate/Delete can be real nested <button>s -- a
+// <button> can't contain another <button> per the HTML spec.
+const WallCard = ({ wall, out, on, warn, onClick, onDuplicate, onDelete, deleteDisabled, dimUnit, toDisp, walls }: {
+  wall: Wall; out: WallResult["out"]; on: boolean; warn: boolean; onClick: () => void;
+  onDuplicate: () => void; onDelete: () => void; deleteDisabled: boolean;
+  dimUnit: string; toDisp: (m: string) => string; walls: Wall[];
+}) => (
+  <div
+    role="button" tabIndex={0} onClick={onClick}
+    onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick(); } }}
+    className={`group relative flex w-full cursor-pointer flex-col rounded-2xl border-2 bg-white p-3.5 text-left transition-all active:scale-[0.98] dark:bg-slate-800 ${
+      on
+        ? "shadow-[0_1px_1px_rgba(15,23,42,0.04),0_18px_30px_-18px_rgba(0,103,185,0.45)] dark:shadow-[0_1px_1px_rgba(0,0,0,0.2),0_18px_30px_-16px_rgba(58,168,255,0.4)]"
+        : `border-slate-200 dark:border-slate-600 ${selectableOffCx}`
+    }`}
+    style={on ? { borderColor: BLUE } : undefined}>
+    {warn && <span title="Has warnings -- open this wall to see details" className="absolute right-3 top-3 z-10 h-2.5 w-2.5 rounded-full transition-transform group-hover:scale-125" style={goldBubbleFill} />}
+    <WallPreviewSection active={wall} walls={walls} out={out} dimUnit={dimUnit} toDisp={toDisp} size="thumb" />
+    <div className="mt-3 min-w-0">
+      <div className="flex items-center gap-1.5">
+        <span className="truncate text-sm font-bold" style={{ color: NAVY }}>{wall.name}</span>
+        <Pencil size={13} style={{ color: MUTED }} />
+      </div>
+      <div className="mt-0.5 truncate text-xs font-medium" style={{ color: MUTED }}>
+        {wall.orient === "vertical" ? "Vertical" : "Horizontal"} · P{wall.type} · Internal
+      </div>
+    </div>
+    <div className="mt-3 flex items-center gap-3 border-t border-slate-100 dark:border-slate-700 pt-2.5">
+      <button type="button" onClick={e => { e.stopPropagation(); onDuplicate(); }}
+        className="flex items-center gap-1.5 text-xs font-bold" style={{ color: NAVY }}>
+        <Copy size={13} />Duplicate
+      </button>
+      <span className="h-4 w-px bg-slate-200 dark:bg-slate-600" />
+      <button type="button" disabled={deleteDisabled} onClick={e => { e.stopPropagation(); onDelete(); }}
+        className="flex items-center gap-1.5 text-xs font-bold text-red-600 disabled:opacity-40 disabled:pointer-events-none dark:text-red-300">
+        <Trash2 size={13} />Delete
+      </button>
+    </div>
+  </div>
+);
+
+// --- AddWallTile ----------------------------------------------------------------
+// Trailing tile in the "My Walls" carousel -- the sole add-a-wall entry point
+// now that Add corner/Add shaft (rarely used -- corner/shaft walls are set up
+// via the Wall system selector on an existing wall, not created as their own
+// type) and the "View all" link/AllWallsPage are gone: this card grid already
+// shows every wall with Duplicate/Delete inline, which is all AllWallsPage did.
+const AddWallTile = ({ onClick }: { onClick: () => void }) => (
+  <button type="button" onClick={onClick}
+    className={`flex h-full min-h-[220px] w-full flex-col items-center justify-center gap-2.5 rounded-2xl border-2 border-dashed bg-white text-center active:scale-[0.98] transition-all dark:bg-slate-800 ${selectableOffCx}`}
+    style={{ borderColor: BLUE }}>
+    <span className="grid h-10 w-10 place-items-center rounded-full bg-blue-50 dark:bg-blue-900/55">
+      <Plus size={18} style={{ color: BLUE }} />
+    </span>
+    <span className="text-sm font-bold" style={{ color: BLUE }}>Add wall</span>
+  </button>
+);
+
+type CardItem = ({ type: "wall" } & WallResult) | { type: "kit"; kit: KitEntry } | { type: "add" };
 
 export const EstimateStructureNav = ({
   walls, results, kits, selected, onSelect, warnById,
-  addBlankWall, addCornerWall, addShaftWall, layoutMode, dimUnit, toDisp, onViewAll,
+  addBlankWall, duplicateWallById, deleteWallById, layoutMode, dimUnit, toDisp,
 }: {
   walls: Wall[]; results: WallResult[]; kits: KitEntry[];
   selected: SelectedNavItem; onSelect: (item: SelectedNavItem) => void;
   warnById: Record<number, boolean>;
-  addBlankWall: () => void; addCornerWall: () => void; addShaftWall: () => void;
+  addBlankWall: () => void;
+  duplicateWallById: (id: number) => void; deleteWallById: (id: number) => void;
   layoutMode?: EffectiveLayout;
   dimUnit: string; toDisp: (m: string) => string;
-  // Opens the All Walls page (allWallsPage.tsx) -- web only, see the
-  // "View all" link in the header row below.
-  onViewAll: () => void;
 }) => {
   if (layoutMode === "phone") {
     // Add-wall/corner/shaft actions live on ProjectCardPhone (rendered above
@@ -112,6 +171,7 @@ export const EstimateStructureNav = ({
   const items: CardItem[] = [
     ...results.map(r => ({ type: "wall" as const, ...r })),
     ...kits.map(kit => ({ type: "kit" as const, kit })),
+    { type: "add" as const },
   ];
 
   return (
@@ -120,27 +180,28 @@ export const EstimateStructureNav = ({
         <div className={`${cx.cardHd} flex items-center gap-1.5`} style={{ marginTop: 0 }}>
           <Layers size={12} />My Walls ({walls.length + kits.length})
         </div>
-        <button onClick={onViewAll} className="text-xs font-bold hover:underline" style={{ color: BLUE }}>View all</button>
+        <button onClick={addBlankWall}
+          className="flex items-center gap-1.5 rounded-xl border border-blue-100 dark:border-blue-800/80 bg-blue-50/60 dark:bg-blue-900/55 px-3.5 py-2 text-xs font-bold active:scale-95 transition-all"
+          style={{ color: BLUE }}>
+          <Plus size={14} />Add wall
+        </button>
       </div>
       <CardCarousel
         items={items}
-        itemKey={item => (item.type === "wall" ? item.wall.id : kitPillId(item.kit))}
+        itemKey={(item, i) => (item.type === "wall" ? item.wall.id : item.type === "kit" ? kitPillId(item.kit) : `add-${i}`)}
         cardClassName="w-[260px]"
         renderItem={item => item.type === "wall" ? (
-          <CardShell
+          <WallCard
+            wall={item.wall} out={item.out}
             on={selected.type === "wall" && selected.wallId === item.wall.id}
             warn={!!warnById[item.wall.id]}
-            warnTitle="Has warnings -- open this wall to see details"
             onClick={() => onSelect({ type: "wall", wallId: item.wall.id })}
-          >
-            <WallPreviewSection active={item.wall} walls={walls} out={item.out} dimUnit={dimUnit} toDisp={toDisp} size="thumb" />
-            <CardBody
-              title={item.wall.name}
-              subtitle={`${item.wall.orient === "vertical" ? "Vert" : "Horiz"} · P${item.wall.type}${item.out.empty ? "" : ` · ${item.out.area} m2`}`}
-              status={deriveWallStatus(item.wall, item.out)}
-            />
-          </CardShell>
-        ) : (
+            onDuplicate={() => duplicateWallById(item.wall.id)}
+            onDelete={() => deleteWallById(item.wall.id)}
+            deleteDisabled={walls.length === 1}
+            dimUnit={dimUnit} toDisp={toDisp} walls={walls}
+          />
+        ) : item.type === "kit" ? (
           <CardShell
             on={selected.type === "kit" && selected.wallAId === item.kit.wallAId && selected.wallBId === item.kit.wallBId}
             warn={item.kit.result.warnings.length > 0}
@@ -150,21 +211,10 @@ export const EstimateStructureNav = ({
             <KitThumbnail />
             <CardBody title={kitLabel(item.kit, kits)} subtitle={`Links ${item.kit.wallAName} ↔ ${item.kit.wallBName}`} status="linked" />
           </CardShell>
+        ) : (
+          <AddWallTile onClick={addBlankWall} />
         )}
       />
-      <div className="mt-3 grid grid-cols-3 gap-1.5">
-        <AddButton label="Add wall" onClick={addBlankWall} />
-        <AddButton label="Add corner" onClick={addCornerWall} />
-        <AddButton label="Add shaft" onClick={addShaftWall} />
-      </div>
     </div>
   );
 };
-
-const AddButton = ({ label, onClick }: { label: string; onClick: () => void }) => (
-  <button onClick={onClick}
-    className="flex items-center justify-center gap-1.5 rounded-xl border-2 border-dashed px-3.5 py-2.5 text-sm font-bold active:scale-95 transition-all bg-white dark:bg-slate-800"
-    style={{ borderColor: BLUE, color: BLUE }}>
-    <Plus size={14} />{label}
-  </button>
-);
