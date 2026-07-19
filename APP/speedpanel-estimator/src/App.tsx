@@ -5,7 +5,7 @@ import { useThemeMode } from "./useThemeMode";
 import { useAuth } from "./lib/useAuth";
 import { useCompanyMemberships } from "./lib/useCompanyMemberships";
 import { useWallStore } from "./wallStore";
-import { NAVY, BLUE, GOLD } from "./styleTokens";
+import { NAVY } from "./styleTokens";
 import { IconButton } from "./ui/primitives";
 import { ConfirmDialog, ErrorDialog } from "./ui/confirmDialog";
 import { LoadingState } from "./ui/states";
@@ -278,9 +278,9 @@ export default function SpeedpanelEstimator() {
       />
       <ErrorDialog message={pendingCreationError} onDismiss={() => setPendingCreationError(null)} />
       {/* Full-width header bar -- pulled out of the padded content column
-          below so it spans edge to edge, with the brand gradient line as
-          its own bottom edge rather than a separate divider. */}
-      <header className="bg-white/95 backdrop-blur dark:bg-slate-950/95">
+          below so it spans edge to edge. Plain hairline bottom border,
+          not the brand gradient line this used to have. */}
+      <header className="border-b border-slate-200 dark:border-slate-800 bg-white/95 backdrop-blur dark:bg-slate-950/95">
         <div className={layoutMode === "web" ? "mx-auto w-full max-w-[1520px] px-6 py-3" : "mx-auto w-full max-w-md px-3 sm:px-4 py-3"}>
           <TopNav
             activeTab={route.tab}
@@ -298,7 +298,6 @@ export default function SpeedpanelEstimator() {
             </>}
           />
         </div>
-        <div className="h-[2px] w-full" style={{ background: `linear-gradient(90deg, ${NAVY} 0%, ${BLUE} 55%, ${GOLD} 100%)` }} />
       </header>
 
       <div className={layoutMode === "web" ? "mx-auto w-full max-w-[1520px] px-6 pb-16 pt-6" : "mx-auto w-full max-w-md px-3 sm:px-4 pb-24 pt-5"}>
