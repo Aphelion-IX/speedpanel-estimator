@@ -201,11 +201,11 @@ export const JunctionLinkSelector = ({ active, walls, onLink }: {
 // "Panel configuration" block: the 3-way P51/P64/P78 button grid, or (for
 // Shaft wall, which is always 78 mm -- not a user choice) a static badge
 // instead of a disabled grid.
-export const PanelTypeSelector = ({ active, update, topBorder }: {
-  active: Wall; update: (patch: Partial<Wall>) => void; topBorder: boolean;
+export const PanelTypeSelector = ({ active, update, topBorder, headingLabel = "Panel configuration" }: {
+  active: Wall; update: (patch: Partial<Wall>) => void; topBorder: boolean; headingLabel?: string;
 }) => (
   <div className={topBorder ? "border-t border-slate-100 dark:border-slate-700 pt-3" : ""}>
-    <div className={cx.cardHd}>Panel configuration</div>
+    <div className={cx.cardHd}>{headingLabel}</div>
     {active.wallSystem === "shaft" ? (
       <div className="rounded-xl border-2 py-3 px-4 text-center" style={{ borderColor: BLUE, background: BLUE }}>
         <div className="text-base font-black leading-none tracking-tight text-white">78 mm</div>
