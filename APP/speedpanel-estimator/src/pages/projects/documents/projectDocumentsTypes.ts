@@ -14,6 +14,10 @@ export const ProjectDocumentRowSchema = z.object({
   file_name: z.string(),
   file_size: z.number(),
   content_type: z.string().nullable(),
+  // Set when this document was uploaded as a service-request attachment
+  // (see supabase/schema.sql's "Support & Services" section) -- null for an
+  // ordinary whole-project document.
+  service_request_id: z.string().nullable(),
   created_at: z.string(),
 });
 export type ProjectDocumentRow = z.infer<typeof ProjectDocumentRowSchema>;

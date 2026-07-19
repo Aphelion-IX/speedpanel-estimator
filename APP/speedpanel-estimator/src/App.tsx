@@ -313,12 +313,7 @@ export default function SpeedpanelEstimator() {
             isInternalStaff={isInternalStaff} activeCompanyId={company.activeCompanyId} />
         )}
 
-        {route.tab === "order" && (
-          <OrderEntryPage auth={auth} activeCompanyId={company.activeCompanyId}
-            onPickProject={id => navigate({ tab: "projects", id, quickOrder: true })}
-            onGoToProjects={() => navigate({ tab: "projects" })}
-          />
-        )}
+        {route.tab === "order" && <OrderEntryPage />}
 
         {route.tab === "selector"  && (
           <SystemSelector layoutMode={layoutMode} system={system} activeWallSystem={active.wallSystem}

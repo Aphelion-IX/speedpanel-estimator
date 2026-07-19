@@ -58,10 +58,21 @@ export function seedSnapshotForSystem(system: string, wallSystem?: WallSystemId)
 // supabase/schema.sql's "Multi-user company workspaces" section) so
 // teammates see it immediately -- omitted/null keeps today's solo behavior
 // unchanged.
-export async function insertProject(userId: string, name: string, data: SavedProjectData, companyId?: string | null): Promise<{ project: ProjectRow | null; error: string | null }> {
+export interface NewProjectFields {
+  builderName?: string; startDate?: string; projectManagerUserId?: string;
+}
+
+export async function insertProject(
+  userId: string, name: string, data: SavedProjectData, companyId?: string | null, fields?: NewProjectFields,
+): Promise<{ project: ProjectRow | null; error: string | null }> {
   if (!supabase) return { project: null, error: NOT_CONFIGURED };
   const { data: row, error } = await supabase.from("projects")
-    .insert({ owner_id: userId, name, data, company_id: companyId ?? null })
+    .insert({
+      owner_id: userId, name, data, company_id: companyId ?? null,
+      builder_name: fields?.builderName || null,
+      start_date: fields?.startDate || null,
+      project_manager_user_id: fields?.projectManagerUserId || null,
+    })
     .select("*").single();
   if (error) return { project: null, error: error.message };
   const parsed = ProjectRowSchema.safeParse(row);
@@ -95,9 +106,10 @@ export function useProjects(user: User | null, activeCompanyId?: string | null) 
   const createProject = async (
     name: string,
     meta?: { reference?: string; siteAddress?: string; customerName?: string; description?: string },
+    fields?: NewProjectFields,
   ): Promise<{ id: string | null; error: string | null }> => {
     if (!user) return { id: null, error: NOT_SIGNED_IN };
-    const { project, error } = await insertProject(user.id, name, { ...blankSnapshot(), ...meta }, activeCompanyId);
+    const { project, error } = await insertProject(user.id, name, { ...blankSnapshot(), ...meta }, activeCompanyId, fields);
     if (error || !project) return { id: null, error };
     setData(prev => [project, ...prev]);
     return { id: project.id, error: null };

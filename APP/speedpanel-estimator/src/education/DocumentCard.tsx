@@ -12,8 +12,9 @@ import { eduBadgeCx, type EduDocument } from "./catalog";
 
 export const DocumentCard = ({ doc, selected, onSelect, onQuickScan }: { doc: EduDocument; selected: boolean; onSelect: (id: string) => void; onQuickScan: (id: string) => void }) => (
   <div onClick={() => onSelect(doc.id)}
-    className={cx.card + " flex cursor-pointer flex-col gap-3"} style={selected ? { borderColor: BLUE, borderWidth: 2 } : undefined}>
-    <div className="h-24 rounded-lg grid place-items-center" style={{ background: doc.swatch }}>
+    className={cx.card + " flex cursor-pointer flex-col gap-3 transition hover:-translate-y-0.5 hover:shadow-md"}
+    style={selected ? { borderColor: BLUE, borderWidth: 2 } : undefined}>
+    <div className="h-24 rounded-lg grid place-items-center" style={{ background: `linear-gradient(135deg, ${doc.swatch}, color-mix(in srgb, ${doc.swatch} 100%, black 18%))` }}>
       <FileText size={28} color={WHITE} />
     </div>
     <div>
