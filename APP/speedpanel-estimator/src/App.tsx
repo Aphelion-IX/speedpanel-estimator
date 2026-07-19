@@ -26,6 +26,7 @@ import { useHashRoute } from "./appShell/useHashRoute";
 import { ProjectsRouter } from "./pages/projects/ProjectsRouter";
 import { LandingPage } from "./pages/home/LandingPage";
 import { OverviewDashboardPage } from "./pages/home/OverviewDashboardPage";
+import { OrderEntryPage } from "./pages/order/OrderEntryPage";
 import { saveProjectSnapshot } from "./pages/projects/saveProjectSnapshot";
 import { insertProject, seedSnapshotForSystem, useProjects } from "./pages/projects/projectsStore";
 import type { ProjectRow, SavedProjectData } from "./pages/projects/projectTypes";
@@ -310,6 +311,13 @@ export default function SpeedpanelEstimator() {
         {route.tab === "home" && (
           <OverviewDashboardPage auth={auth} navigate={navigate}
             isInternalStaff={isInternalStaff} activeCompanyId={company.activeCompanyId} />
+        )}
+
+        {route.tab === "order" && (
+          <OrderEntryPage auth={auth} activeCompanyId={company.activeCompanyId}
+            onPickProject={id => navigate({ tab: "projects", id, quickOrder: true })}
+            onGoToProjects={() => navigate({ tab: "projects" })}
+          />
         )}
 
         {route.tab === "selector"  && (

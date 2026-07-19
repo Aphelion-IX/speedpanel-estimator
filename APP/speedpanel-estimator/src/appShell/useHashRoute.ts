@@ -20,6 +20,12 @@ export type Route =
   // see src/pages/home/. The default/fallback route (parseHash below),
   // replacing "estimator" in that role.
   | { tab: "home" }
+  // Top-level shortcut into placing an order without going through the
+  // Estimator first -- a lightweight project picker (see
+  // pages/order/OrderEntryPage.tsx) that hands off into the existing
+  // project-scoped quickOrder route below once a project is chosen (orders
+  // always belong to a project -- see that route's own comment).
+  | { tab: "order" }
   | { tab: "estimator" }
   | { tab: "selector" }
   | { tab: "education" }
@@ -61,6 +67,7 @@ function parseHash(hash: string): Route {
     return { tab: "company", sub };
   }
   if (first === "myRequests") return { tab: "myRequests" };
+  if (first === "order") return { tab: "order" };
   if (first === "projects") {
     if (second === "request" && !third) return { tab: "projects", request: true };
     if (second && third === "orders") {
