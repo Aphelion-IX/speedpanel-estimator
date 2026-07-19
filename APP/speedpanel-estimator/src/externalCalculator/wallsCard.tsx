@@ -2,8 +2,7 @@
 // Walls card (External Calculator only)
 // =============================================================================
 // Wall-list management UI: the WallsCard itself (system selector slot,
-// generic junction link picker, name/duplicate/delete). The read-only
-// project-wide walls table now lives in allWallsPage.tsx instead.
+// generic junction link picker, name/duplicate/delete).
 //
 // Forked from what used to be a single file shared with InternalCalculator
 // (see internalCalculator/wallsCard.tsx for its own, independent copy).

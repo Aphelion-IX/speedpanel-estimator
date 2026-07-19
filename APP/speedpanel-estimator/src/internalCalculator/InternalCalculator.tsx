@@ -52,7 +52,6 @@ import type { FinishKey, CornersField } from "./wallConfig";
 import { WallPreviewSection } from "../ui/wallPreview";
 import { PanelScheduleCard, PanelScheduleTable } from "../ui/scheduleCards";
 import { EstimateResultsCard } from "./estimateResultsCard";
-import { AllWallsPage } from "./allWallsPage";
 import { OrderReviewDrawer } from "./orderReviewDrawer";
 import { buildInternalReportData } from "../export/buildInternalReportData";
 import { exportEstimateToExcel } from "../export/exportEstimateToExcel";
@@ -94,7 +93,6 @@ export function InternalCalculator({
 }) {
   const [showTrackFinish, setShowTrackFinish] = useState(false);
   const [orderDrawerOpen, setOrderDrawerOpen] = useState(false);
-  const [allWallsOpen, setAllWallsOpen] = useState(false);
   // EstimateTopCard's "View estimate details" link scrolls here rather than
   // navigating anywhere new -- no separate estimate-detail route exists.
   const resultsRef = useRef<HTMLDivElement>(null);
@@ -104,7 +102,7 @@ export function InternalCalculator({
     walls, activeId, setActiveId,
     projectStock, projectLock, customLengthInput, customActive,
     active, update, toDisp, updDim,
-    setProjectLength, addBlankWall, addCornerWall, addShaftWall, duplicateWall, deleteWall,
+    setProjectLength, addBlankWall, duplicateWall, deleteWall,
     duplicateWallById, deleteWallById,
     commitCustomLength, toggleCustom, clearCustomLength,
     linkJunctionPartner,
@@ -176,18 +174,20 @@ export function InternalCalculator({
         { value: out.empty ? "--" : `${r1(out.chosen?.wastePct ?? 0)}%`, label: "Waste" },
       ];
 
-  // Renders as a full-width card carousel on web (see estimateStructureNav.tsx)
-  // -- rendered inside mainNode below, as the first thing under the "Project
-  // quantities" divider, rather than at the top of the page.
+  // Renders as a full-width card carousel on web, a pill strip on phone (see
+  // estimateStructureNav.tsx) -- directly under WallsCard/KitWorkspace in
+  // webWorkspaceNode, and directly under SystemConfigSectionPhone/
+  // KitWorkspacePhone in phoneWorkspaceNode below (both "system
+  // configuration" for whichever layout is active).
   const wallNavNode = (
     <EstimateStructureNav
       walls={walls} results={results} kits={kits}
       selected={selectedNavItem} onSelect={handleSelectNavItem}
       warnById={warnById}
-      addBlankWall={addBlankWall} addCornerWall={addCornerWall} addShaftWall={addShaftWall}
+      addBlankWall={addBlankWall}
+      duplicateWallById={duplicateWallById} deleteWallById={deleteWallById}
       layoutMode={layoutMode}
       dimUnit={dimUnit} toDisp={toDisp}
-      onViewAll={() => setAllWallsOpen(true)}
     />
   );
 
@@ -254,11 +254,14 @@ export function InternalCalculator({
   const phoneWorkspaceNode = (
     <>
       {selectedKit && (
-        <SheetCardPhone>
-          <SheetSectionPhone icon={<Link2 size={13} />} label="Connection workspace" noDivider>
-            <KitWorkspacePhone kit={selectedKit} onSelect={handleSelectNavItem} />
-          </SheetSectionPhone>
-        </SheetCardPhone>
+        <>
+          <SheetCardPhone>
+            <SheetSectionPhone icon={<Link2 size={13} />} label="Connection workspace" noDivider>
+              <KitWorkspacePhone kit={selectedKit} onSelect={handleSelectNavItem} />
+            </SheetSectionPhone>
+          </SheetCardPhone>
+          {wallNavNode}
+        </>
       )}
       {!selectedKit && (
         <>
@@ -268,6 +271,7 @@ export function InternalCalculator({
             onCornerLink={linkCornerPartner} onShaftLink={linkShaftPartner} onJunctionLink={linkJunctionPartner}
             switchOrient={switchOrient} switchToExternal={switchToExternal}
           />
+          {wallNavNode}
           <GeometrySectionPhone
             active={active} update={update} toDisp={toDisp} updDim={updDim} out={out} orient={orient}
             walls={walls} dimUnit={dimUnit} switchDimUnit={switchDimUnit}
@@ -301,7 +305,10 @@ export function InternalCalculator({
       <StatsGrid stats={selectedItemStats} />
       <SectionLabel icon={<Settings size={13} />}>{`Calculator workspace — ${workspaceTitle}`}</SectionLabel>
       {selectedKit ? (
-        <KitWorkspace kit={selectedKit} onSelect={handleSelectNavItem} />
+        <>
+          <KitWorkspace kit={selectedKit} onSelect={handleSelectNavItem} />
+          {wallNavNode}
+        </>
       ) : (
         <>
           <WallsCard
@@ -313,6 +320,7 @@ export function InternalCalculator({
             onShaftLink={linkShaftPartner}
             onJunctionLink={linkJunctionPartner}
           />
+          {wallNavNode}
 
           <CollapsibleSection icon={<Frame size={13} />} label="Wall geometry" badge={profileLabel} defaultOpen>
             {geometryContent}
@@ -341,7 +349,6 @@ export function InternalCalculator({
 
       {/* Estimate Results: Overview / Selected Wall / Connections / Order tabs */}
       <ProjectSeparator />
-      {wallNavNode}
       <EstimateResultsCard
         layoutMode={layoutMode} results={results} walls={walls} kits={kits}
         projChosenAgg={projChosenAgg} combinedEstimate={combinedEstimate}
@@ -389,17 +396,6 @@ export function InternalCalculator({
       onGoToProjects={onGoToProjects} onViewDetails={scrollToResults}
     />
   );
-
-  if (allWallsOpen) {
-    return (
-      <AllWallsPage
-        walls={walls} results={results} warnById={warnById} toDisp={toDisp} dimUnit={dimUnit}
-        onSelectWall={id => { handleSelectNavItem({ type: "wall", wallId: id }); setAllWallsOpen(false); }}
-        duplicateWallById={duplicateWallById} deleteWallById={deleteWallById}
-        onBack={() => setAllWallsOpen(false)}
-      />
-    );
-  }
 
   if (layoutMode === "phone") return <>{topCardNode}{mainNode}{footerNode}{stickyBarNode}{orderDrawerNode}</>;
   return (

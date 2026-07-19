@@ -1,10 +1,12 @@
 // =============================================================================
 // Card carousel
 // =============================================================================
-// Generic horizontal snap-scroll row of cards + pagination dots underneath
-// that track which card is currently in view (one IntersectionObserver
-// watching every card, rooted to the scroll track) and let a dot click
-// smooth-scroll to that card. Domain-agnostic -- callers (each calculator's
+// Generic horizontal snap-scroll row of cards + prev/next arrow buttons and
+// pagination dots underneath, all driven by one IntersectionObserver
+// (watching every card, rooted to the scroll track) that tracks which card
+// is currently in view -- clicking an arrow or a dot smooth-scrolls to the
+// adjacent/target card. Arrows disable (fade out) at either end rather than
+// wrapping. Domain-agnostic -- callers (each calculator's
 // own estimateStructureNav.tsx) map their own wall/kit data into `items` and
 // render each card via `renderItem`, the same generic-list/render-prop split
 // ui/itemPillScroller.tsx already uses for the phone pill strip. No existing
@@ -13,6 +15,10 @@
 // that component was removed when project mode moved to tabs.
 // =============================================================================
 import { useEffect, useRef, useState } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import { BLUE } from "../styleTokens";
+
+const ARROW_CX = "absolute top-1/2 z-10 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-full border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 shadow-md active:scale-95 transition-all disabled:opacity-0 disabled:pointer-events-none";
 
 export const CardCarousel = <T,>({ items, itemKey, renderItem, cardClassName = "" }: {
   items: T[];
@@ -51,16 +57,30 @@ export const CardCarousel = <T,>({ items, itemKey, renderItem, cardClassName = "
 
   return (
     <div>
-      <div ref={trackRef} className="-mx-1 flex snap-x snap-mandatory gap-4 overflow-x-auto px-1 pb-2" style={{ scrollbarWidth: "none" }}>
-        {items.map((item, i) => (
-          <div
-            key={itemKey(item, i)}
-            ref={el => { cardRefs.current[i] = el; }}
-            className={`shrink-0 snap-start ${cardClassName}`}
-          >
-            {renderItem(item, i)}
-          </div>
-        ))}
+      <div className="relative">
+        {items.length > 1 && (
+          <button type="button" onClick={() => scrollToIndex(active - 1)} disabled={active === 0}
+            aria-label="Scroll to previous" className={`${ARROW_CX} -left-3`}>
+            <ChevronLeft size={16} style={{ color: BLUE }} />
+          </button>
+        )}
+        <div ref={trackRef} className="-mx-1 flex snap-x snap-mandatory gap-4 overflow-x-auto px-1 pb-2" style={{ scrollbarWidth: "none" }}>
+          {items.map((item, i) => (
+            <div
+              key={itemKey(item, i)}
+              ref={el => { cardRefs.current[i] = el; }}
+              className={`shrink-0 snap-start ${cardClassName}`}
+            >
+              {renderItem(item, i)}
+            </div>
+          ))}
+        </div>
+        {items.length > 1 && (
+          <button type="button" onClick={() => scrollToIndex(active + 1)} disabled={active === items.length - 1}
+            aria-label="Scroll to next" className={`${ARROW_CX} -right-3`}>
+            <ChevronRight size={16} style={{ color: BLUE }} />
+          </button>
+        )}
       </div>
       {items.length > 1 && (
         <div className="mt-3 flex items-center justify-center gap-1.5">
