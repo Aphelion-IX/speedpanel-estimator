@@ -25,7 +25,7 @@
 // =============================================================================
 import { useMemo, useState } from "react";
 import { Trash2, Plus } from "lucide-react";
-import { cx, NAVY, BLUE, MUTED, GOLD } from "../../../styleTokens";
+import { cx, NAVY, BLUE, MUTED } from "../../../styleTokens";
 import { Row, IconButton } from "../../../ui/primitives";
 import { Button } from "../../../ui/button";
 import { LoadingState, ErrorState, EmptyState } from "../../../ui/states";
@@ -86,7 +86,7 @@ const QuickOrderItemsTable = ({ items, onQtyChange, onRemove }: {
       key: "item", header: "Item", cell: item => (
         <span style={{ color: NAVY }}>
           {item.label}
-          {!item.matched && <span className="ml-2 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase" style={{ background: GOLD, color: NAVY }}>Not priced</span>}
+          {!item.matched && <span className="ml-2 rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-bold uppercase text-red-700 dark:bg-red-950/30 dark:text-red-300">Not priced</span>}
         </span>
       ),
     },
@@ -267,7 +267,7 @@ export const QuickOrderPage = ({ projectId, auth, onBack, onCreated }: {
         )}
 
         {totals.unpricedItemCount > 0 && (
-          <div className="mt-3 rounded-xl border border-amber-200 dark:border-amber-700/80 bg-amber-50/80 dark:bg-amber-900/50 px-4 py-3 text-sm text-amber-800 dark:text-amber-300">
+          <div className="mt-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300">
             {totals.unpricedItemCount} item{totals.unpricedItemCount !== 1 ? "s" : ""} couldn't be priced automatically -- included at $0, Speedpanel will confirm pricing for these separately.
           </div>
         )}

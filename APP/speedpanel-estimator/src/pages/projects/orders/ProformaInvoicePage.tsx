@@ -14,6 +14,9 @@
 import { useOrder } from "./orderDetailStore";
 import { useOrderDeliveries } from "./orderDeliveriesStore";
 import { useProject } from "../projectDetailStore";
+import { useOrderCommercialSummary } from "./orderOperationsStore";
+import { ORDER_ADJUSTMENT_TYPE_LABELS } from "./orderOperationsTypes";
+
 import { exportOrderToExcel } from "../../../export/exportOrderToExcel";
 import { NAVY, BLUE, MUTED } from "../../../styleTokens";
 
@@ -21,8 +24,9 @@ export const ProformaInvoicePage = ({ orderId, onBack }: { orderId: string; onBa
   const { order, loading: orderLoading, error: orderError } = useOrder(orderId);
   const { deliveries, loading: deliveriesLoading } = useOrderDeliveries(orderId);
   const { project } = useProject(order?.project_id ?? "");
+  const { adjustments, totals, loading: commercialLoading } = useOrderCommercialSummary(orderId);
 
-  if (orderLoading || deliveriesLoading) {
+  if (orderLoading || deliveriesLoading || commercialLoading) {
     return <div className="p-8 text-sm" style={{ color: MUTED }}>Loading...</div>;
   }
 
@@ -48,7 +52,7 @@ export const ProformaInvoicePage = ({ orderId, onBack }: { orderId: string; onBa
     <div className="mx-auto max-w-3xl p-6 sm:p-10" style={{ color: NAVY }}>
       <div className="mb-6 flex items-center justify-between">
         <button onClick={onBack} className="text-sm font-semibold hover:underline" style={{ color: BLUE }}>&larr; Back</button>
-        <button onClick={() => exportOrderToExcel(order, deliveries, project?.name ?? "Project")}
+        <button onClick={() => exportOrderToExcel(order, deliveries, project?.name ?? "Project", { adjustments, totals })}
           className="rounded-xl px-4 py-2 text-sm font-bold text-white" style={{ background: BLUE }}>
           Save as Excel
         </button>
@@ -61,7 +65,7 @@ export const ProformaInvoicePage = ({ orderId, onBack }: { orderId: string; onBa
             <p className="mt-1 text-xs" style={{ color: MUTED }}>Pro forma invoice</p>
           </div>
           <div className="text-right text-xs" style={{ color: MUTED }}>
-            <div>Order ref: {order.id.slice(0, 8).toUpperCase()}</div>
+            <div>Order ref: {order.order_number ?? order.id.slice(0, 8).toUpperCase()}</div>
             <div>Issued {order.proforma_issued_at ? new Date(order.proforma_issued_at).toLocaleDateString() : ""}</div>
           </div>
         </div>
@@ -91,10 +95,19 @@ export const ProformaInvoicePage = ({ orderId, onBack }: { orderId: string; onBa
           </tbody>
         </table>
 
+        {adjustments.length > 0 && (
+          <div className="mt-4 ml-auto max-w-xs space-y-1 text-sm">
+            {adjustments.map(a => (
+              <div key={a.id} className="flex justify-between"><span style={{ color: MUTED }}>{ORDER_ADJUSTMENT_TYPE_LABELS[a.adjustment_type]} -- {a.label}</span><span>${a.amount_ex_gst.toFixed(2)}</span></div>
+            ))}
+          </div>
+        )}
+
         <div className="mt-4 ml-auto max-w-xs space-y-1 text-sm">
-          <div className="flex justify-between"><span style={{ color: MUTED }}>Subtotal (ex GST)</span><span>${order.subtotal_ex_gst.toFixed(2)}</span></div>
-          <div className="flex justify-between"><span style={{ color: MUTED }}>GST ({(order.gst_rate * 100).toFixed(0)}%)</span><span>${order.gst_amount.toFixed(2)}</span></div>
-          <div className="flex justify-between border-t border-slate-200 pt-1 font-bold"><span>Total (inc GST)</span><span>${order.total_inc_gst.toFixed(2)}</span></div>
+          <div className="flex justify-between"><span style={{ color: MUTED }}>Products (ex GST)</span><span>${(totals?.subtotalExGst ?? order.subtotal_ex_gst).toFixed(2)}</span></div>
+          <div className="flex justify-between"><span style={{ color: MUTED }}>Fees / adjustments (ex GST)</span><span>${(totals?.adjustmentTotalExGst ?? 0).toFixed(2)}</span></div>
+          <div className="flex justify-between"><span style={{ color: MUTED }}>GST</span><span>${(totals?.gstAmount ?? order.gst_amount).toFixed(2)}</span></div>
+          <div className="flex justify-between border-t border-slate-200 pt-1 font-bold"><span>Total (inc GST)</span><span>${(totals?.totalIncGst ?? order.total_inc_gst).toFixed(2)}</span></div>
         </div>
 
         <div className="mt-8">

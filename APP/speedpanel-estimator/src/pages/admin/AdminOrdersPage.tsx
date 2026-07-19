@@ -23,12 +23,14 @@ import { cx, NAVY } from "../../styleTokens";
 import { AccordionCard } from "../../ui/primitives";
 import { Button } from "../../ui/button";
 import { LoadingState, ErrorState, EmptyState } from "../../ui/states";
+import { Tabs, TabPanel } from "../../ui/tabs";
 import { TextAreaField } from "../shared/fields";
 import { useAdminOrders } from "./orders/adminOrdersStore";
 import { useOrderDeliveries } from "../projects/orders/orderDeliveriesStore";
 import { OrderLineItemsTable, type DraftLineItem } from "../projects/orders/OrderLineItemsTable";
 import { DeliveryBatchCard } from "../projects/orders/DeliveryBatchCard";
 import { round2 } from "../../export/priceEstimateReportData";
+import { AdminActiveOrdersPage } from "./orders/AdminActiveOrdersPage";
 import type { OrderRow } from "../projects/orders/orderTypes";
 import type { InternalRole } from "../company/staffTypes";
 
@@ -79,7 +81,7 @@ const AdminOrderRow = ({ order, onIssue, onCancel, onRevise }: {
         <div className={cx.footnote}>{new Date(order.proforma_requested_at ?? order.created_at).toLocaleString()}</div>
       </div>
       {order.unpriced_item_count > 0 && (
-        <p className="mt-1 text-sm text-amber-600 dark:text-amber-300">
+        <p className="mt-1 text-sm text-red-600 dark:text-red-300">
           {order.unpriced_item_count} item{order.unpriced_item_count !== 1 ? "s" : ""} not priced automatically -- confirm pricing before issuing.
         </p>
       )}
@@ -139,20 +141,27 @@ export const AdminOrdersPage = ({ userId, staffRole, staffRoleLoading }: {
   userId: string | null; staffRole: InternalRole | null; staffRoleLoading: boolean;
 }) => {
   const { orders, loading, error, reload, issueProforma, cancelOrder, reviseOrder } = useAdminOrders(userId, staffRole, staffRoleLoading);
-
-  if (loading) return <LoadingState className="mt-6" label="Loading orders" />;
-
-  if (error) {
-    return <ErrorState className="mt-6" message={error} onRetry={() => reload()} />;
-  }
-
-  if (orders.length === 0) {
-    return <EmptyState className={`${cx.card} mt-6 text-center`} message="No orders awaiting a decision." />;
-  }
+  const [activeTab, setActiveTab] = useState("review");
 
   return (
     <div className="mt-2">
-      {orders.map(o => <AdminOrderRow key={o.id} order={o} onIssue={issueProforma} onCancel={cancelOrder} onRevise={reviseOrder} />)}
+      <Tabs tabs={[{ id: "review", label: "Review Queue" }, { id: "active", label: "Active Orders" }]} activeId={activeTab} onChange={setActiveTab} />
+
+      <TabPanel id="review" activeId={activeTab}>
+        {loading ? (
+          <LoadingState className="mt-6" label="Loading orders" />
+        ) : error ? (
+          <ErrorState className="mt-6" message={error} onRetry={() => reload()} />
+        ) : orders.length === 0 ? (
+          <EmptyState className={`${cx.card} mt-6 text-center`} message="No orders awaiting a decision." />
+        ) : (
+          orders.map(o => <AdminOrderRow key={o.id} order={o} onIssue={issueProforma} onCancel={cancelOrder} onRevise={reviseOrder} />)
+        )}
+      </TabPanel>
+
+      <TabPanel id="active" activeId={activeTab}>
+        <AdminActiveOrdersPage userId={userId} staffRole={staffRole} staffRoleLoading={staffRoleLoading} />
+      </TabPanel>
     </div>
   );
 };

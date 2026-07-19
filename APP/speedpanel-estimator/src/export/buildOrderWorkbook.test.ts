@@ -17,6 +17,8 @@ function baseOrder(overrides: Partial<OrderRow> = {}): OrderRow {
     proforma_issued_at: "2026-01-03T00:00:00.000Z", cancelled_at: null,
     panels_manufactured: null, manufacturing_est_completion: null,
     company_id: null,
+    order_number: null, order_kind: "standard", source_order_id: null,
+    purchase_order_reference: null, customer_required_date: null,
     created_at: "2026-01-01T00:00:00.000Z", updated_at: "2026-01-03T00:00:00.000Z",
     ...overrides,
   };

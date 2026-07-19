@@ -30,10 +30,13 @@ export const ORDER_STAGE_LABELS: Record<OrderStage, string> = {
 
 // Was local to OrderDetailPage.tsx as STAGE_BADGE_CLASS -- exported here so
 // ProjectDashboard.tsx's orders list can share the same colour convention.
+// proforma_requested stays "info" (not "warn"/amber) per the Orders palette
+// cleanup -- this app's Orders screens are scoped to blue/neutral/cyan/red/
+// green only, no amber/gold/purple.
 export const ORDER_STAGE_BADGE_CLASS: Record<OrderStage, string> = {
   draft: tone("neutral"),
   submitted: tone("info"),
-  proforma_requested: tone("warn"),
+  proforma_requested: tone("info"),
   proforma_issued: tone("ok"),
   cancelled: tone("danger"),
 };
@@ -62,6 +65,14 @@ export const OrderRowSchema = z.object({
   // Mirrors the parent project's company_id (see supabase/schema.sql's
   // sync_order_company_id trigger) -- null for an ordinary solo order.
   company_id: z.string().nullable(),
+  // Orders Operations fields (see supabase/schema.sql) -- order_number is
+  // server-assigned (assign_order_number()), nullable only because rows
+  // created before this column existed have none until backfilled.
+  order_number: z.string().nullable(),
+  order_kind: z.enum(["standard", "repeat", "amendment"]),
+  source_order_id: z.string().nullable(),
+  purchase_order_reference: z.string().nullable(),
+  customer_required_date: z.string().nullable(),
   created_at: z.string(),
   updated_at: z.string(),
 });
@@ -104,12 +115,11 @@ export const DELIVERY_STATUS_LABELS: Record<DeliveryStatus, string> = {
   delivered: "Delivered",
 };
 
-// scheduled stays a literal purple -- a fulfilment-pipeline-only distinction
-// (so it doesn't read identically to in_transit's "info"), not one of the
-// five semantic tones.
+// scheduled uses the shared "info" tone, not a literal purple -- the Orders
+// palette cleanup scopes every Orders badge to blue/neutral/cyan/red/green.
 export const DELIVERY_STATUS_BADGE_CLASS: Record<DeliveryStatus, string> = {
   planned: tone("neutral"),
-  scheduled: "bg-purple-50 dark:bg-purple-950/30 text-purple-700 dark:text-purple-400",
+  scheduled: tone("info"),
   in_transit: tone("info"),
   delivered: tone("ok"),
 };
@@ -138,10 +148,11 @@ export const DELIVERY_AWAITING_DECISION_STATUSES: DeliveryApprovalStatus[] = ["d
 
 // Reuses the shared tone() map -- date_proposed is "info", not "danger",
 // since that means an actual rejection (declined), not just an alternative
-// date being offered.
+// date being offered. pending is also "info" (not "warn"/amber) per the
+// Orders palette cleanup.
 export const DELIVERY_APPROVAL_STATUS_BADGE_CLASS: Record<DeliveryApprovalStatus, string> = {
   draft: tone("neutral"),
-  pending: tone("warn"),
+  pending: tone("info"),
   accepted: tone("ok"),
   date_proposed: tone("info"),
   declined: tone("danger"),

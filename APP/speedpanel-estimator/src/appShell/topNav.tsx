@@ -27,7 +27,7 @@ export type TopNavTab = "home" | "order" | "estimator" | "selector" | "education
 
 const TOP_NAV_ITEMS: { key: TopNavTab; label: string }[] = [
   { key: "home",      label: "Home" },
-  { key: "order",     label: "Order" },
+  { key: "order",     label: "Orders" },
   { key: "projects",  label: "Projects" },
   { key: "selector",  label: "System Selector" },
   { key: "estimator", label: "Project Estimator" },

@@ -112,7 +112,7 @@ export const OrderBuilderPage = ({ projectId, auth, onBack, onCreated }: {
         <p className={cx.footnote}>Review the priced line items below, then continue to arrange delivery.</p>
 
         {totals.unpricedItemCount > 0 && (
-          <div className="mt-3 rounded-xl border border-amber-200 dark:border-amber-700/80 bg-amber-50/80 dark:bg-amber-900/50 px-4 py-3 text-sm text-amber-800 dark:text-amber-300">
+          <div className="mt-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300">
             {totals.unpricedItemCount} item{totals.unpricedItemCount !== 1 ? "s" : ""} couldn't be priced automatically -- included at $0, Speedpanel will confirm pricing for these separately.
           </div>
         )}

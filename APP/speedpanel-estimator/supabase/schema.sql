@@ -5025,3 +5025,1194 @@ end;
 $$;
 revoke execute on function public.admin_assign_service_request(uuid, uuid) from public, anon;
 grant execute on function public.admin_assign_service_request(uuid, uuid) to authenticated;
+
+-- =============================================================================
+-- Orders Operations: internal-facing operational status lifecycle, fees/
+-- discounts/credits, holds, private order documents, accepted-order
+-- immutability and an append-only operations audit
+-- =============================================================================
+-- Layered on top of the existing orders/order_deliveries business layer
+-- above -- adapted from an external drop-in bundle whose migration assumed
+-- can_view_project(project_id)/can_edit_project(project_id) and a zero-arg
+-- has_staff_role() (this file's actual signatures are can_view_project(
+-- owner_id, company_id, project_id)/can_edit_project(owner_id, company_id,
+-- project_id) and has_staff_role(p_roles text[]), see "Multi-user company
+-- workspaces"/"Admin auth" above), same adaptation the "Projects Operations"
+-- section above required. can_view_order()/can_edit_order() below resolve
+-- straight off orders' own owner_id/company_id/project_id columns (no
+-- separate lookup needed, unlike project_operations which had to join out
+-- to `projects`) and delegate to the real 3-arg functions, which already
+-- grandfather is_admin() -- so every "or has_staff_role()"/"or is staff"
+-- read-gate in the source bundle was actually redundant once can_view_order
+-- is right (any admin/staff account already passes is_admin()) and has been
+-- dropped; only genuine STAFF-ONLY WRITE actions (progress/correct/
+-- complete/adjustments/holds/revisions) and the audit-trail read are gated
+-- by has_permission('orders_operations.*') new permission-catalog rows,
+-- matching this file's own has_staff_role() -> has_permission() migration.
+-- order_operations has no direct client-facing UPDATE policy (unlike the
+-- source bundle) -- every status/commercial change goes through the
+-- security-definer RPCs below, which own the optimistic-version check and
+-- the audit trail.
+-- =============================================================================
+
+create type public.order_operational_status as enum (
+  'draft',
+  'submitted',
+  'under_review',
+  'changes_required',
+  'quote_issued',
+  'accepted',
+  'processing',
+  'manufacturing',
+  'ready_for_delivery',
+  'partially_delivered',
+  'completed',
+  'cancelled'
+);
+
+create type public.order_adjustment_type as enum (
+  'delivery_fee',
+  'additional_fee',
+  'discount',
+  'credit'
+);
+
+create type public.order_hold_type as enum (
+  'technical',
+  'pricing',
+  'delivery',
+  'credit',
+  'customer_information',
+  'other'
+);
+
+create type public.order_hold_status as enum (
+  'open',
+  'resolved'
+);
+
+create type public.order_document_type as enum (
+  'purchase_order',
+  'quote',
+  'proforma',
+  'order_confirmation',
+  'drawing',
+  'technical',
+  'delivery',
+  'proof_of_delivery',
+  'invoice',
+  'other'
+);
+
+create type public.order_document_visibility as enum (
+  'customer',
+  'internal'
+);
+
+create type public.order_kind as enum (
+  'standard',
+  'repeat',
+  'amendment'
+);
+
+alter table public.orders
+  add column if not exists order_number text,
+  add column if not exists order_kind public.order_kind not null default 'standard',
+  add column if not exists source_order_id uuid references public.orders(id),
+  add column if not exists purchase_order_reference text,
+  add column if not exists customer_required_date date;
+
+create sequence if not exists public.order_number_seq;
+
+create or replace function public.assign_order_number()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if new.order_number is null then
+    new.order_number := 'ORD-' || to_char(current_date, 'YYYY') || '-' || lpad(nextval('public.order_number_seq')::text, 5, '0');
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists assign_order_number_trigger on public.orders;
+create trigger assign_order_number_trigger
+before insert on public.orders
+for each row execute function public.assign_order_number();
+
+update public.orders
+set order_number = 'ORD-' || to_char(created_at::date, 'YYYY') || '-' || lpad(nextval('public.order_number_seq')::text, 5, '0')
+where order_number is null;
+
+create unique index if not exists orders_order_number_unique on public.orders(order_number) where order_number is not null;
+create index if not exists orders_source_order_idx on public.orders(source_order_id);
+
+create table public.order_operations (
+  order_id uuid primary key references public.orders(id) on delete cascade,
+  company_id uuid references public.companies(id),
+  operational_status public.order_operational_status not null default 'draft',
+  version integer not null default 1 check (version > 0),
+  assigned_to uuid references auth.users(id),
+  customer_action_required boolean not null default false,
+  customer_action_note text,
+  commercial_total_inc_gst numeric(14,2),
+  accepted_at timestamptz,
+  completed_at timestamptz,
+  updated_by uuid references auth.users(id),
+  updated_at timestamptz not null default now()
+);
+
+create index order_operations_company_idx on public.order_operations(company_id, operational_status);
+
+create table public.order_adjustments (
+  id uuid primary key default gen_random_uuid(),
+  order_id uuid not null references public.orders(id) on delete cascade,
+  adjustment_type public.order_adjustment_type not null,
+  label text not null check (length(trim(label)) > 0),
+  amount_ex_gst numeric(14,2) not null,
+  taxable boolean not null default true,
+  created_by uuid not null references auth.users(id),
+  created_at timestamptz not null default now()
+);
+
+create index order_adjustments_order_idx on public.order_adjustments(order_id, created_at);
+
+create table public.order_holds (
+  id uuid primary key default gen_random_uuid(),
+  order_id uuid not null references public.orders(id) on delete cascade,
+  hold_type public.order_hold_type not null,
+  status public.order_hold_status not null default 'open',
+  title text not null check (length(trim(title)) > 0),
+  reason text not null check (length(trim(reason)) > 0),
+  customer_visible boolean not null default false,
+  customer_message text,
+  created_by uuid not null references auth.users(id),
+  created_at timestamptz not null default now(),
+  resolved_by uuid references auth.users(id),
+  resolved_at timestamptz
+);
+
+create index order_holds_order_status_idx on public.order_holds(order_id, status);
+
+create table public.order_documents (
+  id uuid primary key default gen_random_uuid(),
+  order_id uuid not null references public.orders(id) on delete cascade,
+  document_type public.order_document_type not null,
+  visibility public.order_document_visibility not null default 'customer',
+  uploaded_by uuid not null references auth.users(id),
+  storage_path text not null unique,
+  file_name text not null,
+  file_size bigint not null check (file_size >= 0),
+  content_type text,
+  version integer not null default 1 check (version > 0),
+  created_at timestamptz not null default now()
+);
+
+create index order_documents_order_idx on public.order_documents(order_id, created_at desc);
+
+create table public.order_acceptance_snapshots (
+  id uuid primary key default gen_random_uuid(),
+  order_id uuid not null unique references public.orders(id) on delete cascade,
+  line_items jsonb not null,
+  adjustments jsonb not null default '[]'::jsonb,
+  subtotal_ex_gst numeric(14,2) not null,
+  adjustment_total_ex_gst numeric(14,2) not null,
+  gst_amount numeric(14,2) not null,
+  total_inc_gst numeric(14,2) not null,
+  accepted_by uuid not null references auth.users(id),
+  accepted_at timestamptz not null default now()
+);
+
+create table public.order_operations_audit (
+  id uuid primary key default gen_random_uuid(),
+  order_id uuid not null references public.orders(id) on delete cascade,
+  actor_user_id uuid references auth.users(id),
+  event_type text not null,
+  before_value jsonb,
+  after_value jsonb,
+  reason text,
+  created_at timestamptz not null default now()
+);
+
+create index order_operations_audit_order_date_idx on public.order_operations_audit(order_id, created_at desc);
+
+-- Foreign key indexes -- same reasoning as the "Foreign key indexes"
+-- sections above (Postgres auto-indexes primary keys but not referencing
+-- FK columns).
+create index if not exists idx_order_operations_updated_by on public.order_operations (updated_by);
+create index if not exists idx_order_operations_assigned_to on public.order_operations (assigned_to);
+create index if not exists idx_order_adjustments_created_by on public.order_adjustments (created_by);
+create index if not exists idx_order_holds_created_by on public.order_holds (created_by);
+create index if not exists idx_order_holds_resolved_by on public.order_holds (resolved_by);
+create index if not exists idx_order_documents_uploaded_by on public.order_documents (uploaded_by);
+create index if not exists idx_order_acceptance_snapshots_accepted_by on public.order_acceptance_snapshots (accepted_by);
+create index if not exists idx_order_operations_audit_actor_user_id on public.order_operations_audit (actor_user_id);
+
+-- Real ownership resolution: `orders` already carries owner_id/company_id/
+-- project_id directly (unlike project_operations, which had to join out to
+-- `projects`), so these delegate straight to the real 3-arg
+-- can_view_project()/can_edit_project() -- both already grandfather
+-- is_admin(), so no separate staff bypass is needed anywhere these are used.
+create or replace function public.can_view_order(p_order_id uuid) returns boolean
+language sql stable security definer set search_path = public
+as $$
+  select coalesce((
+    select public.can_view_project(o.owner_id, o.company_id, o.project_id)
+    from public.orders o where o.id = p_order_id
+  ), false)
+$$;
+revoke execute on function public.can_view_order(uuid) from public, anon;
+grant execute on function public.can_view_order(uuid) to authenticated;
+
+create or replace function public.can_edit_order(p_order_id uuid) returns boolean
+language sql stable security definer set search_path = public
+as $$
+  select coalesce((
+    select public.can_edit_project(o.owner_id, o.company_id, o.project_id)
+    from public.orders o where o.id = p_order_id
+  ), false)
+$$;
+revoke execute on function public.can_edit_order(uuid) from public, anon;
+grant execute on function public.can_edit_order(uuid) to authenticated;
+
+create or replace function public.map_order_stage_to_operational_status(p_stage text)
+returns public.order_operational_status
+language sql immutable
+set search_path = public
+as $$
+  select case p_stage
+    when 'draft' then 'draft'
+    when 'submitted' then 'submitted'
+    when 'proforma_requested' then 'under_review'
+    when 'proforma_issued' then 'quote_issued'
+    when 'cancelled' then 'cancelled'
+    else 'draft'
+  end::public.order_operational_status
+$$;
+
+create or replace function public.order_transition_allowed(p_from public.order_operational_status, p_to public.order_operational_status)
+returns boolean
+language sql immutable
+set search_path = public
+as $$
+  select case p_from
+    when 'draft' then p_to in ('submitted', 'cancelled')
+    when 'submitted' then p_to in ('under_review', 'cancelled')
+    when 'under_review' then p_to in ('changes_required', 'quote_issued', 'cancelled')
+    when 'changes_required' then p_to in ('under_review', 'cancelled')
+    when 'quote_issued' then p_to in ('accepted', 'changes_required', 'cancelled')
+    when 'accepted' then p_to = 'processing'
+    when 'processing' then p_to = 'manufacturing'
+    when 'manufacturing' then p_to = 'ready_for_delivery'
+    when 'ready_for_delivery' then p_to = 'partially_delivered'
+    else false
+  end
+$$;
+
+create or replace function public.ensure_order_operations(p_order_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_order public.orders;
+begin
+  if not public.can_view_order(p_order_id) then
+    raise exception 'Not authorised';
+  end if;
+
+  select * into v_order from public.orders where id = p_order_id;
+  if v_order.id is null then raise exception 'Order not found'; end if;
+
+  insert into public.order_operations (order_id, company_id, operational_status, commercial_total_inc_gst)
+  values (p_order_id, v_order.company_id, public.map_order_stage_to_operational_status(v_order.stage::text), v_order.total_inc_gst)
+  on conflict (order_id) do nothing;
+end;
+$$;
+
+create or replace function public.sync_order_operations_from_order()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_before public.order_operations;
+  v_after public.order_operations;
+  v_mapped public.order_operational_status;
+begin
+  v_mapped := public.map_order_stage_to_operational_status(new.stage::text);
+
+  insert into public.order_operations (order_id, company_id, operational_status, commercial_total_inc_gst, updated_by)
+  values (new.id, new.company_id, v_mapped, new.total_inc_gst, auth.uid())
+  on conflict (order_id) do update set company_id = excluded.company_id;
+
+  select * into v_before from public.order_operations where order_id = new.id;
+
+  if tg_op = 'UPDATE'
+     and old.stage is distinct from new.stage
+     and v_before.operational_status in ('draft', 'submitted', 'under_review', 'changes_required', 'quote_issued') then
+    update public.order_operations
+    set operational_status = v_mapped,
+        version = version + 1,
+        customer_action_required = false,
+        customer_action_note = null,
+        updated_by = auth.uid(),
+        updated_at = now()
+    where order_id = new.id
+    returning * into v_after;
+
+    insert into public.order_operations_audit (order_id, actor_user_id, event_type, before_value, after_value)
+    values (new.id, auth.uid(), 'source_stage_synced', to_jsonb(v_before), to_jsonb(v_after));
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists sync_order_operations_trigger on public.orders;
+create trigger sync_order_operations_trigger
+after insert or update of stage, company_id on public.orders
+for each row execute function public.sync_order_operations_from_order();
+
+insert into public.order_operations (order_id, company_id, operational_status, commercial_total_inc_gst)
+select id, company_id, public.map_order_stage_to_operational_status(stage::text), total_inc_gst
+from public.orders
+on conflict (order_id) do update set company_id = excluded.company_id;
+
+create or replace function public.order_commercial_totals(p_order_id uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+declare
+  v_subtotal numeric(14,2);
+  v_gst_rate numeric(8,4);
+  v_adjustments numeric(14,2);
+  v_taxable_adjustments numeric(14,2);
+  v_gst numeric(14,2);
+begin
+  if not public.can_view_order(p_order_id) then
+    raise exception 'Not authorised';
+  end if;
+
+  select subtotal_ex_gst, gst_rate into v_subtotal, v_gst_rate from public.orders where id = p_order_id;
+  if v_subtotal is null then raise exception 'Order not found'; end if;
+
+  select coalesce(sum(amount_ex_gst), 0), coalesce(sum(amount_ex_gst) filter (where taxable), 0)
+  into v_adjustments, v_taxable_adjustments
+  from public.order_adjustments where order_id = p_order_id;
+
+  v_gst := round((v_subtotal + v_taxable_adjustments) * v_gst_rate, 2);
+
+  return jsonb_build_object(
+    'subtotalExGst', v_subtotal,
+    'adjustmentTotalExGst', v_adjustments,
+    'taxableAdjustmentTotalExGst', v_taxable_adjustments,
+    'gstAmount', v_gst,
+    'totalIncGst', round(v_subtotal + v_adjustments + v_gst, 2)
+  );
+end;
+$$;
+
+create or replace function public.refresh_order_commercial_total(p_order_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_totals jsonb;
+begin
+  v_totals := public.order_commercial_totals(p_order_id);
+  update public.order_operations
+  set commercial_total_inc_gst = (v_totals ->> 'totalIncGst')::numeric, updated_at = now()
+  where order_id = p_order_id;
+end;
+$$;
+
+create or replace function public.prevent_accepted_order_mutation()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_order_id uuid;
+begin
+  v_order_id := case when tg_op = 'DELETE' then old.id else new.id end;
+
+  if not exists (select 1 from public.order_acceptance_snapshots where order_id = v_order_id) then
+    if tg_op = 'DELETE' then return old; end if;
+    return new;
+  end if;
+
+  if tg_op = 'DELETE' then
+    raise exception 'Accepted orders are immutable; create an amendment';
+  end if;
+
+  if old.project_id is distinct from new.project_id
+     or old.owner_id is distinct from new.owner_id
+     or old.stage is distinct from new.stage
+     or old.line_items is distinct from new.line_items
+     or old.subtotal_ex_gst is distinct from new.subtotal_ex_gst
+     or old.gst_rate is distinct from new.gst_rate
+     or old.gst_amount is distinct from new.gst_amount
+     or old.total_inc_gst is distinct from new.total_inc_gst
+     or old.unpriced_item_count is distinct from new.unpriced_item_count
+     or old.customer_note is distinct from new.customer_note
+     or old.company_id is distinct from new.company_id
+     or old.order_kind is distinct from new.order_kind
+     or old.source_order_id is distinct from new.source_order_id
+     or old.purchase_order_reference is distinct from new.purchase_order_reference
+     or old.customer_required_date is distinct from new.customer_required_date then
+    raise exception 'Accepted orders are immutable; create an amendment';
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists prevent_accepted_order_update_trigger on public.orders;
+create trigger prevent_accepted_order_update_trigger
+before update on public.orders
+for each row execute function public.prevent_accepted_order_mutation();
+
+drop trigger if exists prevent_accepted_order_delete_trigger on public.orders;
+create trigger prevent_accepted_order_delete_trigger
+before delete on public.orders
+for each row execute function public.prevent_accepted_order_mutation();
+
+create or replace function public.add_order_adjustment(
+  p_order_id uuid, p_adjustment_type public.order_adjustment_type, p_label text, p_amount_ex_gst numeric, p_taxable boolean
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_id uuid;
+begin
+  if not public.has_permission('orders_operations.manage_commercial') then
+    raise exception 'Not authorized';
+  end if;
+
+  if exists (select 1 from public.order_acceptance_snapshots where order_id = p_order_id) then
+    raise exception 'Accepted orders are immutable; create an amendment';
+  end if;
+
+  if length(trim(coalesce(p_label, ''))) = 0 then
+    raise exception 'Adjustment label is required';
+  end if;
+
+  if p_adjustment_type in ('discount', 'credit') and p_amount_ex_gst > 0 then
+    p_amount_ex_gst := -p_amount_ex_gst;
+  elsif p_adjustment_type in ('delivery_fee', 'additional_fee') and p_amount_ex_gst < 0 then
+    p_amount_ex_gst := abs(p_amount_ex_gst);
+  end if;
+
+  insert into public.order_adjustments (order_id, adjustment_type, label, amount_ex_gst, taxable, created_by)
+  values (p_order_id, p_adjustment_type, trim(p_label), round(p_amount_ex_gst, 2), p_taxable, auth.uid())
+  returning id into v_id;
+
+  perform public.refresh_order_commercial_total(p_order_id);
+
+  insert into public.order_operations_audit (order_id, actor_user_id, event_type, after_value)
+  values (p_order_id, auth.uid(), 'adjustment_added',
+    jsonb_build_object('adjustmentId', v_id, 'type', p_adjustment_type, 'label', trim(p_label), 'amountExGst', round(p_amount_ex_gst, 2)));
+
+  return v_id;
+end;
+$$;
+
+create or replace function public.remove_order_adjustment(p_adjustment_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_adjustment public.order_adjustments;
+begin
+  if not public.has_permission('orders_operations.manage_commercial') then
+    raise exception 'Not authorized';
+  end if;
+
+  select * into v_adjustment from public.order_adjustments where id = p_adjustment_id;
+  if v_adjustment.id is null then raise exception 'Adjustment not found'; end if;
+
+  if exists (select 1 from public.order_acceptance_snapshots where order_id = v_adjustment.order_id) then
+    raise exception 'Accepted orders are immutable; create an amendment';
+  end if;
+
+  delete from public.order_adjustments where id = p_adjustment_id;
+  perform public.refresh_order_commercial_total(v_adjustment.order_id);
+
+  insert into public.order_operations_audit (order_id, actor_user_id, event_type, before_value)
+  values (v_adjustment.order_id, auth.uid(), 'adjustment_removed', to_jsonb(v_adjustment));
+end;
+$$;
+
+create or replace function public.list_order_holds(p_order_id uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+declare
+  v_result jsonb;
+begin
+  if not public.can_view_order(p_order_id) then
+    raise exception 'Not authorised';
+  end if;
+
+  if public.is_admin() then
+    select coalesce(jsonb_agg(to_jsonb(h) order by h.created_at desc), '[]'::jsonb)
+    into v_result from public.order_holds h where h.order_id = p_order_id;
+  else
+    select coalesce(jsonb_agg(
+      jsonb_build_object(
+        'id', h.id, 'order_id', h.order_id, 'hold_type', h.hold_type, 'status', h.status,
+        'title', h.title, 'reason', null, 'customer_visible', h.customer_visible,
+        'customer_message', h.customer_message, 'created_by', h.created_by, 'created_at', h.created_at,
+        'resolved_by', null, 'resolved_at', h.resolved_at
+      ) order by h.created_at desc
+    ), '[]'::jsonb)
+    into v_result from public.order_holds h where h.order_id = p_order_id and h.customer_visible;
+  end if;
+
+  return v_result;
+end;
+$$;
+
+create or replace function public.place_order_hold(
+  p_order_id uuid, p_hold_type public.order_hold_type, p_title text, p_reason text,
+  p_customer_visible boolean, p_customer_message text default null
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_id uuid;
+begin
+  if not public.has_permission('orders_operations.manage_holds') then
+    raise exception 'Not authorized';
+  end if;
+
+  if length(trim(coalesce(p_title, ''))) = 0 or length(trim(coalesce(p_reason, ''))) = 0 then
+    raise exception 'Hold title and reason are required';
+  end if;
+
+  insert into public.order_holds (order_id, hold_type, title, reason, customer_visible, customer_message, created_by)
+  values (p_order_id, p_hold_type, trim(p_title), trim(p_reason), p_customer_visible, nullif(trim(coalesce(p_customer_message, '')), ''), auth.uid())
+  returning id into v_id;
+
+  if p_customer_visible then
+    update public.order_operations
+    set customer_action_required = true,
+        customer_action_note = coalesce(nullif(trim(coalesce(p_customer_message, '')), ''), trim(p_title)),
+        updated_by = auth.uid(), updated_at = now()
+    where order_id = p_order_id;
+  end if;
+
+  insert into public.order_operations_audit (order_id, actor_user_id, event_type, after_value, reason)
+  values (p_order_id, auth.uid(), 'hold_placed',
+    jsonb_build_object('holdId', v_id, 'type', p_hold_type, 'title', trim(p_title), 'customerVisible', p_customer_visible),
+    trim(p_reason));
+
+  return v_id;
+end;
+$$;
+
+create or replace function public.resolve_order_hold(p_hold_id uuid, p_note text default null)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_hold public.order_holds;
+  v_remaining_customer_holds integer;
+begin
+  if not public.has_permission('orders_operations.manage_holds') then
+    raise exception 'Not authorized';
+  end if;
+
+  select * into v_hold from public.order_holds where id = p_hold_id for update;
+  if v_hold.id is null then raise exception 'Hold not found'; end if;
+  if v_hold.status = 'resolved' then return; end if;
+
+  update public.order_holds set status = 'resolved', resolved_by = auth.uid(), resolved_at = now() where id = p_hold_id;
+
+  select count(*) into v_remaining_customer_holds
+  from public.order_holds where order_id = v_hold.order_id and status = 'open' and customer_visible;
+
+  if v_remaining_customer_holds = 0 then
+    update public.order_operations
+    set customer_action_required = false, customer_action_note = null, updated_by = auth.uid(), updated_at = now()
+    where order_id = v_hold.order_id;
+  end if;
+
+  insert into public.order_operations_audit (order_id, actor_user_id, event_type, before_value, reason)
+  values (v_hold.order_id, auth.uid(), 'hold_resolved', to_jsonb(v_hold), nullif(trim(coalesce(p_note, '')), ''));
+end;
+$$;
+
+create or replace function public.progress_order_operational_status(
+  p_order_id uuid, p_to_status public.order_operational_status, p_expected_version integer
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_before public.order_operations;
+  v_after public.order_operations;
+begin
+  if not public.has_permission('orders_operations.progress_status') then
+    raise exception 'Not authorized';
+  end if;
+
+  select * into v_before from public.order_operations where order_id = p_order_id for update;
+  if v_before.version <> p_expected_version then raise exception 'Order was changed by another user'; end if;
+
+  if not public.order_transition_allowed(v_before.operational_status, p_to_status) then
+    raise exception 'The requested status transition is not allowed';
+  end if;
+
+  if p_to_status in ('accepted', 'completed', 'cancelled') then
+    raise exception 'Use the dedicated acceptance, completion or cancellation action';
+  end if;
+
+  if exists (select 1 from public.order_holds where order_id = p_order_id and status = 'open') then
+    raise exception 'Resolve all order holds before progressing';
+  end if;
+
+  update public.order_operations
+  set operational_status = p_to_status, version = version + 1, updated_by = auth.uid(), updated_at = now()
+  where order_id = p_order_id
+  returning * into v_after;
+
+  insert into public.order_operations_audit (order_id, actor_user_id, event_type, before_value, after_value)
+  values (p_order_id, auth.uid(), 'status_progressed', to_jsonb(v_before), to_jsonb(v_after));
+end;
+$$;
+
+create or replace function public.correct_order_operational_status(
+  p_order_id uuid, p_to_status public.order_operational_status, p_expected_version integer, p_reason text
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_before public.order_operations;
+  v_after public.order_operations;
+begin
+  if not public.has_permission('orders_operations.correct_status') then
+    raise exception 'Not authorized';
+  end if;
+
+  if length(trim(coalesce(p_reason, ''))) = 0 then raise exception 'A correction reason is required'; end if;
+
+  select * into v_before from public.order_operations where order_id = p_order_id for update;
+  if v_before.version <> p_expected_version then raise exception 'Order was changed by another user'; end if;
+
+  if exists (select 1 from public.order_acceptance_snapshots where order_id = p_order_id)
+     and p_to_status in ('draft', 'submitted', 'under_review', 'changes_required', 'quote_issued') then
+    raise exception 'Accepted orders cannot return to a pre-acceptance state';
+  end if;
+
+  update public.order_operations
+  set operational_status = p_to_status,
+      completed_at = case when p_to_status = 'completed' then coalesce(completed_at, now()) else null end,
+      version = version + 1, updated_by = auth.uid(), updated_at = now()
+  where order_id = p_order_id
+  returning * into v_after;
+
+  insert into public.order_operations_audit (order_id, actor_user_id, event_type, before_value, after_value, reason)
+  values (p_order_id, auth.uid(), 'status_corrected', to_jsonb(v_before), to_jsonb(v_after), trim(p_reason));
+end;
+$$;
+
+create or replace function public.set_order_customer_action(
+  p_order_id uuid, p_required boolean, p_note text, p_expected_version integer
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_before public.order_operations;
+  v_after public.order_operations;
+begin
+  if not public.has_permission('orders_operations.correct_status') then
+    raise exception 'Not authorized';
+  end if;
+
+  if p_required and length(trim(coalesce(p_note, ''))) = 0 then
+    raise exception 'A customer message is required when action is required';
+  end if;
+
+  if not p_required and exists (
+    select 1 from public.order_holds where order_id = p_order_id and status = 'open' and customer_visible
+  ) then
+    raise exception 'Resolve customer-visible holds before clearing the action';
+  end if;
+
+  select * into v_before from public.order_operations where order_id = p_order_id for update;
+  if v_before.version <> p_expected_version then raise exception 'Order was changed by another user'; end if;
+
+  update public.order_operations
+  set customer_action_required = p_required,
+      customer_action_note = case when p_required then trim(p_note) else null end,
+      version = version + 1, updated_by = auth.uid(), updated_at = now()
+  where order_id = p_order_id
+  returning * into v_after;
+
+  insert into public.order_operations_audit (order_id, actor_user_id, event_type, before_value, after_value)
+  values (p_order_id, auth.uid(), 'customer_action_updated', to_jsonb(v_before), to_jsonb(v_after));
+end;
+$$;
+
+create or replace function public.accept_order_quote(p_order_id uuid, p_expected_version integer)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_order public.orders;
+  v_before public.order_operations;
+  v_after public.order_operations;
+  v_totals jsonb;
+  v_adjustments jsonb;
+begin
+  if not public.can_edit_order(p_order_id) then
+    raise exception 'Not authorised';
+  end if;
+
+  select * into v_order from public.orders where id = p_order_id for update;
+  select * into v_before from public.order_operations where order_id = p_order_id for update;
+  if v_before.version <> p_expected_version then raise exception 'Order was changed by another user'; end if;
+  if v_before.operational_status <> 'quote_issued' then raise exception 'The order quote is not ready for acceptance'; end if;
+  if v_order.unpriced_item_count > 0 then raise exception 'All unpriced items must be resolved before acceptance'; end if;
+
+  if exists (select 1 from public.order_holds where order_id = p_order_id and status = 'open') then
+    raise exception 'Resolve all order holds before acceptance';
+  end if;
+  if exists (select 1 from public.order_acceptance_snapshots where order_id = p_order_id) then
+    raise exception 'This order has already been accepted';
+  end if;
+
+  v_totals := public.order_commercial_totals(p_order_id);
+
+  select coalesce(jsonb_agg(
+    jsonb_build_object('adjustmentType', a.adjustment_type, 'label', a.label, 'amountExGst', a.amount_ex_gst, 'taxable', a.taxable)
+    order by a.created_at
+  ), '[]'::jsonb)
+  into v_adjustments from public.order_adjustments a where a.order_id = p_order_id;
+
+  insert into public.order_acceptance_snapshots (
+    order_id, line_items, adjustments, subtotal_ex_gst, adjustment_total_ex_gst, gst_amount, total_inc_gst, accepted_by
+  )
+  values (
+    p_order_id, v_order.line_items, v_adjustments,
+    (v_totals ->> 'subtotalExGst')::numeric, (v_totals ->> 'adjustmentTotalExGst')::numeric,
+    (v_totals ->> 'gstAmount')::numeric, (v_totals ->> 'totalIncGst')::numeric, auth.uid()
+  );
+
+  update public.order_operations
+  set operational_status = 'accepted',
+      commercial_total_inc_gst = (v_totals ->> 'totalIncGst')::numeric,
+      accepted_at = now(), customer_action_required = false, customer_action_note = null,
+      version = version + 1, updated_by = auth.uid(), updated_at = now()
+  where order_id = p_order_id
+  returning * into v_after;
+
+  insert into public.order_operations_audit (order_id, actor_user_id, event_type, before_value, after_value)
+  values (p_order_id, auth.uid(), 'order_accepted', to_jsonb(v_before), to_jsonb(v_after));
+end;
+$$;
+
+create or replace function public.request_order_changes(p_order_id uuid, p_note text, p_expected_version integer)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_before public.order_operations;
+  v_after public.order_operations;
+begin
+  if not public.can_edit_order(p_order_id) then raise exception 'Not authorised'; end if;
+  if length(trim(coalesce(p_note, ''))) = 0 then raise exception 'Describe the required changes'; end if;
+
+  select * into v_before from public.order_operations where order_id = p_order_id for update;
+  if v_before.version <> p_expected_version then raise exception 'Order was changed by another user'; end if;
+  if v_before.operational_status <> 'quote_issued' then raise exception 'Changes can only be requested from a quote'; end if;
+
+  update public.order_operations
+  set operational_status = 'changes_required', version = version + 1, updated_by = auth.uid(), updated_at = now()
+  where order_id = p_order_id
+  returning * into v_after;
+
+  insert into public.order_operations_audit (order_id, actor_user_id, event_type, before_value, after_value, reason)
+  values (p_order_id, auth.uid(), 'customer_changes_requested', to_jsonb(v_before), to_jsonb(v_after), trim(p_note));
+end;
+$$;
+
+create or replace function public.order_completion_check(p_order_id uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+declare
+  v_open_holds integer;
+  v_delivery_count integer;
+  v_undelivered integer;
+  v_status public.order_operational_status;
+  v_blockers text[] := array[]::text[];
+begin
+  if not public.can_view_order(p_order_id) then
+    raise exception 'Not authorised';
+  end if;
+
+  select operational_status into v_status from public.order_operations where order_id = p_order_id;
+  select count(*) into v_open_holds from public.order_holds where order_id = p_order_id and status = 'open';
+  select count(*), count(*) filter (where status <> 'delivered')
+  into v_delivery_count, v_undelivered
+  from public.order_deliveries where order_id = p_order_id;
+
+  if v_status not in ('ready_for_delivery', 'partially_delivered') then
+    v_blockers := array_append(v_blockers, 'Order must be ready for delivery or partially delivered.');
+  end if;
+  if v_open_holds > 0 then v_blockers := array_append(v_blockers, 'Resolve all order holds.'); end if;
+  if v_delivery_count = 0 then v_blockers := array_append(v_blockers, 'At least one delivery is required.'); end if;
+  if v_undelivered > 0 then v_blockers := array_append(v_blockers, 'All deliveries must be delivered.'); end if;
+
+  return jsonb_build_object(
+    'canComplete', cardinality(v_blockers) = 0, 'blockers', to_jsonb(v_blockers),
+    'openHolds', v_open_holds, 'deliveryCount', v_delivery_count, 'undeliveredDeliveries', v_undelivered
+  );
+end;
+$$;
+
+create or replace function public.complete_order(p_order_id uuid, p_expected_version integer)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_before public.order_operations;
+  v_after public.order_operations;
+  v_check jsonb;
+begin
+  if not public.has_permission('orders_operations.complete') then
+    raise exception 'Not authorized';
+  end if;
+
+  select * into v_before from public.order_operations where order_id = p_order_id for update;
+  if v_before.version <> p_expected_version then raise exception 'Order was changed by another user'; end if;
+
+  v_check := public.order_completion_check(p_order_id);
+  if not (v_check ->> 'canComplete')::boolean then
+    raise exception 'Order cannot be completed: %', v_check -> 'blockers';
+  end if;
+
+  update public.order_operations
+  set operational_status = 'completed', completed_at = now(), version = version + 1, updated_by = auth.uid(), updated_at = now()
+  where order_id = p_order_id
+  returning * into v_after;
+
+  insert into public.order_operations_audit (order_id, actor_user_id, event_type, before_value, after_value)
+  values (p_order_id, auth.uid(), 'order_completed', to_jsonb(v_before), to_jsonb(v_after));
+end;
+$$;
+
+create or replace function public.copy_order_to_draft(p_source_order_id uuid, p_kind public.order_kind, p_reason text default null)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_source public.orders;
+  v_new_id uuid;
+  v_source_status public.order_operational_status;
+begin
+  if not public.can_edit_order(p_source_order_id) then raise exception 'Not authorised'; end if;
+
+  select * into v_source from public.orders where id = p_source_order_id;
+  select operational_status into v_source_status from public.order_operations where order_id = p_source_order_id;
+
+  if p_kind = 'repeat' and v_source_status not in ('accepted', 'processing', 'manufacturing', 'ready_for_delivery', 'partially_delivered', 'completed') then
+    raise exception 'Only accepted or completed orders can be repeated';
+  end if;
+  if p_kind = 'amendment' and v_source_status not in ('accepted', 'processing', 'manufacturing', 'ready_for_delivery', 'partially_delivered') then
+    raise exception 'Only an accepted active order can be amended';
+  end if;
+
+  insert into public.orders (
+    project_id, owner_id, stage, line_items, subtotal_ex_gst, gst_rate, gst_amount, total_inc_gst,
+    unpriced_item_count, customer_note, company_id, order_kind, source_order_id, purchase_order_reference, customer_required_date
+  )
+  values (
+    v_source.project_id, auth.uid(), 'draft', v_source.line_items, v_source.subtotal_ex_gst, v_source.gst_rate,
+    v_source.gst_amount, v_source.total_inc_gst, v_source.unpriced_item_count,
+    case when p_kind = 'amendment' then nullif(trim(coalesce(p_reason, '')), '') else null end,
+    v_source.company_id, p_kind, p_source_order_id, null, null
+  )
+  returning id into v_new_id;
+
+  insert into public.order_operations_audit (order_id, actor_user_id, event_type, after_value, reason)
+  values (p_source_order_id, auth.uid(), case when p_kind = 'repeat' then 'repeat_order_created' else 'amendment_created' end,
+    jsonb_build_object('newOrderId', v_new_id), nullif(trim(coalesce(p_reason, '')), ''));
+
+  return v_new_id;
+end;
+$$;
+
+create or replace function public.repeat_order(p_source_order_id uuid)
+returns uuid
+language sql
+security definer
+set search_path = public
+as $$
+  select public.copy_order_to_draft(p_source_order_id, 'repeat', null)
+$$;
+
+create or replace function public.create_order_amendment(p_source_order_id uuid, p_reason text)
+returns uuid
+language sql
+security definer
+set search_path = public
+as $$
+  select public.copy_order_to_draft(p_source_order_id, 'amendment', p_reason)
+$$;
+
+create or replace function public.revise_operational_order(p_order_id uuid, p_line_items jsonb, p_note text)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_order public.orders;
+  v_before public.order_operations;
+  v_after public.order_operations;
+  v_normalized_items jsonb;
+  v_subtotal numeric(14,2);
+  v_gst numeric(14,2);
+  v_total numeric(14,2);
+  v_unpriced integer;
+begin
+  if not public.has_permission('orders_operations.manage_commercial') then
+    raise exception 'Not authorized';
+  end if;
+
+  if length(trim(coalesce(p_note, ''))) = 0 then raise exception 'A revision note is required'; end if;
+  if jsonb_typeof(p_line_items) <> 'array' or jsonb_array_length(p_line_items) = 0 then
+    raise exception 'At least one line item is required';
+  end if;
+  if exists (select 1 from public.order_acceptance_snapshots where order_id = p_order_id) then
+    raise exception 'Accepted orders are immutable; create an amendment';
+  end if;
+
+  select * into v_order from public.orders where id = p_order_id for update;
+  select * into v_before from public.order_operations where order_id = p_order_id for update;
+
+  if v_before.operational_status not in ('under_review', 'changes_required', 'quote_issued') then
+    raise exception 'This order is not available for commercial revision';
+  end if;
+
+  if exists (
+    select 1 from jsonb_array_elements(p_line_items) item
+    where coalesce((item ->> 'qty')::numeric, 0) <= 0
+       or ((item ->> 'unitPriceExGst') is not null and (item ->> 'unitPriceExGst')::numeric < 0)
+  ) then
+    raise exception 'Line item quantities and prices are invalid';
+  end if;
+
+  select jsonb_agg(
+    item || jsonb_build_object(
+      'matched', (item ->> 'unitPriceExGst') is not null,
+      'lineTotalExGst', case when (item ->> 'unitPriceExGst') is null then 0
+        else round((item ->> 'qty')::numeric * (item ->> 'unitPriceExGst')::numeric, 2) end
+    )
+  )
+  into v_normalized_items from jsonb_array_elements(p_line_items) item;
+
+  select coalesce(sum((item ->> 'lineTotalExGst')::numeric), 0),
+         count(*) filter (where coalesce((item ->> 'matched')::boolean, false) = false)
+  into v_subtotal, v_unpriced from jsonb_array_elements(v_normalized_items) item;
+
+  v_subtotal := round(v_subtotal, 2);
+  v_gst := round(v_subtotal * v_order.gst_rate, 2);
+  v_total := round(v_subtotal + v_gst, 2);
+
+  update public.orders
+  set line_items = v_normalized_items, subtotal_ex_gst = v_subtotal, gst_amount = v_gst,
+      total_inc_gst = v_total, unpriced_item_count = v_unpriced, updated_at = now()
+  where id = p_order_id;
+
+  update public.order_operations
+  set operational_status = 'under_review', customer_action_required = false, customer_action_note = null,
+      version = version + 1, updated_by = auth.uid(), updated_at = now()
+  where order_id = p_order_id
+  returning * into v_after;
+
+  perform public.refresh_order_commercial_total(p_order_id);
+
+  insert into public.order_operations_audit (order_id, actor_user_id, event_type, before_value, after_value, reason)
+  values (p_order_id, auth.uid(), 'order_revised',
+    jsonb_build_object('operations', to_jsonb(v_before), 'subtotalExGst', v_order.subtotal_ex_gst, 'totalIncGst', v_order.total_inc_gst),
+    jsonb_build_object('operations', to_jsonb(v_after), 'subtotalExGst', v_subtotal, 'totalIncGst', v_total),
+    trim(p_note));
+end;
+$$;
+
+alter table public.order_operations enable row level security;
+alter table public.order_adjustments enable row level security;
+alter table public.order_holds enable row level security;
+alter table public.order_documents enable row level security;
+alter table public.order_acceptance_snapshots enable row level security;
+alter table public.order_operations_audit enable row level security;
+
+-- New permission-catalog rows -- grants are configured per-role from
+-- Admin > Roles (AdminRolesPage.tsx), not hardcoded here; see the
+-- "Dynamic RBAC" section above for how has_permission() resolves these.
+insert into public.permissions (key, description, category) values
+  ('orders_operations.progress_status', 'Progress an order''s operational status forward one stage', 'orders_operations'),
+  ('orders_operations.correct_status', 'Administratively correct an order''s operational status or customer-action flag out of sequence', 'orders_operations'),
+  ('orders_operations.complete', 'Mark an order complete', 'orders_operations'),
+  ('orders_operations.manage_commercial', 'Add or remove order fees/discounts/credits and revise line items pre-acceptance', 'orders_operations'),
+  ('orders_operations.manage_holds', 'Place or resolve technical/pricing/delivery holds on an order', 'orders_operations'),
+  ('orders_operations.read_audit', 'Read an order''s operations audit history', 'orders_operations')
+on conflict (key) do nothing;
+
+create policy "Order viewers read operations"
+on public.order_operations for select
+to authenticated
+using (public.can_view_order(order_id));
+
+create policy "Order viewers read adjustments"
+on public.order_adjustments for select
+to authenticated
+using (public.can_view_order(order_id));
+
+create policy "Order viewers read documents"
+on public.order_documents for select
+to authenticated
+using (public.is_admin() or (public.can_view_order(order_id) and visibility = 'customer'));
+
+create policy "Order editors upload documents"
+on public.order_documents for insert
+to authenticated
+with check (
+  uploaded_by = auth.uid()
+  and (public.is_admin() or (public.can_edit_order(order_id) and visibility = 'customer'))
+);
+
+create policy "Order document uploaders delete documents"
+on public.order_documents for delete
+to authenticated
+using (
+  public.is_admin()
+  or (uploaded_by = auth.uid() and public.can_edit_order(order_id) and visibility = 'customer')
+);
+
+create policy "Order viewers read acceptance snapshots"
+on public.order_acceptance_snapshots for select
+to authenticated
+using (public.can_view_order(order_id));
+
+create policy "Staff read order audit"
+on public.order_operations_audit for select
+to authenticated
+using (public.has_permission('orders_operations.read_audit'));
+
+insert into storage.buckets (id, name, public)
+values ('order-documents', 'order-documents', false)
+on conflict (id) do nothing;
+
+create policy "Order document objects readable"
+on storage.objects for select
+to authenticated
+using (
+  bucket_id = 'order-documents'
+  and exists (
+    select 1 from public.order_documents d
+    where d.storage_path = name
+      and (public.is_admin() or (d.visibility = 'customer' and public.can_view_order(d.order_id)))
+  )
+);
+
+create policy "Order document objects uploadable"
+on storage.objects for insert
+to authenticated
+with check (
+  bucket_id = 'order-documents'
+  and public.can_edit_order(((storage.foldername(name))[1])::uuid)
+);
+
+create policy "Order document objects deletable"
+on storage.objects for delete
+to authenticated
+using (
+  bucket_id = 'order-documents'
+  and (
+    public.is_admin()
+    or exists (
+      select 1 from public.order_documents d
+      where d.storage_path = name and d.uploaded_by = auth.uid() and d.visibility = 'customer' and public.can_edit_order(d.order_id)
+    )
+  )
+);
+
+grant usage on type public.order_operational_status to authenticated;
+grant usage on type public.order_adjustment_type to authenticated;
+grant usage on type public.order_hold_type to authenticated;
+grant usage on type public.order_document_type to authenticated;
+grant usage on type public.order_document_visibility to authenticated;
+grant usage on type public.order_kind to authenticated;
+
+grant select on public.order_operations to authenticated;
+grant select on public.order_adjustments to authenticated;
+grant select, insert, delete on public.order_documents to authenticated;
+grant select on public.order_acceptance_snapshots to authenticated;
+grant select on public.order_operations_audit to authenticated;
+
+grant execute on function public.revise_operational_order(uuid, jsonb, text) to authenticated;
+grant execute on function public.ensure_order_operations(uuid) to authenticated;
+grant execute on function public.order_commercial_totals(uuid) to authenticated;
+grant execute on function public.list_order_holds(uuid) to authenticated;
+grant execute on function public.add_order_adjustment(uuid, public.order_adjustment_type, text, numeric, boolean) to authenticated;
+grant execute on function public.remove_order_adjustment(uuid) to authenticated;
+grant execute on function public.place_order_hold(uuid, public.order_hold_type, text, text, boolean, text) to authenticated;
+grant execute on function public.resolve_order_hold(uuid, text) to authenticated;
+grant execute on function public.progress_order_operational_status(uuid, public.order_operational_status, integer) to authenticated;
+grant execute on function public.correct_order_operational_status(uuid, public.order_operational_status, integer, text) to authenticated;
+grant execute on function public.set_order_customer_action(uuid, boolean, text, integer) to authenticated;
+grant execute on function public.accept_order_quote(uuid, integer) to authenticated;
+grant execute on function public.request_order_changes(uuid, text, integer) to authenticated;
+grant execute on function public.order_completion_check(uuid) to authenticated;
+grant execute on function public.complete_order(uuid, integer) to authenticated;
+grant execute on function public.repeat_order(uuid) to authenticated;
+grant execute on function public.create_order_amendment(uuid, text) to authenticated;
