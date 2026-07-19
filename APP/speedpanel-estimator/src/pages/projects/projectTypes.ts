@@ -56,6 +56,15 @@ export const ProjectRowSchema = z.object({
   // unchanged from before that section existed.
   company_id: z.string().nullable(),
   project_manager_user_id: z.string().nullable(),
+  // Projects Experience Redesign fields (see supabase/schema.sql) -- all new,
+  // additive columns; deliberately NOT a migration of data.reference/
+  // siteAddress/customerName (which stay exactly where they already live).
+  // project_number is server-assigned (never client-settable, see
+  // assign_project_number()); nullable only because rows created before this
+  // column existed have none.
+  builder_name: z.string().nullable(),
+  start_date: z.string().nullable(),
+  project_number: z.string().nullable(),
   created_at: z.string(),
   updated_at: z.string(),
 });

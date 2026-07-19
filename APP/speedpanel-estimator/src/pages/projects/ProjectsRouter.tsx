@@ -94,6 +94,7 @@ export const ProjectsRouter = ({ route, navigate, auth, company, onOpenEstimator
   }
   return (
     <ProjectsListPage user={auth.user} onOpenProject={id => navigate({ tab: "projects", id })}
+      onQuickOrder={id => navigate({ tab: "projects", id, quickOrder: true })}
       layoutMode={layoutMode}
       hasCompany={company.memberships.length > 0}
       activeCompanyId={company.activeCompanyId}
