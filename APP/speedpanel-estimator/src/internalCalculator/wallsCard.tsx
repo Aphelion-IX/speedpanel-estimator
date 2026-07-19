@@ -34,7 +34,7 @@ export const WALL_SYSTEMS: [WallSystemId, string][] = [
   ["shaft",    "Shaft wall"],
 ];
 
-export const WallSystemSelector = ({ value, onChange }: { value: WallSystemId; onChange: (id: WallSystemId) => void }) => (
+const WallSystemSelector = ({ value, onChange }: { value: WallSystemId; onChange: (id: WallSystemId) => void }) => (
   <div className="border-t border-slate-100 dark:border-slate-700 pt-3">
     <div className={cx.cardHd}>Wall system</div>
     <div className="grid grid-cols-3 items-end gap-1.5">

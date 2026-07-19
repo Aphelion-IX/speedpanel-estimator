@@ -12,7 +12,7 @@ import {
 } from "../data";
 import type { WallResult } from "./wall.types";
 
-export interface ExtPanelMapEntry { stock: number; pieces: number; }
+interface ExtPanelMapEntry { stock: number; pieces: number; }
 // buildExtProjAgg group output
 export interface ExtAggGroup { stock: number; pieces: number; packs: number; ordered: number; spare: number; }
 

@@ -140,7 +140,7 @@ export const SpanTable = ({ orient, type, wallSystem }: { orient: string; type: 
 };
 
 // --- ProfileSelector ----------------------------------------------------------
-export const ProfileSelector = ({ value, onChange }: { value: ProfileId; onChange: (id: ProfileId) => void }) => (
+const ProfileSelector = ({ value, onChange }: { value: ProfileId; onChange: (id: ProfileId) => void }) => (
   <div className="grid grid-cols-3 items-end gap-1.5">
     {([ ["standard","Standard"], ["rake","Raked"], ["gable","Gable"] ] as [ProfileId, string][]).map(([id, lbl]) => {
       const on = value === id;

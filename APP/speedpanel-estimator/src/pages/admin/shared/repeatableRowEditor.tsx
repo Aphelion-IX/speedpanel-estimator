@@ -12,7 +12,7 @@ import { Button } from "../../../ui/button";
 import { IconButton } from "../../../ui/primitives";
 import { Table, type TableColumn } from "../../../ui/table";
 
-export interface RepeatableColumn<T> {
+interface RepeatableColumn<T> {
   key: keyof T;
   label: string;
   type?: "text" | "number" | "select" | "boolean";

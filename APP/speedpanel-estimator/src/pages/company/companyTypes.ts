@@ -31,22 +31,6 @@ export const MEMBERSHIP_STATUS_BADGE_CLASS: Record<MembershipStatus, string> = {
   removed: tone("neutral"),
 };
 
-export const CompanyRowSchema = z.object({
-  id: z.string(),
-  legal_name: z.string(),
-  trading_name: z.string().nullable(),
-  abn: z.string().nullable(),
-  customer_account_number: z.string().nullable(),
-  billing_email: z.string().nullable(),
-  phone: z.string().nullable(),
-  address: z.string().nullable(),
-  status: z.enum(["active", "suspended", "closed"]),
-  created_by: z.string(),
-  created_at: z.string(),
-  updated_at: z.string(),
-});
-export type CompanyRow = z.infer<typeof CompanyRowSchema>;
-
 // A plain table read (company_memberships' own "Members can read their own
 // membership rows" RLS policy already covers "where user_id = auth.uid()"),
 // embedding the company name via the company_id FK -- no RPC needed for
