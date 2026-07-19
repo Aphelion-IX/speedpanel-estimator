@@ -49,9 +49,6 @@ export const EstimateStructureNav = ({
   dimUnit: string; toDisp: (m: string) => string;
 }) => {
   if (layoutMode === "phone") {
-    // Add-wall action lives on ProjectCardPhone (rendered above this nav in
-    // ExternalCalculator.tsx) on phone, not as a trailing pill here --
-    // mirrors internalCalculator/estimateStructureNav.tsx's phone branch.
     const items: PhonePillItem[] = results.map(({ wall: w, out: r }) => ({
       id: String(w.id),
       label: w.name,
@@ -63,7 +60,7 @@ export const EstimateStructureNav = ({
       onDelete: () => deleteWallById(w.id),
       deleteDisabled: walls.length === 1,
     }));
-    return <WallPillStripPhone items={items} onSelect={id => onSelectWall(Number(id))} />;
+    return <WallPillStripPhone items={items} onSelect={id => onSelectWall(Number(id))} onAddWall={addBlankWall} />;
   }
 
   const items: CardItem[] = [

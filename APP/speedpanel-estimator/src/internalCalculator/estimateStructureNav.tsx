@@ -145,8 +145,6 @@ export const EstimateStructureNav = ({
   dimUnit: string; toDisp: (m: string) => string;
 }) => {
   if (layoutMode === "phone") {
-    // Add-wall/corner/shaft actions live on ProjectCardPhone (rendered above
-    // this nav in InternalCalculator.tsx) on phone, not as trailing pills here.
     const items: PhonePillItem[] = [
       ...results.map(({ wall: w, out: r }) => ({
         id: wallPillId(w.id),
@@ -168,7 +166,7 @@ export const EstimateStructureNav = ({
         thumbnail: <KitThumbnail />,
       })),
     ];
-    return <WallPillStripPhone items={items} onSelect={id => onSelect(decodePillId(id, kits))} />;
+    return <WallPillStripPhone items={items} onSelect={id => onSelect(decodePillId(id, kits))} onAddWall={addBlankWall} />;
   }
 
   const items: CardItem[] = [

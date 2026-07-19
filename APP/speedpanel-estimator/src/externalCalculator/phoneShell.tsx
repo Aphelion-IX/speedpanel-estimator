@@ -13,7 +13,7 @@
 // wallConfig/lengthExplorer fork (each calculator owns everything it
 // renders, so a change to one can never accidentally affect the other).
 // =============================================================================
-import { Layers, Copy, Trash2 } from "lucide-react";
+import { Layers, Copy, Trash2, Plus } from "lucide-react";
 import { cx, tone, BLUE, NAVY, MUTED } from "../styleTokens";
 import type { Wall, ComputeOut } from "../estimate/wall.types";
 
@@ -56,12 +56,19 @@ export interface PhonePillItem {
   onDuplicate?: () => void; onDelete?: () => void; deleteDisabled?: boolean;
 }
 
-export const WallPillStripPhone = ({ items, onSelect }: {
-  items: PhonePillItem[]; onSelect: (id: string) => void;
+export const WallPillStripPhone = ({ items, onSelect, onAddWall }: {
+  items: PhonePillItem[]; onSelect: (id: string) => void; onAddWall: () => void;
 }) => (
   <div className={`mt-3 ${cx.section}`}>
-    <div className={`${cx.cardHd} flex items-center gap-1.5`} style={{ marginTop: 0 }}>
-      <Layers size={12} />My Walls ({items.length})
+    <div className="flex items-center justify-between" style={{ marginTop: 0 }}>
+      <div className={`${cx.cardHd} flex items-center gap-1.5`} style={{ marginTop: 0 }}>
+        <Layers size={12} />My Walls ({items.length})
+      </div>
+      <button onClick={onAddWall}
+        className="flex items-center gap-1 rounded-lg border border-blue-100 dark:border-blue-800/80 bg-blue-50/60 dark:bg-blue-900/55 px-2.5 py-1.5 text-xs font-bold active:scale-95 transition-all"
+        style={{ color: BLUE }}>
+        <Plus size={13} />Add wall
+      </button>
     </div>
     <div className="-mx-1 flex snap-x gap-2 overflow-x-auto px-1 pb-1" style={{ scrollbarWidth: "none" }}>
       {items.map(item => (
@@ -99,6 +106,14 @@ export const WallPillStripPhone = ({ items, onSelect }: {
           )}
         </div>
       ))}
+      <button type="button" onClick={onAddWall}
+        className="flex min-w-[110px] shrink-0 snap-start flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-dashed bg-white px-3 py-3 text-center active:scale-95 transition-all dark:bg-slate-800"
+        style={{ borderColor: BLUE }}>
+        <span className="grid h-8 w-8 place-items-center rounded-full bg-blue-50 dark:bg-blue-900/55">
+          <Plus size={16} style={{ color: BLUE }} />
+        </span>
+        <span className="text-xs font-bold" style={{ color: BLUE }}>Add wall</span>
+      </button>
     </div>
   </div>
 );
