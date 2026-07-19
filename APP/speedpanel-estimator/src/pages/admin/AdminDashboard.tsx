@@ -4,13 +4,14 @@ import { BackendStatusCard } from "./BackendStatusCard";
 import type { AdminSubPage } from "../../appShell/useHashRoute";
 import { ADMIN_GROUPS } from "./adminSections";
 
-// Workflow/People/Reports tile groups (and their "awaiting action" count
-// badges) were dropped along with the tables they pointed at -- see
-// adminSections.tsx's own header comment. What's left (Catalog) has no
-// staff-role tiering anymore either (see useMyInternalRole.ts -- there's
-// only one admin tier now), so this no longer needs to know who's asking
-// (the `auth` prop it used to read staffRole/permissions from is gone too)
-// -- just render every remaining section.
+// Renders every ADMIN_GROUPS section, including the ones whose tables are
+// gone (see adminSections.tsx's own header comment) -- every admin page
+// stays reachable, working or not. The per-tile "awaiting action" count
+// badges (useWorkflowCounts, now deleted) and staff-role tiering (there's
+// only one admin tier now, see useMyInternalRole.ts) were the actually
+// redundant part -- both queried/branched on a permissions system that no
+// longer exists, so this no longer needs to know who's asking (the `auth`
+// prop it used to read staffRole/permissions from is gone too).
 export const AdminDashboard = ({ onNavigate }: { onNavigate: (sub: AdminSubPage) => void }) => (
   <PlaceholderPage
     title="Admin Dashboard"
