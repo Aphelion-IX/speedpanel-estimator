@@ -1,35 +1,38 @@
 // =============================================================================
 // Projects -- All Projects page (project-finding/project-entry screen)
 // =============================================================================
-// Redesigned per the Projects Experience Redesign spec: a header, a quick-
-// actions row (Create New Project / Quick Order / Request Pre-Start
-// Meeting), search + primary (All/Active/Completed) + secondary filters,
-// then the project list -- horizontal 3-zone cards (identity / status /
-// actions) on web, stacked cards with a 3-action row on phone. A row click
-// opens that project's own ProjectDetailPage.tsx (see ProjectsRouter.tsx --
-// #/projects and #/projects/:id are two distinct views); the card's own
-// Order/Technical/Documents actions deliberately do NOT navigate there (spec
-// section 8: "Action buttons must not trigger project navigation") -- Order
-// goes to the dedicated Quick Order flow, Technical/Documents open a scoped
-// Drawer right from this page.
+// Restyled to match UI-DESIGNS/customer/{desktop,ipad,phone}/
+// customer-orders-overview.html exactly -- see projectsTheme.css for the
+// scoped `.pj-*` palette/shape this page (and ProjectDetailPage.tsx) render
+// with. All THREE mockup tiers (phone/iPad/desktop) render from this one
+// component; projectsTheme.css's real @media breakpoints do the layout
+// switching, not separate React branches, per CUSTOMER-UI-DEVICE-
+// INSTRUCTIONS/01-RESPONSIVE-BUILD-RULES.md ("production remains one
+// responsive React implementation, not three separate React pages") --
+// ProjectWebCard/ProjectPhoneCard collapsed into one ProjectCard as a result.
+//
+// A row click opens that project's own ProjectDetailPage.tsx (see
+// ProjectsRouter.tsx -- #/projects and #/projects/:id are two distinct
+// views); the card's own Order/Technical/Documents actions deliberately do
+// NOT navigate there -- Order goes to the dedicated Quick Order flow,
+// Technical/Documents open a scoped Drawer right from this page.
 //
 // Journey stage (the 8-step Estimating..Completed pipeline) is a
 // DISPLAY-ONLY value computed by journeyStage.ts from each project's real
 // orders/manufacturing/delivery data -- see that file's header comment for
-// why it's never a persisted column. The bottom Projects/Orders stat rows
-// deliberately keep showing the REAL project.stage (draft/install_review/
-// technical_review/approved) and order.stage pipelines untouched.
+// why it's never a persisted column. The progress line's label/value
+// (progressInfo() below) is likewise derived from real
+// useProjectsJourney() data (progress %, or delivered/total delivery
+// counts once deliveries exist) -- never the mockup's own static numbers.
 // =============================================================================
 import { useMemo, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import {
-  Building2, CalendarClock, ChevronDown, ChevronRight, ClipboardCheck, FileText,
+  Building2, CalendarClock, ChevronRight, ClipboardCheck, FileText,
   Plus, Search, ShoppingCart, SlidersHorizontal,
 } from "lucide-react";
-import { cx, tone, NAVY, BLUE, MUTED } from "../../styleTokens";
-import { r1 } from "../../estimate/mathUtils";
+import { NAVY, MUTED } from "../../styleTokens";
 import { Field, SelectField, TextAreaField } from "../shared/fields";
-import { Stat } from "../../ui/primitives";
 import { Button } from "../../ui/button";
 import { Drawer } from "../../ui/drawer";
 import { LoadingState, ErrorState, EmptyState } from "../../ui/states";
@@ -37,14 +40,15 @@ import type { EffectiveLayout } from "../../useLayoutMode";
 import { useProjects, useProjectCompanyNames } from "./projectsStore";
 import { useCompanyMembers } from "../company/companyStore";
 import { useProjectsJourney, type ProjectJourneyInfo } from "./projectsJourneyStore";
-import { useProjectPhoneStats } from "./projectPhoneStats";
-import { JOURNEY_STAGES, JOURNEY_STAGE_LABELS, JOURNEY_STAGE_BADGE_CLASS, type JourneyStage } from "./journeyStage";
+import { JOURNEY_STAGES, JOURNEY_STAGE_LABELS, type JourneyStage } from "./journeyStage";
 import { relativeTime } from "./projectActivityStore";
 import { ProjectPickerDrawer } from "./ProjectPickerDrawer";
 import { useProjectServiceRequests } from "./services/serviceRequestsStore";
 import { ServiceRequestForm } from "./services/ServiceRequestForm";
 import { ProjectDocumentsCard } from "./documents/ProjectDocumentsCard";
+import type { OrderDeliveryRow } from "./orders/orderTypes";
 import type { ProjectRow } from "./projectTypes";
+import "./projectsTheme.css";
 
 // A project needs the customer's attention when Speedpanel has asked for
 // changes on either half of the pre-order design-review pipeline -- the one
@@ -53,6 +57,20 @@ import type { ProjectRow } from "./projectTypes";
 // signal; left for a future pass rather than an N+1 fetch here).
 const requiresAttention = (p: ProjectRow): boolean =>
   p.install_review_status === "changes_requested" || p.technical_review_status === "changes_requested";
+
+// The progress line under each card's badge -- label/value/bar-% all real:
+// once deliveries exist for the representative order, show delivered/total
+// (matching the mockup's "Deliveries complete: 2 of 3"); otherwise the
+// coarse journeyProgressPercent() the rest of the app already uses.
+function progressInfo(stage: JourneyStage, progress: number, deliveries: OrderDeliveryRow[]): { label: string; valueText: string; pct: number } {
+  if (stage === "completed") return { label: "Project complete", valueText: "100%", pct: 100 };
+  if ((stage === "ready_for_delivery" || stage === "delivered") && deliveries.length > 0) {
+    const delivered = deliveries.filter(d => d.status === "delivered").length;
+    return { label: "Deliveries complete", valueText: `${delivered} of ${deliveries.length}`, pct: Math.round((delivered / deliveries.length) * 100) };
+  }
+  if (stage === "manufacturing") return { label: "Manufacturing progress", valueText: `${progress}%`, pct: progress };
+  return { label: "Order progress", valueText: `${progress}%`, pct: progress };
+}
 
 export interface NewProjectMeta { reference: string; siteAddress: string; customerName: string; description: string; }
 
@@ -124,129 +142,54 @@ const CreateProjectDrawer = ({ layoutMode, activeCompanyId, onCreate, onClose }:
   );
 };
 
-// =============================================================================
-// Quick actions row -- Create New Project / Quick Order / Request Pre-Start
-// Meeting. Horizontal rail on phone (spec: "Mobile: Horizontal quick-action
-// rail"), a card grid on web.
-// =============================================================================
-const QuickActionTile = ({ icon, title, note, onClick, layoutMode }: {
-  icon: React.ReactNode; title: string; note: string; onClick: () => void; layoutMode: EffectiveLayout;
-}) => (
-  <button onClick={onClick}
-    className={layoutMode === "phone"
-      ? "flex w-52 shrink-0 flex-col items-start gap-2 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 p-4 text-left shadow-sm"
-      : `${cx.card} flex items-start gap-3 p-4 text-left transition hover:-translate-y-0.5 hover:border-blue-200 dark:hover:border-blue-800 hover:shadow-md`}
-  >
-    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-blue-50 dark:bg-blue-900/55" style={{ color: BLUE }}>{icon}</span>
-    <div className="min-w-0">
-      <div className="text-sm font-extrabold" style={{ color: NAVY }}>{title}</div>
-      <div className="mt-0.5 text-xs" style={{ color: MUTED }}>{note}</div>
-    </div>
-  </button>
-);
-
-// =============================================================================
-// Project cards -- web (horizontal 3-zone row) and phone (stacked, 3-action row)
-// =============================================================================
-const ProjectWebCard = ({ item, journey, companyName, pmEmail, onOpen, onQuickOrder, onTechnical, onDocuments }: {
+// One project row -- identity/status/actions three-zone card on desktop,
+// status block moves below (stacked) on iPad/phone via projectsTheme.css's
+// media queries, not a separate component.
+const ProjectCard = ({ item, journey, companyName, pmEmail, onOpen, onQuickOrder, onTechnical, onDocuments }: {
   item: ProjectRow; journey: ProjectJourneyInfo | undefined; companyName: string | undefined; pmEmail: string | undefined;
   onOpen: () => void; onQuickOrder: () => void; onTechnical: () => void; onDocuments: () => void;
 }) => {
   const stage = journey?.journey.stage ?? "estimating";
-  const progress = journey?.progress ?? 0;
   const attention = requiresAttention(item);
+  const info = progressInfo(stage, journey?.progress ?? 0, journey?.representativeDeliveries ?? []);
 
   return (
-    <div className={`${cx.card} mt-3 flex flex-col gap-4 lg:flex-row lg:items-center`}>
-      <button onClick={onOpen} className="flex min-w-0 flex-1 items-start gap-3 text-left">
-        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-blue-50 dark:bg-blue-900/55">
-          <Building2 size={18} style={{ color: BLUE }} />
-        </span>
-        <div className="min-w-0">
-          <p className="truncate text-sm font-bold" style={{ color: NAVY }}>{item.name}</p>
-          <p className="truncate text-xs" style={{ color: MUTED }}>{item.data.siteAddress || "No address on file"}</p>
-          <p className="mt-1 truncate text-xs" style={{ color: MUTED }}>
-            {item.project_number || item.id.slice(0, 8).toUpperCase()}
-            {item.builder_name && <> &middot; Builder: {item.builder_name}</>}
-            {pmEmail && <> &middot; PM: {pmEmail}</>}
-            {companyName && <> &middot; {companyName}</>}
-          </p>
+    <article className="pj-projectcard">
+      <button onClick={onOpen} className="pj-projectid">
+        <span className="pj-projecticon"><Building2 size={18} /></span>
+        <div style={{ minWidth: 0 }}>
+          <h2>{item.name}</h2>
+          <div className="pj-address">{item.data.siteAddress || "No address on file"}</div>
+          <div className="pj-meta">
+            <span>{item.project_number || item.id.slice(0, 8).toUpperCase()}</span>
+            {item.builder_name && <span>Builder: {item.builder_name}</span>}
+            {pmEmail && <span>PM: {pmEmail}</span>}
+            {companyName && <span>{companyName}</span>}
+          </div>
         </div>
       </button>
 
-      <div className="lg:w-56 lg:shrink-0">
-        <div className="flex items-center gap-2">
-          <span className={`${cx.badge} ${JOURNEY_STAGE_BADGE_CLASS[stage]}`}>{JOURNEY_STAGE_LABELS[stage]}</span>
-          {attention && <span className={`${cx.badge} ${tone("danger")}`}>Needs attention</span>}
+      <div className="pj-statusblock">
+        <div className="pj-statusline">
+          <span className={`pj-badge ${stage === "completed" ? "complete" : ""}`}>{JOURNEY_STAGE_LABELS[stage]}</span>
+          {attention && <span className="pj-alert">Needs attention</span>}
         </div>
-        <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-700">
-          <div className="h-full rounded-full" style={{ width: `${progress}%`, background: BLUE }} />
-        </div>
-        <p className="mt-1.5 text-xs" style={{ color: MUTED }}>Updated {relativeTime(item.updated_at)}</p>
+        <div className="pj-progresslabel"><span>{info.label}</span><strong>{info.valueText}</strong></div>
+        <div className="pj-progress"><span style={{ width: `${info.pct}%`, background: stage === "completed" ? "var(--pj-green)" : undefined }} /></div>
+        <div className="pj-updated">Updated {relativeTime(item.updated_at)}</div>
       </div>
 
-      <div className="grid grid-cols-3 gap-2 lg:w-56 lg:shrink-0">
-        <button onClick={onQuickOrder} className="flex flex-col items-center gap-1 rounded-xl border border-slate-200 dark:border-slate-600 py-2.5 text-xs font-semibold" style={{ color: NAVY }}>
-          <ShoppingCart size={15} style={{ color: BLUE }} />Order
-        </button>
-        <button onClick={onTechnical} className="flex flex-col items-center gap-1 rounded-xl border border-slate-200 dark:border-slate-600 py-2.5 text-xs font-semibold" style={{ color: NAVY }}>
-          <ClipboardCheck size={15} style={{ color: BLUE }} />Technical
-        </button>
-        <button onClick={onDocuments} className="flex flex-col items-center gap-1 rounded-xl border border-slate-200 dark:border-slate-600 py-2.5 text-xs font-semibold" style={{ color: NAVY }}>
-          <FileText size={15} style={{ color: BLUE }} />Documents
-        </button>
+      <div className="pj-cardactions">
+        <button onClick={onQuickOrder} className="pj-act"><ShoppingCart size={16} /><span>Order</span></button>
+        <button onClick={onTechnical} className="pj-act"><ClipboardCheck size={16} /><span>Technical</span></button>
+        <button onClick={onDocuments} className="pj-act"><FileText size={16} /><span>Documents</span></button>
       </div>
-    </div>
-  );
-};
-
-const ProjectPhoneCard = ({ item, journey, companyName, onOpen, onQuickOrder, onTechnical, onDocuments }: {
-  item: ProjectRow; journey: ProjectJourneyInfo | undefined; companyName: string | undefined;
-  onOpen: () => void; onQuickOrder: () => void; onTechnical: () => void; onDocuments: () => void;
-}) => {
-  const stage = journey?.journey.stage ?? "estimating";
-  const progress = journey?.progress ?? 0;
-  const phoneStats = useProjectPhoneStats(item);
-  const attention = requiresAttention(item);
-
-  return (
-    <div className={`${cx.card} mt-3`}>
-      <button onClick={onOpen} className="flex w-full items-start justify-between gap-2 text-left">
-        <div className="min-w-0">
-          <div className="truncate text-sm font-bold" style={{ color: NAVY }}>{item.name}</div>
-          <div className="truncate text-xs" style={{ color: MUTED }}>{item.data.siteAddress || `Ref: ${item.data.reference || item.id.slice(0, 8).toUpperCase()}`}{companyName ? ` · ${companyName}` : ""}</div>
-        </div>
-        <ChevronRight size={18} className="shrink-0" style={{ color: MUTED }} />
-      </button>
-      <div className="mt-2 flex flex-wrap items-center gap-1.5">
-        <span className={`${cx.badge} ${JOURNEY_STAGE_BADGE_CLASS[stage]}`}>{JOURNEY_STAGE_LABELS[stage]}</span>
-        {attention && <span className={`${cx.badge} ${tone("danger")}`}>Needs attention</span>}
-      </div>
-      <div className="mt-3 grid grid-cols-3 gap-1.5">
-        <Stat value={phoneStats.wallCount} label="Walls" />
-        <Stat value={`${r1(phoneStats.area)} m²`} label="Area" />
-        <Stat value={phoneStats.panels} label="Panels" />
-      </div>
-      <div className="mt-2.5 text-xs" style={{ color: MUTED }}>{Math.round(progress)}% complete</div>
-
-      <div className="mt-3 grid grid-cols-3 gap-1.5">
-        <button onClick={onQuickOrder} className="flex flex-col items-center gap-1 rounded-xl border border-blue-200 dark:border-blue-800 bg-blue-50/70 dark:bg-blue-900/55 py-2.5 text-xs font-bold" style={{ color: BLUE }}>
-          <ShoppingCart size={15} />Order
-        </button>
-        <button onClick={onTechnical} className="flex flex-col items-center gap-1 rounded-xl border border-blue-200 dark:border-blue-800 bg-blue-50/70 dark:bg-blue-900/55 py-2.5 text-xs font-bold" style={{ color: BLUE }}>
-          <ClipboardCheck size={15} />Technical
-        </button>
-        <button onClick={onDocuments} className="flex flex-col items-center gap-1 rounded-xl border border-blue-200 dark:border-blue-800 bg-blue-50/70 dark:bg-blue-900/55 py-2.5 text-xs font-bold" style={{ color: BLUE }}>
-          <FileText size={15} />Documents
-        </button>
-      </div>
-    </div>
+    </article>
   );
 };
 
 // Card-level "Technical" action -- opens a Technical Review request form
-// scoped to one project, without navigating to that project's own page (spec:
-// "Action buttons must not trigger project navigation").
+// scoped to one project, without navigating to that project's own page.
 const CardTechnicalDrawer = ({ project, layoutMode, onClose }: { project: ProjectRow; layoutMode: EffectiveLayout; onClose: () => void }) => {
   const { createRequest } = useProjectServiceRequests(project.id);
   const [done, setDone] = useState(false);
@@ -333,49 +276,61 @@ export const ProjectsListPage = ({ user, onOpenProject, onQuickOrder, layoutMode
   };
 
   return (
-    <div className="mt-2">
-      <div className="flex flex-wrap items-end justify-between gap-3">
+    <div className="pj-shell mt-2">
+      <div className="pj-pagehead">
         <div>
-          <h1 className={cx.h1}>Projects</h1>
-          <p className="mt-1 text-sm" style={{ color: MUTED }}>
-            Manage your projects, orders, documents and support requests.
-            {!loading && !error && <> &middot; {projects.length} project{projects.length !== 1 ? "s" : ""}</>}
-          </p>
+          <h1>Projects</h1>
+          <p>Manage your projects, orders, documents and support requests.</p>
         </div>
-        {hasCompany && <button onClick={onTeam} className="text-sm font-bold" style={{ color: BLUE }}>Team &rarr;</button>}
+        <div className="flex items-center gap-3">
+          {hasCompany && <button onClick={onTeam} className="text-sm font-bold" style={{ color: "var(--pj-blue)" }}>Team &rarr;</button>}
+          {!loading && !error && <div className="pj-count">{projects.length} active</div>}
+        </div>
       </div>
 
-      <div className={layoutMode === "phone" ? "-mx-4 mt-4 flex gap-3 overflow-x-auto px-4 pb-1" : "mt-4 grid gap-3 sm:grid-cols-3"}>
-        <QuickActionTile layoutMode={layoutMode} icon={<Plus size={18} />} title="Create New Project"
-          note="Create a project and assign the basic details." onClick={() => setShowCreate(true)} />
-        <QuickActionTile layoutMode={layoutMode} icon={<ShoppingCart size={18} />} title="Quick Order"
-          note="Start an order and choose the project it belongs to." onClick={() => setShowQuickOrderPicker(true)} />
-        <QuickActionTile layoutMode={layoutMode} icon={<CalendarClock size={18} />} title="Request Pre-Start Meeting"
-          note="Select a project and request a meeting at any stage." onClick={() => setShowPrestartPicker(true)} />
+      <div className="pj-quickrow">
+        <button className="pj-quick" onClick={() => setShowCreate(true)}>
+          <div className="pj-quickcopy">
+            <span className="pj-qicon"><Plus size={18} /></span>
+            <div><strong>Create New Project</strong><small>Add project details and assign a company project manager.</small></div>
+          </div>
+          <span className="pj-arrow"><ChevronRight size={16} /></span>
+        </button>
+        <button className="pj-quick" onClick={() => setShowQuickOrderPicker(true)}>
+          <div className="pj-quickcopy">
+            <span className="pj-qicon"><ShoppingCart size={18} /></span>
+            <div><strong>Quick Order</strong><small>Select a project and start an order immediately.</small></div>
+          </div>
+          <span className="pj-arrow"><ChevronRight size={16} /></span>
+        </button>
+        <button className="pj-quick" onClick={() => setShowPrestartPicker(true)}>
+          <div className="pj-quickcopy">
+            <span className="pj-qicon"><CalendarClock size={18} /></span>
+            <div><strong>Request Pre-Start</strong><small>Request a phone, online or site meeting.</small></div>
+          </div>
+          <span className="pj-arrow"><ChevronRight size={16} /></span>
+        </button>
       </div>
 
-      <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
-        <label className="flex h-10 flex-1 items-center gap-3 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 shadow-sm">
-          <Search className="h-4 w-4 shrink-0" style={{ color: MUTED }} />
-          <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search by project name, address, builder or project number"
-            className="w-full bg-transparent text-sm outline-none placeholder:text-slate-400" style={{ color: NAVY }} />
-        </label>
-        <div className={cx.tabList + " shrink-0"}>
+      <div className="pj-toolbar">
+        <div className="pj-search">
+          <Search size={18} />
+          <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search by project name, address, builder or project number" />
+        </div>
+        <div className="pj-segmented">
           {(["all", "active", "completed"] as const).map(t => (
-            <button key={t} onClick={() => setPrimaryTab(t)} className={primaryTab === t ? cx.tabActive : cx.tabInactive}>
+            <button key={t} onClick={() => setPrimaryTab(t)} className={`pj-seg ${primaryTab === t ? "active" : ""}`}>
               {t === "all" ? "All" : t === "active" ? "Active" : "Completed"}
             </button>
           ))}
         </div>
-        <button onClick={() => setShowFilters(v => !v)}
-          className="flex h-10 shrink-0 items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 text-sm font-semibold shadow-sm" style={{ color: NAVY }}>
-          <SlidersHorizontal size={15} />Filters
-          <ChevronDown size={14} className={showFilters ? "rotate-180" : ""} style={{ color: MUTED }} />
+        <button onClick={() => setShowFilters(v => !v)} className="pj-filter" aria-expanded={showFilters}>
+          <SlidersHorizontal size={15} /><span>Filters</span>
         </button>
       </div>
 
       {showFilters && (
-        <div className="mt-3 grid gap-3 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 p-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="pj-section grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <SelectField label="Stage" value={stageFilter} onChange={v => setStageFilter(v as "all" | JourneyStage)}
             options={[{ value: "all", label: "All stages" }, ...JOURNEY_STAGES.map(s => ({ value: s, label: JOURNEY_STAGE_LABELS[s] }))]} />
           <SelectField label="Builder" value={builderFilter} onChange={setBuilderFilter}
@@ -398,26 +353,15 @@ export const ProjectsListPage = ({ user, onOpenProject, onQuickOrder, layoutMode
       )}
 
       {!loading && !error && projects.length > 0 && (
-        layoutMode === "phone" ? (
-          <div>
-            {sorted.map(item => (
-              <ProjectPhoneCard key={item.id} item={item} journey={journeyByProject.get(item.id)}
-                companyName={companyNames.get(item.company_id ?? "")} onOpen={() => onOpenProject(item.id)}
-                onQuickOrder={() => onQuickOrder(item.id)} onTechnical={() => setTechnicalTarget(item)} onDocuments={() => setDocumentsTarget(item)} />
-            ))}
-            {sorted.length === 0 && <EmptyState className="mt-3" message="No projects match your search." />}
-          </div>
-        ) : (
-          <div>
-            {sorted.map(item => (
-              <ProjectWebCard key={item.id} item={item} journey={journeyByProject.get(item.id)}
-                companyName={companyNames.get(item.company_id ?? "")} pmEmail={pmEmailFor(item.project_manager_user_id)}
-                onOpen={() => onOpenProject(item.id)} onQuickOrder={() => onQuickOrder(item.id)}
-                onTechnical={() => setTechnicalTarget(item)} onDocuments={() => setDocumentsTarget(item)} />
-            ))}
-            {sorted.length === 0 && <EmptyState className="mt-3" message="No projects match your search." />}
-          </div>
-        )
+        <div className="pj-projectlist">
+          {sorted.map(item => (
+            <ProjectCard key={item.id} item={item} journey={journeyByProject.get(item.id)}
+              companyName={companyNames.get(item.company_id ?? "")} pmEmail={pmEmailFor(item.project_manager_user_id)}
+              onOpen={() => onOpenProject(item.id)} onQuickOrder={() => onQuickOrder(item.id)}
+              onTechnical={() => setTechnicalTarget(item)} onDocuments={() => setDocumentsTarget(item)} />
+          ))}
+          {sorted.length === 0 && <EmptyState className="mt-3" message="No projects match your search." />}
+        </div>
       )}
 
       {!loading && !error && (
