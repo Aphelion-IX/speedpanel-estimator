@@ -7,13 +7,11 @@
 // contact, not the creating admin). Optionally assigns an internal PM from
 // the staff directory. See adminProjectsAdminStore.ts's admin_create_project
 // call for why `data` is built with blankSnapshot(), not fabricated here.
+// The "Creation Checklist" reflects the actual form state live, not the
+// design reference's static example -- Ready only once a field the form
+// actually requires is filled.
 // =============================================================================
 import { useState } from "react";
-import { FolderPlus } from "lucide-react";
-import { MUTED } from "../../../styleTokens";
-import { Card } from "../../../ui/primitives";
-import { Button } from "../../../ui/button";
-import { Field, SelectField } from "../../shared/fields";
 import { useAdminCompanies } from "../companies/companiesStore";
 import { useCompanyMembers } from "../../company/companyStore";
 import { useAdminUsers } from "../users/usersStore";
@@ -54,45 +52,79 @@ export const AdminProjectCreatePanel = ({ onCreated }: { onCreated: (id: string)
   };
 
   return (
-    <div className="mt-4">
-      <form onSubmit={submit}>
-        <Card title="Create Internal Project" icon={<FolderPlus size={14} />}>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="sm:col-span-2">
-              <SelectField label="Company" value={companyId}
-                options={[{ value: "", label: companiesLoading ? "Loading..." : "Choose a company..." }, ...companies.map(c => ({ value: c.id, label: c.name }))]}
-                onChange={v => { setCompanyId(v); setOwnerUserId(""); }} />
+    <form onSubmit={submit} className="pa-split">
+      <div>
+        <section className="pa-card">
+          <div className="pa-section-head"><div><h2>Company &amp; Project</h2><p>Core customer-facing details</p></div></div>
+          <div className="pa-form">
+            <div className="pa-field full">
+              <label>Company</label>
+              <select value={companyId} onChange={e => { setCompanyId(e.target.value); setOwnerUserId(""); }}>
+                <option value="">{companiesLoading ? "Loading..." : "Choose a company..."}</option>
+                {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
             </div>
-            <div className="sm:col-span-2">
-              <Field label="Project Name" value={name} onChange={setName} required />
-            </div>
-            <div className="sm:col-span-2">
-              <Field label="Project Address" value={siteAddress} onChange={setSiteAddress} />
-            </div>
-            <Field label="Builder" value={builderName} onChange={setBuilderName} />
-            <Field label="Start Date" type="date" value={startDate} onChange={setStartDate} />
-            <SelectField label="Customer Project Contact" value={ownerUserId}
-              options={[
-                { value: "", label: !companyId ? "Choose a company first..." : membersLoading ? "Loading..." : activeMembers.length === 0 ? "No active members" : "Choose..." },
-                ...activeMembers.map(m => ({ value: m.user_id, label: m.email || m.user_id })),
-              ]}
-              onChange={setOwnerUserId} />
-            <SelectField label="Internal Project Manager" value={projectManagerUserId}
-              options={[
-                { value: "", label: staffLoading ? "Loading..." : "Unassigned" },
-                ...staff.map(u => ({ value: u.id, label: u.display_name || u.email || u.id })),
-              ]}
-              onChange={setProjectManagerUserId} />
+            <div className="pa-field full"><label>Project Name</label><input value={name} onChange={e => setName(e.target.value)} placeholder="Project name" /></div>
+            <div className="pa-field full"><label>Project Address</label><input value={siteAddress} onChange={e => setSiteAddress(e.target.value)} placeholder="Project address" /></div>
+            <div className="pa-field"><label>Builder</label><input value={builderName} onChange={e => setBuilderName(e.target.value)} placeholder="Builder name" /></div>
+            <div className="pa-field"><label>Start Date</label><input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} /></div>
           </div>
+        </section>
 
-          {error && <p className="mt-3 text-sm text-red-600 dark:text-red-300">{error}</p>}
-
-          <div className="mt-4">
-            <Button type="submit" disabled={submitting}>{submitting ? "Creating..." : "Create Project"}</Button>
+        <section className="pa-card">
+          <div className="pa-section-head"><div><h2>Customer Access</h2><p>Assign the first project member and project contact</p></div></div>
+          <div className="pa-form">
+            <div className="pa-field full">
+              <label>Customer Project Contact</label>
+              <select value={ownerUserId} onChange={e => setOwnerUserId(e.target.value)}>
+                <option value="">{!companyId ? "Choose a company first..." : membersLoading ? "Loading..." : activeMembers.length === 0 ? "No active members" : "Choose..."}</option>
+                {activeMembers.map(m => <option key={m.user_id} value={m.user_id}>{m.email || m.user_id}</option>)}
+              </select>
+            </div>
           </div>
-          <p className="mt-2 text-xs" style={{ color: MUTED }}>Project number is generated automatically after creation.</p>
-        </Card>
-      </form>
-    </div>
+        </section>
+
+        <section className="pa-card">
+          <div className="pa-section-head"><div><h2>Internal Assignments</h2></div></div>
+          <div className="pa-form">
+            <div className="pa-field full">
+              <label>Project Manager</label>
+              <select value={projectManagerUserId} onChange={e => setProjectManagerUserId(e.target.value)}>
+                <option value="">{staffLoading ? "Loading..." : "Unassigned"}</option>
+                {staff.map(u => <option key={u.id} value={u.id}>{u.display_name || u.email || u.id}</option>)}
+              </select>
+            </div>
+          </div>
+        </section>
+
+        {error && <p className="mt-2 mb-3 text-sm" style={{ color: "var(--red)" }}>{error}</p>}
+        <button type="submit" className="pa-btn primary" disabled={submitting}>{submitting ? "Creating..." : "Create Project"}</button>
+      </div>
+
+      <aside className="pa-sticky">
+        <section className="pa-card">
+          <div className="pa-section-head"><div><h2>Creation Checklist</h2></div></div>
+          <div className="pa-row">
+            <div className="pa-row-copy"><strong>Company</strong><span>Required</span></div>
+            <span className={`pa-badge ${companyId ? "green" : "neutral"}`}>{companyId ? "Ready" : "Pending"}</span>
+          </div>
+          <div className="pa-row">
+            <div className="pa-row-copy"><strong>Project details</strong><span>Name required</span></div>
+            <span className={`pa-badge ${name.trim() ? "green" : "neutral"}`}>{name.trim() ? "Ready" : "Pending"}</span>
+          </div>
+          <div className="pa-row">
+            <div className="pa-row-copy"><strong>Customer contact</strong><span>Required</span></div>
+            <span className={`pa-badge ${ownerUserId ? "green" : "neutral"}`}>{ownerUserId ? "Ready" : "Pending"}</span>
+          </div>
+          <div className="pa-row">
+            <div className="pa-row-copy"><strong>Internal PM</strong><span>Recommended before activation</span></div>
+            <span className={`pa-badge ${projectManagerUserId ? "green" : "neutral"}`}>{projectManagerUserId ? "Ready" : "Pending"}</span>
+          </div>
+        </section>
+        <section className="pa-card">
+          <div className="pa-notice"><div><strong>Project number</strong><span>Generated automatically after creation.</span></div></div>
+        </section>
+      </aside>
+    </form>
   );
 };

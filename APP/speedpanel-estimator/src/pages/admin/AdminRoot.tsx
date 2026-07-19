@@ -78,7 +78,7 @@ export const AdminRoot = ({ route, navigate, layoutMode, auth }: {
             {allowed && route.sub === "documents" && <AdminDocumentsPage layoutMode={layoutMode} />}
             {allowed && route.sub === "requests"  && <AdminRequestsPage userId={auth.user?.id ?? null} staffRole={staffRole} staffRoleLoading={roleLoading} />}
             {allowed && route.sub === "projectReviews" && <AdminProjectsPage userId={auth.user?.id ?? null} staffRole={staffRole} staffRoleLoading={roleLoading} />}
-            {allowed && route.sub === "projectsAdmin" && <AdminProjectsAdministrationPage userId={auth.user?.id ?? null} />}
+            {allowed && route.sub === "projectsAdmin" && <AdminProjectsAdministrationPage userId={auth.user?.id ?? null} navigate={navigate} />}
             {allowed && route.sub === "users"     && <AdminUsersPage auth={auth} />}
             {allowed && route.sub === "analytics" && <AdminAnalyticsPage />}
             {allowed && route.sub === "auditLog"  && <AdminAuditLogPage />}
