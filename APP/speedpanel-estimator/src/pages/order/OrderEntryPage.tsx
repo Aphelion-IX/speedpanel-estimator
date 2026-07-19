@@ -54,6 +54,14 @@ export const OrderEntryPage = ({ auth, activeCompanyId, onPickProject, onGoToPro
                   <p className="mt-0.5 text-xs" style={{ color: MUTED }}>Updated {new Date(p.updated_at).toLocaleDateString()}</p>
                 </div>
               </div>
+              {/* Placeholder only -- no real per-project order total exists yet
+                  (an order is priced once its line items are picked in
+                  QuickOrderPage, not before). Static dummy value, replace once
+                  a real "existing draft/last order total" figure is wired in. */}
+              <div className="shrink-0 text-right">
+                <p className="text-sm font-bold" style={{ color: NAVY }}>$0.00</p>
+                <p className="text-[10px] font-bold uppercase tracking-wide" style={{ color: MUTED }}>Est. total</p>
+              </div>
               <ChevronRight size={16} className="shrink-0" style={{ color: BLUE }} />
             </button>
           ))}
