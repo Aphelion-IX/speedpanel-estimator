@@ -136,10 +136,10 @@ export function ExternalCalculator({
     { value: results.length, label: "Walls" },
   ];
 
-  // Renders as a full-width card carousel on web (see estimateStructureNav.tsx)
-  // -- rendered inside webWorkspaceNode below, directly under the web "system
-  // configuration" card, and inside mainNode on phone as the first thing
-  // under the "Project quantities" divider.
+  // Renders as a full-width card carousel on web, a pill strip on phone (see
+  // estimateStructureNav.tsx) -- directly under WallsCard in webWorkspaceNode,
+  // and directly under SystemConfigSectionPhone in phoneWorkspaceNode below
+  // (both "system configuration" for whichever layout is active).
   const wallNavNode = (
     <EstimateStructureNav
       walls={walls} results={results} activeId={activeId} onSelectWall={setActiveId}
@@ -208,6 +208,7 @@ export function ExternalCalculator({
         onJunctionLink={linkJunctionPartner}
         switchOrient={switchOrient} switchToInternal={switchToInternal}
       />
+      {wallNavNode}
       <GeometrySectionPhone
         active={active} update={update} toDisp={toDisp} updDim={updDim} out={out} orient={orient}
         walls={walls} dimUnit={dimUnit} switchDimUnit={switchDimUnit}
@@ -272,10 +273,6 @@ export function ExternalCalculator({
       {workspaceNode}
 
       <ProjectSeparator />
-      {/* On web, My Walls now renders up in webWorkspaceNode (directly under
-          WallsCard) instead of here -- phone keeps it here, as the first
-          thing under this separator, same as before. */}
-      {layoutMode === "phone" && wallNavNode}
       <EstimateResultsCard
         layoutMode={layoutMode} results={results}
         projAgg={projAgg} combinedEstimate={combinedEstimate}

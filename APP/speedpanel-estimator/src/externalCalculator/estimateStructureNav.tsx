@@ -59,6 +59,9 @@ export const EstimateStructureNav = ({
       active: w.id === activeId,
       status: deriveWallStatus(w, r),
       thumbnail: <WallPreviewSection active={w} walls={walls} out={r} dimUnit={dimUnit} toDisp={toDisp} size="thumb" />,
+      onDuplicate: () => duplicateWallById(w.id),
+      onDelete: () => deleteWallById(w.id),
+      deleteDisabled: walls.length === 1,
     }));
     return <WallPillStripPhone items={items} onSelect={id => onSelectWall(Number(id))} />;
   }

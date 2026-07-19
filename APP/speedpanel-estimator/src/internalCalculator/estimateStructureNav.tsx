@@ -155,6 +155,9 @@ export const EstimateStructureNav = ({
         active: selected.type === "wall" && selected.wallId === w.id,
         status: deriveWallStatus(w, r),
         thumbnail: <WallPreviewSection active={w} walls={walls} out={r} dimUnit={dimUnit} toDisp={toDisp} size="thumb" />,
+        onDuplicate: () => duplicateWallById(w.id),
+        onDelete: () => deleteWallById(w.id),
+        deleteDisabled: walls.length === 1,
       })),
       ...kits.map(k => ({
         id: kitPillId(k),

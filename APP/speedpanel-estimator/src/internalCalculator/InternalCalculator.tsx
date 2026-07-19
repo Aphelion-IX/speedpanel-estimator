@@ -174,10 +174,11 @@ export function InternalCalculator({
         { value: out.empty ? "--" : `${r1(out.chosen?.wastePct ?? 0)}%`, label: "Waste" },
       ];
 
-  // Renders as a full-width card carousel on web (see estimateStructureNav.tsx)
-  // -- rendered inside webWorkspaceNode below, directly under WallsCard (the
-  // web "system configuration" card), and inside mainNode on phone as the
-  // first thing under the "Project quantities" divider.
+  // Renders as a full-width card carousel on web, a pill strip on phone (see
+  // estimateStructureNav.tsx) -- directly under WallsCard/KitWorkspace in
+  // webWorkspaceNode, and directly under SystemConfigSectionPhone/
+  // KitWorkspacePhone in phoneWorkspaceNode below (both "system
+  // configuration" for whichever layout is active).
   const wallNavNode = (
     <EstimateStructureNav
       walls={walls} results={results} kits={kits}
@@ -253,11 +254,14 @@ export function InternalCalculator({
   const phoneWorkspaceNode = (
     <>
       {selectedKit && (
-        <SheetCardPhone>
-          <SheetSectionPhone icon={<Link2 size={13} />} label="Connection workspace" noDivider>
-            <KitWorkspacePhone kit={selectedKit} onSelect={handleSelectNavItem} />
-          </SheetSectionPhone>
-        </SheetCardPhone>
+        <>
+          <SheetCardPhone>
+            <SheetSectionPhone icon={<Link2 size={13} />} label="Connection workspace" noDivider>
+              <KitWorkspacePhone kit={selectedKit} onSelect={handleSelectNavItem} />
+            </SheetSectionPhone>
+          </SheetCardPhone>
+          {wallNavNode}
+        </>
       )}
       {!selectedKit && (
         <>
@@ -267,6 +271,7 @@ export function InternalCalculator({
             onCornerLink={linkCornerPartner} onShaftLink={linkShaftPartner} onJunctionLink={linkJunctionPartner}
             switchOrient={switchOrient} switchToExternal={switchToExternal}
           />
+          {wallNavNode}
           <GeometrySectionPhone
             active={active} update={update} toDisp={toDisp} updDim={updDim} out={out} orient={orient}
             walls={walls} dimUnit={dimUnit} switchDimUnit={switchDimUnit}
@@ -344,10 +349,6 @@ export function InternalCalculator({
 
       {/* Estimate Results: Overview / Selected Wall / Connections / Order tabs */}
       <ProjectSeparator />
-      {/* On web, My Walls now renders up in webWorkspaceNode (directly under
-          WallsCard/KitWorkspace) instead of here -- phone keeps it here, as
-          the first thing under this separator, same as before. */}
-      {layoutMode === "phone" && wallNavNode}
       <EstimateResultsCard
         layoutMode={layoutMode} results={results} walls={walls} kits={kits}
         projChosenAgg={projChosenAgg} combinedEstimate={combinedEstimate}
