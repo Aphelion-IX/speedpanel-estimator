@@ -1,70 +1,78 @@
 // =============================================================================
 // Project detail -- the expanded per-project view
 // =============================================================================
-// Replaces ProjectDashboard.tsx (deleted) -- was embedded directly beneath
-// ProjectsListPage.tsx's carousel; now its own full view reached at
-// #/projects/:id with an explicit back link (see ProjectsRouter.tsx). Modeled
-// on the supplied ProjectOverviewPage.tsx mockup: hero, a merged "Project
-// Progress" card, What's Next/Quick Order cards, Quick Actions, Orders,
-// Recent Activity, Request Services, Documents, Project Team.
+// Restyled to match UI-DESIGNS/customer/{desktop,ipad,phone}/
+// customer-orders-overview.html's "Open Project" pages exactly -- see
+// projectsTheme.css for the scoped `.pj-*` palette/shape this page (and
+// ProjectsListPage.tsx) render with. All three mockup tiers render from this
+// one component; projectsTheme.css's real @media breakpoints do the layout
+// switching (hero grid collapses, contacts go 2-up, overview grid goes
+// single-column, etc.), not separate React branches.
 //
-// Restructured into four project-level tabs (Projects Experience Redesign
-// spec section 3/10): Overview / Orders & Deliveries / Support / Documents --
-// the header, attention banner and Project Progress card stay above the tabs
-// (page furniture every tab shares), everything else moved into its matching
-// tab instead of one long scroll (spec section 2: "do not expose everything
-// at once").
+// Kept the existing six project-level tabs (Overview / Orders & Deliveries /
+// Support / Documents / Members & Contacts / Settings) -- the mockup only
+// shows four (no Members & Contacts / Settings, both added this session for
+// Projects Operations), so two extra `.pj-tab` buttons were appended; the
+// tab bar's `overflow-x:auto` already handles that on narrow screens.
 //
-// "Project Progress" shows two independent stage trackers stacked together,
-// each still reading its own value -- they're deliberately NOT conflated
-// into one number (see journeyStage.ts's header comment for why, a past
-// "stage drift" bug):
-//  - "Order Progress": the 8-step Estimating..Completed journey stage, a
-//    DISPLAY-ONLY value computed here from this project's real orders/
-//    manufacturing/delivery data via journeyStage.ts, never persisted.
-//  - "Design Review": the real project.stage (draft/install_review/
-//    technical_review/approved) via StageStepper.tsx.
-// Both trackers render through the same StepTracker.tsx primitive so they
-// read as one coherent section instead of two unrelated-looking widgets.
+// Overview tab is the main rebuild target: hero (title/badge/address/
+// metagrid/contacts), a manufacturing/next-milestone banner, four quick
+// actions, then a two-column grid (Project Progress timeline + ring /
+// Orders & Deliveries | Project Services / Recent Documents / Recent
+// Activity) -- every value in it comes from data already fetched here or by
+// the hooks it calls (journeyStage.ts, orders/orderTypes.ts,
+// services/serviceRequestsStore.ts, documents/projectDocumentsStore.ts,
+// projectActivityStore.ts, company/companyStore.ts's useCompanyStaffTeam for
+// the hero's Speedpanel-team contacts) -- never the mockup's own static
+// numbers. journeyStage.ts's REAL 8-step model
+// (Estimating..Quote Submitted..Completed) drives the timeline, not the
+// mockup's own invented 7-label demo set (Planning/Invoice Submitted/...) --
+// see that file's header comment for why a second stage vocabulary must
+// never exist (a past "stage drift" bug).
 // =============================================================================
 import { useMemo, useState } from "react";
 import {
-  Building2, Activity as ActivityIcon,
-  Send, CheckCircle2, AlertCircle, ChevronLeft, ChevronRight,
-  CalendarDays, ShoppingCart, FileText, Box, UserRound, ClipboardCheck, Wrench,
-  Trash2, Pencil,
+  Send, CheckCircle2, AlertCircle, ChevronLeft,
+  ShoppingCart, FileText, ClipboardCheck, Calculator, CalendarClock, Mail, Phone,
+  Truck, Lock, Trash2, Pencil, Box,
 } from "lucide-react";
-import { cx, NAVY, BLUE, WHITE, MUTED } from "../../styleTokens";
+import { cx, NAVY, BLUE, MUTED } from "../../styleTokens";
 import { Field, TextAreaField } from "../shared/fields";
-import { Card, WarningsList, Stat, IconButton } from "../../ui/primitives";
+import { WarningsList, IconButton } from "../../ui/primitives";
 import { Button } from "../../ui/button";
+import { Drawer } from "../../ui/drawer";
 import { LoadingState, ErrorState, EmptyState } from "../../ui/states";
 import { Table, type TableColumn } from "../../ui/table";
 import { ConfirmDialog } from "../../ui/confirmDialog";
-import { Tabs, TabPanel } from "../../ui/tabs";
+import { TabPanel } from "../../ui/tabs";
 import type { EffectiveLayout } from "../../useLayoutMode";
 import { useProject } from "./projectDetailStore";
 import { useProjectCompanyNames } from "./projectsStore";
-import { ReviewActionPanel, canRequestInstallReview, canRequestTechnicalReview } from "./ReviewActionPanel";
-import { StageStepper } from "./StageStepper";
-import { ProjectJourneyTimeline } from "./ProjectJourneyTimeline";
+import { useCompanyStaffTeam } from "../company/companyStore";
+import { STAFF_ROLES, STAFF_ROLE_LABELS, staffDisplayName } from "../company/staffTypes";
+import { ReviewActionPanel } from "./ReviewActionPanel";
 import { useProjectOrders } from "./orders/ordersStore";
 import { useOrderDeliveriesForOrders } from "./orders/orderDeliveriesStore";
-import { journeyStageForProject, journeyStageForOrder, journeyProgressPercent, JOURNEY_STAGE_LABELS, JOURNEY_STAGE_BADGE_CLASS } from "./journeyStage";
+import { journeyStageForProject, journeyStageForOrder, journeyProgressPercent, JOURNEY_STAGES, JOURNEY_STAGE_LABELS } from "./journeyStage";
 import { journeyMilestone, nextDeliveryDate } from "./journeyCopy";
-import { ORDER_STAGE_LABELS, ORDER_STAGE_BADGE_CLASS, totalPanelCount, summarizeOrders, type OrderRow } from "./orders/orderTypes";
+import { ORDER_STAGE_LABELS, ORDER_STAGE_BADGE_CLASS, DELIVERY_STATUS_LABELS, totalPanelCount, summarizeOrders, type OrderRow } from "./orders/orderTypes";
 import {
-  useProjectActivity, STAGE_EVENT_LABELS, STAGE_EVENT_DESCRIPTIONS, relativeTime,
+  useProjectActivity, STAGE_EVENT_LABELS, relativeTime,
   type StageEventType,
 } from "./projectActivityStore";
 import { ProjectDocumentsCard } from "./documents/ProjectDocumentsCard";
+import { useProjectDocuments } from "./documents/projectDocumentsStore";
+import { formatFileSize } from "./documents/projectDocumentsTypes";
 import { ProjectMembersCard } from "./ProjectMembersCard";
-import { ProjectSpeedpanelTeamCard } from "./ProjectSpeedpanelTeamCard";
 import { ProjectServicesCard } from "./services/ProjectServicesCard";
+import { useProjectServiceRequests, useServiceEligibility } from "./services/serviceRequestsStore";
+import { ServiceRequestForm } from "./services/ServiceRequestForm";
+import { SERVICE_REQUEST_TYPES, SERVICE_REQUEST_TYPE_LABELS, type ServiceRequestType } from "./services/serviceRequestTypes";
 import { ProjectContactsCard } from "./ProjectContactsCard";
 import { ProjectNotificationPreferencesCard } from "./ProjectNotificationPreferencesCard";
 import { ProjectLifecycleCard } from "./ProjectLifecycleCard";
 import type { ProjectRow } from "./projectTypes";
+import "./projectsTheme.css";
 
 const EVENT_ICON: Record<StageEventType, { Icon: typeof Send; className: string }> = {
   install_review_requested: { Icon: Send, className: "bg-blue-50 dark:bg-blue-900/50 text-blue-600 dark:text-blue-300" },
@@ -75,24 +83,6 @@ const EVENT_ICON: Record<StageEventType, { Icon: typeof Send; className: string 
   technical_review_changes_requested: { Icon: AlertCircle, className: "bg-amber-50 dark:bg-amber-900/50 text-amber-600 dark:text-amber-300" },
 };
 
-const QuickAction = ({ icon: Icon, label, onClick, disabled, tone = "blue" }: {
-  icon: React.ElementType; label: string; onClick: () => void; disabled?: boolean;
-  tone?: "blue" | "green" | "purple" | "orange" | "cyan";
-}) => {
-  const tones: Record<string, string> = {
-    blue: "text-blue-600 dark:text-blue-300", green: "text-emerald-600 dark:text-emerald-300",
-    purple: "text-violet-600 dark:text-violet-400", orange: "text-orange-500 dark:text-orange-400",
-    cyan: "text-cyan-600 dark:text-cyan-300",
-  };
-  return (
-    <button onClick={onClick} disabled={disabled}
-      className="flex min-h-16 items-center gap-3 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-blue-200 dark:hover:border-blue-800 hover:shadow-md disabled:opacity-40 disabled:hover:translate-y-0">
-      <Icon className={`h-6 w-6 shrink-0 ${tones[tone]}`} />
-      <span className="text-sm font-semibold" style={{ color: NAVY }}>{label}</span>
-    </button>
-  );
-};
-
 const PROJECT_TABS = [
   { id: "overview", label: "Overview" },
   { id: "orders", label: "Orders & Deliveries" },
@@ -101,6 +91,37 @@ const PROJECT_TABS = [
   { id: "people", label: "Members & Contacts" },
   { id: "settings", label: "Settings" },
 ];
+
+// First-letter-of-each-word initials for the hero contact avatars --
+// derived from the real staff display name, never a fabricated placeholder.
+const initials = (name: string): string =>
+  name.split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]?.toUpperCase() ?? "").join("") || "?";
+
+// Overview tab's "Technical Review"/"Pre-Start Meeting" quick actions open
+// this -- the same Support & Services request flow (services/
+// serviceRequestsStore.ts) the "Project Services" panel below and
+// ProjectsListPage.tsx's per-card Technical action already use. Deliberately
+// NOT the design-review pipeline's requestInstallReview/requestTechnicalReview
+// (project.stage machine) -- the mockup's "Technical Review" tile matches the
+// Project Services panel directly beneath it, a different feature/table.
+const ServiceActionDrawer = ({ projectId, projectName, requestType, layoutMode, onClose }: {
+  projectId: string; projectName: string; requestType: ServiceRequestType; layoutMode: EffectiveLayout; onClose: () => void;
+}) => {
+  const { createRequest } = useProjectServiceRequests(projectId);
+  const [done, setDone] = useState(false);
+  if (done) {
+    return (
+      <Drawer open onClose={onClose} layoutMode={layoutMode} title={`Request sent -- ${projectName}`}>
+        <p className="text-sm" style={{ color: NAVY }}>Your {SERVICE_REQUEST_TYPE_LABELS[requestType].toLowerCase()} request has been sent.</p>
+        <Button className="mt-4" onClick={onClose}>Done</Button>
+      </Drawer>
+    );
+  }
+  return (
+    <ServiceRequestForm requestType={requestType} layoutMode={layoutMode} onClose={onClose}
+      onSubmit={fields => createRequest(requestType, fields)} onCreated={() => setDone(true)} />
+  );
+};
 
 export const ProjectDetailPage = ({ id, userId, onBack, onOpenEstimator, onCreateOrder, onCreateQuickOrder, onOpenOrder, layoutMode }: {
   id: string; userId: string | null; onBack: () => void; onOpenEstimator: (project: ProjectRow) => void;
@@ -114,6 +135,9 @@ export const ProjectDetailPage = ({ id, userId, onBack, onOpenEstimator, onCreat
   const { events, loading: activityLoading, error: activityError } = useProjectActivity(id);
   const { project, loading, error, reload, rename, saveSnapshot, deleteProject, requestInstallReview, requestTechnicalReview } = useProject(id);
   const companyNames = useProjectCompanyNames(useMemo(() => (project?.company_id ? [project.company_id] : []), [project?.company_id]));
+  const { staff: speedpanelTeam } = useCompanyStaffTeam(project?.company_id ?? null);
+  const { eligibility } = useServiceEligibility(id);
+  const { documents } = useProjectDocuments(id, userId);
   const [name, setName] = useState("");
   const [reference, setReference] = useState("");
   const [siteAddress, setSiteAddress] = useState("");
@@ -123,9 +147,9 @@ export const ProjectDetailPage = ({ id, userId, onBack, onOpenEstimator, onCreat
   const [renaming, setRenaming] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
-  const [quickActionBusy, setQuickActionBusy] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [activeTab, setActiveTab] = useState("overview");
+  const [serviceFormType, setServiceFormType] = useState<ServiceRequestType | null>(null);
 
   const journey = useMemo(() => {
     if (!project) return null;
@@ -139,7 +163,11 @@ export const ProjectDetailPage = ({ id, userId, onBack, onOpenEstimator, onCreat
   const allDeliveries = useMemo(() => [...deliveriesByOrder.values()].flat(), [deliveriesByOrder]);
 
   const representativeOrder = orders.find(o => o.id === journey?.representativeOrderId);
-  const representativeDeliveries = representativeOrder ? (deliveriesByOrder.get(representativeOrder.id) ?? []) : [];
+  const progressPct = journey ? journeyProgressPercent(journey.stage, representativeOrder) : 0;
+
+  const recentOrders = useMemo(() => [...nonCancelledOrders].sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 2), [nonCancelledOrders]);
+  const upcomingDeliveryDate = nextDeliveryDate(allDeliveries);
+  const upcomingDelivery = allDeliveries.find(d => (d.confirmed_date ?? d.requested_date) === upcomingDeliveryDate);
 
   const orderColumns: TableColumn<OrderRow>[] = useMemo(() => [
     {
@@ -171,10 +199,6 @@ export const ProjectDetailPage = ({ id, userId, onBack, onOpenEstimator, onCreat
           </div>
         );
       },
-    },
-    {
-      key: "chevron", header: "", align: "right", className: "w-10",
-      cell: () => <ChevronRight className="ml-auto h-5 w-5" style={{ color: MUTED }} />,
     },
   ], [deliveriesByOrder]);
 
@@ -216,23 +240,16 @@ export const ProjectDetailPage = ({ id, userId, onBack, onOpenEstimator, onCreat
     if (err) setActionError(err);
   };
 
-  const runQuickAction = async (action: () => Promise<string | null>) => {
-    setQuickActionBusy(true);
-    setActionError(null);
-    const err = await action();
-    setQuickActionBusy(false);
-    if (err) setActionError(err);
-  };
-
   const companyName = project.company_id ? companyNames.get(project.company_id) : undefined;
   const milestone = journeyMilestone(journey.stage, {
     estimatingNote: journey.estimatingNote,
     estCompletion: representativeOrder?.manufacturing_est_completion,
-    nextDeliveryDate: nextDeliveryDate(representativeDeliveries),
+    nextDeliveryDate: upcomingDeliveryDate,
   });
+  const bannerHeadline = journey.stage === "manufacturing" ? `Manufacturing is ${progressPct}% complete` : milestone.label;
+  const showManufacturingRing = ["processing", "manufacturing", "ready_for_delivery"].includes(journey.stage) && representativeOrder;
 
   const summary = summarizeOrders(orders);
-  const nextDelivery = nextDeliveryDate(allDeliveries);
   const summaryWarnings: string[] = [];
   if (summary.unpricedCount > 0) {
     summaryWarnings.push(`${summary.unpricedCount} item${summary.unpricedCount !== 1 ? "s" : ""} across your orders couldn't be priced automatically.`);
@@ -244,10 +261,13 @@ export const ProjectDetailPage = ({ id, userId, onBack, onOpenEstimator, onCreat
     summaryWarnings.push("Technical review needs changes — see the Support tab below.");
   }
 
+  const recentDocuments = documents.slice(0, 3);
+  const recentEvents = events.slice(0, 3);
+
   return (
-    <div className="mt-2">
-      <button onClick={onBack} className="flex items-center gap-2 text-sm font-semibold hover:underline" style={{ color: BLUE }}>
-        <ChevronLeft className="h-4 w-4" />All projects
+    <div className="pj-shell mt-2">
+      <button onClick={onBack} className="pj-back">
+        <ChevronLeft size={16} />All Projects
       </button>
 
       <ConfirmDialog
@@ -260,7 +280,12 @@ export const ProjectDetailPage = ({ id, userId, onBack, onOpenEstimator, onCreat
         onConfirm={() => { setConfirmDelete(false); handleDelete(); }}
       />
 
-      <div className={`${cx.card} mt-3`}>
+      {serviceFormType && (
+        <ServiceActionDrawer projectId={project.id} projectName={project.name} requestType={serviceFormType}
+          layoutMode={layoutMode} onClose={() => setServiceFormType(null)} />
+      )}
+
+      <section className="pj-hero">
         {editingName ? (
           <form onSubmit={submitRename} className="flex flex-col gap-3">
             <div className="grid gap-3 sm:grid-cols-2">
@@ -276,157 +301,225 @@ export const ProjectDetailPage = ({ id, userId, onBack, onOpenEstimator, onCreat
             </div>
           </form>
         ) : (
-          <div className="flex flex-col gap-4 sm:flex-row">
-            <div className="grid h-24 w-full shrink-0 place-items-center rounded-xl bg-blue-50 dark:bg-blue-900/55 sm:w-24">
-              <Building2 size={36} style={{ color: BLUE }} />
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <h1 className={cx.h1}>{project.name}</h1>
-                  <p className="mt-1 text-xs" style={{ color: MUTED }}>
-                    {project.project_number || project.id.slice(0, 8).toUpperCase()}
-                    {project.data.reference ? ` · Ref: ${project.data.reference}` : ""}
-                    {companyName ? ` · ${companyName}` : ""}
-                  </p>
-                  {(project.data.siteAddress || project.data.customerName || project.builder_name) && (
-                    <p className="mt-1 text-xs" style={{ color: MUTED }}>
-                      {project.data.siteAddress}
-                      {project.builder_name && <> &middot; Builder: {project.builder_name}</>}
-                      {project.data.customerName && <> &middot; {project.data.customerName}</>}
-                    </p>
-                  )}
-                  {project.data.description && (
-                    <p className="mt-1 max-w-prose text-xs" style={{ color: MUTED }}>{project.data.description}</p>
-                  )}
-                  <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
-                    <span className={`${cx.badge} ${JOURNEY_STAGE_BADGE_CLASS[journey.stage]}`}>{JOURNEY_STAGE_LABELS[journey.stage]}</span>
-                    {representativeOrder?.manufacturing_est_completion && (
-                      <span style={{ color: MUTED }}>Expected completion: {new Date(representativeOrder.manufacturing_est_completion).toLocaleDateString()}</span>
-                    )}
-                    <span style={{ color: MUTED }}>Last updated: {relativeTime(project.updated_at)}</span>
-                  </div>
-                </div>
-                <IconButton onClick={startRename} title="Edit details" ariaLabel="Edit project details"><Pencil size={15} /></IconButton>
+          <div className="pj-herogrid">
+            <div>
+              <div className="pj-titleline">
+                <h1>{project.name}</h1>
+                <span className={`pj-badge ${journey.stage === "completed" ? "complete" : ""}`}>{JOURNEY_STAGE_LABELS[journey.stage]}</span>
+                <IconButton onClick={startRename} title="Edit details" ariaLabel="Edit project details"><Pencil size={13} /></IconButton>
               </div>
+              <div className="pj-heroaddress">
+                {project.data.siteAddress || "No address on file"}
+                {companyName ? ` · ${companyName}` : ""}
+              </div>
+              <div className="pj-metagrid">
+                <div className="pj-metabox"><span>Project Number</span><strong>{project.project_number || project.id.slice(0, 8).toUpperCase()}</strong></div>
+                <div className="pj-metabox"><span>Builder</span><strong>{project.builder_name || "—"}</strong></div>
+                <div className="pj-metabox"><span>Customer PM</span><strong>{project.data.customerName || "—"}</strong></div>
+                <div className="pj-metabox"><span>Start Date</span><strong>{project.start_date ? new Date(project.start_date).toLocaleDateString() : "—"}</strong></div>
+              </div>
+            </div>
+            <div className="pj-contacts">
+              {speedpanelTeam.length === 0 ? (
+                <p className={cx.footnote} style={{ paddingTop: 0 }}>Your Speedpanel team hasn't been assigned yet.</p>
+              ) : (
+                STAFF_ROLES.filter(role => !["internal_sales", "dispatch", "technical_services"].includes(role)).map(role => {
+                  const contact = speedpanelTeam.find(m => m.role === role);
+                  if (!contact) return null;
+                  const display = staffDisplayName(contact);
+                  return (
+                    <div key={role} className="pj-contact">
+                      <span className="pj-contactavatar">{initials(display)}</span>
+                      <div className="pj-contactcopy"><strong>{display}</strong><span>{STAFF_ROLE_LABELS[role]}</span></div>
+                      <div className="pj-contacttools">
+                        <button className="pj-mini" disabled={!contact.email} title="Email" onClick={() => contact.email && (window.location.href = `mailto:${contact.email}`)}><Mail /></button>
+                        <button className="pj-mini" disabled={!contact.phone} title="Call" onClick={() => contact.phone && (window.location.href = `tel:${contact.phone}`)}><Phone /></button>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </div>
           </div>
         )}
-
         {actionError && <p className="mt-3 text-sm text-red-600 dark:text-red-300">{actionError}</p>}
-
-        <div className="mt-4 flex flex-wrap gap-2">
-          <Button onClick={() => onOpenEstimator(project)}>Open in Estimator</Button>
-          <Button variant="secondary" icon={<ShoppingCart size={15} />} onClick={() => onCreateQuickOrder(project.id)}>Quick Order</Button>
-          <Button variant="secondary" icon={<FileText size={15} />} onClick={() => setActiveTab("documents")}>My Documents</Button>
-          <Button variant="danger" icon={<Trash2 size={15} />} disabled={deleting} onClick={() => setConfirmDelete(true)}>
-            {deleting ? "Deleting..." : "Delete project"}
-          </Button>
-        </div>
-      </div>
+      </section>
 
       <WarningsList warnings={summaryWarnings} />
 
-      <Tabs tabs={PROJECT_TABS} activeId={activeTab} onChange={setActiveTab} />
+      <nav className="pj-tabs">
+        {PROJECT_TABS.map(t => (
+          <button key={t.id} onClick={() => setActiveTab(t.id)} className={`pj-tab ${activeTab === t.id ? "active" : ""}`}>{t.label}</button>
+        ))}
+      </nav>
 
       <TabPanel id="overview" activeId={activeTab}>
-        <Card title="Project Progress" icon={<Wrench size={14} />}>
-          <div className={cx.sectionLbl}>Order Progress</div>
-          <ProjectJourneyTimeline stage={journey.stage} layoutMode={layoutMode} />
-          <div className={cx.hr} />
-          <div className={cx.sectionLbl}>Design Review</div>
-          <StageStepper stage={project.stage} layoutMode={layoutMode} />
-        </Card>
-
-        <div className="mt-4 grid grid-cols-3 gap-2">
-          <Stat value={summary.count} label="Orders" />
-          <Stat value={`$${summary.totalValue.toFixed(0)}`} label="Total value" />
-          <Stat value={nextDelivery ? new Date(nextDelivery).toLocaleDateString() : "—"} label="Next delivery" />
-        </div>
-
-        <div className="mt-4 grid gap-4 xl:grid-cols-[2fr_1fr]">
-          <section className="flex min-h-32 items-center justify-between overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 p-6 shadow-sm">
-            <div className="flex items-start gap-5">
-              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full" style={{ background: BLUE, color: WHITE }}>
-                <CalendarDays className="h-6 w-6" />
-              </span>
-              <div>
-                <h2 className={cx.h3}>What&apos;s Next?</h2>
-                <p className="mt-1 font-semibold" style={{ color: NAVY }}>{milestone.label}</p>
-                <p className="mt-2 text-sm" style={{ color: MUTED }}>{milestone.note}</p>
-              </div>
-            </div>
-            <Building2 className="hidden h-20 w-20 text-blue-100 dark:text-blue-950 sm:block" />
-          </section>
-
-          <section className="flex items-center gap-5 rounded-2xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 p-6 shadow-sm">
-            <span className="grid h-12 w-12 place-items-center rounded-full bg-violet-600 text-white">
-              <ShoppingCart className="h-6 w-6" />
-            </span>
-            <div>
-              <h2 className={cx.h3}>Quick Order</h2>
-              <p className="mt-1 text-sm" style={{ color: MUTED }}>Place an order without using the Estimator.</p>
-              <button onClick={() => onCreateQuickOrder(project.id)} className="mt-3 rounded-lg border border-violet-300 dark:border-violet-700 px-5 py-2 text-sm font-semibold text-violet-700 dark:text-violet-400">
-                Start Quick Order &rarr;
-              </button>
-            </div>
-          </section>
-        </div>
-
-        <section className={`${cx.card} mt-4`}>
-          <h2 className={cx.h3}>Quick Actions</h2>
-          <p className="mt-1 text-sm" style={{ color: MUTED }}>
-            Create Order uses your saved Estimator design. Need to order without one? Use Quick Order above.
-          </p>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <QuickAction icon={FileText} label="Open Estimate" onClick={() => onOpenEstimator(project)} />
-            <QuickAction icon={Box} label="Create Order" tone="green" onClick={() => onCreateOrder(project.id)} />
-            <QuickAction icon={UserRound} label="Request Install Review" tone="orange"
-              disabled={!canRequestInstallReview(project) || quickActionBusy}
-              onClick={() => runQuickAction(requestInstallReview)} />
-            <QuickAction icon={ClipboardCheck} label="Request Technical Consult" tone="cyan"
-              disabled={!canRequestTechnicalReview(project) || quickActionBusy}
-              onClick={() => runQuickAction(requestTechnicalReview)} />
+        <div className="pj-banner">
+          <div className="pj-bcopy">
+            <span className="pj-bicon">i</span>
+            <div><strong>{bannerHeadline}</strong><span>{milestone.note}</span></div>
           </div>
-        </section>
+          <button className="pj-primary" onClick={() => document.getElementById("pj-progress-section")?.scrollIntoView({ behavior: "smooth" })}>View Order Progress</button>
+        </div>
 
-        <div className="mt-4 grid gap-4 xl:grid-cols-[1.65fr_1fr]">
-          <Card title="Recent Activity" icon={<ActivityIcon size={14} />}>
-            {activityLoading ? (
-              <LoadingState label="Loading activity" />
-            ) : activityError ? (
-              <p className="text-sm text-red-600 dark:text-red-300">{activityError}</p>
-            ) : events.length === 0 ? (
-              <p className={cx.footnote} style={{ paddingTop: 0 }}>No activity yet.</p>
-            ) : (
-              <div className="space-y-3">
-                {events.map(e => {
-                  const { Icon, className } = EVENT_ICON[e.event_type];
+        <div className="pj-actiongrid">
+          <button className="pj-paction" onClick={() => onCreateQuickOrder(project.id)}>
+            <span className="pj-qicon"><ShoppingCart size={16} /></span>
+            <div><strong>Quick Order</strong><span>Start another project order</span></div>
+          </button>
+          <button className="pj-paction" disabled={!(eligibility.technical_review?.available ?? false)} onClick={() => setServiceFormType("technical_review")}>
+            <span className="pj-qicon"><ClipboardCheck size={16} /></span>
+            <div><strong>Technical Review</strong><span>Ask a project-specific question</span></div>
+          </button>
+          <button className="pj-paction" disabled={!(eligibility.pre_start_meeting?.available ?? false)} onClick={() => setServiceFormType("pre_start_meeting")}>
+            <span className="pj-qicon"><CalendarClock size={16} /></span>
+            <div><strong>Pre-Start Meeting</strong><span>Request phone, online or site meeting</span></div>
+          </button>
+          <button className="pj-paction" onClick={() => setActiveTab("documents")}>
+            <span className="pj-qicon"><FileText size={16} /></span>
+            <div><strong>My Documents</strong><span>Quotes, invoices and project files</span></div>
+          </button>
+          <button className="pj-paction" onClick={() => onOpenEstimator(project)}>
+            <span className="pj-qicon"><Calculator size={16} /></span>
+            <div><strong>Open Estimate</strong><span>Continue in the Estimator</span></div>
+          </button>
+          <button className="pj-paction" onClick={() => onCreateOrder(project.id)}>
+            <span className="pj-qicon"><Box size={16} /></span>
+            <div><strong>Create Order</strong><span>Order from your saved Estimator design</span></div>
+          </button>
+        </div>
+
+        <div className="pj-overviewgrid">
+          <div>
+            <section className="pj-section" id="pj-progress-section">
+              <div className="pj-sectionhead"><div><h2>Project Progress</h2><p>Commercial, manufacturing and delivery lifecycle</p></div></div>
+              <div className="pj-timeline">
+                {JOURNEY_STAGES.map((s, i) => {
+                  const activeIndex = JOURNEY_STAGES.indexOf(journey.stage);
+                  const state = i < activeIndex ? "done" : i === activeIndex ? "current" : "";
                   return (
-                    <div key={e.id} className={`flex gap-3 ${cx.rowBorder}`}>
-                      <div className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg ${className}`}>
-                        <Icon size={15} />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-baseline justify-between gap-2">
-                          <span className="text-sm font-semibold" style={{ color: NAVY }}>{STAGE_EVENT_LABELS[e.event_type]}</span>
-                          <span className={cx.footnote} style={{ paddingTop: 0 }}>{relativeTime(e.created_at)}</span>
-                        </div>
-                        <p className={cx.footnote}>{e.note || STAGE_EVENT_DESCRIPTIONS[e.event_type]}</p>
-                      </div>
+                    <div key={s} className={`pj-stage ${state}`}>
+                      <div className="pj-dot">{state === "done" ? "✓" : ""}</div>
+                      <strong>{JOURNEY_STAGE_LABELS[s]}</strong>
+                      <span>{state === "done" ? "Done" : state === "current" ? "Current" : "Next"}</span>
                     </div>
                   );
                 })}
               </div>
-            )}
-          </Card>
+              {showManufacturingRing && (
+                <div className="pj-manufacturing">
+                  <div>
+                    <h3>Manufacturing in progress</h3>
+                    <p>
+                      Order {representativeOrder!.id.slice(0, 8).toUpperCase()}
+                      {representativeOrder!.manufacturing_est_completion && ` · Target completion ${new Date(representativeOrder!.manufacturing_est_completion).toLocaleDateString()}`}
+                      {` · Updated ${relativeTime(representativeOrder!.updated_at)}`}
+                    </p>
+                  </div>
+                  <div className="pj-ring" style={{ background: `conic-gradient(var(--pj-blue) 0 ${progressPct}%, #dbe7ee ${progressPct}% 100%)` }}>
+                    <strong>{progressPct}%</strong>
+                  </div>
+                </div>
+              )}
+            </section>
 
-          {project.company_id && (
-            <div className="space-y-4">
-              <ProjectMembersCard projectId={project.id} companyId={project.company_id} />
-              <ProjectSpeedpanelTeamCard companyId={project.company_id} />
-            </div>
-          )}
+            <section className="pj-section">
+              <div className="pj-sectionhead"><div><h2>Orders &amp; Deliveries</h2><p>Current project activity</p></div><button className="pj-link" onClick={() => setActiveTab("orders")}>View All</button></div>
+              {recentOrders.length === 0 && !upcomingDelivery ? (
+                <EmptyState message="No orders yet." />
+              ) : (
+                <>
+                  {recentOrders.map(o => {
+                    const orderStage = journeyStageForOrder(o, deliveriesByOrder.get(o.id) ?? []);
+                    const pct = journeyProgressPercent(orderStage, o);
+                    return (
+                      <div key={o.id} className="pj-row">
+                        <span className="pj-rowicon"><ShoppingCart size={16} /></span>
+                        <div className="pj-rowcopy">
+                          <strong>Order {o.id.slice(0, 8).toUpperCase()}</strong>
+                          <span>
+                            {ORDER_STAGE_LABELS[o.stage]}
+                            {o.manufacturing_est_completion && ` · Target completion ${new Date(o.manufacturing_est_completion).toLocaleDateString()}`}
+                          </span>
+                        </div>
+                        <span className="pj-tag">{pct}%</span>
+                      </div>
+                    );
+                  })}
+                  {upcomingDelivery && (
+                    <div className="pj-row">
+                      <span className="pj-rowicon"><Truck size={16} /></span>
+                      <div className="pj-rowcopy">
+                        <strong>Delivery</strong>
+                        <span>
+                          {upcomingDelivery.confirmed_date ? `Confirmed for ${new Date(upcomingDelivery.confirmed_date).toLocaleDateString()}` : `Requested for ${new Date(upcomingDelivery.requested_date!).toLocaleDateString()}`}
+                        </span>
+                      </div>
+                      <span className="pj-tag">{DELIVERY_STATUS_LABELS[upcomingDelivery.status]}</span>
+                    </div>
+                  )}
+                </>
+              )}
+            </section>
+          </div>
+
+          <div>
+            <section className="pj-section">
+              <div className="pj-sectionhead"><div><h2>Project Services</h2><p>Availability based on project progress</p></div><button className="pj-link" onClick={() => setActiveTab("support")}>View All</button></div>
+              {SERVICE_REQUEST_TYPES.map(type => {
+                const available = eligibility[type]?.available ?? false;
+                return (
+                  <div key={type} className={`pj-service ${available ? "" : "locked"}`}>
+                    <span className="pj-serviceicon">{available ? <CheckCircle2 size={16} /> : <Lock size={14} />}</span>
+                    <div className="pj-servicecopy">
+                      <strong>{SERVICE_REQUEST_TYPE_LABELS[type]}</strong>
+                      <span>{available ? "Available now" : (eligibility[type]?.message ?? "Not yet available")}</span>
+                    </div>
+                    <span className="pj-tag">{available ? "Available" : "Locked"}</span>
+                  </div>
+                );
+              })}
+            </section>
+
+            <section className="pj-section">
+              <div className="pj-sectionhead"><div><h2>Recent Documents</h2><p>Latest project files</p></div><button className="pj-link" onClick={() => setActiveTab("documents")}>View All</button></div>
+              {recentDocuments.length === 0 ? (
+                <EmptyState message="No documents yet." />
+              ) : recentDocuments.map(doc => (
+                <div key={doc.id} className="pj-row">
+                  <span className="pj-rowicon"><FileText size={16} /></span>
+                  <div className="pj-rowcopy">
+                    <strong>{doc.file_name}</strong>
+                    <span>{formatFileSize(doc.file_size)} &middot; Added {new Date(doc.created_at).toLocaleDateString()}</span>
+                  </div>
+                  <span className="pj-tag">{doc.file_name.split(".").pop()?.toUpperCase() || "FILE"}</span>
+                </div>
+              ))}
+            </section>
+
+            <section className="pj-section">
+              <div className="pj-sectionhead"><div><h2>Recent Activity</h2><p>Latest project changes</p></div></div>
+              {activityLoading ? (
+                <p className={cx.footnote} style={{ paddingTop: 0 }}>Loading...</p>
+              ) : activityError ? (
+                <p className="text-sm text-red-600 dark:text-red-300">{activityError}</p>
+              ) : recentEvents.length === 0 ? (
+                <EmptyState message="No activity yet." />
+              ) : recentEvents.map(e => {
+                const { Icon } = EVENT_ICON[e.event_type];
+                return (
+                  <div key={e.id} className="pj-row">
+                    <span className="pj-rowicon"><Icon size={16} /></span>
+                    <div className="pj-rowcopy">
+                      <strong>{STAGE_EVENT_LABELS[e.event_type]}</strong>
+                      <span>{relativeTime(e.created_at)}</span>
+                    </div>
+                    <span className="pj-tag">Update</span>
+                  </div>
+                );
+              })}
+            </section>
+          </div>
         </div>
       </TabPanel>
 
@@ -470,6 +563,11 @@ export const ProjectDetailPage = ({ id, userId, onBack, onOpenEstimator, onCreat
         <div className="grid gap-4 xl:grid-cols-2">
           <ProjectLifecycleCard projectId={project.id} />
           <ProjectNotificationPreferencesCard projectId={project.id} userId={userId} />
+        </div>
+        <div className="mt-4">
+          <Button variant="danger" icon={<Trash2 size={15} />} disabled={deleting} onClick={() => setConfirmDelete(true)}>
+            {deleting ? "Deleting..." : "Delete project"}
+          </Button>
         </div>
       </TabPanel>
     </div>
