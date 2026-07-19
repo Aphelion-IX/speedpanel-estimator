@@ -8,6 +8,13 @@
 // Progress" card, What's Next/Quick Order cards, Quick Actions, Orders,
 // Recent Activity, Request Services, Documents, Project Team.
 //
+// Restructured into four project-level tabs (Projects Experience Redesign
+// spec section 3/10): Overview / Orders & Deliveries / Support / Documents --
+// the header, attention banner and Project Progress card stay above the tabs
+// (page furniture every tab shares), everything else moved into its matching
+// tab instead of one long scroll (spec section 2: "do not expose everything
+// at once").
+//
 // "Project Progress" shows two independent stage trackers stacked together,
 // each still reading its own value -- they're deliberately NOT conflated
 // into one number (see journeyStage.ts's header comment for why, a past
@@ -34,6 +41,7 @@ import { Button } from "../../ui/button";
 import { LoadingState, ErrorState, EmptyState } from "../../ui/states";
 import { Table, type TableColumn } from "../../ui/table";
 import { ConfirmDialog } from "../../ui/confirmDialog";
+import { Tabs, TabPanel } from "../../ui/tabs";
 import type { EffectiveLayout } from "../../useLayoutMode";
 import { useProject } from "./projectDetailStore";
 import { useProjectCompanyNames } from "./projectsStore";
@@ -52,6 +60,7 @@ import {
 import { ProjectDocumentsCard } from "./documents/ProjectDocumentsCard";
 import { ProjectMembersCard } from "./ProjectMembersCard";
 import { ProjectSpeedpanelTeamCard } from "./ProjectSpeedpanelTeamCard";
+import { ProjectServicesCard } from "./services/ProjectServicesCard";
 import type { ProjectRow } from "./projectTypes";
 
 const EVENT_ICON: Record<StageEventType, { Icon: typeof Send; className: string }> = {
@@ -81,6 +90,13 @@ const QuickAction = ({ icon: Icon, label, onClick, disabled, tone = "blue" }: {
   );
 };
 
+const PROJECT_TABS = [
+  { id: "overview", label: "Overview" },
+  { id: "orders", label: "Orders & Deliveries" },
+  { id: "support", label: "Support" },
+  { id: "documents", label: "Documents" },
+];
+
 export const ProjectDetailPage = ({ id, userId, onBack, onOpenEstimator, onCreateOrder, onCreateQuickOrder, onOpenOrder, layoutMode }: {
   id: string; userId: string | null; onBack: () => void; onOpenEstimator: (project: ProjectRow) => void;
   onCreateOrder: (id: string) => void; onCreateQuickOrder: (id: string) => void; onOpenOrder: (id: string, orderId: string) => void;
@@ -104,6 +120,7 @@ export const ProjectDetailPage = ({ id, userId, onBack, onOpenEstimator, onCreat
   const [deleting, setDeleting] = useState(false);
   const [quickActionBusy, setQuickActionBusy] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [activeTab, setActiveTab] = useState("overview");
 
   const journey = useMemo(() => {
     if (!project) return null;
@@ -216,10 +233,10 @@ export const ProjectDetailPage = ({ id, userId, onBack, onOpenEstimator, onCreat
     summaryWarnings.push(`${summary.unpricedCount} item${summary.unpricedCount !== 1 ? "s" : ""} across your orders couldn't be priced automatically.`);
   }
   if (project.install_review_status === "changes_requested") {
-    summaryWarnings.push("Install review needs changes — see Request Services below.");
+    summaryWarnings.push("Install review needs changes — see the Support tab below.");
   }
   if (project.technical_review_status === "changes_requested") {
-    summaryWarnings.push("Technical review needs changes — see Request Services below.");
+    summaryWarnings.push("Technical review needs changes — see the Support tab below.");
   }
 
   return (
@@ -263,11 +280,15 @@ export const ProjectDetailPage = ({ id, userId, onBack, onOpenEstimator, onCreat
                 <div>
                   <h1 className={cx.h1}>{project.name}</h1>
                   <p className="mt-1 text-xs" style={{ color: MUTED }}>
-                    Ref: {project.data.reference || project.id.slice(0, 8).toUpperCase()}{companyName ? ` · ${companyName}` : ""}
+                    {project.project_number || project.id.slice(0, 8).toUpperCase()}
+                    {project.data.reference ? ` · Ref: ${project.data.reference}` : ""}
+                    {companyName ? ` · ${companyName}` : ""}
                   </p>
-                  {(project.data.siteAddress || project.data.customerName) && (
+                  {(project.data.siteAddress || project.data.customerName || project.builder_name) && (
                     <p className="mt-1 text-xs" style={{ color: MUTED }}>
-                      {project.data.customerName}{project.data.customerName && project.data.siteAddress ? " · " : ""}{project.data.siteAddress}
+                      {project.data.siteAddress}
+                      {project.builder_name && <> &middot; Builder: {project.builder_name}</>}
+                      {project.data.customerName && <> &middot; {project.data.customerName}</>}
                     </p>
                   )}
                   {project.data.description && (
@@ -291,89 +312,80 @@ export const ProjectDetailPage = ({ id, userId, onBack, onOpenEstimator, onCreat
 
         <div className="mt-4 flex flex-wrap gap-2">
           <Button onClick={() => onOpenEstimator(project)}>Open in Estimator</Button>
+          <Button variant="secondary" icon={<ShoppingCart size={15} />} onClick={() => onCreateQuickOrder(project.id)}>Quick Order</Button>
+          <Button variant="secondary" icon={<FileText size={15} />} onClick={() => setActiveTab("documents")}>My Documents</Button>
           <Button variant="danger" icon={<Trash2 size={15} />} disabled={deleting} onClick={() => setConfirmDelete(true)}>
             {deleting ? "Deleting..." : "Delete project"}
           </Button>
         </div>
       </div>
 
-      <Card title="Project Progress" icon={<Wrench size={14} />}>
-        <div className={cx.sectionLbl}>Order Progress</div>
-        <ProjectJourneyTimeline stage={journey.stage} layoutMode={layoutMode} />
-        <div className={cx.hr} />
-        <div className={cx.sectionLbl}>Design Review</div>
-        <StageStepper stage={project.stage} layoutMode={layoutMode} />
-      </Card>
-
       <WarningsList warnings={summaryWarnings} />
 
-      <div className="mt-4 grid grid-cols-3 gap-2">
-        <Stat value={summary.count} label="Orders" />
-        <Stat value={`$${summary.totalValue.toFixed(0)}`} label="Total value" />
-        <Stat value={nextDelivery ? new Date(nextDelivery).toLocaleDateString() : "—"} label="Next delivery" />
-      </div>
+      <Tabs tabs={PROJECT_TABS} activeId={activeTab} onChange={setActiveTab} />
 
-      <div className="mt-4 grid gap-4 xl:grid-cols-[2fr_1fr]">
-        <section className="flex min-h-32 items-center justify-between overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 p-6 shadow-sm">
-          <div className="flex items-start gap-5">
-            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full" style={{ background: BLUE, color: WHITE }}>
-              <CalendarDays className="h-6 w-6" />
+      <TabPanel id="overview" activeId={activeTab}>
+        <Card title="Project Progress" icon={<Wrench size={14} />}>
+          <div className={cx.sectionLbl}>Order Progress</div>
+          <ProjectJourneyTimeline stage={journey.stage} layoutMode={layoutMode} />
+          <div className={cx.hr} />
+          <div className={cx.sectionLbl}>Design Review</div>
+          <StageStepper stage={project.stage} layoutMode={layoutMode} />
+        </Card>
+
+        <div className="mt-4 grid grid-cols-3 gap-2">
+          <Stat value={summary.count} label="Orders" />
+          <Stat value={`$${summary.totalValue.toFixed(0)}`} label="Total value" />
+          <Stat value={nextDelivery ? new Date(nextDelivery).toLocaleDateString() : "—"} label="Next delivery" />
+        </div>
+
+        <div className="mt-4 grid gap-4 xl:grid-cols-[2fr_1fr]">
+          <section className="flex min-h-32 items-center justify-between overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 p-6 shadow-sm">
+            <div className="flex items-start gap-5">
+              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full" style={{ background: BLUE, color: WHITE }}>
+                <CalendarDays className="h-6 w-6" />
+              </span>
+              <div>
+                <h2 className={cx.h3}>What&apos;s Next?</h2>
+                <p className="mt-1 font-semibold" style={{ color: NAVY }}>{milestone.label}</p>
+                <p className="mt-2 text-sm" style={{ color: MUTED }}>{milestone.note}</p>
+              </div>
+            </div>
+            <Building2 className="hidden h-20 w-20 text-blue-100 dark:text-blue-950 sm:block" />
+          </section>
+
+          <section className="flex items-center gap-5 rounded-2xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 p-6 shadow-sm">
+            <span className="grid h-12 w-12 place-items-center rounded-full bg-violet-600 text-white">
+              <ShoppingCart className="h-6 w-6" />
             </span>
             <div>
-              <h2 className={cx.h3}>What&apos;s Next?</h2>
-              <p className="mt-1 font-semibold" style={{ color: NAVY }}>{milestone.label}</p>
-              <p className="mt-2 text-sm" style={{ color: MUTED }}>{milestone.note}</p>
+              <h2 className={cx.h3}>Quick Order</h2>
+              <p className="mt-1 text-sm" style={{ color: MUTED }}>Place an order without using the Estimator.</p>
+              <button onClick={() => onCreateQuickOrder(project.id)} className="mt-3 rounded-lg border border-violet-300 dark:border-violet-700 px-5 py-2 text-sm font-semibold text-violet-700 dark:text-violet-400">
+                Start Quick Order &rarr;
+              </button>
             </div>
-          </div>
-          <Building2 className="hidden h-20 w-20 text-blue-100 dark:text-blue-950 sm:block" />
-        </section>
-
-        <section className="flex items-center gap-5 rounded-2xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 p-6 shadow-sm">
-          <span className="grid h-12 w-12 place-items-center rounded-full bg-violet-600 text-white">
-            <ShoppingCart className="h-6 w-6" />
-          </span>
-          <div>
-            <h2 className={cx.h3}>Quick Order</h2>
-            <p className="mt-1 text-sm" style={{ color: MUTED }}>Place an order without using the Estimator.</p>
-            <button onClick={() => onCreateQuickOrder(project.id)} className="mt-3 rounded-lg border border-violet-300 dark:border-violet-700 px-5 py-2 text-sm font-semibold text-violet-700 dark:text-violet-400">
-              Start Quick Order &rarr;
-            </button>
-          </div>
-        </section>
-      </div>
-
-      <section className={`${cx.card} mt-4`}>
-        <h2 className={cx.h3}>Quick Actions</h2>
-        <p className="mt-1 text-sm" style={{ color: MUTED }}>
-          Create Order uses your saved Estimator design. Need to order without one? Use Quick Order below.
-        </p>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <QuickAction icon={FileText} label="Open Estimate" onClick={() => onOpenEstimator(project)} />
-          <QuickAction icon={Box} label="Create Order" tone="green" onClick={() => onCreateOrder(project.id)} />
-          <QuickAction icon={UserRound} label="Request Install Review" tone="orange"
-            disabled={!canRequestInstallReview(project) || quickActionBusy}
-            onClick={() => runQuickAction(requestInstallReview)} />
-          <QuickAction icon={ClipboardCheck} label="Request Technical Consult" tone="cyan"
-            disabled={!canRequestTechnicalReview(project) || quickActionBusy}
-            onClick={() => runQuickAction(requestTechnicalReview)} />
+          </section>
         </div>
-      </section>
 
-      <div className="mt-4 grid gap-4 xl:grid-cols-[1.65fr_1fr]">
-        <div className="space-y-4">
-          <div>
-            <h2 className={cx.h3}>Orders</h2>
-            {orders.length === 0 ? (
-              <EmptyState className="mt-3" message="No orders yet." />
-            ) : (
-              <Table className="mt-3" columns={orderColumns} rows={orders} rowKey={o => o.id} onRowClick={o => onOpenOrder(project.id, o.id)} />
-            )}
-            <button onClick={() => onCreateOrder(project.id)}
-              className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-blue-300 dark:border-blue-700 py-3 text-sm font-semibold" style={{ color: BLUE }}>
-              + Create New Order
-            </button>
+        <section className={`${cx.card} mt-4`}>
+          <h2 className={cx.h3}>Quick Actions</h2>
+          <p className="mt-1 text-sm" style={{ color: MUTED }}>
+            Create Order uses your saved Estimator design. Need to order without one? Use Quick Order above.
+          </p>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <QuickAction icon={FileText} label="Open Estimate" onClick={() => onOpenEstimator(project)} />
+            <QuickAction icon={Box} label="Create Order" tone="green" onClick={() => onCreateOrder(project.id)} />
+            <QuickAction icon={UserRound} label="Request Install Review" tone="orange"
+              disabled={!canRequestInstallReview(project) || quickActionBusy}
+              onClick={() => runQuickAction(requestInstallReview)} />
+            <QuickAction icon={ClipboardCheck} label="Request Technical Consult" tone="cyan"
+              disabled={!canRequestTechnicalReview(project) || quickActionBusy}
+              onClick={() => runQuickAction(requestTechnicalReview)} />
           </div>
+        </section>
 
+        <div className="mt-4 grid gap-4 xl:grid-cols-[1.65fr_1fr]">
           <Card title="Recent Activity" icon={<ActivityIcon size={14} />}>
             {activityLoading ? (
               <LoadingState label="Loading activity" />
@@ -403,16 +415,42 @@ export const ProjectDetailPage = ({ id, userId, onBack, onOpenEstimator, onCreat
               </div>
             )}
           </Card>
-        </div>
 
-        <div className="space-y-4">
-          <ReviewActionPanel project={project} onChanged={reload} onCreateOrder={() => onCreateOrder(project.id)}
-            onRequestInstallReview={requestInstallReview} onRequestTechnicalReview={requestTechnicalReview} />
-          <ProjectDocumentsCard projectId={project.id} userId={userId} />
-          {project.company_id && <ProjectMembersCard projectId={project.id} companyId={project.company_id} />}
-          {project.company_id && <ProjectSpeedpanelTeamCard companyId={project.company_id} />}
+          {project.company_id && (
+            <div className="space-y-4">
+              <ProjectMembersCard projectId={project.id} companyId={project.company_id} />
+              <ProjectSpeedpanelTeamCard companyId={project.company_id} />
+            </div>
+          )}
         </div>
-      </div>
+      </TabPanel>
+
+      <TabPanel id="orders" activeId={activeTab}>
+        <div>
+          <div className="flex items-center justify-between gap-2">
+            <h2 className={cx.h3}>Orders</h2>
+            <Button variant="secondary" onClick={() => onCreateOrder(project.id)}>+ Create New Order</Button>
+          </div>
+          {orders.length === 0 ? (
+            <EmptyState className="mt-3" message="No orders yet." />
+          ) : (
+            <Table className="mt-3" columns={orderColumns} rows={orders} rowKey={o => o.id} onRowClick={o => onOpenOrder(project.id, o.id)} />
+          )}
+          <p className="mt-3 text-xs" style={{ color: MUTED }}>Open an order to see its own split deliveries, requested/confirmed dates and delivery status.</p>
+        </div>
+      </TabPanel>
+
+      <TabPanel id="support" activeId={activeTab}>
+        <ReviewActionPanel project={project} onChanged={reload} onCreateOrder={() => onCreateOrder(project.id)}
+          onRequestInstallReview={requestInstallReview} onRequestTechnicalReview={requestTechnicalReview} />
+        <div className="mt-4">
+          <ProjectServicesCard projectId={project.id} userId={userId} layoutMode={layoutMode} />
+        </div>
+      </TabPanel>
+
+      <TabPanel id="documents" activeId={activeTab}>
+        <ProjectDocumentsCard projectId={project.id} userId={userId} />
+      </TabPanel>
     </div>
   );
 };

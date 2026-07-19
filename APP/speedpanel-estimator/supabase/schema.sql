@@ -3810,3 +3810,374 @@ $$;
 
 revoke execute on function public.revise_order(uuid, jsonb, text) from public, anon;
 grant execute on function public.revise_order(uuid, jsonb, text) to authenticated;
+
+-- =============================================================================
+-- Projects Experience Redesign: new project fields
+-- =============================================================================
+-- Additive only -- name/reference/siteAddress/customerName stay exactly where
+-- they already live (projects.data jsonb, see projectTypes.ts's header
+-- comment) rather than being migrated onto new columns; these three are
+-- genuinely NEW fields the redesigned Create Project form/header introduce,
+-- with no existing jsonb equivalent to collide with.
+alter table projects add column builder_name text;
+alter table projects add column start_date date;
+alter table projects add column project_number text;
+
+-- Speedpanel-assigned display number (distinct from the customer-entered
+-- data.reference/"customer project reference") -- auto-assigned on insert so
+-- every project gets one for free, never client-settable.
+create sequence if not exists project_number_seq start 1000;
+
+create or replace function public.assign_project_number() returns trigger
+language plpgsql security definer
+set search_path = public
+as $$
+begin
+  if new.project_number is null then
+    new.project_number := 'SP-' || lpad(nextval('public.project_number_seq')::text, 5, '0');
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists on_project_assign_number on projects;
+create trigger on_project_assign_number
+  before insert on projects
+  for each row execute function public.assign_project_number();
+
+-- Trigger-only function -- no legitimate direct-RPC caller, same as
+-- sync_order_company_id()/handle_new_user().
+revoke execute on function public.assign_project_number() from public, anon, authenticated;
+
+-- =============================================================================
+-- Support & Services -- Technical Review / Pre-Start Meeting / Installation
+-- Review / Product Warranty requests
+-- =============================================================================
+-- A NEW, separate capability -- NOT a rename or extension of the existing
+-- projects.install_review_status/technical_review_status columns above. Those
+-- gate the PRE-ORDER design-review pipeline (draft -> install_review ->
+-- technical_review -> approved; see request_install_review()/
+-- request_technical_review() and ReviewActionPanel.tsx's header comment on
+-- why that stays a linear, one-at-a-time model). The four request types here
+-- are an always-open-able (or eligibility-gated) support conversation a
+-- customer can start at any point in a project's life, running alongside
+-- that state machine, never conflated with it -- a project can be "approved"
+-- and long past its own design-review technical_review stage while still
+-- opening a brand-new Technical Review support request.
+--
+-- "Installation Review" here is likewise NOT projects.stage = 'install_review'
+-- (a pre-order design check) -- it's the spec's post-delivery on-site
+-- installation review, gated on service_request_eligibility() below.
+create table if not exists service_requests (
+  id uuid primary key default gen_random_uuid(),
+  project_id uuid not null references projects (id) on delete cascade,
+  -- Mirrors the parent project's company_id via the sync trigger below --
+  -- same "denormalized for filtering, never itself the access boundary"
+  -- convention as orders.company_id/sync_order_company_id().
+  company_id uuid references companies (id) on delete set null,
+  created_by uuid not null references auth.users (id) on delete cascade,
+  request_type text not null check (request_type in (
+    'technical_review', 'pre_start_meeting', 'installation_review', 'product_warranty'
+  )),
+  status text not null default 'submitted' check (status in (
+    'draft', 'submitted', 'assigned', 'under_review', 'info_required', 'response_issued', 'closed'
+  )),
+  category text,
+  question text,
+  description text,
+  drawing_reference text,
+  -- Pre-Start Meeting only: { preferredDate, preferredTime, meetingType,
+  -- attendees, notes } -- one flexible jsonb blob (same "opaque
+  -- client-shaped blob" convention as orders.line_items) rather than five
+  -- columns every other request_type leaves null.
+  meeting_details jsonb,
+  assigned_to uuid references auth.users (id),
+  closed_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+-- author_kind is stamped server-side by add_service_request_message() below
+-- (never trusted from the client) so the UI can label a message
+-- "Speedpanel Team" vs the customer's own without joining profiles (which a
+-- customer generally can't read for a staff member anyway).
+create table if not exists service_request_messages (
+  id uuid primary key default gen_random_uuid(),
+  service_request_id uuid not null references service_requests (id) on delete cascade,
+  author_id uuid not null references auth.users (id) on delete cascade,
+  author_kind text not null check (author_kind in ('customer', 'staff')),
+  body text not null,
+  created_at timestamptz not null default now()
+);
+
+alter table service_requests enable row level security;
+alter table service_request_messages enable row level security;
+
+create policy "Project viewers and staff can read service requests" on service_requests
+  for select using (
+    exists (select 1 from projects p where p.id = project_id and public.can_view_project(p.owner_id, p.company_id, p.id))
+    or public.has_permission('service_requests.manage')
+  );
+
+create policy "Editors can create service requests" on service_requests
+  for insert with check (
+    created_by = auth.uid()
+    and exists (select 1 from projects p where p.id = project_id and public.can_edit_project(p.owner_id, p.company_id, p.id))
+  );
+
+-- No customer update policy -- status/assignment transitions only ever go
+-- through admin_update_service_request_status()/admin_assign_service_request()
+-- below (security definer, staff-only), same "RPC-gated, not a bare RLS
+-- update grant" convention as project_stage_events/order_stage_events.
+create policy "Staff can update service requests" on service_requests
+  for update using (public.has_permission('service_requests.manage'))
+  with check (public.has_permission('service_requests.manage'));
+
+create policy "Thread participants and staff can read messages" on service_request_messages
+  for select using (
+    exists (
+      select 1 from service_requests sr join projects p on p.id = sr.project_id
+      where sr.id = service_request_id
+        and (public.can_view_project(p.owner_id, p.company_id, p.id) or public.has_permission('service_requests.manage'))
+    )
+  );
+-- No insert policy -- rows are only ever created by
+-- add_service_request_message() below, which bypasses RLS and stamps
+-- author_id/author_kind itself (defense against a customer spoofing
+-- author_kind = 'staff').
+
+-- Eligibility rules per spec: Technical Review and Pre-Start Meeting are
+-- always available once a project exists; Installation Review needs at
+-- least one delivered delivery; Product Warranty needs every non-cancelled
+-- order fully delivered. That last condition deliberately mirrors
+-- journeyStage.ts's journeyStageForProject() "completed" aggregate (every
+-- order independently reached journeyStageForOrder() === 'delivered') using
+-- only real orders/order_deliveries data -- NOT projects.stage, which stays
+-- the orthogonal design-review pipeline journeyStage.ts's header comment
+-- warns against conflating with delivery/fulfilment progress (the app's own
+-- past "stage drift" incident).
+create or replace function public.service_request_eligibility(p_project_id uuid, p_request_type text) returns jsonb
+language plpgsql security definer stable
+set search_path = public
+as $$
+declare
+  v_owner uuid;
+  v_company uuid;
+begin
+  select owner_id, company_id into v_owner, v_company from projects where id = p_project_id;
+  if v_owner is null then raise exception 'Project not found'; end if;
+  if not public.can_view_project(v_owner, v_company, p_project_id) then raise exception 'Not authorized'; end if;
+
+  if p_request_type in ('technical_review', 'pre_start_meeting') then
+    return jsonb_build_object('available', true);
+  end if;
+
+  if p_request_type = 'installation_review' then
+    if exists (
+      select 1 from order_deliveries od join orders o on o.id = od.order_id
+      where o.project_id = p_project_id and o.stage <> 'cancelled' and od.status = 'delivered'
+    ) then
+      return jsonb_build_object('available', true);
+    end if;
+    return jsonb_build_object('available', false, 'reasonCode', 'FIRST_DELIVERY_REQUIRED', 'message', 'Available after the first project delivery');
+  end if;
+
+  if p_request_type = 'product_warranty' then
+    if exists (select 1 from orders where project_id = p_project_id and stage <> 'cancelled')
+      and not exists (
+        select 1 from orders o
+        where o.project_id = p_project_id and o.stage <> 'cancelled'
+          and (
+            not exists (select 1 from order_deliveries od where od.order_id = o.id)
+            or exists (select 1 from order_deliveries od where od.order_id = o.id and od.status <> 'delivered')
+            -- Mirrors journeyStageForOrder()'s own "!(total > 0 && made >= total)"
+            -- guard -- a zero-panel order (total = 0) is explicitly NOT
+            -- treated as manufactured-out there, so it isn't here either.
+            or coalesce((
+              select sum((li->>'qty')::numeric) from jsonb_array_elements(o.line_items) li
+              where (li->>'category') in ('panel', 'custom_panel')
+            ), 0) = 0
+            or coalesce(o.panels_manufactured, 0) < coalesce((
+              select sum((li->>'qty')::numeric) from jsonb_array_elements(o.line_items) li
+              where (li->>'category') in ('panel', 'custom_panel')
+            ), 0)
+          )
+      )
+    then
+      return jsonb_build_object('available', true);
+    end if;
+    return jsonb_build_object('available', false, 'reasonCode', 'PROJECT_NOT_COMPLETED', 'message', 'Available once every order on this project has been fully delivered');
+  end if;
+
+  raise exception 'Unknown request type';
+end;
+$$;
+revoke execute on function public.service_request_eligibility(uuid, text) from public, anon;
+grant execute on function public.service_request_eligibility(uuid, text) to authenticated;
+
+create or replace function public.create_service_request(
+  p_project_id uuid, p_request_type text, p_category text default null,
+  p_question text default null, p_description text default null,
+  p_drawing_reference text default null, p_meeting_details jsonb default null
+) returns uuid
+language plpgsql security definer
+set search_path = public
+as $$
+declare
+  v_owner uuid;
+  v_company uuid;
+  v_eligibility jsonb;
+  v_id uuid;
+begin
+  select owner_id, company_id into v_owner, v_company from projects where id = p_project_id for update;
+  if v_owner is null then raise exception 'Project not found'; end if;
+  if not public.can_edit_project(v_owner, v_company, p_project_id) then raise exception 'Not authorized'; end if;
+  if p_request_type not in ('technical_review', 'pre_start_meeting', 'installation_review', 'product_warranty') then
+    raise exception 'Invalid request type';
+  end if;
+
+  v_eligibility := public.service_request_eligibility(p_project_id, p_request_type);
+  if not (v_eligibility->>'available')::boolean then
+    raise exception '%', coalesce(v_eligibility->>'message', 'Not eligible yet');
+  end if;
+
+  insert into service_requests (project_id, company_id, created_by, request_type, status, category, question, description, drawing_reference, meeting_details)
+    values (p_project_id, v_company, auth.uid(), p_request_type, 'submitted', p_category, p_question, p_description, p_drawing_reference, p_meeting_details)
+    returning id into v_id;
+
+  perform public.log_audit(v_company, auth.uid(), 'service_request_created', null, p_project_id,
+    jsonb_build_object('serviceRequestId', v_id, 'requestType', p_request_type));
+  return v_id;
+end;
+$$;
+revoke execute on function public.create_service_request(uuid, text, text, text, text, text, jsonb) from public, anon;
+grant execute on function public.create_service_request(uuid, text, text, text, text, text, jsonb) to authenticated;
+
+-- Posts to the thread as whichever side the caller actually is (staff vs
+-- customer, decided server-side via has_permission -- never a client-passed
+-- flag), and nudges status forward: a staff reply clears an
+-- awaiting-response status to 'response_issued'; a customer reply clears
+-- 'info_required' back to 'under_review'. Any other status transition is
+-- left to admin_update_service_request_status() -- this function only ever
+-- reacts to a message being posted, never a standalone status edit.
+create or replace function public.add_service_request_message(p_service_request_id uuid, p_body text) returns uuid
+language plpgsql security definer
+set search_path = public
+as $$
+declare
+  v_project_id uuid;
+  v_owner uuid;
+  v_company uuid;
+  v_is_staff boolean;
+  v_status text;
+  v_id uuid;
+begin
+  if coalesce(trim(p_body), '') = '' then raise exception 'Message cannot be empty'; end if;
+  select sr.project_id, sr.status into v_project_id, v_status from service_requests sr where sr.id = p_service_request_id for update;
+  if v_project_id is null then raise exception 'Service request not found'; end if;
+  select owner_id, company_id into v_owner, v_company from projects where id = v_project_id;
+
+  v_is_staff := public.has_permission('service_requests.manage');
+  if not v_is_staff and not public.can_edit_project(v_owner, v_company, v_project_id) then
+    raise exception 'Not authorized';
+  end if;
+
+  insert into service_request_messages (service_request_id, author_id, author_kind, body)
+    values (p_service_request_id, auth.uid(), case when v_is_staff then 'staff' else 'customer' end, trim(p_body))
+    returning id into v_id;
+
+  update service_requests set
+    updated_at = now(),
+    status = case
+      when v_is_staff and v_status in ('submitted', 'assigned', 'under_review') then 'response_issued'
+      when not v_is_staff and v_status = 'info_required' then 'under_review'
+      else v_status
+    end
+    where id = p_service_request_id;
+
+  return v_id;
+end;
+$$;
+revoke execute on function public.add_service_request_message(uuid, text) from public, anon;
+grant execute on function public.add_service_request_message(uuid, text) to authenticated;
+
+create or replace function public.admin_update_service_request_status(p_service_request_id uuid, p_status text) returns void
+language plpgsql security definer
+set search_path = public
+as $$
+begin
+  if not public.has_permission('service_requests.manage') then raise exception 'Not authorized'; end if;
+  if p_status not in ('assigned', 'under_review', 'info_required', 'response_issued', 'closed') then
+    raise exception 'Invalid status';
+  end if;
+  update service_requests set
+    status = p_status,
+    closed_at = case when p_status = 'closed' then now() else closed_at end,
+    updated_at = now()
+    where id = p_service_request_id;
+end;
+$$;
+revoke execute on function public.admin_update_service_request_status(uuid, text) from public, anon;
+grant execute on function public.admin_update_service_request_status(uuid, text) to authenticated;
+
+create or replace function public.admin_assign_service_request(p_service_request_id uuid, p_staff_user_id uuid) returns void
+language plpgsql security definer
+set search_path = public
+as $$
+begin
+  if not public.has_permission('service_requests.manage') then raise exception 'Not authorized'; end if;
+  update service_requests set
+    assigned_to = p_staff_user_id,
+    status = case when status = 'submitted' then 'assigned' else status end,
+    updated_at = now()
+    where id = p_service_request_id;
+end;
+$$;
+revoke execute on function public.admin_assign_service_request(uuid, uuid) from public, anon;
+grant execute on function public.admin_assign_service_request(uuid, uuid) to authenticated;
+
+-- Mirrors sync_order_company_id() exactly -- see that function's own comment.
+create or replace function public.sync_service_request_company_id() returns trigger
+language plpgsql security definer
+set search_path = public
+as $$
+begin
+  new.company_id := (select company_id from public.projects where id = new.project_id);
+  return new;
+end;
+$$;
+
+drop trigger if exists sync_service_requests_company_id on service_requests;
+create trigger sync_service_requests_company_id
+  before insert or update on service_requests
+  for each row execute function public.sync_service_request_company_id();
+
+revoke execute on function public.sync_service_request_company_id() from public, anon, authenticated;
+
+-- Optional attachments on a service request thread -- reuses the existing
+-- project-documents bucket/table/RLS (already scoped by project_id via
+-- can_view_project/can_edit_project) instead of a second storage bucket and
+-- a second copy of the same policies; service_request_id is purely an extra
+-- tag so the thread UI can filter to "this request's attachments" alongside
+-- "this whole project's documents".
+alter table project_documents add column service_request_id uuid references service_requests (id) on delete cascade;
+
+create index if not exists idx_service_requests_project_id            on service_requests (project_id);
+create index if not exists idx_service_requests_company_id            on service_requests (company_id);
+create index if not exists idx_service_requests_created_by            on service_requests (created_by);
+create index if not exists idx_service_requests_assigned_to           on service_requests (assigned_to);
+create index if not exists idx_service_request_messages_request_id    on service_request_messages (service_request_id);
+create index if not exists idx_project_documents_service_request_id   on project_documents (service_request_id);
+
+insert into public.permissions (key, description, category) values
+  ('service_requests.manage', 'Triage, respond to, assign and close customer service requests', 'service_requests'),
+  ('admin.section.serviceRequests', 'See the Support Requests admin section', 'nav')
+on conflict (key) do nothing;
+
+-- Support requests span design (technical_services/project_manager) and
+-- account-management (bdm) concerns, so all three roles get it -- narrower
+-- than a super_admin can revisit from Admin > Roles without a code change.
+insert into public.role_permissions (role, permission_key) values
+  ('project_manager', 'service_requests.manage'), ('technical_services', 'service_requests.manage'), ('bdm', 'service_requests.manage'),
+  ('project_manager', 'admin.section.serviceRequests'), ('technical_services', 'admin.section.serviceRequests'), ('bdm', 'admin.section.serviceRequests')
+on conflict (role, permission_key) do nothing;

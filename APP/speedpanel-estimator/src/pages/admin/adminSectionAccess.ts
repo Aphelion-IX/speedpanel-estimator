@@ -27,6 +27,7 @@ const SECTION_PERMISSION_KEYS: Record<Exclude<AdminSubPage, "dashboard">, string
   projectReviews: "admin.section.projectReviews",
   orders: "admin.section.orders",
   deliveryRequests: "admin.section.deliveryRequests",
+  serviceRequests: "admin.section.serviceRequests",
   manufacturing: "admin.section.manufacturing",
   users: "admin.section.users",
   companies: "admin.section.companies",

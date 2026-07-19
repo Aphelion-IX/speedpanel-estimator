@@ -36,7 +36,7 @@ export function useProjectDocuments(projectId: string, userId: string | null) {
     skipError: NOT_CONFIGURED,
   });
 
-  const uploadDocument = async (file: File): Promise<string | null> => {
+  const uploadDocument = async (file: File, serviceRequestId?: string): Promise<string | null> => {
     if (!supabase) return NOT_CONFIGURED;
     if (!userId) return "Not signed in.";
     const path = `${projectId}/${crypto.randomUUID()}-${file.name}`;
@@ -46,6 +46,7 @@ export function useProjectDocuments(projectId: string, userId: string | null) {
     const { data, error } = await supabase.from("project_documents").insert({
       project_id: projectId, uploaded_by: userId, storage_path: path,
       file_name: file.name, file_size: file.size, content_type: file.type || null,
+      service_request_id: serviceRequestId ?? null,
     }).select("*").single();
     if (error) {
       await supabase.storage.from(PROJECT_DOCUMENTS_BUCKET).remove([path]);

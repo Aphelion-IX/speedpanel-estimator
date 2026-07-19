@@ -8,7 +8,7 @@
 // components, so pulling it into the main bundle doesn't defeat AdminRoot's
 // own lazy-loading (see App.tsx's comment on the AdminRoot lazy import).
 // =============================================================================
-import { Package, Layers, Calculator, FileText, ClipboardList, FolderCheck, Users, BarChart3, History, Truck, Factory, Building2, ShieldCheck, Tag, CalendarClock } from "lucide-react";
+import { Package, Layers, Calculator, FileText, ClipboardList, FolderCheck, Users, BarChart3, History, Truck, Factory, Building2, ShieldCheck, Tag, CalendarClock, MessageSquare } from "lucide-react";
 import type { AdminSubPage } from "../../appShell/useHashRoute";
 
 export type AdminSection = { key: AdminSubPage; label: string; description: string; icon: React.ReactNode };
@@ -26,6 +26,7 @@ export const ADMIN_GROUPS: { heading: string; items: AdminSection[] }[] = [
       { key: "projectReviews", label: "Project Reviews", description: "Saved projects awaiting an install or technical review.", icon: <FolderCheck size={16} /> },
       { key: "orders",    label: "Orders",    description: "Customer orders awaiting a decision -- revise, issue a pro forma invoice, or cancel.", icon: <Truck size={16} /> },
       { key: "deliveryRequests", label: "Delivery Requests", description: "Accept, propose a date for, decline, or split customer delivery requests.", icon: <CalendarClock size={16} /> },
+      { key: "serviceRequests", label: "Support Requests", description: "Technical Review, Pre-Start Meeting, Installation Review and Product Warranty requests.", icon: <MessageSquare size={16} /> },
       { key: "manufacturing", label: "Manufacturing & Delivery", description: "Update panel manufacturing progress and delivery status for confirmed orders.", icon: <Factory size={16} /> },
     ],
   },
