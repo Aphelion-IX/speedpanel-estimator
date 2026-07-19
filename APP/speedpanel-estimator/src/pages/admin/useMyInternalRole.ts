@@ -2,32 +2,25 @@
 // My internal staff role + section/action grants -- for client-side Admin
 // section gating
 // =============================================================================
-// Two plain table reads (profiles.role/staff_role, then role_permissions for
-// that role), both covered by existing RLS -- no RPC needed. profiles rides
-// the "Users can read own profile" policy; role_permissions rides the new
-// "Staff can read grants for their own role" policy (supabase/schema.sql's
-// Dynamic RBAC section). role_permissions is only fetched when staffRole is
-// a concrete StaffRole -- null/'super_admin' already bypass everything in
-// canAccessSection() (adminSectionAccess.ts), so there's nothing useful to
-// fetch for them.
+// profiles.staff_role and role_permissions no longer exist (see
+// supabase/schema.sql -- the fine-grained internal-role/permissions system
+// was deleted along with the rest of the business layer, calculator-only
+// tables are all that's left). staffRole/myPermissions are kept as fixed
+// null/empty rather than removed from this hook's return shape, so every
+// existing caller (AuthStatus.tsx, adminSectionAccess.ts's canAccessSection,
+// OverviewDashboardPage.tsx) keeps working unchanged -- canAccessSection's
+// own "myRole === null -> always allowed" fallback means a fixed null here
+// makes every Admin section reachable for any profiles.role = 'admin'
+// account, which is exactly the "no more tiers, one admin role" reality now.
 //
-// isInternalStaff (profiles.role = 'admin', the same column is_admin() checks
-// server-side) is a separate signal from staffRole -- an ordinary external
-// customer and an internal admin not yet assigned a specific staff role both
-// read back staffRole = null, so staffRole alone can't tell "is this account
-// internal staff at all" apart from "is this a customer" (see
-// OverviewDashboardPage.tsx, the one caller that needs that distinction).
-//
-// This is UI-side gating only (which tiles/routes render) -- the real
-// security boundary is server-side (has_permission() in supabase/schema.sql,
-// applied to the specific RPCs/policies that call it), so a stale or
-// not-yet-loaded value here can never grant more than the server would
-// actually allow.
+// isInternalStaff (profiles.role = 'admin', the same column is_admin() used
+// to check server-side before that function was deleted too) is the one
+// real signal left -- still a single plain table read, covered by the
+// existing "Users can read own profile" RLS policy.
 // =============================================================================
 import { useEffect, useState } from "react";
 import { supabase } from "../../lib/supabaseClient";
 import type { InternalRole } from "../company/staffTypes";
-import { STAFF_ROLES, type StaffRole } from "../company/staffTypes";
 
 export function useMyInternalRole(userId: string | null): {
   isInternalStaff: boolean;
@@ -36,33 +29,22 @@ export function useMyInternalRole(userId: string | null): {
   loading: boolean;
 } {
   const [isInternalStaff, setIsInternalStaff] = useState(false);
-  const [staffRole, setStaffRole] = useState<InternalRole | null>(null);
-  const [myPermissions, setMyPermissions] = useState<ReadonlySet<string>>(new Set());
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!supabase || !userId) { setLoading(false); return; }
     let cancelled = false;
     setLoading(true);
-    supabase.from("profiles").select("role, staff_role").eq("id", userId).single()
-      .then(async (result: { data: { role: string | null; staff_role: string | null } | null }) => {
+    supabase.from("profiles").select("role").eq("id", userId).single()
+      .then((result: { data: { role: string | null } | null }) => {
         if (cancelled) return;
         setIsInternalStaff(result.data?.role === "admin");
-        const role = (result.data?.staff_role as InternalRole | null) ?? null;
-        setStaffRole(role);
-
-        if (!supabase || !STAFF_ROLES.includes(role as StaffRole)) {
-          setMyPermissions(new Set());
-          setLoading(false);
-          return;
-        }
-        const { data } = await supabase.from("role_permissions").select("permission_key").eq("role", role);
-        if (cancelled) return;
-        setMyPermissions(new Set((data ?? []).map((r: { permission_key: string }) => r.permission_key)));
         setLoading(false);
       });
     return () => { cancelled = true; };
   }, [userId]);
 
-  return { isInternalStaff, staffRole, myPermissions, loading };
+  return { isInternalStaff, staffRole: null, myPermissions: EMPTY_PERMISSIONS, loading };
 }
+
+const EMPTY_PERMISSIONS: ReadonlySet<string> = new Set();
