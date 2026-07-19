@@ -44,7 +44,7 @@ const ACCENTS: Record<Accent, { icon: string; iconWrap: string; check: string; h
 const WORKSPACES: { title: string; description: string; features: string[]; accent: Accent; icon: React.ElementType; route: Route }[] = [
   { title: "Projects", description: "Plan, manage and track projects from estimate to delivery.", features: ["Project Planning", "Task Tracking", "Progress Monitoring"], accent: "blue", icon: FolderKanban, route: { tab: "projects" } },
   { title: "System Selector", description: "Choose the correct SPEEDPANEL system for the application.", features: ["System Finder", "Compatibility", "Specifications"], accent: "cyan", icon: LayoutGrid, route: { tab: "selector" } },
-  { title: "System Estimator", description: "Create quantities, schedules and project estimates.", features: ["Accurate Estimates", "BOM Generation", "Export Reports"], accent: "purple", icon: Calculator, route: { tab: "estimator" } },
+  { title: "Project Estimator", description: "Create quantities, schedules and project estimates.", features: ["Accurate Estimates", "BOM Generation", "Export Reports"], accent: "purple", icon: Calculator, route: { tab: "estimator" } },
   { title: "Education Hub", description: "Access technical documents, guides and training.", features: ["Technical Guides", "Training Videos", "Product Knowledge"], accent: "blue", icon: BookOpen, route: { tab: "education" } },
 ];
 
