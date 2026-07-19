@@ -71,9 +71,10 @@ export const ProjectsRouter = ({ route, navigate, auth, company, onOpenEstimator
   }
   if (route.id && route.orderId) {
     return (
-      <OrderDetailPage orderId={route.orderId}
+      <OrderDetailPage orderId={route.orderId} userId={auth.user?.id ?? null}
         onBack={() => navigate({ tab: "projects", id: route.id })}
         onViewProforma={() => window.open(`#/proforma/${route.orderId}`, "_blank")}
+        onOpenLinkedOrder={linkedOrderId => navigate({ tab: "projects", id: route.id, orderId: linkedOrderId })}
       />
     );
   }

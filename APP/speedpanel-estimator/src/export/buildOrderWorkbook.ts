@@ -11,6 +11,17 @@
 // =============================================================================
 import type * as XLSXType from "xlsx";
 import type { OrderRow, OrderDeliveryRow } from "../pages/projects/orders/orderTypes";
+import type { OrderAdjustmentRow, OrderCommercialTotals } from "../pages/projects/orders/orderOperationsTypes";
+import { ORDER_ADJUSTMENT_TYPE_LABELS } from "../pages/projects/orders/orderOperationsTypes";
+
+// Adjustments/totals are optional -- an order with no order_operations row
+// yet (or the commercial-summary fetch still loading) falls back to the
+// order's own subtotal/gst/total fields, same numbers the sheet always
+// showed before fees/discounts/credits existed.
+export interface OrderCommercialExport {
+  adjustments: OrderAdjustmentRow[];
+  totals: OrderCommercialTotals | null;
+}
 
 function autoWidth(rows: (string | number)[][]): { wch: number }[] {
   const widths: number[] = [];
@@ -34,10 +45,17 @@ function sheetFromRows(XLSX: typeof XLSXType, header: string[], rows: (string | 
 const formatAddress = (d: OrderDeliveryRow): string =>
   [d.address_line1, d.address_line2, `${d.suburb} ${d.state} ${d.postcode}`].filter(Boolean).join(", ");
 
-export async function buildOrderWorkbook(order: OrderRow, deliveries: OrderDeliveryRow[], projectName: string): Promise<XLSXType.WorkBook> {
+export async function buildOrderWorkbook(order: OrderRow, deliveries: OrderDeliveryRow[], projectName: string, commercial?: OrderCommercialExport): Promise<XLSXType.WorkBook> {
   const XLSX = await import("xlsx");
   const wb = XLSX.utils.book_new();
-  const orderRef = order.id.slice(0, 8).toUpperCase();
+  const orderRef = order.order_number ?? order.id.slice(0, 8).toUpperCase();
+
+  const adjustments = commercial?.adjustments ?? [];
+  const totals = commercial?.totals;
+  const subtotal = totals?.subtotalExGst ?? order.subtotal_ex_gst;
+  const adjustmentTotal = totals?.adjustmentTotalExGst ?? 0;
+  const gst = totals?.gstAmount ?? order.gst_amount;
+  const total = totals?.totalIncGst ?? order.total_inc_gst;
 
   // --- Pro Forma Invoice -------------------------------------------------------
   const summaryRows: (string | number)[][] = [
@@ -46,10 +64,18 @@ export async function buildOrderWorkbook(order: OrderRow, deliveries: OrderDeliv
     ["Project", projectName],
     ["Issued", order.proforma_issued_at ? new Date(order.proforma_issued_at).toLocaleString() : ""],
     ["", ""],
-    ["Subtotal (ex GST)", order.subtotal_ex_gst],
-    [`GST (${(order.gst_rate * 100).toFixed(0)}%)`, order.gst_amount],
-    ["Total (inc GST)", order.total_inc_gst],
+    ["Products (ex GST)", subtotal],
   ];
+  for (const a of adjustments) {
+    summaryRows.push([`${ORDER_ADJUSTMENT_TYPE_LABELS[a.adjustment_type]} -- ${a.label}`, a.amount_ex_gst]);
+  }
+  if (adjustments.length > 0) {
+    summaryRows.push(["Fees / adjustments (ex GST)", adjustmentTotal]);
+  }
+  summaryRows.push(
+    [`GST (${(order.gst_rate * 100).toFixed(0)}%)`, gst],
+    ["Total (inc GST)", total],
+  );
   if (order.unpriced_item_count > 0) {
     summaryRows.push(["", ""], ["Note", `${order.unpriced_item_count} item(s) couldn't be priced automatically -- see Line Items`]);
   }
