@@ -55,9 +55,9 @@ export const TopNav = ({ activeTab, onTabChange, right }: { activeTab: TopNavTab
       <div className="flex items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-4">
           <div className="shrink-0 leading-none">
-            <div className="flex items-baseline gap-1">
-              <span className="text-xl font-black tracking-[-0.04em] text-slate-950 dark:text-white">SPEED</span>
-              <span className="text-xl font-black tracking-[-0.04em]" style={{ color: BLUE }}>HUB</span>
+            <div className="flex items-baseline">
+              <span className="text-xl font-black tracking-[-0.04em] text-slate-950 dark:text-white">my</span>
+              <span className="text-xl font-black tracking-[-0.04em]" style={{ color: BLUE }}>SPEEDPORTAL</span>
             </div>
           </div>
           <div className="hidden md:flex items-center gap-0.5 overflow-x-auto">

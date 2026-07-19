@@ -1,5 +1,5 @@
 // =============================================================================
-// Landing page -- signed-out front door ("SpeedHub" design)
+// Landing page -- signed-out front door ("mySPEEDPORTAL" design)
 // =============================================================================
 // Full-bleed standalone page (App.tsx renders this via an early return
 // before the normal TopNav/shell wrapper, the same way it already does for
@@ -56,9 +56,9 @@ export const LandingPage = ({ auth, pendingNote }: { auth: UseAuth; pendingNote?
         <section className="flex items-center px-6 py-12 sm:px-10 lg:px-16 xl:px-20">
           <div className="max-w-2xl">
             <div>
-              <div className="flex items-baseline gap-1.5">
-                <span className="text-6xl font-black tracking-[-0.04em] text-slate-950 dark:text-white sm:text-7xl">SPEED</span>
-                <span className="text-6xl font-black tracking-[-0.04em] sm:text-7xl" style={{ color: BLUE }}>HUB</span>
+              <div className="flex items-baseline">
+                <span className="text-6xl font-black tracking-[-0.04em] text-slate-950 dark:text-white sm:text-7xl">my</span>
+                <span className="text-6xl font-black tracking-[-0.04em] sm:text-7xl" style={{ color: BLUE }}>SPEEDPORTAL</span>
               </div>
               <p className="mt-2 text-xl font-semibold tracking-wide text-slate-500 dark:text-slate-300 sm:text-2xl">by SPEEDPANEL</p>
             </div>
@@ -79,7 +79,7 @@ export const LandingPage = ({ auth, pendingNote }: { auth: UseAuth; pendingNote?
             <div className="rounded-[28px] border border-white/80 bg-white/95 p-7 pb-9 shadow-[0_24px_80px_rgba(15,23,42,0.12)] backdrop-blur-xl dark:border-slate-700 dark:bg-slate-900/95 sm:p-10 sm:pb-12">
               <div>
                 <p className="text-sm font-bold uppercase tracking-[0.18em]" style={{ color: BLUE }}>Welcome back</p>
-                <h2 className="mt-2 text-3xl font-extrabold tracking-tight text-slate-950 dark:text-white">Log in to SPEEDHUB</h2>
+                <h2 className="mt-2 text-3xl font-extrabold tracking-tight text-slate-950 dark:text-white">Log in to mySPEEDPORTAL</h2>
                 <p className="mt-2 text-sm text-slate-500 dark:text-slate-300">Access your projects, estimates, orders and documents.</p>
                 {pendingNote && <p className="mt-2 text-sm" style={{ color: MUTED }}>{pendingNote}</p>}
               </div>

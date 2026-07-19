@@ -1,5 +1,5 @@
 // =============================================================================
-// Overview dashboard -- signed-in front door ("SpeedHub Workspace" design)
+// Overview dashboard -- signed-in front door ("mySPEEDPORTAL Workspace" design)
 // =============================================================================
 // Shown at "/" (the home route, see useHashRoute.ts) whenever there's a
 // session. One identical page for every signed-in user -- staff and
@@ -7,7 +7,7 @@
 // via the top nav tab and the account-menu shortcut (AuthStatus.tsx), not a
 // card here. Ported from an uploaded SpeedHubWorkspacePage.tsx mockup
 // (dark-only) with light-mode equivalents added throughout, same approach
-// used for the SpeedHub login page.
+// used for the mySPEEDPORTAL login page.
 // =============================================================================
 import { Calculator, LayoutGrid, BookOpen, FolderKanban, CheckCircle2, ChevronRight, Search, Headphones, AlertCircle, FileText, Send, ListChecks } from "lucide-react";
 import { NAVY, BLUE } from "../../styleTokens";
