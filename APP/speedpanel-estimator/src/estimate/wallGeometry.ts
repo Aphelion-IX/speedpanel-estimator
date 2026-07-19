@@ -5,7 +5,7 @@
 // gable), collect geometry-only notes/warnings, and validate height/span
 // against the system config's limits (may short-circuit the whole estimate).
 // =============================================================================
-import { ceil, clamp, numOr0 } from "./mathUtils";
+import { ceil, clamp, numOr0, r1 } from "./mathUtils";
 import { gableMaxHeightInBay } from "./gableGeometry";
 import { PANEL_WIDTH, STEEL_MAX_H_VERT, SHAFT_MAX_W, MAX_W_HORIZ_STD_51_64 } from "../data";
 import type { SystemConfig } from "../data";
@@ -124,8 +124,8 @@ export function validateSpan(inp: WallInput, geo: Geometry, cfg: SystemConfig, w
       warnings.push(`Wall height exceeds the ${steel ? `steel structure limit (${STEEL_MAX_H_VERT}m)` : `standard vertical limit for the ${type} mm panel`}. Contact Speedpanel.`);
       if (!steel) return { exit: { empty: true, warnings, notes }, steel, isStackedShaft: false };
     }
-    if (maxH > 6.0 + 1e-9 && !steel) warnings.push("Wall height exceeds 6.0 m stock max. Contact Speedpanel.");
-    if (maxH > 6.0 + 1e-9 && steel) notes.push("Height exceeds 6m -- panels site-joined. Confirm jointing with Speedpanel.");
+    const maxStock = cfg.stocks[cfg.stocks.length - 1];
+    if (maxH > maxStock + 1e-9) notes.push(`Height exceeds ${r1(maxStock)}m -- panels site-joined. Confirm jointing with Speedpanel.`);
     if (!inp.edges.top || !inp.edges.bottom || !inp.edges.left || !inp.edges.right)
       warnings.push("Not all edges restrained -- outside standard vertical config. Contact Speedpanel.");
     return { exit: null, steel, isStackedShaft: false };

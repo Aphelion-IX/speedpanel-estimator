@@ -71,18 +71,19 @@ export function computeWall(rawInp: WallInput, cfg: SystemConfig): ComputeOut {
 
   const span = validateSpan(inp, geo, cfg, warnings, notes);
   if (span.exit) return span.exit;
-  const { steel, isStackedShaft } = span;
+  const { isStackedShaft } = span;
 
   const forced = inp.forcedStock ? parseFloat(inp.forcedStock) : null;
-  const piecesResult = buildPieces(inp, geo, cfg, steel, forced, warnings, notes);
+  const piecesResult = buildPieces(inp, geo, cfg, forced, warnings, notes);
   if (piecesResult.exit) return piecesResult.exit;
   const { pieces, rows } = piecesResult;
 
   // allowLong suppresses the packPanels 6.0 m hard-cap for cases where pieces can
   // legitimately exceed 6.0 m stock: non-standard profiles (strip heights taper and
   // may be passed to customSchedule, not packPanels) and stacked/shaft horizontal.
-  // Steel + standard vertical is excluded here because buildPieces pre-splits those
-  // strips at the 6.0 m boundary, so all pieces are already <= 6.0 m before packPanels.
+  // Standard-profile vertical (steel or not) is excluded here because buildPieces
+  // pre-splits those strips at the 6.0 m boundary, so all pieces are already
+  // <= 6.0 m before packPanels.
   const allowLong = profile !== "standard" || isStackedShaft;
   const rawCut = packPanels(pieces, forced, cfg.stocks, allowLong, cfg.wasteThreshold);
   const packSize = cfg.packSizeFn(type);

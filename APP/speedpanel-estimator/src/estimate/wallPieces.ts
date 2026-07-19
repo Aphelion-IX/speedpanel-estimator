@@ -13,21 +13,23 @@ import type { SystemConfig } from "../data";
 import type { WallInput, Geometry, PiecesResult, TrackLM, HorizCtrack } from "./wall.types";
 
 /** Step 3: build the flat list of panel piece lengths (one per vertical strip, or one per horizontal row). */
-export function buildPieces(inp: WallInput, geo: Geometry, cfg: SystemConfig, steel: boolean, forced: number | null, warnings: string[], notes: string[]): PiecesResult {
+export function buildPieces(inp: WallInput, geo: Geometry, cfg: SystemConfig, forced: number | null, warnings: string[], notes: string[]): PiecesResult {
   const { orient, profile } = inp;
   const { W, leftH, rightH, apex, apexX, maxH, stripHeights } = geo;
   let pieces: number[] = [], rows = 0;
 
   if (orient === "vertical") {
-    // For steel-structure standard-profile vertical walls, panels taller than the
+    // For standard-profile vertical walls (steel-structure or not -- both can
+    // now exceed the largest stock length, since STEEL_MAX_H_VERT/P78_MAX_H_VERT/
+    // EXT_MAX_H_VERT all allow taller-than-stock walls), panels taller than the
     // maximum stock length (6.0 m) must be site-joined. Split each strip at the
     // stock boundary so packPanels schedules them as separate cut lengths (e.g. a
     // 9 m strip becomes a 6.0 m piece + a 3.0 m piece). Non-standard profiles
     // (rake/gable) already produce per-strip heights that are naturally <= maxH
     // and are passed to computeCustomSchedule, so no splitting is needed there.
-    const maxStock = cfg.stocks[cfg.stocks.length - 1]; // 6.0 m for internal
+    const maxStock = cfg.stocks[cfg.stocks.length - 1]; // 6.0 m for internal and external
     for (const h of stripHeights) {
-      if (steel && profile === "standard" && h > maxStock + 1e-9) {
+      if (profile === "standard" && h > maxStock + 1e-9) {
         // Divide the strip into as many full-stock sections as needed, plus a remainder.
         let remaining = h;
         while (remaining > 1e-9) {
