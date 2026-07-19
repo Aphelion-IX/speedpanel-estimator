@@ -2,10 +2,9 @@
 // Education Hub
 // =============================================================================
 // Self-contained document catalog/viewer page (no dependency on Wall or the
-// compute engine). Catalog data now comes live from Supabase's admin_documents
-// table via educationCatalogStore.ts -- the same table Admin > Documents
-// edits -- rather than the static eduDocuments.json snapshot; types, the
-// category taxonomy, and swatch resolution still live in catalog.ts. The
+// compute engine). Catalog data is bundled statically (see
+// educationCatalogStore.ts's own header comment for why); types, the
+// category taxonomy, and swatch resolution live in catalog.ts. The
 // pdfjs-dist lazy-loader is in pdfjsLoader.ts, and the filter/card/section/
 // PDF-viewer/detail-panel pieces each in their own file -- this file is just
 // the page component: search/category/selection state, filtering, and
@@ -24,6 +23,16 @@ import { RecentlyViewedStrip } from "./RecentlyViewedStrip";
 import { DocumentCard } from "./DocumentCard";
 import { DocumentDetailPanel, type DetailTab } from "./DocumentDetailPanel";
 
+const EducationHubHeader = ({ count }: { count: number }) => (
+  <div>
+    <h1 className={cx.h1}>Education Hub</h1>
+    <p className="mt-1 text-sm" style={{ color: MUTED }}>
+      Technical guides, installation manuals and reference documents for Speedpanel systems.
+      {" "}&middot; {count} document{count !== 1 ? "s" : ""}
+    </p>
+  </div>
+);
+
 // Matches metadata plus the document's full extracted PDF text (searchText,
 // empty for mock entries with no PDF) -- see educationCatalogStore.ts.
 const matchesQuery = (d: EduDocument, q: string): boolean =>
@@ -41,9 +50,11 @@ export const EducationHub = ({ layoutMode }: { layoutMode: EffectiveLayout }) =>
   // separate mode the user has to enter/exit to see anything.
   const [expanded, setExpanded] = useState(false);
 
-  // Seed the initial selection once documents arrive -- can't default
-  // synchronously to documents[0].id like the old EDU_DOCUMENTS constant
-  // allowed, since this is now an async Supabase fetch.
+  // Seed the initial selection once documents are available. documents is
+  // static now (see educationCatalogStore.ts), so this effect only ever
+  // really fires once on mount -- kept as an effect (not computed inline)
+  // so selecting a different doc later doesn't get stomped by this same
+  // logic re-running.
   useEffect(() => {
     if (!selectedId && documents.length > 0) setSelectedId(documents[0].id);
   }, [documents, selectedId]);
@@ -77,11 +88,11 @@ export const EducationHub = ({ layoutMode }: { layoutMode: EffectiveLayout }) =>
 
   const gridBody = (
     <>
-      <div className="mt-4 flex items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-4 py-3 shadow-sm">
+      <label className="mt-4 flex h-11 items-center gap-3 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-4 shadow-[0_1px_2px_rgba(15,23,42,0.05)] transition-all hover:border-blue-200 dark:hover:border-blue-700 focus-within:border-blue-400 dark:focus-within:border-blue-500 focus-within:shadow-[0_0_0_3.5px_rgba(0,103,185,0.15)] dark:focus-within:shadow-[0_0_0_3.5px_rgba(58,168,255,0.22)]">
         <Search size={16} className="shrink-0" style={{ color: MUTED }} />
         <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search guides, tags, categories..."
-          className="w-full bg-transparent text-sm outline-none" style={{ color: NAVY }} />
-      </div>
+          className="w-full bg-transparent text-sm outline-none placeholder:text-slate-400" style={{ color: NAVY }} />
+      </label>
       <div className="mt-3"><FilterChips active={category} onChange={setCategory} /></div>
       <RecentlyViewedStrip ids={recentIds} docs={documents} onSelect={selectDoc} />
       <div className="mt-5"><SectionLabel icon={<FileText size={14} />}>All Documents ({filtered.length})</SectionLabel></div>
@@ -97,9 +108,10 @@ export const EducationHub = ({ layoutMode }: { layoutMode: EffectiveLayout }) =>
     </>
   );
 
-  // Null when the catalog has no documents at all (e.g. every row deleted in
-  // Admin > Documents) -- DocumentDetailPanel requires a non-null doc, so the
-  // wrapper below only renders it once a selection exists.
+  // Null when the catalog has no documents at all (e.g. eduDocuments.json
+  // edited down to an empty array) -- DocumentDetailPanel requires a
+  // non-null doc, so the wrapper below only renders it once a selection
+  // exists.
   const detailPanel = selectedDoc && (
     <DocumentDetailPanel
       doc={selectedDoc} allDocs={documents} tab={detailTab} onTabChange={setDetailTab} onSelectRelated={selectDoc}
@@ -116,6 +128,7 @@ export const EducationHub = ({ layoutMode }: { layoutMode: EffectiveLayout }) =>
   if (layoutMode === "phone") {
     return (
       <div className="mt-2">
+        {!expanded && <EducationHubHeader count={documents.length} />}
         {gridBody}
         {detailPanel && <div className={expanded ? expandedClass : "mt-6"}>{detailPanel}</div>}
       </div>
@@ -123,9 +136,12 @@ export const EducationHub = ({ layoutMode }: { layoutMode: EffectiveLayout }) =>
   }
 
   return (
-    <div className="mt-2 grid grid-cols-[1fr_380px] items-start gap-6">
-      <div className="min-w-0">{gridBody}</div>
-      {detailPanel && <aside className={expanded ? expandedClass : "sticky top-5"}>{detailPanel}</aside>}
+    <div className="mt-2">
+      {!expanded && <EducationHubHeader count={documents.length} />}
+      <div className="grid grid-cols-[1fr_380px] items-start gap-6">
+        <div className="min-w-0">{gridBody}</div>
+        {detailPanel && <aside className={expanded ? expandedClass : "mt-4 sticky top-5"}>{detailPanel}</aside>}
+      </div>
     </div>
   );
 };

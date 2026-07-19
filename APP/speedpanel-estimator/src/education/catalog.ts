@@ -2,8 +2,8 @@
 // Education Hub -- document catalog
 // =============================================================================
 // Catalog types + shared lookups for the Education Hub tab. Document data
-// itself is fetched live from Supabase (see educationCatalogStore.ts), not
-// read from this file.
+// itself is bundled statically from src/eduDocuments.json (see
+// educationCatalogStore.ts), not read from this file.
 // =============================================================================
 import { cx, BLUE, GOLD } from "../styleTokens";
 
