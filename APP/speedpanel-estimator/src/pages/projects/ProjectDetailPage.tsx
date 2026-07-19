@@ -61,6 +61,9 @@ import { ProjectDocumentsCard } from "./documents/ProjectDocumentsCard";
 import { ProjectMembersCard } from "./ProjectMembersCard";
 import { ProjectSpeedpanelTeamCard } from "./ProjectSpeedpanelTeamCard";
 import { ProjectServicesCard } from "./services/ProjectServicesCard";
+import { ProjectContactsCard } from "./ProjectContactsCard";
+import { ProjectNotificationPreferencesCard } from "./ProjectNotificationPreferencesCard";
+import { ProjectLifecycleCard } from "./ProjectLifecycleCard";
 import type { ProjectRow } from "./projectTypes";
 
 const EVENT_ICON: Record<StageEventType, { Icon: typeof Send; className: string }> = {
@@ -95,6 +98,8 @@ const PROJECT_TABS = [
   { id: "orders", label: "Orders & Deliveries" },
   { id: "support", label: "Support" },
   { id: "documents", label: "Documents" },
+  { id: "people", label: "Members & Contacts" },
+  { id: "settings", label: "Settings" },
 ];
 
 export const ProjectDetailPage = ({ id, userId, onBack, onOpenEstimator, onCreateOrder, onCreateQuickOrder, onOpenOrder, layoutMode }: {
@@ -450,6 +455,22 @@ export const ProjectDetailPage = ({ id, userId, onBack, onOpenEstimator, onCreat
 
       <TabPanel id="documents" activeId={activeTab}>
         <ProjectDocumentsCard projectId={project.id} userId={userId} />
+      </TabPanel>
+
+      <TabPanel id="people" activeId={activeTab}>
+        <div className="grid gap-4 xl:grid-cols-2">
+          {project.company_id && (
+            <ProjectMembersCard projectId={project.id} companyId={project.company_id} />
+          )}
+          <ProjectContactsCard projectId={project.id} />
+        </div>
+      </TabPanel>
+
+      <TabPanel id="settings" activeId={activeTab}>
+        <div className="grid gap-4 xl:grid-cols-2">
+          <ProjectLifecycleCard projectId={project.id} />
+          <ProjectNotificationPreferencesCard projectId={project.id} userId={userId} />
+        </div>
       </TabPanel>
     </div>
   );
