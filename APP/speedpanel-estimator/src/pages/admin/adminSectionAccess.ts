@@ -25,6 +25,7 @@ import type { InternalRole } from "../company/staffTypes";
 const SECTION_PERMISSION_KEYS: Record<Exclude<AdminSubPage, "dashboard">, string> = {
   requests: "admin.section.requests",
   projectReviews: "admin.section.projectReviews",
+  projectsAdmin: "admin.section.projectsAdmin",
   orders: "admin.section.orders",
   deliveryRequests: "admin.section.deliveryRequests",
   serviceRequests: "admin.section.serviceRequests",

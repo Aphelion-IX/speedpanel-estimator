@@ -27,6 +27,8 @@ import { StageStepper } from "../../projects/StageStepper";
 import { useAdminProjects, useMyPmProjects } from "./adminProjectsStore";
 import { STAGE_LABELS, PROJECT_STAGE_BADGE_CLASS, type ProjectRow } from "../../projects/projectTypes";
 import type { InternalRole } from "../../company/staffTypes";
+import { AdminProjectOperationsPage } from "./AdminProjectOperationsPage";
+import { AdminProjectAuditPage } from "./AdminProjectAuditPage";
 
 const ProjectReviewRow = ({ item, onApproveInstall, onChangesInstall, onApproveTechnical, onChangesTechnical }: {
   item: ProjectRow;
@@ -77,6 +79,15 @@ const ProjectReviewRow = ({ item, onApproveInstall, onChangesInstall, onApproveT
             <Button variant="secondary" onClick={() => run(() => onChangesTechnical(item.id, note))} disabled={submitting || !note.trim()}>Request changes</Button>
           </>
         )}
+      </div>
+
+      <div className="mt-3">
+        <AccordionCard summary="Operations & lifecycle">
+          <AdminProjectOperationsPage projectId={item.id} />
+          <div className="mt-4">
+            <AdminProjectAuditPage projectId={item.id} />
+          </div>
+        </AccordionCard>
       </div>
 
       <div className="mt-3">
