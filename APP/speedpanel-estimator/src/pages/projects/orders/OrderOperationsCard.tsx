@@ -1,16 +1,18 @@
 
 import { useState } from "react";
 import { CheckCircle2, Copy, MessageSquareText } from "lucide-react";
-import { Card } from "../../../ui/primitives";
-import { Button } from "../../../ui/button";
-import { TextAreaField } from "../../shared/fields";
-import { cx, MUTED } from "../../../styleTokens";
 import {
   ORDER_HOLD_TYPE_LABELS,
-  ORDER_OPERATIONAL_STATUS_BADGE_CLASS,
   ORDER_OPERATIONAL_STATUS_LABELS,
+  type OrderOperationalStatus,
 } from "./orderOperationsTypes";
 import { useOrderHolds, useOrderOperations } from "./orderOperationsStore";
+
+const ORD_STATUS_BADGE_TONE: Record<OrderOperationalStatus, string> = {
+  draft: "neutral", submitted: "", under_review: "", changes_required: "red",
+  quote_issued: "", accepted: "green", processing: "", manufacturing: "",
+  ready_for_delivery: "", partially_delivered: "", completed: "green", cancelled: "red",
+};
 
 export const OrderOperationsCard = ({
   orderId,
@@ -65,47 +67,45 @@ export const OrderOperationsCard = ({
     openHolds.length === 0;
 
   return (
-    <Card title="Order Status" icon={<CheckCircle2 size={14} />}>
+    <div className="ord-section">
+      <div className="ord-section-head"><div><h2>Order Status</h2></div></div>
+
       <div className="flex flex-wrap items-center gap-2">
-        <span className={`${cx.badge} ${ORDER_OPERATIONAL_STATUS_BADGE_CLASS[operations.operational_status]}`}>
+        <span className={`ord-badge ${ORD_STATUS_BADGE_TONE[operations.operational_status]}`}>
           {ORDER_OPERATIONAL_STATUS_LABELS[operations.operational_status]}
         </span>
         {operations.customer_action_required && (
-          <span className={`${cx.badge} bg-red-50 text-red-700 dark:bg-red-950/30 dark:text-red-300`}>
-            Action Required
-          </span>
+          <span className="ord-badge red">Action Required</span>
         )}
       </div>
 
       {operations.customer_action_note && (
-        <div className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300">
-          {operations.customer_action_note}
+        <div className="ord-info-banner red mt-3">
+          <span className="ord-info-copy">{operations.customer_action_note}</span>
         </div>
       )}
 
       {openHolds.length > 0 && (
-        <div className="mt-3 space-y-2">
-          {openHolds.map(hold => (
-            <div key={hold.id} className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 dark:border-red-900 dark:bg-red-950/30">
-              <p className="text-sm font-semibold text-red-700 dark:text-red-300">
-                {hold.title}
-              </p>
-              <p className="mt-1 text-xs text-red-600 dark:text-red-300">
-                {hold.customer_message || "Speedpanel is reviewing this order."}
-              </p>
-              <p className="mt-1 text-[10px]" style={{ color: MUTED }}>
-                {ORDER_HOLD_TYPE_LABELS[hold.hold_type]}
-              </p>
-            </div>
-          ))}
-        </div>
+        openHolds.map(hold => (
+          <div key={hold.id} className="ord-info-banner red mt-3">
+            <span className="ord-info-copy">
+              <strong>{hold.title}</strong>
+              <span>{hold.customer_message || "Speedpanel is reviewing this order."}</span>
+              <span>{ORDER_HOLD_TYPE_LABELS[hold.hold_type]}</span>
+            </span>
+          </div>
+        ))
       )}
 
       {requestingChanges ? (
-        <div className="mt-3">
-          <TextAreaField label="What needs to change?" value={changeNote} onChange={setChangeNote} />
-          <div className="mt-2 flex flex-wrap gap-2">
-            <Button
+        <div className="mt-3 ord-fieldgrid">
+          <div className="ord-field full">
+            <label>What needs to change?</label>
+            <textarea value={changeNote} onChange={e => setChangeNote(e.target.value)} />
+          </div>
+          <div className="ord-field full flex flex-wrap gap-2">
+            <button
+              className="ord-btn primary"
               disabled={busy || !changeNote.trim()}
               onClick={() =>
                 run(async () => {
@@ -122,67 +122,65 @@ export const OrderOperationsCard = ({
               }
             >
               Submit Changes
-            </Button>
-            <Button variant="ghost" onClick={() => setRequestingChanges(false)}>
+            </button>
+            <button className="ord-btn secondary" onClick={() => setRequestingChanges(false)}>
               Cancel
-            </Button>
+            </button>
           </div>
         </div>
       ) : (
         <div className="mt-3 flex flex-wrap gap-2">
           {operations.operational_status === "quote_issued" && (
             <>
-              <Button
-                icon={<CheckCircle2 size={14} />}
+              <button
+                className="ord-btn primary"
                 disabled={!canAccept || busy}
                 onClick={() => run(() => acceptQuote(operations.version))}
               >
-                Accept Quote
-              </Button>
-              <Button
-                variant="secondary"
-                icon={<MessageSquareText size={14} />}
+                <CheckCircle2 size={14} /> Accept Quote
+              </button>
+              <button
+                className="ord-btn secondary"
                 disabled={busy}
                 onClick={() => setRequestingChanges(true)}
               >
-                Request Changes
-              </Button>
+                <MessageSquareText size={14} /> Request Changes
+              </button>
             </>
           )}
 
           {["accepted", "processing", "manufacturing", "ready_for_delivery", "partially_delivered", "completed"].includes(operations.operational_status) && (
-            <Button
-              variant="secondary"
-              icon={<Copy size={14} />}
+            <button
+              className="ord-btn secondary"
               disabled={busy}
               onClick={() => createCopy("repeat")}
             >
-              Repeat Order
-            </Button>
+              <Copy size={14} /> Repeat Order
+            </button>
           )}
 
           {["accepted", "processing", "manufacturing", "ready_for_delivery", "partially_delivered"].includes(operations.operational_status) && (
-            <Button
-              variant="secondary"
+            <button
+              className="ord-btn secondary"
               disabled={busy}
               onClick={() => createCopy("amendment")}
             >
               Create Amendment
-            </Button>
+            </button>
           )}
         </div>
       )}
 
-      <p className={cx.footnote} style={{ color: MUTED }}>
+      <p className="ord-tiny ord-muted mt-2">
         Accepted orders are locked. Later changes create a linked amendment
         instead of altering the accepted order.
       </p>
 
       {(error || holdsError || actionError) && (
-        <p className="mt-2 text-sm text-red-600 dark:text-red-300">
+        <p className="mt-2 ord-small" style={{ color: "var(--ord-red)" }}>
           {error || holdsError || actionError}
         </p>
       )}
-    </Card>
+    </div>
   );
 };

@@ -1,10 +1,6 @@
 
 import { useEffect, useMemo, useState } from "react";
-import { FileCheck2 } from "lucide-react";
-import { Card } from "../../../ui/primitives";
-import { Button } from "../../../ui/button";
 import { TextAreaField } from "../../shared/fields";
-import { MUTED, NAVY } from "../../../styleTokens";
 import { round2 } from "../../../export/priceEstimateReportData";
 import { useOrder } from "../../projects/orders/orderDetailStore";
 import {
@@ -101,7 +97,14 @@ export const AdminOrderReviewCard = ({
   };
 
   return (
-    <Card title="Order Review" icon={<FileCheck2 size={14} />}>
+    <div className="ord-section">
+      <div className="ord-section-head">
+        <div>
+          <h2>Customer Submission</h2>
+          <p>{order.submitted_at ? `Submitted ${new Date(order.submitted_at).toLocaleDateString()}` : "Not yet submitted"}{editing ? " · Editing" : ""}</p>
+        </div>
+      </div>
+
       {editing ? (
         <>
           <OrderLineItemsTable
@@ -109,12 +112,10 @@ export const AdminOrderReviewCard = ({
             onChange={setItems}
             editablePrice
           />
-          <div className="mt-3 max-w-xs ml-auto text-sm">
-            <div className="flex justify-between gap-3">
-              <span style={{ color: MUTED }}>New total</span>
-              <strong style={{ color: NAVY }}>
-                ${totals.totalIncGst.toFixed(2)}
-              </strong>
+          <div className="mt-3 ord-quote-total max-w-xs ml-auto">
+            <div className="ord-quote-line total">
+              <span>New total</span>
+              <strong>${totals.totalIncGst.toFixed(2)}</strong>
             </div>
           </div>
           <div className="mt-3">
@@ -125,14 +126,15 @@ export const AdminOrderReviewCard = ({
             />
           </div>
           <div className="mt-3 flex flex-wrap gap-2">
-            <Button
+            <button
+              className="ord-btn primary"
               disabled={busy || !note.trim()}
               onClick={save}
             >
               {busy ? "Saving..." : "Save Revision"}
-            </Button>
-            <Button
-              variant="ghost"
+            </button>
+            <button
+              className="ord-btn secondary"
               disabled={busy}
               onClick={() => {
                 setEditing(false);
@@ -146,7 +148,7 @@ export const AdminOrderReviewCard = ({
               }}
             >
               Cancel
-            </Button>
+            </button>
           </div>
         </>
       ) : (
@@ -156,27 +158,26 @@ export const AdminOrderReviewCard = ({
             readOnly
           />
           {!snapshot && (
-            <Button
-              variant="secondary"
-              className="mt-3"
+            <button
+              className="ord-btn secondary mt-3"
               onClick={() => setEditing(true)}
             >
               Revise Line Items
-            </Button>
+            </button>
           )}
           {snapshot && (
-            <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-300">
-              Accepted order line items are locked.
+            <div className="ord-info-banner green mt-3">
+              <span className="ord-info-copy"><strong>Locked</strong><span>Accepted order line items are locked.</span></span>
             </div>
           )}
         </>
       )}
 
       {(error || actionError) && (
-        <p className="mt-2 text-sm text-red-600 dark:text-red-300">
+        <p className="mt-2 ord-small" style={{ color: "var(--ord-red)" }}>
           {error || actionError}
         </p>
       )}
-    </Card>
+    </div>
   );
 };

@@ -11,19 +11,20 @@
 // posture than AdminOrdersPage.tsx's shrinking queue.
 // =============================================================================
 import { useState } from "react";
-import { cx, NAVY, MUTED, BLUE } from "../../../styleTokens";
-import { Field, TextAreaField } from "../../shared/fields";
-import { AccordionCard } from "../../../ui/primitives";
-import { Button } from "../../../ui/button";
-import { LoadingState, ErrorState, EmptyState } from "../../../ui/states";
 import {
   useAdminDeliveryRequests, type AdminDeliveryRequestRow,
 } from "./adminDeliveryRequestsStore";
-import { DELIVERY_APPROVAL_STATUS_LABELS, DELIVERY_APPROVAL_STATUS_BADGE_CLASS, DELIVERY_AWAITING_DECISION_STATUSES } from "../../projects/orders/orderTypes";
+import { DELIVERY_APPROVAL_STATUS_LABELS, DELIVERY_AWAITING_DECISION_STATUSES, type DeliveryApprovalStatus } from "../../projects/orders/orderTypes";
 import { AdminSplitDeliveryForm } from "./AdminSplitDeliveryForm";
+import { LoadingState, ErrorState, EmptyState } from "../../../ui/states";
 import type { InternalRole } from "../../company/staffTypes";
+import "../../order/ordersTheme.css";
 
 const fmt = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString() : "--");
+
+const DELIVERY_APPROVAL_ORD_TONE: Record<DeliveryApprovalStatus, string> = {
+  draft: "neutral", pending: "attention", accepted: "green", date_proposed: "attention", declined: "red",
+};
 
 type SplitInput = {
   addressLine1: string; addressLine2?: string; suburb: string; state: string; postcode: string;
@@ -62,99 +63,96 @@ const DeliveryRequestRow = ({ request, allForOrder, onAccept, onPropose, onDecli
   const awaitingDecision = DELIVERY_AWAITING_DECISION_STATUSES.includes(request.approval_status);
 
   return (
-    <div className={`${cx.card} mt-3`}>
-      <div className="flex items-start justify-between gap-2">
+    <section className="ord-section">
+      <div className="ord-section-head">
         <div>
-          <div className="flex items-center gap-2">
-            <div className="text-sm font-bold" style={{ color: NAVY }}>{request.project_name} -- Delivery {request.sequence_no}</div>
-            <span className={`${cx.badge} ${DELIVERY_APPROVAL_STATUS_BADGE_CLASS[request.approval_status]}`}>
-              {DELIVERY_APPROVAL_STATUS_LABELS[request.approval_status]}
-            </span>
-          </div>
-          <p className={cx.footnote}>
+          <h2>{request.project_name} &middot; Delivery {request.sequence_no}</h2>
+          <p>
             {request.address_line1}{request.address_line2 ? `, ${request.address_line2}` : ""}, {request.suburb} {request.state} {request.postcode}
+            {(request.contact_name || request.contact_phone) ? ` · ${[request.contact_name, request.contact_phone].filter(Boolean).join(" / ")}` : ""}
           </p>
-          {(request.contact_name || request.contact_phone) && (
-            <p className={cx.footnote}>{[request.contact_name, request.contact_phone].filter(Boolean).join(" · ")}</p>
-          )}
         </div>
+        <span className={`ord-badge ${DELIVERY_APPROVAL_ORD_TONE[request.approval_status]}`}>
+          {DELIVERY_APPROVAL_STATUS_LABELS[request.approval_status]}
+        </span>
       </div>
 
-      <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 text-sm sm:grid-cols-4">
-        <div><span className={cx.footnote}>Requested date</span><div style={{ color: NAVY }}>{fmt(request.requested_date)}</div></div>
-        <div><span className={cx.footnote}>Proposed date</span><div style={{ color: NAVY }}>{fmt(request.proposed_date)}</div></div>
-        <div><span className={cx.footnote}>Confirmed delivery date</span><div style={{ color: NAVY }}>{fmt(request.confirmed_date)}</div></div>
-        <div><span className={cx.footnote}>Actual delivery date</span><div style={{ color: NAVY }}>{fmt(request.actual_date)}</div></div>
+      <div className="ord-fieldgrid">
+        <div className="ord-field"><label>Requested Date</label><input value={fmt(request.requested_date)} readOnly /></div>
+        <div className="ord-field"><label>Proposed Date</label><input value={fmt(request.proposed_date)} readOnly /></div>
+        <div className="ord-field"><label>Confirmed Date</label><input value={fmt(request.confirmed_date)} readOnly /></div>
+        <div className="ord-field"><label>Actual Date</label><input value={fmt(request.actual_date)} readOnly /></div>
       </div>
 
       {(request.delivery_instructions || request.preferred_window || request.site_access_details) && (
-        <div className="mt-2 space-y-0.5 text-sm" style={{ color: MUTED }}>
-          {request.delivery_instructions && <p>Instructions: {request.delivery_instructions}</p>}
-          {request.preferred_window && <p>Preferred window: {request.preferred_window}</p>}
-          {request.site_access_details && <p>Site access: {request.site_access_details}</p>}
+        <div className="mt-2 ord-small ord-muted" style={{ display: "grid", gap: 2 }}>
+          {request.delivery_instructions && <span>Instructions: {request.delivery_instructions}</span>}
+          {request.preferred_window && <span>Preferred window: {request.preferred_window}</span>}
+          {request.site_access_details && <span>Site access: {request.site_access_details}</span>}
         </div>
       )}
 
-      <p className={`${cx.footnote} mt-2`}>{request.item_allocations.length} item{request.item_allocations.length !== 1 ? "s" : ""} allocated to this delivery.</p>
+      <p className="mt-2 ord-small ord-muted">{request.item_allocations.length} item{request.item_allocations.length !== 1 ? "s" : ""} allocated to this delivery.</p>
 
-      {error && <p className="mt-2 text-sm text-red-600 dark:text-red-300">{error}</p>}
+      {error && <p className="mt-2 ord-small" style={{ color: "var(--ord-red)" }}>{error}</p>}
 
       {awaitingDecision && (
         <div className="mt-3 flex flex-wrap items-center gap-2">
-          <Button onClick={() => run(() => onAccept(request.id))} disabled={busy}>Accept date</Button>
+          <button className="ord-btn primary" onClick={() => run(() => onAccept(request.id))} disabled={busy}>Accept date</button>
           {proposing ? (
             <>
-              <input type="date" value={proposedDate} onChange={e => setProposedDate(e.target.value)} className={cx.input + " w-auto !py-1.5"} style={{ color: NAVY }} />
-              <Button onClick={() => run(() => onPropose(request.id, proposedDate)).then(() => setProposing(false))} disabled={busy || !proposedDate}>
+              <input type="date" value={proposedDate} onChange={e => setProposedDate(e.target.value)} style={{ height: 40, borderRadius: 10, border: "1px solid var(--ord-line2)", padding: "0 11px" }} />
+              <button className="ord-btn primary" onClick={() => run(() => onPropose(request.id, proposedDate)).then(() => setProposing(false))} disabled={busy || !proposedDate}>
                 Send proposed date
-              </Button>
-              <Button variant="ghost" onClick={() => setProposing(false)}>Cancel</Button>
+              </button>
+              <button className="ord-btn secondary" onClick={() => setProposing(false)}>Cancel</button>
             </>
           ) : (
-            <Button variant="secondary" onClick={() => setProposing(true)} disabled={busy}>Propose a different date</Button>
+            <button className="ord-btn secondary" onClick={() => setProposing(true)} disabled={busy}>Propose a different date</button>
           )}
           {declining ? (
             <div className="mt-2 flex w-full flex-wrap items-center gap-2">
-              <div className="w-full max-w-sm"><Field label="Reason for the customer (optional)" value={declineNote} onChange={setDeclineNote} /></div>
-              <Button variant="danger" onClick={() => run(() => onDecline(request.id, declineNote)).then(() => setDeclining(false))} disabled={busy}>
+              <div className="ord-field" style={{ width: "100%", maxWidth: 320 }}>
+                <label>Reason for the customer (optional)</label>
+                <input value={declineNote} onChange={e => setDeclineNote(e.target.value)} />
+              </div>
+              <button className="ord-btn danger" onClick={() => run(() => onDecline(request.id, declineNote)).then(() => setDeclining(false))} disabled={busy}>
                 Confirm decline
-              </Button>
-              <Button variant="ghost" onClick={() => setDeclining(false)}>Cancel</Button>
+              </button>
+              <button className="ord-btn secondary" onClick={() => setDeclining(false)}>Cancel</button>
             </div>
           ) : (
-            <Button variant="danger" onClick={() => setDeclining(true)} disabled={busy}>Decline</Button>
+            <button className="ord-btn danger" onClick={() => setDeclining(true)} disabled={busy}>Decline</button>
           )}
         </div>
       )}
 
-      <div className="mt-3">
-        <AccordionCard summary={<span style={{ color: BLUE }}>Notes & split</span>}>
-          <div className="space-y-3">
-            <div>
-              <TextAreaField label="Internal note (staff only)" value={internalNote} onChange={setInternalNoteDraft} />
-              <Button variant="ghost" className="mt-1" onClick={() => run(() => onSetInternalNote(request.id, internalNote))} disabled={busy}>Save internal note</Button>
-            </div>
-            <div>
-              <TextAreaField label="Customer-facing note" value={customerNote} onChange={setCustomerNoteDraft} />
-              <Button variant="ghost" className="mt-1" onClick={() => run(() => onSetCustomerNote(request.id, customerNote))} disabled={busy}>Save customer note</Button>
-            </div>
-            <div>
-              {splitting ? (
-                <AdminSplitDeliveryForm
-                  orderId={request.order_id}
-                  existingAllocations={allForOrder.flatMap(r => r.item_allocations)}
-                  onCreate={input => onCreateDelivery(request.order_id, input)}
-                  onCreated={() => setSplitting(false)}
-                  onCancel={() => setSplitting(false)}
-                />
-              ) : (
-                <Button variant="ghost" onClick={() => setSplitting(true)}>+ Split into another delivery</Button>
-              )}
-            </div>
-          </div>
-        </AccordionCard>
+      <div className="ord-fieldgrid mt-3">
+        <div className="ord-field full">
+          <label>Internal Note (staff only)</label>
+          <textarea value={internalNote} onChange={e => setInternalNoteDraft(e.target.value)} />
+          <button className="ord-btn secondary mt-1" style={{ height: 32 }} onClick={() => run(() => onSetInternalNote(request.id, internalNote))} disabled={busy}>Save internal note</button>
+        </div>
+        <div className="ord-field full">
+          <label>Customer Message</label>
+          <textarea value={customerNote} onChange={e => setCustomerNoteDraft(e.target.value)} />
+          <button className="ord-btn secondary mt-1" style={{ height: 32 }} onClick={() => run(() => onSetCustomerNote(request.id, customerNote))} disabled={busy}>Save customer note</button>
+        </div>
+        <div className="ord-field full">
+          {splitting ? (
+            <AdminSplitDeliveryForm
+              orderId={request.order_id}
+              existingAllocations={allForOrder.flatMap(r => r.item_allocations)}
+              onCreate={input => onCreateDelivery(request.order_id, input)}
+              onCreated={() => setSplitting(false)}
+              onCancel={() => setSplitting(false)}
+            />
+          ) : (
+            <button className="ord-btn secondary" onClick={() => setSplitting(true)}>+ Split into another delivery</button>
+          )}
+        </div>
       </div>
-    </div>
+    </section>
   );
 };
 
@@ -170,18 +168,28 @@ export const AdminDeliveryRequestsPage = ({ userId, staffRole, staffRoleLoading 
     return <ErrorState className="mt-6" message={error} onRetry={() => reload()} />;
   }
 
-  if (requests.length === 0) {
-    return <EmptyState className={`${cx.card} mt-6 text-center`} message="No delivery requests yet." />;
-  }
-
   return (
-    <div className="mt-2">
-      {requests.map(r => (
-        <DeliveryRequestRow key={r.id} request={r} allForOrder={requests.filter(x => x.order_id === r.order_id)}
-          onAccept={acceptDate} onPropose={proposeDate} onDecline={declineRequest}
-          onSetInternalNote={setInternalNote} onSetCustomerNote={setCustomerNote} onCreateDelivery={createDelivery}
-        />
-      ))}
+    <div className="ord-shell mt-2">
+      <div className="ord-pagehead">
+        <div>
+          <div className="ord-crumbs">Orders <span>&rsaquo;</span> Internal Delivery Review</div>
+          <h1>Internal Delivery Review</h1>
+          <p>Review and confirm customer-requested delivery dates.</p>
+        </div>
+      </div>
+
+      {requests.length === 0 ? (
+        <div className="ord-card text-center"><EmptyState message="No delivery requests yet." /></div>
+      ) : (
+        <div className="ord-grid">
+          {requests.map(r => (
+            <DeliveryRequestRow key={r.id} request={r} allForOrder={requests.filter(x => x.order_id === r.order_id)}
+              onAccept={acceptDate} onPropose={proposeDate} onDecline={declineRequest}
+              onSetInternalNote={setInternalNote} onSetCustomerNote={setCustomerNote} onCreateDelivery={createDelivery}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 };
