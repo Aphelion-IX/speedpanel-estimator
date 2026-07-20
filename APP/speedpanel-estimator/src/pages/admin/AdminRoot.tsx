@@ -47,12 +47,12 @@ export const AdminRoot = ({ route, navigate, layoutMode, auth }: {
   layoutMode: EffectiveLayout;
   auth: UseAuth;
 }) => {
-  const { staffRole, myPermissions, loading: roleLoading } = useMyInternalRole(auth.user?.id ?? null);
+  const { isInternalStaff, staffRole, myPermissions, loading: roleLoading } = useMyInternalRole(auth.user?.id ?? null);
   const allowed = roleLoading || canAccessSection(staffRole, myPermissions, route.sub);
 
   return (
     <div className="mt-6">
-      <AdminGate>
+      <AdminGate isInternalStaff={isInternalStaff} loading={roleLoading}>
         {route.sub === "dashboard" && (
           <AdminDashboard onNavigate={sub => navigate({ tab: "admin", sub })} />
         )}

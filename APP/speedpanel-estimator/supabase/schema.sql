@@ -710,30 +710,31 @@ grant execute on function public.review_technical(uuid, text, text) to authentic
 -- =============================================================================
 -- Admin catalog writes: panels/tracks/fixings/sealants/colours
 -- =============================================================================
--- Public read was already granted above. Writes are ALSO public (no admin
--- role or login required) -- AdminGate.tsx has no auth check, matching this.
+-- Public read was already granted above. Writes require is_admin() --
+-- AdminGate.tsx requires the caller to be signed in and profiles.role =
+-- 'admin' too, matching this end to end (see appShell/AdminGate.tsx).
 -- requests/projects are NOT part of this -- those hold customer PII (name/
 -- email/phone/project data) and stay gated to auth.uid()/is_admin() below.
 -- =============================================================================
-create policy "Public write access"  on panels   for insert with check (true);
-create policy "Public update access" on panels   for update using (true) with check (true);
-create policy "Public delete access" on panels   for delete using (true);
+create policy "Admin write access"  on panels   for insert with check (is_admin());
+create policy "Admin update access" on panels   for update using (is_admin()) with check (is_admin());
+create policy "Admin delete access" on panels   for delete using (is_admin());
 
-create policy "Public write access"  on tracks   for insert with check (true);
-create policy "Public update access" on tracks   for update using (true) with check (true);
-create policy "Public delete access" on tracks   for delete using (true);
+create policy "Admin write access"  on tracks   for insert with check (is_admin());
+create policy "Admin update access" on tracks   for update using (is_admin()) with check (is_admin());
+create policy "Admin delete access" on tracks   for delete using (is_admin());
 
-create policy "Public write access"  on fixings  for insert with check (true);
-create policy "Public update access" on fixings  for update using (true) with check (true);
-create policy "Public delete access" on fixings  for delete using (true);
+create policy "Admin write access"  on fixings  for insert with check (is_admin());
+create policy "Admin update access" on fixings  for update using (is_admin()) with check (is_admin());
+create policy "Admin delete access" on fixings  for delete using (is_admin());
 
-create policy "Public write access"  on sealants for insert with check (true);
-create policy "Public update access" on sealants for update using (true) with check (true);
-create policy "Public delete access" on sealants for delete using (true);
+create policy "Admin write access"  on sealants for insert with check (is_admin());
+create policy "Admin update access" on sealants for update using (is_admin()) with check (is_admin());
+create policy "Admin delete access" on sealants for delete using (is_admin());
 
-create policy "Public write access"  on colours  for insert with check (true);
-create policy "Public update access" on colours  for update using (true) with check (true);
-create policy "Public delete access" on colours  for delete using (true);
+create policy "Admin write access"  on colours  for insert with check (is_admin());
+create policy "Admin update access" on colours  for update using (is_admin()) with check (is_admin());
+create policy "Admin delete access" on colours  for delete using (is_admin());
 
 -- =============================================================================
 -- Admin Documents catalog (Education Hub metadata staging area)
@@ -771,9 +772,9 @@ create table if not exists admin_documents (
 alter table admin_documents enable row level security;
 
 create policy "Public read access" on admin_documents for select using (true);
-create policy "Public write access"  on admin_documents for insert with check (true);
-create policy "Public update access" on admin_documents for update using (true) with check (true);
-create policy "Public delete access" on admin_documents for delete using (true);
+create policy "Admin write access"  on admin_documents for insert with check (is_admin());
+create policy "Admin update access" on admin_documents for update using (is_admin()) with check (is_admin());
+create policy "Admin delete access" on admin_documents for delete using (is_admin());
 
 -- =============================================================================
 -- Admin Systems -- "Locked system data" rows
@@ -795,8 +796,8 @@ create table if not exists system_locked_rows (
 alter table system_locked_rows enable row level security;
 
 create policy "Public read access" on system_locked_rows for select using (true);
-create policy "Public update access" on system_locked_rows
-  for update using (true) with check (true);
+create policy "Admin update access" on system_locked_rows
+  for update using (is_admin()) with check (is_admin());
 -- No insert/delete policy -- exactly 2 rows exist forever, seeded once below;
 -- clients only ever update the `rows` column of an existing row.
 
@@ -825,8 +826,8 @@ create table if not exists math_constants (
 alter table math_constants enable row level security;
 
 create policy "Public read access" on math_constants for select using (true);
-create policy "Public update access" on math_constants
-  for update using (true) with check (true);
+create policy "Admin update access" on math_constants
+  for update using (is_admin()) with check (is_admin());
 -- No insert/delete policy -- the single row is seeded once (below/by the
 -- one-time backfill) and the fixed default id + check constraint make a
 -- second row structurally impossible even if insert were ever granted.
@@ -850,8 +851,8 @@ create table if not exists system_tables (
 alter table system_tables enable row level security;
 
 create policy "Public read access" on system_tables for select using (true);
-create policy "Public update access" on system_tables
-  for update using (true) with check (true);
+create policy "Admin update access" on system_tables
+  for update using (is_admin()) with check (is_admin());
 -- No insert/delete policy -- the single row is seeded once (below) and the
 -- fixed default id + check constraint make a second row structurally
 -- impossible even if insert were ever granted.
