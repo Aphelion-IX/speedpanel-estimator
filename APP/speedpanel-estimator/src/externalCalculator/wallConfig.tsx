@@ -16,7 +16,7 @@
 // =============================================================================
 import { useState } from "react";
 import { ChevronDown, AlertTriangle } from "lucide-react";
-import { cx, NAVY, BLUE, MUTED, selectedFill, selectableOffCx } from "../styleTokens";
+import { cx, NAVY, BLUE, MUTED } from "../styleTokens";
 import {
   SPAN_TABLE_VERT, SPAN_TABLE_HORIZ, RAKE_NOTE, CUSTOM_MAX_LENGTH,
 } from "../data";
@@ -77,16 +77,15 @@ export const SpanTable = ({ orient, type }: { orient: string; type: number }) =>
 };
 
 // --- ProfileSelector ----------------------------------------------------------
+// The mockup's own `.profile-grid`/`.profile`/`.shape` markup -- mirrors
+// internalCalculator/wallConfig.tsx's identical component.
 export const ProfileSelector = ({ value, onChange }: { value: ProfileId; onChange: (id: ProfileId) => void }) => (
-  <div className="grid grid-cols-3 items-end gap-1.5">
-    {([ ["standard","Standard"], ["rake","Raked"], ["gable","Gable"] ] as [ProfileId, string][]).map(([id, lbl]) => {
-      const on = value === id;
-      return (
-        <button key={id} onClick={() => onChange(id)}
-          className={"w-full rounded-xl border-2 py-3.5 px-4 text-sm font-semibold text-center active:scale-95 transition-all " + (on ? "" : `border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 ${selectableOffCx}`)}
-          style={on ? { ...selectedFill, color: "#fff" } : { color: BLUE }}>{lbl}</button>
-      );
-    })}
+  <div className="profile-grid">
+    {([ ["standard","Standard"], ["rake","Raked"], ["gable","Gable"] ] as [ProfileId, string][]).map(([id, lbl]) => (
+      <button key={id} type="button" className={`profile${value === id ? " active" : ""}`} onClick={() => onChange(id)}>
+        <div className={`shape${id !== "standard" ? ` ${id}` : ""}`} />{lbl}
+      </button>
+    ))}
   </div>
 );
 

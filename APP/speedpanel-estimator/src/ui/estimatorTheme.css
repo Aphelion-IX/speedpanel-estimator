@@ -115,6 +115,9 @@
 .est-shell .profile-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .est-shell .profile { border: 1px solid var(--line); background: var(--surface); border-radius: 12px; padding: 10px 8px; text-align: center; color: color-mix(in srgb, var(--navy) 55%, var(--muted) 45%); font-weight: 800; cursor: pointer; font-size: 13px; }
 .est-shell .profile.active { background: color-mix(in srgb, var(--blue) 8%, var(--surface)); border-color: color-mix(in srgb, var(--blue) 35%, var(--surface)); color: var(--blue); }
+.est-shell .shape { height: 24px; width: 44px; background: color-mix(in srgb, var(--blue) 12%, var(--surface)); border: 1px solid color-mix(in srgb, var(--blue) 45%, var(--surface)); margin: 0 auto 7px; }
+.est-shell .shape.rake { clip-path: polygon(0 35%, 100% 0, 100% 100%, 0 100%); }
+.est-shell .shape.gable { clip-path: polygon(0 40%, 50% 0, 100% 40%, 100% 100%, 0 100%); }
 
 /* -- Order grid / material cards (Order tab / drawer) -------------------------- */
 .est-shell .order-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }

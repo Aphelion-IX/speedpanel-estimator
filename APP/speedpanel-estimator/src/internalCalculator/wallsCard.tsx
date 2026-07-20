@@ -33,20 +33,17 @@ export const WALL_SYSTEMS: [WallSystemId, string][] = [
   ["shaft",    "Shaft wall"],
 ];
 
+// The mockup's own `.seg` segmented control (speedpanel-estimator-web-v5.html
+// data-seg="system").
 const WallSystemSelector = ({ value, onChange }: { value: WallSystemId; onChange: (id: WallSystemId) => void }) => (
-  <div className="border-t border-slate-100 dark:border-slate-700 pt-3">
-    <div className={cx.cardHd}>Wall system</div>
-    <div className="grid grid-cols-3 items-end gap-1.5">
-      {WALL_SYSTEMS.map(([id, label]) => {
-        const on = value === id;
-        return (
-          <button key={id} onClick={() => onChange(id)}
-            className={"w-full rounded-xl border-2 py-3.5 px-2 text-sm font-semibold text-center active:scale-95 transition-all " + (on ? "" : `border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 ${selectableOffCx}`)}
-            style={on ? { ...selectedFill, color: "#fff" } : { color: BLUE }}>
-            {label.replace(" wall", "")}
-          </button>
-        );
-      })}
+  <div>
+    <label className="label">Wall system</label>
+    <div className="seg">
+      {WALL_SYSTEMS.map(([id, label]) => (
+        <button key={id} type="button" className={value === id ? "active" : ""} onClick={() => onChange(id)}>
+          {label.replace(" wall", "")}
+        </button>
+      ))}
     </div>
   </div>
 );
