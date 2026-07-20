@@ -204,10 +204,6 @@ export const EstimateTopCard = ({
         </div>
       </section>
 
-      <p className="note" style={{ marginBottom: 14 }}>
-        You can view and manage all your projects in the <button onClick={onGoToProjects} className="font-bold underline decoration-2 underline-offset-2" style={{ color: "var(--blue)" }}>Projects</button> tab.
-      </p>
-
       {totalItems > 1 || projAgg.totalPanels > 0 ? (
         <section className="order-jump-banner">
           <div className="order-jump-left">

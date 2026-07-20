@@ -43,7 +43,9 @@ export const buildExtProjAgg = (wallResults: WallResult[]) => {
   const sealantBoxes = ceilDiv0(sausages, EXT_SEALANT_PER_BOX);
   const cLMr = r2(cLM), jLMr = r2(jLM), zLMr = r2(zLM), flashLMr = r2(flashLM);
   return {
-    groups, panels: groups.reduce((a, g) => a + g.pieces, 0), packs: groups.reduce((a, g) => a + g.packs, 0),
+    // Ordered quantity (g.ordered), not required (g.pieces) -- see
+    // aggregateInternal.ts's totalPanels comment for why.
+    groups, panels: groups.reduce((a, g) => a + g.ordered, 0), packs: groups.reduce((a, g) => a + g.packs, 0),
     totalArea: r2(totalArea), fix30, fix16, boxes30: boxesOf(fix30), boxes16: boxesOf(fix16),
     sausages, sealantBoxes, cLM: cLMr, jLM: jLMr, zLM: zLMr, flashLM: flashLMr,
     cPieces: ceilDiv0(cLMr, EXT_CTRACK_STOCK[0]),

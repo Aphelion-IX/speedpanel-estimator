@@ -14,7 +14,9 @@ describe("aggregate (Internal)", () => {
     expect(agg.totalArea).toBeCloseTo(out.area!, 2);
     expect(agg.fix30).toBe(out.fix30);
     expect(agg.fix16).toBe(out.fix16);
-    expect(agg.totalPanels).toBe(out.chosen!.panels);
+    // totalPanels is the ordered (pack-rounded) quantity, not the raw
+    // required count -- matches out.chosen.orderedInPacks, not .panels.
+    expect(agg.totalPanels).toBe(out.chosen!.orderedInPacks);
     expect(agg.panels.length).toBeGreaterThan(0);
   });
 

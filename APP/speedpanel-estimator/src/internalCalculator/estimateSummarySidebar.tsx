@@ -20,6 +20,7 @@ import type { Wall } from "../estimate/wall.types";
 import type { aggregate } from "../estimate/aggregate";
 import { isConfigured, deriveWallStatus } from "./phoneShell";
 import { determineProjectReadiness } from "../estimate/projectReadiness";
+import { r1 } from "../estimate/mathUtils";
 
 type ProjAgg = ReturnType<typeof aggregate>;
 
@@ -68,7 +69,7 @@ export const EstimateSummarySidebar = ({
           <div className="metric"><strong>{out.empty ? "--" : `${out.area} m²`}</strong><span>Selected wall area</span></div>
           <div className="metric"><strong>{out.empty ? "--" : (out.chosen?.panels ?? "--")}</strong><span>Selected wall panels</span></div>
           <div className="metric"><strong>{projChosenAgg.totalPanels}</strong><span>Project panels ordered</span></div>
-          <div className="metric"><strong>{projChosenAgg.wastePct}%</strong><span>Estimated waste</span></div>
+          <div className="metric"><strong>{r1(projChosenAgg.wastePct)}%</strong><span>Estimated waste</span></div>
         </div>
         <div className="progress-block">
           <div><span>Estimate configured</span><b>{pct}%</b></div>

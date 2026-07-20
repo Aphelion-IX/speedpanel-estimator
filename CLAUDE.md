@@ -49,8 +49,8 @@ whole `src/` tree or a scoped subfolder, e.g.
   than sharing one component tree. This is deliberate — each calculator can
   evolve its own UI without risking a change leaking into the other. Only
   genuinely calculator-agnostic pieces live in `src/ui/` (e.g. `Table`,
-  `Drawer`, `CardCarousel`, `primitives.tsx`) or `src/wallStore.ts` (the one
-  shared wall-list state hook both calculators read/write).
+  `Drawer`, `primitives.tsx`) or `src/wallStore.ts` (the one shared
+  wall-list state hook both calculators read/write).
 - **Single mode**: the estimator always runs as the combined "project" view
   (wall carousel + `EstimateResultsCard`'s Overview/Selected Wall/
   Connections/Order tabs), regardless of wall count. A "single-wall mode"
