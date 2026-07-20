@@ -19,9 +19,8 @@
 // Deliberately its own copy, not shared with externalCalculator's mirror --
 // same fork-not-share convention as phoneShell.tsx (see its header comment).
 // =============================================================================
-import { Boxes, Copy, Printer, ExternalLink, CheckCircle2, AlertTriangle, XCircle, HelpCircle } from "lucide-react";
-import { cx, tone, NAVY, BLUE, MUTED } from "../styleTokens";
-import { Table, type TableColumn } from "../ui/table";
+import { Copy, Printer, ExternalLink, CheckCircle2, AlertTriangle, XCircle, HelpCircle } from "lucide-react";
+import { tone } from "../styleTokens";
 import type { WallResult } from "../estimate/wall.types";
 import type { EffectiveLayout } from "../useLayoutMode";
 import { aggregate } from "../estimate/aggregate";
@@ -68,35 +67,49 @@ const ReadinessBanner = ({ readiness }: { readiness: ProjectReadinessResult }) =
 
 // Spec §12.3: "On phone, the Final Order Review must not render a desktop-
 // width table. Use one grouped card per wall or material line." -- the
-// Table component below is otherwise reused as-is (it already scrolls
-// horizontally rather than breaking layout), but on phone this replaces it
-// entirely rather than relying on that scroll fallback.
+// mockup's own `.order-mobile-row` shape (speedpanel-project-order-sheet-
+// v5.html), used here on phone instead of the `.order-table` below.
 const WallScheduleMobileCard = ({ wall }: { wall: WallSummaryRow }) => (
-  <div className="rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 p-3">
-    <div className="flex items-center justify-between gap-2">
-      <span className="text-sm font-bold" style={{ color: NAVY }}>{wall.name}</span>
-      {wall.warning
-        ? <span className={`${cx.badge} ${tone("warn")}`}>Review</span>
-        : <span className={`${cx.badge} ${tone("ok")}`}>{wall.panels} panels</span>}
+  <div className="order-mobile-row">
+    <div className="top">
+      <strong>{wall.name}</strong>
+      {wall.warning ? <span className="pill red">Review</span> : <span className="pill cyan">{wall.panels} panels</span>}
     </div>
-    <div className="mt-2 grid grid-cols-2 gap-1.5 text-xs" style={{ color: MUTED }}>
-      <span><b style={{ color: NAVY }}>System:</b> {wall.orientation === "vertical" ? "Vertical" : "Horizontal"}{wall.system ? ` · ${wall.system}` : ""}</span>
-      <span><b style={{ color: NAVY }}>Panel:</b> {wall.panelType}</span>
-      <span><b style={{ color: NAVY }}>Size:</b> {wall.width} x {wall.height}</span>
-      <span><b style={{ color: NAVY }}>Area:</b> {wall.area}</span>
+    <div className="meta">
+      <span><b>System:</b> {wall.orientation === "vertical" ? "Vertical" : "Horizontal"}{wall.system ? ` · ${wall.system}` : ""}</span>
+      <span><b>Panel:</b> {wall.panelType}</span>
+      <span><b>Size:</b> {wall.width} x {wall.height}</span>
+      <span><b>Area:</b> {wall.area}</span>
     </div>
   </div>
 );
 
-const wallScheduleColumns: TableColumn<WallSummaryRow>[] = [
-  { key: "name", header: "Wall", cell: r => <span className="font-bold" style={{ color: NAVY }}>{r.name}</span> },
-  { key: "system", header: "System", cell: r => `${r.orientation === "vertical" ? "Vertical" : "Horizontal"}${r.system ? ` · ${r.system}` : ""}` },
-  { key: "type", header: "Panel", cell: r => r.panelType },
-  { key: "dim", header: "Dimensions", cell: r => `${r.width} x ${r.height}` },
-  { key: "area", header: "Area", cell: r => r.area },
-  { key: "panels", header: "Panels", cell: r => r.panels, align: "right" },
-  { key: "warn", header: "Warnings", cell: r => r.warning ? <span className={`${cx.badge} ${tone("warn")}`}>Review</span> : "None" },
-];
+// The mockup's own `.order-table` markup (speedpanel-project-order-sheet-
+// v5.html) written directly here rather than through the sitewide ui/
+// table.tsx <Table> -- that component is also used outside the estimator
+// (ProjectDetailPage.tsx and others), so its own styling stays untouched.
+const WallScheduleTable = ({ rows }: { rows: WallSummaryRow[] }) => (
+  <div className="order-table-wrap">
+    <table className="order-table">
+      <thead>
+        <tr><th>Wall</th><th>System</th><th>Panel</th><th>Dimensions</th><th>Area</th><th>Panels</th><th>Warnings</th></tr>
+      </thead>
+      <tbody>
+        {rows.map((r, i) => (
+          <tr key={`${r.name}-${i}`}>
+            <td><strong>{r.name}</strong></td>
+            <td>{r.orientation === "vertical" ? "Vertical" : "Horizontal"}{r.system ? ` · ${r.system}` : ""}</td>
+            <td>{r.panelType}</td>
+            <td>{r.width} x {r.height}</td>
+            <td>{r.area}</td>
+            <td className="qty">{r.panels}</td>
+            <td>{r.warning ? <span className="pill red">Review</span> : "None"}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+);
 
 export interface ProjectOrderSheetProps {
   layoutMode: EffectiveLayout;
@@ -138,72 +151,60 @@ export const ProjectOrderSheet = ({
         }
       `}</style>
 
-      <div className={standalone ? "" : cx.section}>
-        <div className="flex flex-wrap items-start justify-between gap-3">
+      <section className="project-order-sheet" style={standalone ? { marginTop: 0 } : undefined}>
+        <div className="project-order-head">
           <div className="min-w-0">
-            <span className={cx.eyebrow}>Complete project totals</span>
-            <h2 className={cx.h2 + " mt-1"}>Project Order Sheet{projectName ? ` — ${projectName}` : ""}</h2>
-            <p className="mt-1 text-sm" style={{ color: MUTED }}>
-              All panels, tracks, flashings, connection materials, fixings, sealants and allowances in one sendable summary.
-            </p>
+            <span className="eyebrow">Complete project totals</span>
+            <h2>Project Order Sheet{projectName ? ` — ${projectName}` : ""}</h2>
+            <p>All panels, tracks, flashings, connection materials, fixings, sealants and allowances in one sendable summary.</p>
           </div>
-          <div className="print:hidden flex flex-wrap gap-2">
-            <button onClick={handleCopy} className="flex items-center gap-1.5 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-3.5 py-2 text-xs font-bold" style={{ color: NAVY }}>
-              <Copy size={14} />Copy summary
-            </button>
-            <button onClick={() => window.print()} className="flex items-center gap-1.5 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-3.5 py-2 text-xs font-bold" style={{ color: NAVY }}>
-              <Printer size={14} />Print / Save PDF
-            </button>
+          <div className="project-order-actions print:hidden">
+            <button className="btn" onClick={handleCopy}><Copy size={14} />Copy summary</button>
+            <button className="btn" onClick={() => window.print()}><Printer size={14} />Print / Save PDF</button>
             {!standalone && (
-              <a href="#/estimator/order-sheet" target="_blank" rel="noreferrer"
-                className="flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-bold text-white" style={{ background: BLUE }}>
+              <a href="#/estimator/order-sheet" target="_blank" rel="noreferrer" className="btn primary">
                 <ExternalLink size={14} />Open clean order sheet
               </a>
             )}
           </div>
         </div>
 
-        <div className="mt-4"><ReadinessBanner readiness={readiness} /></div>
+        <div className="order-kpis">
+          <div className="order-kpi primary"><strong>{reportData.totals.panels}</strong><span>Panels ordered</span></div>
+          <div className="order-kpi"><strong>{reportData.totals.packs ?? "--"}</strong><span>Panel packs</span></div>
+          <div className="order-kpi cyan"><strong>{reportData.totals.area} m²</strong><span>Total area</span></div>
+          <div className="order-kpi"><strong>{kits.length}</strong><span>Connection kits</span></div>
+        </div>
 
-        <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
-          <div className={cx.infoBox}><div className={cx.infoBoxHd}>Panels ordered</div><div className={cx.infoBoxVal}>{reportData.totals.panels}</div></div>
-          <div className={cx.infoBox}><div className={cx.infoBoxHd}>Panel packs</div><div className={cx.infoBoxVal}>{reportData.totals.packs ?? "--"}</div></div>
-          <div className={cx.infoBox}><div className={cx.infoBoxHd}>Total area</div><div className={cx.infoBoxVal}>{reportData.totals.area} m²</div></div>
-          <div className={cx.infoBox}>
-            <div className={cx.infoBoxHd}>Connection kits</div>
-            <div className={cx.infoBoxVal}>
-              <Boxes size={14} className="mr-1 inline align-[-2px]" style={{ color: BLUE }} />{kits.length}
-            </div>
+        <div className="order-sheet-body">
+          <div style={{ marginBottom: 17 }}><ReadinessBanner readiness={readiness} /></div>
+
+          <div className="order-sheet-section">
+            <h3>Wall schedule</h3>
+            {layoutMode === "phone" ? (
+              <div>
+                {reportData.walls.map((w, i) => <WallScheduleMobileCard key={`${w.name}-${i}`} wall={w} />)}
+              </div>
+            ) : (
+              <WallScheduleTable rows={reportData.walls} />
+            )}
+          </div>
+
+          <div className="order-sheet-section">
+            <h3>Complete material order</h3>
+            <OrderContent layoutMode={layoutMode} projChosenAgg={projChosenAgg} combinedEstimate={combinedEstimate} results={results} />
+          </div>
+
+          <div className="order-sheet-note">
+            <AlertTriangle size={14} />
+            <span><strong>Important:</strong> This is a quantity and ordering summary. It does not confirm compliance, FRL, engineering, restraint, certification or approval. Structure fixings remain by others.</span>
+          </div>
+
+          <div className="print:hidden" style={{ marginTop: 20 }}>
+            <button className="btn primary" onClick={onExportExcel} disabled={exportDisabled}>Export to Excel</button>
           </div>
         </div>
-
-        <div className="mt-5">
-          <div className={cx.cardHd}>Wall schedule</div>
-          {layoutMode === "phone" ? (
-            <div className="space-y-2">
-              {reportData.walls.map((w, i) => <WallScheduleMobileCard key={`${w.name}-${i}`} wall={w} />)}
-            </div>
-          ) : (
-            <Table columns={wallScheduleColumns} rows={reportData.walls} rowKey={(r, i) => `${r.name}-${i}`} />
-          )}
-        </div>
-
-        <div className="mt-5">
-          <div className={cx.cardHd}>Complete material order</div>
-          <OrderContent layoutMode={layoutMode} projChosenAgg={projChosenAgg} combinedEstimate={combinedEstimate} results={results} />
-        </div>
-
-        <p className={cx.warnbox + " mt-5"}>
-          <AlertTriangle size={14} className="mt-0.5 shrink-0" />
-          This is a quantity and ordering summary. It does not confirm compliance, FRL, engineering, restraint, certification or approval. Structure fixings remain by others.
-        </p>
-
-        <div className="print:hidden mt-5 border-t border-slate-100 dark:border-slate-700 pt-4">
-          <button onClick={onExportExcel} disabled={exportDisabled} className={exportDisabled ? cx.exportBtnDisabled : cx.exportBtn}>
-            Export to Excel
-          </button>
-        </div>
-      </div>
+      </section>
     </div>
   );
 };

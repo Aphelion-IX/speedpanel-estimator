@@ -241,7 +241,7 @@
 .est-shell .order-kpi.primary { background: color-mix(in srgb, var(--blue) 8%, var(--surface)); border-color: color-mix(in srgb, var(--blue) 25%, var(--surface)); }
 .est-shell .order-kpi.cyan { background: var(--cyan-soft); border-color: color-mix(in srgb, var(--cyan) 30%, var(--surface)); }
 .est-shell .order-sheet-body { padding: 16px 18px 18px; }
-.est-shell .order-sheet-section + .est-shell .order-sheet-section { margin-top: 17px; }
+.est-shell .order-sheet-section + .order-sheet-section { margin-top: 17px; }
 .est-shell .order-sheet-section h3 { margin: 0 0 9px; color: var(--navy); font-size: 14px; }
 .est-shell .order-table-wrap { overflow: auto; border: 1px solid var(--line); border-radius: 13px; }
 .est-shell .order-table { width: 100%; border-collapse: collapse; min-width: 640px; background: var(--surface); }
@@ -249,11 +249,24 @@
 .est-shell .order-table td { padding: 10px; border-bottom: 1px solid color-mix(in srgb, var(--line) 70%, transparent); color: color-mix(in srgb, var(--navy) 45%, var(--muted) 55%); font-size: 11px; vertical-align: top; }
 .est-shell .order-table tbody tr:last-child td { border-bottom: 0; }
 .est-shell .order-table td strong { color: var(--navy); }
+.est-shell .order-table .qty { font-size: 13px; font-weight: 850; color: var(--navy); white-space: nowrap; }
+.est-shell .order-table .category-cell { font-weight: 850; color: var(--blue); background: color-mix(in srgb, var(--blue) 3%, var(--surface)); }
+.est-shell .order-table .by-others { color: var(--red); font-weight: 800; }
+.est-shell .order-table .total-row td { background: var(--surface2); font-weight: 850; color: var(--navy); border-top: 2px solid var(--line); }
 .est-shell .order-sheet-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .est-shell .order-summary-card { border: 1px solid var(--line); border-radius: 13px; padding: 13px; background: var(--surface); }
 .est-shell .order-summary-card h4 { margin: 0 0 8px; color: var(--navy); font-size: 12px; }
 .est-shell .order-summary-card .row { font-size: 11px; }
+.est-shell .order-sheet-note { display: flex; gap: 9px; align-items: flex-start; margin-top: 14px; padding: 11px 12px; border-radius: 12px; background: color-mix(in srgb, var(--blue) 6%, var(--surface)); border: 1px solid color-mix(in srgb, var(--blue) 20%, var(--surface)); color: color-mix(in srgb, var(--navy) 70%, var(--blue) 30%); font-size: 11px; }
+.est-shell .order-sheet-note svg { flex: 0 0 auto; margin-top: 1px; }
 .est-shell .order-sheet-footer { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); color: var(--muted); font-size: 10px; }
+.est-shell .phone-order-list { display: none; }
+.est-shell .order-mobile-row { border: 1px solid var(--line); border-radius: 12px; padding: 11px; background: var(--surface); }
+.est-shell .order-mobile-row + .order-mobile-row { margin-top: 8px; }
+.est-shell .order-mobile-row .top { display: flex; justify-content: space-between; gap: 10px; }
+.est-shell .order-mobile-row strong { color: var(--navy); }
+.est-shell .order-mobile-row .meta { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 8px; color: var(--muted); font-size: 10px; }
+.est-shell .order-mobile-row .meta b { color: color-mix(in srgb, var(--navy) 55%, var(--muted) 45%); }
 @media (max-width: 1100px) { .est-shell .order-kpis { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 700px) {
   .est-shell .project-order-head { display: block; padding: 14px; }
@@ -261,6 +274,11 @@
   .est-shell .project-order-actions { justify-content: stretch; margin-top: 11px; }
   .est-shell .project-order-actions .btn { flex: 1; font-size: 11px; padding: 0 9px; }
   .est-shell .order-sheet-body { padding: 12px 10px 14px; }
+  .est-shell .order-kpis { grid-template-columns: repeat(2, 1fr); padding: 10px; }
+  .est-shell .order-kpi { padding: 10px; }
+  .est-shell .order-kpi strong { font-size: 17px; }
+  .est-shell .desktop-order-table { display: none; }
+  .est-shell .phone-order-list { display: block; }
   .est-shell .order-sheet-grid { grid-template-columns: 1fr; }
   .est-shell .order-sheet-footer { display: block; }
   .est-shell .order-sheet-footer span { display: block; margin-top: 4px; }
