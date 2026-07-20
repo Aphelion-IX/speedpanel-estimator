@@ -13,6 +13,7 @@ import { EducationHub } from "./education/EducationHub";
 import { SystemSelector } from "./systemSelector/SystemSelector";
 import { ExternalCalculator } from "./externalCalculator/ExternalCalculator";
 import { InternalCalculator } from "./internalCalculator/InternalCalculator";
+import { ProjectOrderSheetPage } from "./internalCalculator/projectOrderSheetPage";
 import { SYSTEMS } from "./appShell/systems";
 import { loadSession, saveSession } from "./appShell/session";
 import { TopNav, type TopNavTab } from "./appShell/topNav";
@@ -280,6 +281,22 @@ export default function SpeedpanelEstimator() {
   // component calls still runs in the same order on every render.
   if (route.tab === "proforma") {
     return <ProformaInvoicePage orderId={route.orderId} onBack={() => navigate({ tab: "estimator" })} />;
+  }
+
+  // Same "no app chrome" precedent as proforma above -- the Project Order
+  // Sheet's clean/printable route (see internalCalculator/
+  // projectOrderSheetPage.tsx). External's own mirror doesn't exist yet
+  // (fork-not-share), so this only intercepts the route for Internal; an
+  // External project hitting this hash just falls through to the normal
+  // Estimator tab below until that fork gets its own copy.
+  if (route.tab === "estimator" && route.orderSheet && !isExt) {
+    return (
+      <ProjectOrderSheetPage
+        store={store} dimUnit={dimUnit} layoutMode={layoutMode}
+        projectName={openProject ? openProject.name : (store.draftLabel ?? "")}
+        onBack={() => navigate({ tab: "estimator" })}
+      />
+    );
   }
 
   return (

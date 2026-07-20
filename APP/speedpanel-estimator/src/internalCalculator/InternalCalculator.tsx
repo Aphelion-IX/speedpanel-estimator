@@ -56,6 +56,7 @@ import type { FinishKey, CornersField } from "./wallConfig";
 import { WallPreviewSection } from "../ui/wallPreview";
 import { PanelScheduleCard, PanelScheduleTable } from "../ui/scheduleCards";
 import { EstimateResultsCard } from "./estimateResultsCard";
+import { ProjectOrderSheet } from "./projectOrderSheet";
 import { OrderReviewDrawer } from "./orderReviewDrawer";
 import { buildInternalReportData } from "../export/buildInternalReportData";
 import { exportEstimateToExcel } from "../export/exportEstimateToExcel";
@@ -381,6 +382,19 @@ export function InternalCalculator({
 
   const workspaceNode = layoutMode === "phone" ? phoneWorkspaceNode : webWorkspaceNode;
 
+  // Hoisted so both the Excel export handler AND the Project Order Sheet
+  // (spec's Final Order Review) build from the exact same report snapshot --
+  // previously only handleExport computed this, inline.
+  const reportData = useMemo(() => buildInternalReportData({
+    orient, dimUnit, toDisp, walls, results, warnById,
+    projChosenAgg, combinedEstimate,
+  }), [orient, dimUnit, toDisp, walls, results, warnById, projChosenAgg, combinedEstimate]);
+  const hasExportData = !!(projChosenAgg && projChosenAgg.totalPanels > 0);
+  const handleExport = () => exportEstimateToExcel(reportData);
+
+  const orderSheetRef = useRef<HTMLDivElement>(null);
+  const scrollToOrderSheet = () => orderSheetRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+
   const mainNode = (
     <div ref={resultsRef}>
       {workspaceNode}
@@ -393,14 +407,19 @@ export function InternalCalculator({
         active={active} out={out} orient={orient} cornerPair={cornerPair} shaftPair={shaftPair}
         ScheduleComp={ScheduleComp}
       />
+
+      {/* Final Order Review / Project Order Sheet -- anchor target for
+          EstimateTopCard's order-jump banner (onViewOrder) and the Order
+          Review drawer/sticky bar's "Review order" actions alike. */}
+      <div ref={orderSheetRef} className="scroll-mt-4">
+        <ProjectOrderSheet
+          layoutMode={layoutMode} projectName={openProject ? openProject.name : (draftLabel ?? "")}
+          results={results} kits={kits} projChosenAgg={projChosenAgg} combinedEstimate={combinedEstimate}
+          reportData={reportData} onExportExcel={handleExport} exportDisabled={!hasExportData}
+        />
+      </div>
     </div>
   );
-
-  const hasExportData = !!(projChosenAgg && projChosenAgg.totalPanels > 0);
-  const handleExport = () => exportEstimateToExcel(buildInternalReportData({
-    orient, dimUnit, toDisp, walls, results, warnById,
-    projChosenAgg, combinedEstimate,
-  }));
   const footerNode = (
     <LockedDataFooter title="Locked system data" table={<LockedDataInt />} onExport={handleExport} disabled={!hasExportData} />
   );
@@ -408,7 +427,8 @@ export function InternalCalculator({
   const orderDrawerNode = (
     <OrderReviewDrawer
       open={orderDrawerOpen} onClose={() => setOrderDrawerOpen(false)} layoutMode={layoutMode}
-      projChosenAgg={projChosenAgg} combinedEstimate={combinedEstimate} results={results}
+      projChosenAgg={projChosenAgg} combinedEstimate={combinedEstimate} results={results} kits={kits}
+      reportData={reportData} projectName={openProject ? openProject.name : (draftLabel ?? "")}
       onExport={handleExport} exportDisabled={!hasExportData}
     />
   );
@@ -439,7 +459,7 @@ export function InternalCalculator({
       lastEditedAt={lastEditedAt}
       onSaveDraftAsProject={onSaveDraftAsProject} onSaveOpenProject={onSaveOpenProject}
       savingProject={savingProject} saveProjectError={saveProjectError} projectDirty={projectDirty}
-      onGoToProjects={onGoToProjects} onViewDetails={scrollToResults} onViewOrder={scrollToResults}
+      onGoToProjects={onGoToProjects} onViewDetails={scrollToResults} onViewOrder={scrollToOrderSheet}
     />
   );
 

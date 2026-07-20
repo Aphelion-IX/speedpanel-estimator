@@ -26,7 +26,12 @@ export type Route =
   // project-scoped quickOrder route below once a project is chosen (orders
   // always belong to a project -- see that route's own comment).
   | { tab: "order" }
-  | { tab: "estimator" }
+  // orderSheet: the standalone "clean" Project Order Sheet (spec's Final
+  // Order Review output, printable/copyable with no app chrome) -- same
+  // "own top-level branch before the normal shell renders" precedent as
+  // "proforma" below, reached from the embedded sheet's "Open clean order
+  // sheet" link (see internalCalculator/projectOrderSheet.tsx).
+  | { tab: "estimator"; orderSheet?: boolean }
   | { tab: "selector" }
   | { tab: "education" }
   // orderId/newOrder only ever apply when id is also set -- a project's
@@ -82,7 +87,7 @@ function parseHash(hash: string): Route {
   // shared #/quote links still land somewhere useful now that it's nested
   // under Projects (see ProjectsRouter.tsx).
   if (first === "quote")     return { tab: "projects", request: true };
-  if (first === "estimator") return { tab: "estimator" };
+  if (first === "estimator") return { tab: "estimator", orderSheet: second === "order-sheet" };
   if (first === "selector")  return { tab: "selector" };
   if (first === "education") return { tab: "education" };
   if (first === "proforma" && second) return { tab: "proforma", orderId: second };
@@ -102,6 +107,7 @@ function routeToHash(route: Route): string {
     return `#/projects/${route.id}`;
   }
   if (route.tab === "proforma") return `#/proforma/${route.orderId}`;
+  if (route.tab === "estimator") return route.orderSheet ? "#/estimator/order-sheet" : "#/estimator";
   return `#/${route.tab}`;
 }
 
