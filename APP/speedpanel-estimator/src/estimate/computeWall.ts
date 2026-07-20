@@ -85,8 +85,8 @@ export function computeWall(rawInp: WallInput, cfg: SystemConfig): ComputeOut {
   // pre-splits those strips at the 6.0 m boundary, so all pieces are already
   // <= 6.0 m before packPanels.
   const allowLong = profile !== "standard" || isStackedShaft;
-  const rawCut = packPanels(pieces, forced, cfg.stocks, allowLong, cfg.wasteThreshold);
   const packSize = cfg.packSizeFn(type);
+  const rawCut = packPanels(pieces, forced, cfg.stocks, allowLong, cfg.wasteThreshold, packSize);
   const chosen = buildOption(rawCut, type, cfg.highWastePct);
   if (rawCut.exceeds) warnings.push("Panel exceeds max stock length. Contact Speedpanel.");
   else if (rawCut.tooShort) warnings.push(`Selected length ${r1(forced!)} m is shorter than the longest panel needed.`);

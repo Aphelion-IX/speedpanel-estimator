@@ -45,4 +45,25 @@ describe("buildExternalReportData", () => {
     expect(data.totals.area).toBe(agg.totalArea);
     expect(() => buildWorkbook(data)).not.toThrow();
   });
+
+  it("consolidates leftover-course panels project-wide instead of ordering a standalone short-stock pack (regression: 4.2m over-order)", () => {
+    // Reproduces the reported bug: two 4m x 7m vertical walls each leave a
+    // lone partially-filled leftover bin that, pre-fix, was purchased as its
+    // own 4.2m pack of 14 (12 spare) on top of the project's dominant 6.0m
+    // group. Post-fix, both walls' leftovers fold into the 6.0m group at the
+    // per-wall level (see computeWall.test.ts), so the project aggregate
+    // should show a single 6.0m group and no 4.2m line item at all.
+    const w1 = { ...defaultWall(1, "vertical"), width: "4", height: "7" };
+    const w2 = { ...defaultWall(2, "vertical"), width: "4", height: "7" };
+    const w3 = { ...defaultWall(3, "vertical"), width: "24", height: "6" };
+    const results = [
+      { wall: w1, out: computeExternal(w1) },
+      { wall: w2, out: computeExternal(w2) },
+      { wall: w3, out: computeExternal(w3) },
+    ];
+    const agg = buildExtProjAgg(results);
+    expect(agg.groups).toHaveLength(1);
+    expect(agg.groups[0]).toMatchObject({ stock: 6.0, pieces: 134, packs: 10, ordered: 140, spare: 6 });
+    expect(agg.groups.some(g => g.stock === 4.2)).toBe(false);
+  });
 });
