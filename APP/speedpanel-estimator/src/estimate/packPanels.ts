@@ -62,7 +62,7 @@ export interface RawPackExceeds { exceeds: true; tooShort?: false; groups?: unde
 export interface RawPackTooShort { tooShort: true; maxP: number; exceeds?: false; groups?: undefined; }
 export type RawPack = RawPackSuccess | RawPackExceeds | RawPackTooShort;
 
-export function packPanels(pieces: number[], forced: number | null, stocks = STOCK_LENGTHS, allowLong = false, wasteThreshold = STOCK_WASTE_THRESHOLD): RawPack {
+export function packPanels(pieces: number[], forced: number | null, stocks = STOCK_LENGTHS, allowLong = false, wasteThreshold = STOCK_WASTE_THRESHOLD, packSize = 1): RawPack {
   pieces = pieces.filter(p => p > 1e-9).sort((a, b) => b - a);
   if (!pieces.length) return { groups: [], totalPanels: 0, waste: 0, usedLM: 0, cut: false };
   const maxP = pieces[0];
@@ -95,7 +95,7 @@ export function packPanels(pieces: number[], forced: number | null, stocks = STO
   // All call sites pass mode="cut". The nocut branch has been removed.
   // If a no-cut mode is needed in future, re-introduce it here.
   const cands = (forced ? [forced] : effectiveStocks.filter(s => s >= maxP - 1e-9).length ? effectiveStocks.filter(s => s >= maxP - 1e-9) : [effectiveStocks[effectiveStocks.length - 1]]).slice().sort((a, b) => a - b);
-  interface BestCandidate { waste: number; panels: number; gm: Record<number, number>; }
+  interface BestCandidate { waste: number; panels: number; gm: Record<number, number>; L: number; }
   let best: BestCandidate | null = null;
   for (const L of cands) {
     const bins = binPack(L);
@@ -103,10 +103,43 @@ export function packPanels(pieces: number[], forced: number | null, stocks = STO
     const gm: Record<number, number> = {}; let pur = 0;
     for (const u of bins) { const fs = forced ? L : (atLeast(u)[0] || L); gm[fs] = (gm[fs] || 0) + 1; pur += fs; }
     const waste = pur - usedLM, wastePct = pur > 0 ? waste / pur : 0;
-    if (!best || (waste < best.waste - 1e-9 && wastePct <= wasteThreshold + 1e-9)) best = { waste, panels: bins.length, gm };
+    if (!best || (waste < best.waste - 1e-9 && wastePct <= wasteThreshold + 1e-9)) best = { waste, panels: bins.length, gm, L };
   }
   if (!best) return { exceeds: true };
-  return { groups: Object.keys(best.gm).sort((a, b) => +a - +b).map(s => ({ stock: +s, pieces: best.gm[+s] })), totalPanels: best.panels, waste: best.waste, usedLM, cut: best.panels < pieces.length };
+  // The per-bin atLeast() fallback above picks the tightest-fitting stock length
+  // for each bin in isolation, which can spin up a standalone group for a single
+  // leftover bin (e.g. one 4.2m panel) even though the wall's dominant stock
+  // length already has enough pack-of-`packSize` rounding slack to absorb it for
+  // free. Fold such minority groups back into the dominant length whenever doing
+  // so doesn't cost more purchased material after pack quantization.
+  const finalGm = forced ? best.gm : consolidateMinorityGroups(best.gm, best.L, packSize);
+  const finalPur = Object.entries(finalGm).reduce((a, [s, c]) => a + Number(s) * c, 0);
+  return {
+    groups: Object.keys(finalGm).sort((a, b) => +a - +b).map(s => ({ stock: +s, pieces: finalGm[+s] })),
+    totalPanels: best.panels, waste: finalPur - usedLM, usedLM, cut: best.panels < pieces.length,
+  };
+}
+
+// Reassigns minority (non-dominant) stock-length groups from a winning bin-pack
+// into the dominant stock length L when doing so is no more expensive once
+// pack-of-`packSize` purchasing quantization is accounted for. Each minority
+// group is compared independently against the same dominant baseline count
+// (not the cumulative result of earlier merges) -- deterministic and
+// order-independent, at the cost of not jointly optimizing multiple distinct
+// minority groups against each other.
+export function consolidateMinorityGroups(gm: Record<number, number>, L: number, packSize: number): Record<number, number> {
+  const dominantCount = gm[L] || 0;
+  const packCost = (n: number) => ceilDiv0(n, packSize) * packSize;
+  const out: Record<number, number> = { ...gm };
+  for (const key of Object.keys(gm)) {
+    const ns = Number(key);
+    if (ns === L) continue;
+    const c = gm[ns];
+    const mergedExtraLength = (packCost(dominantCount + c) - packCost(dominantCount)) * L;
+    const separateLength = packCost(c) * ns;
+    if (mergedExtraLength <= separateLength + 1e-9) { out[L] = (out[L] || 0) + c; delete out[ns]; }
+  }
+  return out;
 }
 
 export const buildOption = (raw: RawPack, type: number, highWastePct = HIGH_WASTE_WARNING_PCT): PackResult => {

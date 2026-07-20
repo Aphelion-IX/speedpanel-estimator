@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { packPanels, buildOption } from "./packPanels";
+import { packPanels, buildOption, consolidateMinorityGroups } from "./packPanels";
+
+const EXT_STOCK = [3.0, 3.6, 4.2, 4.5, 5.0, 6.0];
 
 describe("packPanels", () => {
   it("packs three 2.5m pieces into 3.0m/6.0m stock at minimum waste", () => {
@@ -40,6 +42,62 @@ describe("packPanels", () => {
     const strict = packPanels([2.0, 2.0], null, [3.0, 4.5], false, 0.05);
     if (!strict.groups) throw new Error("expected a successful pack result");
     expect(strict.groups).toEqual([{ stock: 3.0, pieces: 2 }]);
+  });
+
+  it("folds a lone leftover bin into the dominant stock length instead of opening a new pack (regression: 4.2m over-order)", () => {
+    // Reproduces the reported scenario: a 4m-wide x 7m-tall vertical wall
+    // (16 strips) splits each strip into a 6.0m piece + a 1.0m leftover.
+    // The sixteen 1.0m offcuts bin-pack into two full 6.0m-equivalent bins
+    // plus one bin filled to only 4.0m. Without packSize-aware consolidation
+    // that lone bin gets reassigned to a standalone 4.2m stock group, forcing
+    // a whole extra pack of 14 four-point-two-metre panels for one panel's
+    // worth of need. With packSize=14 supplied, it should fold back into the
+    // 6.0m group instead, since the wall's own 6.0m group already has slack.
+    const pieces = [...Array(16).fill(6.0), ...Array(16).fill(1.0)];
+    const raw = packPanels(pieces, null, EXT_STOCK, false, 0.20, 14);
+    if (!raw.groups) throw new Error("expected a successful pack result");
+    expect(raw.groups).toEqual([{ stock: 6.0, pieces: 19 }]);
+  });
+
+  it("preserves the pre-fix per-bin behaviour when packSize is omitted (default is a no-op)", () => {
+    // Same piece list as above, called without packSize -- the default of 1
+    // means consolidateMinorityGroups can never find a merge cheaper than
+    // staying separate, so the old standalone 4.2m group is still produced.
+    // This pins the backward-compatibility guarantee for any caller that
+    // doesn't pass packSize.
+    const pieces = [...Array(16).fill(6.0), ...Array(16).fill(1.0)];
+    const raw = packPanels(pieces, null, EXT_STOCK, false, 0.20);
+    if (!raw.groups) throw new Error("expected a successful pack result");
+    expect(raw.groups).toEqual([
+      { stock: 4.2, pieces: 1 },
+      { stock: 6.0, pieces: 18 },
+    ]);
+  });
+});
+
+describe("consolidateMinorityGroups", () => {
+  it("merges a minority group into the dominant length when it fits inside existing pack-rounding slack", () => {
+    // Dominant group of 18 @ 6.0m already needs ceil(18/14)=2 packs (28
+    // ordered); adding 1 more panel still only needs 2 packs, so folding the
+    // lone 4.2m panel in costs zero extra length, versus 14*4.2=58.8m to buy
+    // it as its own pack.
+    const gm = { 6.0: 18, 4.2: 1 };
+    expect(consolidateMinorityGroups(gm, 6.0, 14)).toEqual({ 6.0: 19 });
+  });
+
+  it("keeps a minority group standalone when merging it would push the dominant group into an extra pack", () => {
+    // Dominant group of 7 @ 6.0m needs ceil(7/4)=2 packs (8 ordered) already;
+    // folding in 3 more (10 total) needs ceil(10/4)=3 packs (12 ordered), an
+    // extra pack's worth of 6.0m (24m) for the merge, versus buying the 3
+    // panels as their own pack of 4.5m stock: ceil(3/4)*4.5 = 18m. Standalone
+    // is cheaper here, so the minority group should NOT be merged.
+    const gm = { 6.0: 7, 4.5: 3 };
+    expect(consolidateMinorityGroups(gm, 6.0, 4)).toEqual({ 6.0: 7, 4.5: 3 });
+  });
+
+  it("is a no-op with packSize=1 (every merge would cost strictly more)", () => {
+    const gm = { 6.0: 18, 4.2: 1 };
+    expect(consolidateMinorityGroups(gm, 6.0, 1)).toEqual({ 6.0: 18, 4.2: 1 });
   });
 });
 
