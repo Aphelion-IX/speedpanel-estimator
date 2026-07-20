@@ -1,5 +1,5 @@
 // =============================================================================
-// Estimate top card (Internal Calculator)
+// Estimate top card (shared -- src/calculator/)
 // =============================================================================
 // Rendered once the estimator is out of the "No Project" state (see
 // firstWallSetup.tsx, which now owns that empty state). Two regions, ported
@@ -10,8 +10,8 @@
 //   - `.order-jump-banner` -- live panel/track/box/kit totals + a
 //     scroll-to-order-review action, matching the mockup's own banner
 //     between the project bar and the wall workspace.
-// Deliberately its own copy, not shared with externalCalculator's mirror --
-// same fork-not-share convention as phoneShell.tsx (see its header comment).
+// Formerly internalCalculator/EstimateTopCard.tsx + externalCalculator/
+// EstimateTopCard.tsx.
 // =============================================================================
 import { useRef, useState } from "react";
 import {
@@ -20,16 +20,16 @@ import {
 } from "lucide-react";
 import type { WallResult } from "../estimate/wall.types";
 import type { KitEntry } from "../estimate/synthesizeKits";
-import type { aggregate } from "../estimate/aggregate";
+import type { aggregateProject } from "../estimate/aggregate";
 
-type ProjAgg = ReturnType<typeof aggregate>;
+type AggProject = ReturnType<typeof aggregateProject>;
 
 export interface OpenProjectInfo { id: string; name: string; updatedAt: string; }
 
 export interface EstimateTopCardProps {
   results: WallResult[];
   kits: KitEntry[];
-  projAgg: ProjAgg;
+  aggProject: AggProject;
   openProject: OpenProjectInfo | null;
   draftLabel: string | null;
   onSetDraftLabel: (label: string | null) => void;
@@ -44,7 +44,7 @@ export interface EstimateTopCardProps {
   saveProjectError: string | null;
   saveProjectNotFound: boolean;
   // Spec §11 "Offline" -- disables the network-dependent Save actions;
-  // wall editing itself stays live regardless (see InternalCalculator.tsx's
+  // wall editing itself stays live regardless (see Calculator.tsx's
   // saveBlocked comment).
   offline?: boolean;
   // Whether the open saved project has edits since it was opened/last saved
@@ -71,23 +71,26 @@ function formatLastEdited(value?: number | string | null): string {
 }
 
 // Order-jump banner's live KPI pills: panels ordered, total track/flashing/
-// kit-material LENGTHS (every *Pieces field across the project aggregate --
+// kit-material LENGTHS (every *Pieces field across both sub-aggregates --
 // each one is a stock length to order, whether it's C-track, flashing, a
-// shaft's vertical track, a corner post, or a junction), and total fixing/
-// sealant BOXES (every *Boxes field). Summed here rather than adding a new
-// aggregate field, since these are purely a display rollup of numbers
-// aggregate() already computes.
-function orderTotals(projAgg: ProjAgg, kitCount: number) {
-  const lengths = projAgg.cTracks.reduce((a, c) => a + c.pieces, 0)
-    + projAgg.jPieces + projAgg.flashPieces + projAgg.vertTrackPieces
-    + projAgg.stripPieces + projAgg.junctionPieces + projAgg.cornerPostPieces;
-  const boxes = projAgg.boxes30 + projAgg.boxes16 + projAgg.sealantBoxes
-    + projAgg.slabPassSealantBoxes + projAgg.junctionScrewBoxes + projAgg.cornerScrewBoxes;
-  return { panels: projAgg.totalPanels, lengths, boxes, kits: kitCount };
+// shaft's vertical track, a corner post, a junction, or External's
+// Z-flashing), and total fixing/sealant BOXES (every *Boxes field). Summed
+// here rather than adding new aggregate fields, since these are purely a
+// display rollup of numbers aggregateProject() already computes.
+function orderTotals(aggProject: AggProject, kitCount: number) {
+  const { internal, external, combined } = aggProject;
+  const lengths = internal.cTracks.reduce((a, c) => a + c.pieces, 0)
+    + internal.jPieces + internal.flashPieces + internal.vertTrackPieces
+    + internal.stripPieces + internal.junctionPieces + internal.cornerPostPieces
+    + external.cPieces + external.jPieces + external.zPieces + external.flashPieces;
+  const boxes = internal.boxes30 + internal.boxes16 + internal.sealantBoxes
+    + internal.slabPassSealantBoxes + internal.junctionScrewBoxes + internal.cornerScrewBoxes
+    + external.boxes30 + external.boxes16 + external.sealantBoxes;
+  return { panels: combined.totalPanels, lengths, boxes, kits: kitCount };
 }
 
 export const EstimateTopCard = ({
-  results, kits, projAgg,
+  results, kits, aggProject,
   openProject, draftLabel, onSetDraftLabel, lastEditedAt,
   onSaveDraftAsProject, onSaveOpenProject, onSaveOpenProjectAsNew,
   savingProject, saveProjectError, saveProjectNotFound, offline = false, projectDirty,
@@ -130,7 +133,7 @@ export const EstimateTopCard = ({
   const saveStatusPillClass = saveFailed ? "pill red" : offline ? "pill" : projectDirty ? "pill" : "pill cyan";
 
   const kitNoun = kits.length === 1 ? kits[0].kind === "corner" ? "linked corner kit" : "linked shaft junction" : `linked kit${kits.length === 1 ? "" : "s"}`;
-  const totals = orderTotals(projAgg, kits.length);
+  const totals = orderTotals(aggProject, kits.length);
 
   return (
     <div className="est-shell mt-3">
@@ -204,7 +207,7 @@ export const EstimateTopCard = ({
         </div>
       </section>
 
-      {totalItems > 1 || projAgg.totalPanels > 0 ? (
+      {totalItems > 1 || totals.panels > 0 ? (
         <section className="order-jump-banner">
           <div className="order-jump-left">
             <span className="order-jump-icon"><Boxes size={18} /></span>

@@ -62,10 +62,10 @@ export const AuthStatus = ({ auth, onSignInClick, isInternalStaff, staffRole, na
       <button
         onClick={() => setOpen(v => !v)}
         title={`Signed in as ${email}`}
-        className="flex items-center gap-2.5 rounded-xl px-2 py-1.5 transition hover:bg-slate-100 dark:hover:bg-slate-800"
+        className="flex items-center gap-2.5 rounded-xl px-1 py-1 transition hover:bg-slate-100 dark:hover:bg-slate-800 sm:px-2 sm:py-1.5"
       >
         <span
-          className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-sm font-bold"
+          className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-sm font-bold sm:h-9 sm:w-9"
           style={{ background: BLUE, color: WHITE }}
         >
           {initials}

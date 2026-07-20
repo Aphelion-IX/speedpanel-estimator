@@ -9,17 +9,40 @@
    --cyan/etc are new names, not used anywhere else in this app's CSS, so
    there's no cross-app collision risk. Class names are pa-* prefixed so
    they can't collide with anything else in the bundle.
+
+   Tokens with a value byte-identical to projectsTheme.css/ordersTheme.css
+   (in both light and dark) are aliased to ui/scopedThemeTokens.css's shared
+   `--sp-*` set instead of being redeclared here -- see that file's header
+   comment for why. --blue/--navy stay local (see the .dark block below):
+   their dark values deliberately match index.css's own site-wide dark
+   tokens, not this shared set's.
    ============================================================================= */
+@import "../../../ui/scopedThemeTokens.css";
+
 .pa-shell {
-  --blue: #0075cc; --blue700: #005fa7; --blue50: #eef7fd; --cyan: #18a7c9; --cyan50: #e9f8fb;
-  --red: #c83d42; --red50: #fff0f1; --green: #238a5a; --green50: #edf8f2;
-  --navy: #17212b; --muted: #687581; --muted2: #8b96a0; --line: #dce4e9; --surface: #fff;
-  --pa-bg: #f5f7f9; --pa-soft: #edf2f5; --nav: #102332;
-  --pa-shadow: 0 10px 30px rgba(22, 39, 52, .08);
+  --blue: #0075cc; --blue700: var(--sp-blue700); --blue50: #eef7fd; --cyan: #18a7c9; --cyan700: #0f7f99; --cyan50: #e9f8fb;
+  --red: var(--sp-red); --red50: var(--sp-red50); --red-border: #f1d9dc; --green: #238a5a; --green50: var(--sp-green50); --green-border: #d5eee1;
+  --navy: #17212b; --muted: var(--sp-muted); --muted2: var(--sp-muted2); --line: var(--sp-line); --line-soft: var(--sp-line-soft); --surface: var(--sp-surface); --surface-soft: var(--sp-surface-soft);
+  --pa-bg: var(--sp-bg); --pa-soft: #edf2f5; --nav: var(--sp-nav); --pa-blue-border: #d7eaf6; --pa-neutral-bg: #eef1f4;
+  --pa-shadow: var(--sp-shadow);
   background: var(--pa-bg);
   margin: -8px -8px 0;
   padding: 8px;
   border-radius: 16px;
+}
+.pa-shell.dark, :root.dark .pa-shell {
+  /* Dark-mode equivalents -- not in the mockup (light-only prototype). --navy/
+     --blue match index.css's own site-wide .dark values exactly (this file's
+     header comment already documents it deliberately shadows those two names
+     so shared components nested in here inherit the mockup palette -- without
+     this block that shadow stayed unconditionally light-mode, actively
+     overriding the site-wide dark values back to light for anything nested
+     here); every other token gets its own dark equivalent in the same
+     relative-lightness relationship as estimatorTheme.css's shift. */
+  --blue: #3AA8FF; --blue50: rgba(58,168,255,.14); --cyan: #4fd6ee; --cyan700: #7de2f2; --cyan50: rgba(6,168,201,.16);
+  --red-border: rgba(255,107,131,.28); --green: #34d399; --green-border: rgba(52,211,153,.28);
+  --navy: #E8ECF6;
+  --pa-soft: #16223b; --pa-blue-border: rgba(58,168,255,.28); --pa-neutral-bg: #1b2942;
 }
 .pa-layout { display: grid; grid-template-columns: 238px minmax(0, 1fr); gap: 16px; align-items: start; }
 .pa-side { background: var(--nav); border-radius: 16px; padding: 16px 12px; position: sticky; top: 12px; }
@@ -35,31 +58,31 @@
 .pa-sub { color: var(--muted); font-size: 12px; margin: 5px 0 0; }
 .pa-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 
-.pa-btn { height: 38px; border-radius: 10px; padding: 0 13px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: 1px solid var(--line); background: #fff; font-size: 11px; font-weight: 850; color: var(--navy); cursor: pointer; }
+.pa-btn { height: 38px; border-radius: 10px; padding: 0 13px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: 1px solid var(--line); background: var(--surface); font-size: 11px; font-weight: 850; color: var(--navy); cursor: pointer; }
 .pa-btn.primary { background: var(--blue); border-color: var(--blue); color: #fff; }
-.pa-btn.danger { background: var(--red50); border-color: #f0c8cc; color: var(--red); }
+.pa-btn.danger { background: var(--red50); border-color: var(--red-border); color: var(--red); }
 .pa-btn:disabled { opacity: .5; cursor: not-allowed; }
 
 .pa-badge { display: inline-flex; padding: 5px 8px; border-radius: 999px; background: var(--blue50); color: var(--blue700); font-size: 9px; font-weight: 850; text-transform: uppercase; letter-spacing: .04em; }
 .pa-badge.green { background: var(--green50); color: var(--green); }
 .pa-badge.red { background: var(--red50); color: var(--red); }
-.pa-badge.neutral { background: #eef1f4; color: #5b6873; }
-.pa-badge.cyan { background: var(--cyan50); color: #0f7f99; }
+.pa-badge.neutral { background: var(--pa-neutral-bg); color: var(--muted); }
+.pa-badge.cyan { background: var(--cyan50); color: var(--cyan700); }
 
 .pa-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 13px; }
-.pa-summary > div { background: #fff; border: 1px solid var(--line); border-radius: 13px; padding: 12px; text-align: left; }
+.pa-summary > div { background: var(--surface); border: 1px solid var(--line); border-radius: 13px; padding: 12px; text-align: left; }
 .pa-summary span { display: block; color: var(--muted2); font-size: 8px; text-transform: uppercase; font-weight: 850; letter-spacing: .08em; }
 .pa-summary strong { display: block; font-size: 20px; margin-top: 4px; color: var(--navy); }
 
 .pa-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 13px; }
 .pa-grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 
-.pa-card { background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 16px; box-shadow: var(--pa-shadow); margin-bottom: 13px; }
+.pa-card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 16px; box-shadow: var(--pa-shadow); margin-bottom: 13px; }
 .pa-section-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 13px; }
 .pa-section-head h2 { font-size: 15px; letter-spacing: -.02em; margin: 0; color: var(--navy); font-weight: 800; display: flex; align-items: center; gap: 6px; }
 .pa-section-head p { font-size: 10px; color: var(--muted); margin: 3px 0 0; }
 
-.pa-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid #edf0f2; }
+.pa-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line-soft); }
 .pa-row:last-child { border-bottom: 0; }
 .pa-row-copy { flex: 1; min-width: 0; }
 .pa-row-copy strong { display: block; font-size: 12px; color: var(--navy); }
@@ -68,31 +91,31 @@
 .pa-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 11px; }
 .pa-field.full { grid-column: 1 / -1; }
 .pa-field label { display: block; font-size: 9px; font-weight: 850; margin-bottom: 5px; color: var(--navy); text-transform: uppercase; letter-spacing: .04em; }
-.pa-field input, .pa-field select, .pa-field textarea { width: 100%; border: 1px solid #cbd6dd; border-radius: 9px; padding: 9px 10px; background: white; font-size: 13px; color: var(--navy); }
+.pa-field input, .pa-field select, .pa-field textarea { width: 100%; border: 1px solid var(--line); border-radius: 9px; padding: 9px 10px; background: var(--surface); font-size: 13px; color: var(--navy); }
 .pa-field input, .pa-field select { height: 37px; }
 .pa-field textarea { min-height: 88px; resize: vertical; }
 
 .pa-table-wrap { overflow-x: auto; }
 .pa-table { width: 100%; border-collapse: collapse; }
-.pa-table th, .pa-table td { text-align: left; padding: 9px 7px; border-bottom: 1px solid #edf0f2; font-size: 11px; }
+.pa-table th, .pa-table td { text-align: left; padding: 9px 7px; border-bottom: 1px solid var(--line-soft); font-size: 11px; }
 .pa-table th { font-size: 9px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted2); }
 .pa-table tbody tr { cursor: pointer; }
 .pa-table tbody tr:hover { background: var(--pa-soft); }
 
-.pa-notice { display: flex; gap: 10px; padding: 12px 13px; border: 1px solid #d7eaf6; background: var(--blue50); border-radius: 13px; margin-bottom: 13px; }
-.pa-notice.red { background: var(--red50); border-color: #f1d9dc; }
-.pa-notice.green { background: var(--green50); border-color: #d5eee1; }
+.pa-notice { display: flex; gap: 10px; padding: 12px 13px; border: 1px solid var(--pa-blue-border); background: var(--blue50); border-radius: 13px; margin-bottom: 13px; }
+.pa-notice.red { background: var(--red50); border-color: var(--red-border); }
+.pa-notice.green { background: var(--green50); border-color: var(--green-border); }
 .pa-notice strong { font-size: 11px; color: var(--navy); }
 .pa-notice span { display: block; font-size: 9px; color: var(--muted); margin-top: 2px; }
 
 .pa-split { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(280px, .65fr); gap: 13px; align-items: start; }
 .pa-sticky { position: sticky; top: 12px; }
 
-.pa-empty { padding: 46px 24px; text-align: center; border: 1px dashed #b9c7d0; border-radius: 15px; background: #fbfcfd; }
+.pa-empty { padding: 46px 24px; text-align: center; border: 1px dashed var(--line); border-radius: 15px; background: var(--surface-soft); }
 .pa-empty strong { display: block; font-size: 15px; color: var(--navy); }
 .pa-empty p { font-size: 10px; color: var(--muted); max-width: 440px; margin: 7px auto 14px; }
 
-.pa-search { display: flex; align-items: center; gap: 10px; padding: 12px 13px; border: 1px solid var(--line); background: #fff; border-radius: 13px; margin-bottom: 13px; }
+.pa-search { display: flex; align-items: center; gap: 10px; padding: 12px 13px; border: 1px solid var(--line); background: var(--surface); border-radius: 13px; margin-bottom: 13px; }
 .pa-search input { flex: 1; border: none; outline: none; background: transparent; font-size: 13px; color: var(--navy); }
 
 @media (max-width: 900px) {

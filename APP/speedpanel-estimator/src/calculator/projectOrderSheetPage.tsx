@@ -1,5 +1,5 @@
 // =============================================================================
-// Project Order Sheet page (standalone, Internal Calculator only)
+// Project Order Sheet page (standalone -- shared, src/calculator/)
 // =============================================================================
 // The "clean order sheet" route (#/estimator/order-sheet) -- no TopNav/app
 // chrome at all, same precedent as ProformaInvoicePage.tsx (see its header
@@ -8,22 +8,29 @@
 // branch before the normal shell, exactly like the proforma route.
 //
 // Recomputes results/kits/aggregate/combinedEstimate/reportData from the
-// SAME shared store InternalCalculator.tsx reads (see wallStore.ts) --
-// duplicated derivation (cheap useMemo calls over already-loaded state, not
-// duplicated business logic) rather than threading this page's props
-// through InternalCalculator's own render tree, so the clean route works
-// whether or not the full calculator UI is even mounted.
+// SAME shared store Calculator.tsx reads (see wallStore.ts) -- duplicated
+// derivation (cheap useMemo calls over already-loaded state, not duplicated
+// business logic) rather than threading this page's props through
+// Calculator's own render tree, so the clean route works whether or not the
+// full calculator UI is even mounted.
+//
+// Formerly internalCalculator/projectOrderSheetPage.tsx (kits-aware) +
+// externalCalculator/projectOrderSheetPage.tsx -- Internal's version already
+// used the per-wall-dispatching useWallResults and INT_CONFIG only for kit
+// synthesis (Corner/Shaft kits are always Internal, see wallStore.ts), so it
+// needed no application branching to also serve External walls once
+// projChosenAgg became aggregateProject's { internal, external, combined }.
 // =============================================================================
 import { useMemo, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { NAVY, BLUE, MUTED } from "../styleTokens";
 import { useWallResults } from "../wallStore";
 import type { WallStore } from "../wallStore";
-import { aggregate } from "../estimate/aggregate";
+import { aggregateProject } from "../estimate/aggregate";
 import { useCombinedEstimateCalc } from "../estimate/useCombinedEstimateCalc";
 import { synthesizeKits } from "../estimate/synthesizeKits";
 import { INT_CONFIG } from "../data";
-import { buildInternalReportData } from "../export/buildInternalReportData";
+import { buildReportData } from "../export/buildReportData";
 import { exportEstimateToExcel } from "../export/exportEstimateToExcel";
 import type { EffectiveLayout } from "../useLayoutMode";
 import { ProjectOrderSheet } from "./projectOrderSheet";
@@ -41,14 +48,14 @@ export const ProjectOrderSheetPage = ({ store, dimUnit, layoutMode, projectName,
   const { walls, activeId, active, toDisp } = store;
   const { results, warnById } = useWallResults(walls, activeId);
   const kits = useMemo(() => synthesizeKits(walls, INT_CONFIG), [walls]);
-  const projChosenAgg = useMemo(() => aggregate(results), [results]);
+  const aggProject = useMemo(() => aggregateProject(results), [results]);
   const combinedEstimate = useCombinedEstimateCalc(walls);
-  const reportData = useMemo(() => buildInternalReportData({
-    orient: active.orient, dimUnit, toDisp, walls, results, warnById, projChosenAgg, combinedEstimate,
-  }), [active.orient, dimUnit, toDisp, walls, results, warnById, projChosenAgg, combinedEstimate]);
-  const hasExportData = !!(projChosenAgg && projChosenAgg.totalPanels > 0);
-  // Spec §11 "Excel export failed" -- see InternalCalculator.tsx's own
-  // handleExport for why this needs a try/catch.
+  const reportData = useMemo(() => buildReportData({
+    orient: active.orient, dimUnit, toDisp, walls, results, warnById, aggProject, combinedEstimate,
+  }), [active.orient, dimUnit, toDisp, walls, results, warnById, aggProject, combinedEstimate]);
+  const hasExportData = aggProject.combined.totalPanels > 0;
+  // Spec §11 "Excel export failed" -- see Calculator.tsx's own handleExport
+  // for why this needs a try/catch.
   const [exportError, setExportError] = useState<string | null>(null);
   const handleExport = async () => {
     try { await exportEstimateToExcel(reportData); }
@@ -70,7 +77,7 @@ export const ProjectOrderSheetPage = ({ store, dimUnit, layoutMode, projectName,
         </p>
         <ProjectOrderSheet
           layoutMode={layoutMode} projectName={projectName}
-          results={results} kits={kits} projChosenAgg={projChosenAgg} combinedEstimate={combinedEstimate}
+          results={results} kits={kits} aggProject={aggProject} combinedEstimate={combinedEstimate}
           reportData={reportData}
           onExportExcel={handleExport} exportDisabled={!hasExportData}
           standalone

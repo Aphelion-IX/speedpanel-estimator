@@ -22,13 +22,20 @@ import { AlertTriangle, ChevronDown } from "lucide-react";
 // Also the app-wide bordered icon button for utility actions (Save/Edit/
 // Delete/Retry) -- `size="lg"` (40px, the default, matches the original
 // header shape exactly) for standalone toolbar-level actions, `size="sm"`
-// (32px) for repeated row actions in dense tables; `variant="danger"` tints
-// the border/hover red for destructive actions like Delete.
+// (32px) for repeated row actions in dense tables; `size="header"` (32px
+// below the `sm` breakpoint, 40px from `sm` up -- unlike a plain "sm" this
+// one is viewport-responsive, not permanently compact) for App.tsx's own
+// bell/theme/layout/reset/hamburger row, whose five 40px buttons plus the
+// wordmark stopped fitting a phone-width header (390px) without shrinking;
+// `variant="danger"` tints the border/hover red for destructive actions
+// like Delete.
 export const IconButton = ({ onClick, title, ariaLabel, className = "", variant = "default", size = "lg", disabled = false, children }: {
   onClick?: () => void; title?: string; ariaLabel?: string; className?: string;
-  variant?: "default" | "danger"; size?: "lg" | "sm"; disabled?: boolean; children: React.ReactNode;
+  variant?: "default" | "danger"; size?: "lg" | "sm" | "header"; disabled?: boolean; children: React.ReactNode;
 }) => {
-  const sizeCx = size === "sm" ? "h-8 w-8 rounded-lg" : "h-10 w-10 rounded-xl";
+  const sizeCx = size === "sm" ? "h-8 w-8 rounded-lg"
+    : size === "header" ? "h-8 w-8 rounded-lg sm:h-10 sm:w-10 sm:rounded-xl"
+    : "h-10 w-10 rounded-xl";
   const variantCx = variant === "danger"
     ? "border-red-100 dark:border-red-800/60 text-red-600 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-950/30 hover:border-red-300 dark:hover:border-red-700"
     : "border-slate-200 dark:border-slate-600 text-slate-400 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700/60 hover:text-blue-600 dark:hover:text-blue-400 hover:border-blue-300 dark:hover:border-blue-600";

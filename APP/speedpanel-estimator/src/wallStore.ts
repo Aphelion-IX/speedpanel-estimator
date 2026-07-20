@@ -1,12 +1,12 @@
 // =============================================================================
 // Wall store
 // =============================================================================
-// Owns the single, SHARED wall/project state used by BOTH the Internal
-// (InternalCalculator) and External (ExternalCalculator) calculators, plus the
-// hook that derives per-mode compute results from that shared wall list. Lives
-// at the top level (not under estimate/) since it's app state/persistence, not
-// pure compute -- but is importable by both calculators without either
-// importing from the other.
+// Owns the single, SHARED wall/project state the unified Calculator
+// (src/calculator/Calculator.tsx) reads, plus the hook that derives each
+// wall's own compute result (Internal or External, dispatched per wall via
+// its `application` field -- see wallDomain.ts) from that shared wall list.
+// Lives at the top level (not under estimate/) since it's app state/
+// persistence, not pure compute.
 // =============================================================================
 import { useState, useEffect, useMemo } from "react";
 import { z } from "zod";
@@ -209,6 +209,13 @@ export function useWallStore({ dimUnit, onWallAdded, persistLocally = true }: { 
     onWallAdded?.();
   };
   const addBlankWall = () => addWall();
+  // Mockup's own explicit "+ Internal wall"/"+ External wall" structure-nav
+  // buttons (speedpanel-estimator-web-v5.html's `.add-wall-buttons`) -- a
+  // separate function from addBlankWall (not an optional param on it) for
+  // the same "never take an argument a MouseEvent could be mistaken for"
+  // reason as addBlankWall's own comment above; these two call sites pass
+  // the application explicitly via a closure instead.
+  const addWallWithApplication = (application: "internal" | "external") => addWall({ application });
   // Convenience creators for the Estimate Structure nav's "+ Add corner"/
   // "+ Add shaft" actions -- corner/shaft wall systems are horizontal-only
   // (see WallSystemSelector), and shaft is always 78 mm, not a user choice
@@ -417,7 +424,7 @@ export function useWallStore({ dimUnit, onWallAdded, persistLocally = true }: { 
     projectStock, projectLock, customLengthInput, customActive,
     active, update, toDisp, toM, updDim,
     setProjectLength, projectForcedStock,
-    addBlankWall, addCornerWall, addShaftWall, createCornerPair, createShaftPair,
+    addBlankWall, addWallWithApplication, addCornerWall, addShaftWall, createCornerPair, createShaftPair,
     convertActiveToCornerPair, convertActiveToShaftPair,
     duplicateWall, deleteWall, duplicateWallById, deleteWallById,
     commitCustomLength, toggleCustom, resetWalls, clearCustomLength,

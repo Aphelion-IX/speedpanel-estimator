@@ -1,19 +1,22 @@
 // =============================================================================
-// Estimate Results card
+// Estimate Results card (shared -- src/calculator/)
 // =============================================================================
-// Replaces project mode's old SectionNav + four stacked full-width sections
-// (Wall list / System breakdown / Connection breakdown / Easy to order) with
-// one card, tabbed Overview / Selected Wall / Connections / Order --
-// secondary navigation inside this card, not top-level buttons, per the
-// user's spec. "System breakdown" (every wall's own card, stacked) isn't
-// ported here -- it's superseded by the Estimate Structure nav + Selected
-// Wall tab (click a wall in the nav, read its own breakdown).
+// One card, tabbed Overview / Selected Wall / Connections / Order --
+// secondary navigation inside this card, not top-level buttons. "System
+// breakdown" (every wall's own card, stacked) isn't ported here -- it's
+// superseded by the Estimate Structure nav + Selected Wall tab (click a wall
+// in the nav, read its own breakdown). Connection kits (Corner/Shaft) are
+// Internal-only -- the kits array is naturally empty for a pure-External
+// project, so the Connections tab's kit-card grid degrades to its existing
+// "No corner/shaft kits linked yet" fallback rather than needing a separate
+// branch. Formerly internalCalculator/estimateResultsCard.tsx +
+// externalCalculator/estimateResultsCard.tsx.
 // =============================================================================
 import { useState } from "react";
 import { Frame, Layers } from "lucide-react";
 import { NAVY } from "../styleTokens";
 import { r1 } from "../estimate/mathUtils";
-import { aggregate } from "../estimate/aggregate";
+import type { aggregateProject } from "../estimate/aggregate";
 import type { CombinedEstimate } from "../estimate/calculateCombinedEstimate";
 import type { CornerPairResult, ShaftPairResult } from "../estimate/cornerShaftKits";
 import type { KitEntry } from "../estimate/synthesizeKits";
@@ -51,24 +54,26 @@ function collectProjectWarnings(results: WallResult[], kits: KitEntry[], combine
 
 export const EstimateResultsCard = ({
   layoutMode, results, walls, kits,
-  projChosenAgg, combinedEstimate,
+  aggProject, combinedEstimate,
   active, out, orient, cornerPair, shaftPair, ScheduleComp,
 }: {
   layoutMode: EffectiveLayout;
   results: WallResult[]; walls: Wall[]; kits: KitEntry[];
-  projChosenAgg: ReturnType<typeof aggregate>; combinedEstimate: CombinedEstimate;
+  aggProject: ReturnType<typeof aggregateProject>; combinedEstimate: CombinedEstimate;
   active: Wall; out: ComputeOut; orient: "vertical" | "horizontal";
   cornerPair: CornerPairResult | null; shaftPair: ShaftPairResult | null;
   ScheduleComp: typeof PanelScheduleCard;
 }) => {
   const [activeTab, setActiveTab] = useState("overview");
+  const { combined, internal } = aggProject;
+  const hasInternal = results.some(r => r.wall.application === "internal");
   const projectWarnings = collectProjectWarnings(results, kits, combinedEstimate);
   const overviewStats = [
-    { value: `${projChosenAgg.totalArea} m2`, label: "Total area" },
-    { value: projChosenAgg.totalPanels, label: "Total panels" },
+    { value: `${combined.totalArea} m2`, label: "Total area" },
+    { value: combined.totalPanels, label: "Total panels" },
     { value: results.length, label: "Walls" },
     { value: kits.length, label: "Connection kits" },
-    { value: `${r1(projChosenAgg.wastePct)}%`, label: "Est. waste" },
+    ...(hasInternal ? [{ value: `${r1(internal.wastePct)}%`, label: "Est. waste" }] : []),
     { value: projectWarnings.length, label: "Warnings" },
   ];
 
@@ -85,10 +90,10 @@ export const EstimateResultsCard = ({
       <div className="results-body">
         <TabPanel id="overview" activeId={activeTab}>
           {/* Phone: MetricsGridPhone (blue/navy only, no gold top-border) --
-              same colour rule as the rest of the Internal phone estimator.
-              Web uses the mockup's own flat `.overview-grid`/`.overview-card`
-              tiles rather than the sitewide gold-accented StatsGrid, whose
-              styling stays untouched for its other call sites. */}
+              same colour rule as the rest of the phone estimator. Web uses
+              the mockup's own flat `.overview-grid`/`.overview-card` tiles
+              rather than the sitewide gold-accented StatsGrid, whose styling
+              stays untouched for its other call sites. */}
           {layoutMode === "phone" ? <MetricsGridPhone stats={overviewStats} /> : (
             <div className="overview-grid">
               {overviewStats.map(s => (
@@ -133,7 +138,7 @@ export const EstimateResultsCard = ({
         </TabPanel>
 
         <TabPanel id="order" activeId={activeTab}>
-          <OrderContent layoutMode={layoutMode} projChosenAgg={projChosenAgg} combinedEstimate={combinedEstimate} results={results} />
+          <OrderContent layoutMode={layoutMode} aggProject={aggProject} combinedEstimate={combinedEstimate} results={results} />
         </TabPanel>
       </div>
     </section>

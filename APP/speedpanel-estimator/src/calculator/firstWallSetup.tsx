@@ -1,20 +1,31 @@
 // =============================================================================
-// First-Wall Setup (Internal Calculator only)
+// First-Wall Setup (shared -- src/calculator/)
 // =============================================================================
 // Spec §4.1/§4.3 "No Project"/"First-Wall Setup": shown in place of
 // EstimateTopCard/the wall workspace while the store's single seeded wall
 // (see wallStore.ts's defaultWall) is still fully blank -- see
 // estimate/estimatorSession.ts's isNoEstimate(). Collects the minimum
-// starting configuration (orientation, wall system, panel type, profile)
-// then commits it onto that SAME seeded wall (Standard), or converts it into
-// the primary member of a new linked pair (Corner/Shaft) via wallStore.ts's
+// starting configuration then commits it onto that SAME seeded wall
+// (Standard), or converts it into the primary member of a new linked pair
+// (Corner/Shaft, Internal-only) via wallStore.ts's
 // convertActiveToCornerPair/convertActiveToShaftPair -- it does not create a
 // throwaway wall and discard the seeded one.
 //
-// Deliberately its own copy, not shared with externalCalculator's mirror --
-// same fork-not-share convention as phoneShell.tsx/EstimateTopCard.tsx (see
-// their header comments). External has no Corner/Shaft wall-system concept,
-// so its own First-Wall Setup only ever needs the Standard path.
+// Spec §4.3's real per-wall Internal/External choice: "0. Wall type" is now
+// the actual first step (before orientation/system/panel/profile), replacing
+// the old project-level system selector's job of deciding this. Choosing
+// External drops straight to External's simpler flow (no wall-system/panel-
+// type steps -- External is always P78, no Corner/Shaft concept) with the
+// colour picker in place of those steps; choosing Internal keeps the full
+// original flow. This only wires up the FIRST wall's application -- there's
+// no way yet to change an existing wall's application, or to add a wall of
+// the other application to a project that already has one (see
+// docs/unified-estimator-merge-plan.md's Phase 4 scope note); every
+// subsequent "+ Add wall" still inherits the active wall's own application
+// exactly as before (wallStore.ts's addWall).
+//
+// Formerly internalCalculator/firstWallSetup.tsx + externalCalculator/
+// firstWallSetup.tsx.
 // =============================================================================
 import { useState } from "react";
 import { Info, Pencil, Copy, ArrowRight, FolderOpen } from "lucide-react";
@@ -25,6 +36,7 @@ import type { WallSystemId } from "../App";
 import { WALL_SYSTEMS } from "./wallsCard";
 import { ProfileSection } from "./wallConfig";
 import type { ProfileId } from "./wallConfig";
+import { PanelColourSection } from "./panelColourSection";
 
 const Seg = <T extends string | number>({ value, options, onChange }: { value: T; options: [T, string][]; onChange: (v: T) => void }) => (
   <div className="grid gap-1.5" style={{ gridTemplateColumns: `repeat(${options.length}, 1fr)` }}>
@@ -56,6 +68,7 @@ export const FirstWallSetup = ({
   active, update, convertActiveToCornerPair, convertActiveToShaftPair,
   draftLabel, onSetDraftLabel, onDuplicateDraft, onGoToProjects,
 }: FirstWallSetupProps) => {
+  const [application, setApplication] = useState<"internal" | "external">(active.application);
   const [orientation, setOrientation] = useState<"vertical" | "horizontal">(active.orient);
   const [system, setSystem] = useState<WallSystemId>(active.wallSystem);
   const [panelType, setPanelType] = useState<number>(active.type);
@@ -63,6 +76,8 @@ export const FirstWallSetup = ({
   const [editingLabel, setEditingLabel] = useState(false);
   const [labelInput, setLabelInput] = useState("");
   const commitLabel = () => { onSetDraftLabel(labelInput.trim() || null); setEditingLabel(false); };
+
+  const isInternal = application === "internal";
 
   const setSystemChoice = (id: WallSystemId) => {
     setSystem(id);
@@ -73,10 +88,24 @@ export const FirstWallSetup = ({
   };
 
   const handleCreate = () => {
-    update({ type: panelType as Wall["type"], profile, orient: system === "standard" ? orientation : "horizontal" });
+    if (!isInternal) {
+      update({ application, orient: orientation, profile });
+      return;
+    }
+    update({ application, type: panelType as Wall["type"], profile, orient: system === "standard" ? orientation : "horizontal" });
     if (system === "corner") convertActiveToCornerPair();
     else if (system === "shaft") convertActiveToShaftPair();
   };
+
+  // Step numbers shift depending on which optional steps are showing --
+  // computed up front rather than an inline running counter, same
+  // "pre-derive the display state" convention as profileLabel/edgesBadge in
+  // Calculator.tsx.
+  const showWallSystemStep = isInternal && orientation === "horizontal";
+  const showPanelTypeStep = isInternal && system !== "shaft";
+  const orientationStep = 2;
+  const wallSystemStep = orientationStep + 1;
+  const panelTypeStep = orientationStep + (showWallSystemStep ? 1 : 0) + 1;
 
   return (
     <div className="mt-3">
@@ -107,31 +136,44 @@ export const FirstWallSetup = ({
         </div>
 
         <div className="mt-5 border-t border-slate-100 dark:border-slate-700 pt-4">
-          <div className={cx.cardHd}>1. Orientation</div>
+          <div className={cx.cardHd}>1. Wall type</div>
+          <Seg value={application} onChange={setApplication} options={[["internal", "Internal"], ["external", "External"]]} />
+        </div>
+
+        <div className="mt-4">
+          <div className={cx.cardHd}>{orientationStep}. Orientation</div>
           <Seg value={orientation} onChange={setOrientation} options={[["vertical", "Vertical"], ["horizontal", "Horizontal"]]} />
         </div>
 
-        {orientation === "horizontal" && (
-          <div className="mt-4">
-            <div className={cx.cardHd}>2. Wall system</div>
-            <Seg value={system} onChange={setSystemChoice} options={WALL_SYSTEMS.map(([id, label]) => [id, label.replace(" wall", "")] as [WallSystemId, string])} />
-            {system !== "standard" && (
-              <p className={cx.infoNote}>
-                <Info size={14} className="mt-0.5 shrink-0" />
-                <span>
-                  {system === "corner"
-                    ? "Creates two linked wall runs sharing one corner kit -- Wall 01 and Wall 02."
-                    : "Creates a primary and secondary shaft stack wall sharing one junction kit."}
-                </span>
-              </p>
+        {isInternal ? (
+          <>
+            {showWallSystemStep && (
+              <div className="mt-4">
+                <div className={cx.cardHd}>{wallSystemStep}. Wall system</div>
+                <Seg value={system} onChange={setSystemChoice} options={WALL_SYSTEMS.map(([id, label]) => [id, label.replace(" wall", "")] as [WallSystemId, string])} />
+                {system !== "standard" && (
+                  <p className={cx.infoNote}>
+                    <Info size={14} className="mt-0.5 shrink-0" />
+                    <span>
+                      {system === "corner"
+                        ? "Creates two linked wall runs sharing one corner kit -- Wall 01 and Wall 02."
+                        : "Creates a primary and secondary shaft stack wall sharing one junction kit."}
+                    </span>
+                  </p>
+                )}
+              </div>
             )}
-          </div>
-        )}
 
-        {system !== "shaft" && (
-          <div className="mt-4">
-            <div className={cx.cardHd}>{orientation === "horizontal" ? "3. Panel type" : "2. Panel type"}</div>
-            <Seg value={panelType} onChange={setPanelType} options={TYPES.map(t => [t.id, t.label] as [number, string])} />
+            {showPanelTypeStep && (
+              <div className="mt-4">
+                <div className={cx.cardHd}>{panelTypeStep}. Panel type</div>
+                <Seg value={panelType} onChange={setPanelType} options={TYPES.map(t => [t.id, t.label] as [number, string])} />
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="mt-4 border-t border-slate-100 dark:border-slate-700 pt-4">
+            <PanelColourSection active={active} update={update} />
           </div>
         )}
 
@@ -144,7 +186,7 @@ export const FirstWallSetup = ({
             <FolderOpen size={14} />Open a saved project instead
           </button>
           <button onClick={handleCreate} className={cx.exportBtn + " !mt-0 !w-auto px-6"}>
-            {system === "standard" ? "Create Wall 01" : system === "corner" ? "Create corner system" : "Create shaft system"}
+            {!isInternal ? "Create Wall 01" : system === "standard" ? "Create Wall 01" : system === "corner" ? "Create corner system" : "Create shaft system"}
             <ArrowRight size={14} />
           </button>
         </div>

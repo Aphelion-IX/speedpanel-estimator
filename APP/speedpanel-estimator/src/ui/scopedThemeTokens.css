@@ -1,0 +1,49 @@
+/* =============================================================================
+ * Shared scoped-theme tokens (ordering-suite palette)
+ * =============================================================================
+ * pages/projects/projectsTheme.css, pages/order/ordersTheme.css and
+ * pages/admin/projects/projectsAdminTheme.css are three separate scoped
+ * themes (`.pj-shell`/`.ord-shell`/`.pa-shell`) all ported from the same
+ * UI-DESIGNS mockup bundle (see each file's own header comment), so a lot of
+ * their tokens -- both the light value AND its dark-mode equivalent -- are
+ * byte-identical across all three. Pulled out once here rather than
+ * redeclared three times (kept in sync by hand, which is exactly how the
+ * dark-mode gap this token set fixes went unnoticed for as long as it did).
+ *
+ * Deliberately NOT merged with index.css's own site-wide --navy/--blue/
+ * --muted (a different palette used everywhere outside these three pages)
+ * or with ui/estimatorTheme.css's own --navy/--blue/etc (a third, separately
+ * ported palette specific to the v5 estimator mockup, with genuinely
+ * different hex values throughout -- not the same design source as this
+ * one). This file is its own small shared set, scoped by the --sp- prefix
+ * rather than by a wrapper class, since it's meant to be referenced via
+ * var(--sp-*) from each shell's own class-scoped block below, never applied
+ * to an element directly.
+ *
+ * Only tokens with an IDENTICAL value in all three files, in both light and
+ * dark, are here -- every accent colour that differs by even one hex digit
+ * between files (blue/green/cyan and their tints, `--pj-warm`/`--ord-warm`,
+ * `--pa-shell`'s own navy/blue which deliberately match index.css's site
+ * tokens instead of this shared set's) stays declared locally in that file.
+ * Unifying an existing discrepancy is a palette decision, not a refactor --
+ * out of scope here even where two values look close enough to be a typo.
+ * ============================================================================= */
+:root {
+  --sp-blue700: #005fa7;
+  --sp-red: #c83d42; --sp-red50: #fff0f1;
+  --sp-green50: #edf8f2;
+  --sp-muted: #687581; --sp-muted2: #8b96a0;
+  --sp-line: #dce4e9; --sp-line-soft: #edf0f2;
+  --sp-bg: #f5f7f9; --sp-nav: #102332;
+  --sp-surface: #fff; --sp-surface-soft: #fbfcfd;
+  --sp-shadow: 0 10px 30px rgba(22, 39, 52, .08);
+}
+.dark {
+  --sp-blue700: #8ec1ff;
+  --sp-red: #ff6b83; --sp-red50: rgba(217, 54, 79, .16);
+  --sp-green50: rgba(22, 134, 93, .16);
+  --sp-muted: #93a0b8; --sp-muted2: #7688a3;
+  --sp-line: #2a3a56; --sp-line-soft: #24314a;
+  --sp-bg: #0d1626; --sp-nav: #0a1520;
+  --sp-surface: #16223b; --sp-surface-soft: #101a2e;
+}

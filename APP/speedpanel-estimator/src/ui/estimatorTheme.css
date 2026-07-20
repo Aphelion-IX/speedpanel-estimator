@@ -17,7 +17,8 @@
 
 .est-shell {
   --navy: #0b1f3a; --blue: #1259d6; --blue2: #2b78ff; --cyan: #06a8c9; --cyan-soft: #e9fbff;
-  --red: #d9364f; --red-soft: #fff0f3; --ink: #172033; --muted: #68748a; --line: #dce4ef;
+  --red: #d9364f; --red-soft: #fff0f3; --green: #16865d; --orange: #bd6c00;
+  --ink: #172033; --muted: #68748a; --line: #dce4ef;
   --surface: #fff; --surface2: #f6f8fb; --surface3: #edf2f8;
   --shadow: 0 16px 50px rgba(22, 42, 77, .09);
   --r: 18px; --r2: 13px;
@@ -29,7 +30,8 @@
      light->dark token shifts (light text on a dark surface, brightened
      accent tints) rather than leaving the estimator unreadable in dark mode. */
   --navy: #e6ebf5; --blue: #5b9dff; --blue2: #6faeff; --cyan: #4fd6ee; --cyan-soft: rgba(6,168,201,.16);
-  --red: #ff6b83; --red-soft: rgba(217,54,79,.16); --ink: #e6ebf5; --muted: #93a0b8; --line: #2a3a56;
+  --red: #ff6b83; --red-soft: rgba(217,54,79,.16); --green: #34d399; --orange: #ffa94d;
+  --ink: #e6ebf5; --muted: #93a0b8; --line: #2a3a56;
   --surface: #101a2e; --surface2: #16223b; --surface3: #1b2942;
 }
 
@@ -80,8 +82,8 @@
 .est-shell .pill.cyan { background: var(--cyan-soft); color: color-mix(in srgb, var(--cyan) 60%, black 25%); border-color: color-mix(in srgb, var(--cyan) 35%, var(--surface)); }
 .est-shell .pill.red { background: var(--red-soft); color: var(--red); border-color: color-mix(in srgb, var(--red) 30%, var(--surface)); }
 .est-shell .pill.blue { background: color-mix(in srgb, var(--blue) 10%, var(--surface)); color: var(--blue); border-color: color-mix(in srgb, var(--blue) 30%, var(--surface)); }
-.est-shell .pill.green { background: rgba(22, 134, 93, .12); color: #16865d; border-color: rgba(22, 134, 93, .3); }
-.est-shell .pill.orange { background: rgba(189, 108, 0, .12); color: #bd6c00; border-color: rgba(189, 108, 0, .3); }
+.est-shell .pill.green { background: color-mix(in srgb, var(--green) 12%, var(--surface)); color: var(--green); border-color: color-mix(in srgb, var(--green) 30%, var(--surface)); }
+.est-shell .pill.orange { background: color-mix(in srgb, var(--orange) 12%, var(--surface)); color: var(--orange); border-color: color-mix(in srgb, var(--orange) 30%, var(--surface)); }
 .est-shell .pill.neutral { background: var(--surface3); color: var(--muted); }
 
 /* -- Metrics / stat tiles ----------------------------------------------------- */
@@ -167,7 +169,17 @@
 .est-shell .warning-item strong { display: block; font-size: 12px; }
 .est-shell .warning-item span { display: block; color: color-mix(in srgb, var(--red) 70%, var(--navy) 30%); font-size: 10px; margin-top: 3px; }
 .est-shell .full { width: 100%; margin-top: 8px; }
-@media (max-width: 1180px) {
+/* 1340px, not a rounder-looking 1180px -- the 3-column grid above needs
+   270 (structure) + 640 (main-column's own floor, itself set by
+   .geometry-body's two minmax(280px,...) sub-columns) + 340 (summary) +
+   28 (two 14px gaps) = 1278px of *workspace* width, and the page's own
+   outer padding around .workspace (App.tsx's `px-6` on each side in web
+   layoutMode) adds another 48px on top of that -- 1326px of viewport is
+   the real minimum before the summary sidebar's right edge starts running
+   past the viewport (confirmed live: 1280px overflowed by exactly the
+   amount this old 1180px threshold was short by). Collapsing to 2 columns
+   only 146px later than the grid actually needs to is what caused it. */
+@media (max-width: 1340px) {
   .est-shell .workspace { grid-template-columns: 240px 1fr; }
   .est-shell .summary { grid-column: 2; position: static; }
 }

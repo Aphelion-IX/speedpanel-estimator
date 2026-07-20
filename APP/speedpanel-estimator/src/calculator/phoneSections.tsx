@@ -1,8 +1,8 @@
 // =============================================================================
-// Phone sections (Internal Calculator only)
+// Phone sections (shared -- src/calculator/)
 // =============================================================================
 // Phone-only rebuild of the "System configuration" / "Wall geometry" /
-// "Panel length & optimisation" / "Tracks, flashing & restraint" sections,
+// "Panel length" / "Tracks, flashing & restraint" sections,
 // matching the approved mockup's actual visual language instead of reusing
 // the app's generic desktop button-grid style:
 //   - .seg  (grey track, WHITE-pill + blue text when selected)   -> SegPhone
@@ -10,25 +10,34 @@
 //   - one continuous "sheet" card with thin dividers between
 //     groups, instead of separate floating cards                -> SheetCardPhone/SheetSectionPhone
 //
+// SystemConfigSectionPhone/TracksFlashingSectionPhone dispatch internally on
+// `active.application` (Internal's Panel type/Wall system/Corner-Shaft-link
+// pieces and TrackFinishBlock/locked-edges vs. External's PanelColourSection
+// and freely-toggleable edges), same per-wall dispatch pattern
+// mainSections.tsx's WallEstimateCards uses. SystemConfigSectionPhone's own
+// "Wall type" segment (mockup's `.seg[data-seg="walltype"]`,
+// speedpanel-estimator-phone-v5.html) switches the ACTIVE WALL's own
+// application via `update({ application })` -- the old project-level
+// switchToExternal/switchToInternal machinery this used to route through
+// (back when a whole project was one system or the other) is gone, but the
+// mockup makes clear the control itself was always meant to be per-wall,
+// not removed -- `update` is the same guarded wrapper Calculator.tsx passes
+// everywhere else, so switching a Corner/Shaft-linked wall's type here goes
+// through the same wouldLoseData confirmation as switching its wallSystem.
+//
 // Every colour used here resolves to an existing styleTokens.ts token
 // (BLUE/NAVY/MUTED, tone(), or the exact blue-tint classes cx.infoBox/
 // cx.accordionInner already use) -- no new hex values or hand-rolled
 // Tailwind colour classes, and no yellow/gold anywhere (see AI_HANDOFF_
 // PROMPT.md's colour rule).
 //
-// Deliberately forked from the shared WallsCard/SystemRows/ProfileSelector/
-// EdgeRestraintSelector (rather than adding a layoutMode branch inside them)
-// -- those are shared with ExternalCalculator too, and a layoutMode branch
-// inside them would leak this Internal-only restyle into External's phone
-// view, which must stay untouched. Same fork-not-branch precedent as
-// phoneShell.tsx/kitWorkspacePhone.tsx. Reuses the underlying store actions
-// (update/switchOrient/switchToExternal) and small presentational leaves
-// (PanelTypeSelector, WALL_SYSTEMS, CornerLinkSelector, ShaftLinkSelector,
-// JunctionLinkSelector, WallNameAndActions, DimensionInputs, WallPreviewSection,
-// SpanTable, PanelLengthSection, TrackFinishBlock, HeadFlashingToggle,
-// CornerAnglesBlock) directly -- only the selector chrome around them is new.
+// Formerly internalCalculator/phoneSections.tsx + externalCalculator/
+// phoneSections.tsx -- SegPhone/EdgeGridPhone/WarningsListPhone/
+// SheetCardPhone/SheetSectionPhone were byte-identical (or, for
+// EdgeGridPhone, Internal's `locked` support is a strict superset -- unused
+// when omitted) between the two, so this file keeps one copy of each rather
+// than two.
 // =============================================================================
-import { useState } from "react";
 import { Frame, Lock, Ruler, Settings } from "lucide-react";
 import { cx, tone, BLUE, NAVY, MUTED } from "../styleTokens";
 import { RAKE_NOTE } from "../data";
@@ -42,6 +51,11 @@ import {
 } from "./wallConfig";
 import { WallPreviewSection } from "../ui/wallPreview";
 import { PanelLengthSection, type PanelLengthSectionProps } from "./lengthExplorer";
+import { PanelColourSection } from "./panelColourSection";
+
+// Profile id -> the same display label GeometrySectionPhone's own SegPhone
+// options already use, reused for its header badge.
+const PROFILE_LABEL: Record<ProfileId, string> = { standard: "Standard", rake: "Raked", gable: "Gable" };
 
 // --- SegPhone -------------------------------------------------------------
 // The mockup's ".seg" pattern: grey track, unselected = transparent/navy
@@ -91,7 +105,9 @@ export function SegPhone<T extends string>({ options, value, onChange, columns }
 // The mockup's ".edge" pattern: white/bordered when off, light BLUE TINT
 // (not solid fill) when on -- a third, distinct pattern from SegPhone/
 // UnitToggle. Reuses the exact blue-tint classes cx.infoBox/cx.accordionInner
-// already use elsewhere, rather than inventing a new colour.
+// already use elsewhere, rather than inventing a new colour. `locked` (used
+// for Internal's Standard wall system, where all 4 edges are fixed by spec)
+// is simply never passed for an External wall.
 const EDGE_ITEMS: { key: keyof EdgeState; label: string }[] = [
   { key: "top", label: "Head" }, { key: "bottom", label: "Base" },
   { key: "left", label: "Left" }, { key: "right", label: "Right" },
@@ -154,17 +170,24 @@ export const SheetCardPhone = ({ children }: { children: React.ReactNode }) => (
   </div>
 );
 
-export const SheetSectionPhone = ({ icon, label, noDivider, children }: {
-  icon?: React.ReactNode; label?: string; noDivider?: boolean; children: React.ReactNode;
+export const SheetSectionPhone = ({ icon, label, badge, noDivider, children }: {
+  icon?: React.ReactNode; label?: string;
+  // Mockup's own `.sheet-hd` right-aligned status pill (Wall 01/Standard/
+  // Project locked/4 edges/1 project -- speedpanel-estimator-phone-v5.html),
+  // absent from every section here until now.
+  badge?: React.ReactNode; noDivider?: boolean; children: React.ReactNode;
 }) => (
   <div className={noDivider ? "px-4 py-4" : "border-b border-slate-100 dark:border-slate-700 px-4 py-4"}>
     {label && (
-      <div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-widest" style={{ color: MUTED }}>
-        {icon && (
-          <span className="grid h-6 w-6 shrink-0 place-items-center rounded-lg bg-blue-50/60 dark:bg-blue-900/55" style={{ color: BLUE }}>
-            {icon}
-          </span>
-        )}{label}
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest" style={{ color: MUTED }}>
+          {icon && (
+            <span className="grid h-6 w-6 shrink-0 place-items-center rounded-lg bg-blue-50/60 dark:bg-blue-900/55" style={{ color: BLUE }}>
+              {icon}
+            </span>
+          )}{label}
+        </div>
+        {badge}
       </div>
     )}
     {children}
@@ -172,16 +195,14 @@ export const SheetSectionPhone = ({ icon, label, noDivider, children }: {
 );
 
 // --- System configuration ---------------------------------------------------
-// Replaces WallsCard entirely on Internal phone (does not call it) -- see
-// this file's header comment for why. Orientation/Wall type reuse the same
-// switchOrient/switchToExternal store wiring App.tsx already threads through
-// SystemRows for web; Panel/Wall system/link selectors/name+actions reuse
-// the shared leaves directly (WALL_SYSTEMS, PanelTypeSelector,
-// CornerLinkSelector, ShaftLinkSelector, JunctionLinkSelector,
-// WallNameAndActions) so none of that logic is duplicated.
+// Replaces WallsCard entirely on phone (does not call it). Dispatches on
+// `active.application`: Internal gets Panel type/Wall system/Corner-Shaft
+// link selectors; External gets the colour swatch picker (PanelColourSection)
+// instead -- exactly the pieces each side's own WallsCard call passes on web
+// (see wallsCard.tsx). Junction link/name+actions are common to both.
 export const SystemConfigSectionPhone = ({
   walls, active, update, duplicateWall, deleteWall, orient,
-  onCornerLink, onShaftLink, onJunctionLink, switchOrient, switchToExternal,
+  onCornerLink, onShaftLink, onJunctionLink, switchOrient,
 }: {
   walls: Wall[]; active: Wall; update: (patch: Partial<Wall>) => void;
   duplicateWall: () => void; deleteWall: () => void; orient: "vertical" | "horizontal";
@@ -189,45 +210,53 @@ export const SystemConfigSectionPhone = ({
   onShaftLink: (targetId: number | null) => void;
   onJunctionLink: (targetId: number | null) => void;
   switchOrient: (o: "vertical" | "horizontal") => void;
-  switchToExternal: () => void;
 }) => (
   <SheetCardPhone>
-  <SheetSectionPhone icon={<Settings size={13} />} label="System configuration" noDivider>
-    <div className={cx.cardHd}>Panel orientation</div>
+  <SheetSectionPhone icon={<Settings size={13} />} label="System configuration" noDivider
+    badge={<span className={`${cx.badge} ${tone("info")}`}>{active.name}</span>}>
+    <div className={cx.cardHd}>Wall type</div>
     <SegPhone
-      options={[{ id: "vertical" as const, label: "Vertical" }, { id: "horizontal" as const, label: "Horizontal" }]}
-      value={orient} onChange={switchOrient}
+      options={[{ id: "internal" as const, label: "Internal" }, { id: "external" as const, label: "External" }]}
+      value={active.application} onChange={application => update({ application })}
     />
 
     <div className="mt-3">
-      <div className={cx.cardHd}>Wall location</div>
+      <div className={cx.cardHd}>Panel orientation</div>
       <SegPhone
-        options={[{ id: "internal" as const, label: "Internal" }, { id: "external" as const, label: "External" }]}
-        value="internal" onChange={id => { if (id === "external") switchToExternal(); }}
+        options={[{ id: "vertical" as const, label: "Vertical" }, { id: "horizontal" as const, label: "Horizontal" }]}
+        value={orient} onChange={switchOrient}
       />
     </div>
 
-    <div className="mt-3">
-      <PanelTypeSelector active={active} update={update} topBorder={true} headingLabel="Panel type" />
-    </div>
+    {active.application === "internal" ? (
+      <>
+        <div className="mt-3">
+          <PanelTypeSelector active={active} update={update} topBorder={true} headingLabel="Panel type" />
+        </div>
 
-    {orient === "horizontal" && (
-      <div className="mt-3">
-        <div className={cx.cardHd}>Wall system</div>
-        <SegPhone
-          columns={3}
-          options={WALL_SYSTEMS.map(([id, label]) => ({ id, label: label.replace(" wall", "") }))}
-          value={active.wallSystem}
-          onChange={id => update(id === "shaft" ? { wallSystem: id as WallSystemId, type: 78 } : { wallSystem: id as WallSystemId })}
-        />
-        {active.wallSystem === "corner" && (
+        {orient === "horizontal" && (
           <div className="mt-3">
-            <CornerLinkSelector active={active} walls={walls} onLink={onCornerLink} onSideChange={side => update({ cornerSide: side })} />
+            <div className={cx.cardHd}>Wall system</div>
+            <SegPhone
+              columns={3}
+              options={WALL_SYSTEMS.map(([id, label]) => ({ id, label: label.replace(" wall", "") }))}
+              value={active.wallSystem}
+              onChange={id => update(id === "shaft" ? { wallSystem: id as WallSystemId, type: 78 } : { wallSystem: id as WallSystemId })}
+            />
+            {active.wallSystem === "corner" && (
+              <div className="mt-3">
+                <CornerLinkSelector active={active} walls={walls} onLink={onCornerLink} onSideChange={side => update({ cornerSide: side })} />
+              </div>
+            )}
+            {active.wallSystem === "shaft" && (
+              <div className="mt-3"><ShaftLinkSelector active={active} walls={walls} onLink={onShaftLink} /></div>
+            )}
           </div>
         )}
-        {active.wallSystem === "shaft" && (
-          <div className="mt-3"><ShaftLinkSelector active={active} walls={walls} onLink={onShaftLink} /></div>
-        )}
+      </>
+    ) : (
+      <div className="mt-3 border-t border-slate-100 dark:border-slate-700 pt-3">
+        <PanelColourSection active={active} update={update} />
       </div>
     )}
 
@@ -252,7 +281,8 @@ export const GeometrySectionPhone = ({
   dimUnit: string; switchDimUnit: (u: string) => void;
 }) => (
   <SheetCardPhone>
-  <SheetSectionPhone icon={<Frame size={13} />} label="Wall geometry" noDivider>
+  <SheetSectionPhone icon={<Frame size={13} />} label="Wall geometry" noDivider
+    badge={<span className={`${cx.badge} ${tone("neutral")}`}>{PROFILE_LABEL[active.profile]}</span>}>
     <div className={cx.cardHd}>Profile</div>
     <SegPhone
       columns={3}
@@ -278,45 +308,57 @@ export const GeometrySectionPhone = ({
   </SheetCardPhone>
 );
 
-// --- Panel length & optimisation ---------------------------------------------
+// --- Panel length ---------------------------------------------
+// No own SheetCardPhone here -- this shares one continuous card with
+// TracksFlashingSectionPhone and the project Warnings section below it
+// (see Calculator.tsx's phoneWorkspaceNode), matching the mockup's single
+// `.sheet` wrapping all three as divider-separated `.sheet-section`s
+// (speedpanel-estimator-phone-v5.html).
 export const PanelLengthSectionPhone = (props: PanelLengthSectionProps) => (
-  <SheetCardPhone>
-  <SheetSectionPhone icon={<Ruler size={13} />} label="Panel length & optimisation" noDivider>
+  <SheetSectionPhone icon={<Ruler size={13} />} label="Panel length"
+    badge={<span className={`${cx.badge} ${tone("info")}`}>Project {props.projectLock ? "locked" : "unlocked"}</span>}>
     <PanelLengthSection {...props} />
   </SheetSectionPhone>
-  </SheetCardPhone>
 );
 
 // --- Tracks, flashing & restraint ---------------------------------------------
+// Dispatches on `active.application`: Internal gets TrackFinishBlock
+// (always-visible C/J-track pickers, no accordion -- see wallConfig.tsx's
+// header comment) and locks all 4 edges for a Standard wall; External has
+// neither (its own EdgeRestraintSelector call never used TrackFinishBlock
+// and always left every edge freely toggleable).
 export const TracksFlashingSectionPhone = ({ active, update, orient }: {
   active: Wall; update: (patch: Partial<Wall>) => void; orient: "vertical" | "horizontal";
 }) => {
-  const [showTrackFinish, setShowTrackFinish] = useState(false);
   // Internal's real call site only ever passes one EdgeOption (headFlash) --
   // OtherOptionsBlock (extra toggle-button options) has nothing to render
-  // for Internal today, so it's not reused here either (no behaviour lost).
+  // for either application today, so it's not reused here either (no
+  // behaviour lost).
   const flashOption: EdgeOption = {
     key: "headFlash",
     label: "Head track flashing",
     value: active.headFlash,
     onToggle: () => update({ headFlash: !active.headFlash }),
   };
+  const isInternal = active.application === "internal";
+  const edgeCount = Object.values(active.edges).filter(Boolean).length;
   return (
-    <SheetCardPhone>
-    <SheetSectionPhone icon={<Lock size={13} />} label="Tracks, flashing & restraint" noDivider>
+    <SheetSectionPhone icon={<Lock size={13} />} label="Tracks, flashing & restraint"
+      badge={<span className={`${cx.badge} ${tone("info")}`}>{edgeCount} edge{edgeCount === 1 ? "" : "s"}</span>}>
       <EdgeGridPhone
         edges={active.edges}
         onEdgeToggle={k => update({ edges: { ...active.edges, [k]: !active.edges[k] } })}
-        locked={orient === "horizontal" && active.wallSystem === "standard"}
+        locked={isInternal ? orient === "horizontal" && active.wallSystem === "standard" : undefined}
       />
-      <div className="mt-3">
-        <TrackFinishBlock
-          edges={active.edges} orient={orient}
-          activeFinishes={{ headFinish: active.headFinish, bottomFinish: active.bottomFinish, leftFinish: active.leftFinish, rightFinish: active.rightFinish }}
-          onFinishChange={(field, val) => update({ [field]: val } as Pick<Wall, FinishKey>)}
-          showTrackFinish={showTrackFinish} setShowTrackFinish={setShowTrackFinish}
-        />
-      </div>
+      {isInternal && (
+        <div className="mt-3">
+          <TrackFinishBlock
+            edges={active.edges} orient={orient}
+            activeFinishes={{ headFinish: active.headFinish, bottomFinish: active.bottomFinish, leftFinish: active.leftFinish, rightFinish: active.rightFinish }}
+            onFinishChange={(field, val) => update({ [field]: val } as Pick<Wall, FinishKey>)}
+          />
+        </div>
+      )}
       <div className="mt-3"><HeadFlashingToggle flashOption={flashOption} /></div>
       <div className="mt-3">
         <CornerAnglesBlock corners={{
@@ -325,6 +367,5 @@ export const TracksFlashingSectionPhone = ({ active, update, orient }: {
         }} />
       </div>
     </SheetSectionPhone>
-    </SheetCardPhone>
   );
 };

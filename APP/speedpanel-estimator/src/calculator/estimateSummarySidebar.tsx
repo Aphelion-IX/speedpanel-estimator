@@ -1,35 +1,34 @@
 // =============================================================================
-// Estimate summary sidebar (Internal Calculator)
+// Estimate summary sidebar (shared -- src/calculator/)
 // =============================================================================
 // The mockup's `.summary` sticky card -- right column of the desktop
-// `.workspace` 3-column grid (see ui/estimatorTheme.css and
-// InternalCalculator.tsx's webWorkspaceNode). Live KPI metrics for the
-// selected wall/kit plus the whole project, a "% configured" progress bar
-// (same configuredCount/totalItems formula EstimateTopCard.tsx used before
-// the mockup restyle moved it here), a rollup of outstanding warnings (via
-// ../estimate/projectReadiness.ts's determineProjectReadiness, so this can't
-// drift out of sync with the Order Review drawer's own readiness read), and
-// the two summary-lines/actions rows. Deliberately its own copy, not shared
-// with externalCalculator's mirror -- same fork-not-share convention as
-// phoneShell.tsx (see its header comment).
+// `.workspace` 3-column grid (see ui/estimatorTheme.css and Calculator.tsx's
+// webWorkspaceNode). Live KPI metrics for the selected wall/kit plus the
+// whole project, a "% configured" progress bar, a rollup of outstanding
+// warnings (via ../estimate/projectReadiness.ts's determineProjectReadiness,
+// so this can't drift out of sync with the Order Review drawer's own
+// readiness read), and the two summary-lines/actions rows. "Estimated waste"
+// only has a meaningful project-wide figure on the Internal side (External's
+// aggregate has no project-wide wastePct field, see aggregateExternal.ts) --
+// shown only when the project has Internal walls, same "only render if
+// relevant" pattern the rest of this merge uses. Formerly
+// internalCalculator/estimateSummarySidebar.tsx + externalCalculator/
+// estimateSummarySidebar.tsx.
 // =============================================================================
 import { AlertTriangle, Boxes, Download } from "lucide-react";
-import type { WallResult, ComputeOut } from "../estimate/wall.types";
+import type { WallResult, ComputeOut, Wall } from "../estimate/wall.types";
 import type { KitEntry } from "../estimate/synthesizeKits";
-import type { Wall } from "../estimate/wall.types";
-import type { aggregate } from "../estimate/aggregate";
+import type { aggregateProject } from "../estimate/aggregate";
 import { isConfigured, deriveWallStatus } from "./phoneShell";
 import { determineProjectReadiness } from "../estimate/projectReadiness";
 import { r1 } from "../estimate/mathUtils";
-
-type ProjAgg = ReturnType<typeof aggregate>;
 
 export interface EstimateSummarySidebarProps {
   walls: Wall[];
   results: WallResult[];
   kits: KitEntry[];
   out: ComputeOut;
-  projChosenAgg: ProjAgg;
+  aggProject: ReturnType<typeof aggregateProject>;
   onReviewOrder: () => void;
   onExport: () => void;
   exportDisabled: boolean;
@@ -42,8 +41,11 @@ function kitCountLine(kits: KitEntry[]): string {
 }
 
 export const EstimateSummarySidebar = ({
-  walls, results, kits, out, projChosenAgg, onReviewOrder, onExport, exportDisabled,
+  walls, results, kits, out, aggProject, onReviewOrder, onExport, exportDisabled,
 }: EstimateSummarySidebarProps) => {
+  const { internal, external, combined } = aggProject;
+  const hasInternal = results.some(r => r.wall.application === "internal");
+
   const totalItems = results.length + kits.length;
   const configuredCount = results.filter(r => isConfigured(deriveWallStatus(r.wall, walls, r.out))).length + kits.length;
   const pct = totalItems ? Math.round((configuredCount / totalItems) * 100) : 0;
@@ -52,8 +54,10 @@ export const EstimateSummarySidebar = ({
   const shownWarnings = readiness.warnings.slice(0, 3);
   const extraWarnings = readiness.warnings.length - shownWarnings.length;
 
-  const stockGroupCount = projChosenAgg.panels.length + projChosenAgg.customPanels.length;
-  const customCount = projChosenAgg.customPanels.length;
+  const stockGroupCount = internal.panels.length + internal.customPanels.length + external.groups.length;
+  const customCount = internal.customPanels.length;
+
+  const selectedWallPanels = out.empty ? "--" : (out.chosen?.panels ?? out.result?.panels ?? "--");
 
   return (
     <aside className="summary card">
@@ -67,9 +71,9 @@ export const EstimateSummarySidebar = ({
       <div className="summary-body">
         <div className="summary-metrics">
           <div className="metric"><strong>{out.empty ? "--" : `${out.area} m²`}</strong><span>Selected wall area</span></div>
-          <div className="metric"><strong>{out.empty ? "--" : (out.chosen?.panels ?? "--")}</strong><span>Selected wall panels</span></div>
-          <div className="metric"><strong>{projChosenAgg.totalPanels}</strong><span>Project panels ordered</span></div>
-          <div className="metric"><strong>{r1(projChosenAgg.wastePct)}%</strong><span>Estimated waste</span></div>
+          <div className="metric"><strong>{selectedWallPanels}</strong><span>Selected wall panels</span></div>
+          <div className="metric"><strong>{combined.totalPanels}</strong><span>Project panels ordered</span></div>
+          {hasInternal && <div className="metric"><strong>{r1(internal.wastePct)}%</strong><span>Estimated waste</span></div>}
         </div>
         <div className="progress-block">
           <div><span>Estimate configured</span><b>{pct}%</b></div>

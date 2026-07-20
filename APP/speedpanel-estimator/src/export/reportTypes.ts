@@ -52,12 +52,24 @@ export interface TrackLineRow {
   panelType?: number;
 }
 
+// Per-system sealant breakdown -- populated by buildReportData.ts whenever a
+// project mixes Internal and External walls, since the two use genuinely
+// different sealant products (Hilti CP606 vs Sikaflex 400) that can't both
+// be represented by FixingsSummary's single sealantLabel/sealantBoxes pair.
+// See priceEstimateReportData.ts, which prices from this array when present
+// instead of inferring one system from systemLabel.
+export interface SealantLine {
+  system: "internal" | "external";
+  label: string; boxes: number; sausages: number;
+}
+
 export interface FixingsSummary {
   fix30: number; boxes30: number;
   fix16: number; boxes16: number;
   sealantLabel: string; sealantBoxes: number; sausages: number;
   area: number;
   extraLines?: { label: string; value: string }[];
+  sealantLines?: SealantLine[];
 }
 
 export interface ConnectionRow {
