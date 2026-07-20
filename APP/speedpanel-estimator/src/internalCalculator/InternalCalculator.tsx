@@ -13,7 +13,7 @@
 // `walls` array.
 // =============================================================================
 import { useState, useEffect, useMemo, useRef } from "react";
-import { Frame, Gauge, Link2, Lock, Settings } from "lucide-react";
+import { Link2 } from "lucide-react";
 import { cx } from "../styleTokens";
 import { useWallResults } from "../wallStore";
 import type { WallStore } from "../wallStore";
@@ -21,21 +21,17 @@ import { compute } from "../estimate/computeWall";
 import { aggregate } from "../estimate/aggregate";
 import { useCombinedEstimateCalc } from "../estimate/useCombinedEstimateCalc";
 import { computeCornerPair, computeShaftPair } from "../estimate/cornerShaftKits";
-import { synthesizeKits, kitLabel } from "../estimate/synthesizeKits";
-import { r1 } from "../estimate/mathUtils";
-import { stockLengthLabel } from "../estimate/computeUtils";
+import { synthesizeKits } from "../estimate/synthesizeKits";
 import type { SelectedNavItem } from "../estimate/navSelection";
 import { HEAD_FLASH_LABEL, HEAD_FLASH_SUBLABEL, STOCK_LENGTHS, INT_CONFIG } from "../data";
 import type { Wall } from "../estimate/wall.types";
 import type { EffectiveLayout } from "../useLayoutMode";
-import {
-  SectionLabel, WarningsList, UnitToggle, CalculatorShell,
-  CollapsibleSection, StatsGrid,
-} from "../ui/primitives";
+import { WarningsList, UnitToggle, CalculatorShell } from "../ui/primitives";
 import { LockedDataInt, LockedDataFooter } from "../ui/lockedData";
 import { PanelLengthSection } from "./lengthExplorer";
 import { WallsCard } from "./wallsCard";
 import { EstimateStructureNav } from "./estimateStructureNav";
+import { EstimateSummarySidebar } from "./estimateSummarySidebar";
 import { KitWorkspace } from "./kitWorkspace";
 import { KitWorkspacePhone } from "./kitWorkspacePhone";
 import { StickyBarTilesPhone } from "./phoneShell";
@@ -221,28 +217,10 @@ export function InternalCalculator({
   const ScheduleComp = layoutMode === "web" ? PanelScheduleTable : PanelScheduleCard;
 
   // Corner/Shaft kit currently selected in the nav, if any -- resolved once
-  // here since both the workspace title and StatsGrid below need it.
+  // here since the KitWorkspace/WallsCard workspace branch below needs it.
   const selectedKit = selectedNavItem.type === "kit"
     ? kits.find(k => k.wallAId === selectedNavItem.wallAId && k.wallBId === selectedNavItem.wallBId) ?? null
     : null;
-  const workspaceTitle = selectedKit
-    ? kitLabel(selectedKit, kits)
-    : `${active.name} — ${active.orient === "vertical" ? "Vertical" : "Horizontal"} · P${active.type}`;
-  const selectedItemStats = selectedKit
-    ? [
-        { value: selectedKit.kind === "corner" ? "Corner" : "Shaft", label: "Kit type" },
-        { value: `${selectedKit.wallAName} + ${selectedKit.wallBName}`, label: "Linked walls" },
-        { value: `${r1(selectedKit.result.H)} m`, label: "Height" },
-        { value: selectedKit.result.warnings.length, label: "Warnings" },
-      ]
-    : [
-        { value: out.empty ? "--" : `${out.area} m2`, label: "Total area" },
-        { value: out.empty ? "--" : (out.chosen?.panels ?? out.result?.panels ?? "--"), label: "Panels" },
-        { value: `P${active.type}`, label: "Panel type" },
-        { value: active.orient === "vertical" ? "Vertical" : "Horizontal", label: "Config" },
-        { value: out.empty ? "--" : stockLengthLabel(out.chosen?.groups), label: "Length" },
-        { value: out.empty ? "--" : `${r1(out.chosen?.wastePct ?? 0)}%`, label: "Waste" },
-      ];
 
   // Renders as a full-width card carousel on web, a pill strip on phone (see
   // estimateStructureNav.tsx) -- directly under WallsCard/KitWorkspace in
@@ -315,6 +293,17 @@ export function InternalCalculator({
   const edgeCount = edgesLocked ? 4 : Object.values(active.edges).filter(Boolean).length;
   const edgesBadge = `${edgeCount} edge${edgeCount === 1 ? "" : "s"}`;
 
+  // Hoisted above both workspace nodes so both the Summary sidebar's Export
+  // button AND the Project Order Sheet (spec's Final Order Review) build
+  // from the exact same report snapshot -- previously only handleExport
+  // (defined further down, near mainNode) computed this.
+  const reportData = useMemo(() => buildInternalReportData({
+    orient, dimUnit, toDisp, walls, results, warnById,
+    projChosenAgg, combinedEstimate,
+  }), [orient, dimUnit, toDisp, walls, results, warnById, projChosenAgg, combinedEstimate]);
+  const hasExportData = !!(projChosenAgg && projChosenAgg.totalPanels > 0);
+  const handleExport = () => exportEstimateToExcel(reportData);
+
   // Phone and web have genuinely different visual languages now (segmented
   // pill controls + one continuous "sheet" card on phone vs. the app's
   // generic button-grid cards on web, see phoneSections.tsx's header
@@ -369,59 +358,65 @@ export function InternalCalculator({
     </>
   );
 
+  // Ported to the mockup's `.workspace` 3-column grid (ui/estimatorTheme.css)
+  // -- structure nav | main-column (config/geometry/product cards for
+  // whichever wall or kit is selected) | sticky summary sidebar. The old
+  // CollapsibleSection accordion pairing (Wall geometry / Tracks and
+  // flashing) is gone here -- the mockup's own main-column shows every card
+  // always-expanded, not collapsed behind an accordion trigger.
   const webWorkspaceNode = (
-    <>
-      <SectionLabel icon={<Gauge size={13} />}>Selected item metrics</SectionLabel>
-      <StatsGrid stats={selectedItemStats} />
-      <SectionLabel icon={<Settings size={13} />}>{`Calculator workspace — ${workspaceTitle}`}</SectionLabel>
-      {selectedKit ? (
-        <>
+    <div className="workspace">
+      {wallNavNode}
+      <div className="main-column">
+        {selectedKit ? (
           <KitWorkspace kit={selectedKit} onSelect={handleSelectNavItem} />
-          {wallNavNode}
-        </>
-      ) : (
-        <>
-          <WallsCard
-            walls={walls}
-            active={active} update={update}
-            duplicateWall={duplicateWall} deleteWall={handleDeleteActiveWall}
-            showTypes={true} systemSelector={systemSelector} orient={orient}
-            onCornerLink={linkCornerPartner}
-            onShaftLink={linkShaftPartner}
-            onJunctionLink={linkJunctionPartner}
-          />
-          {wallNavNode}
+        ) : (
+          <>
+            <WallsCard
+              walls={walls}
+              active={active} update={update}
+              duplicateWall={duplicateWall} deleteWall={handleDeleteActiveWall}
+              showTypes={true} systemSelector={systemSelector} orient={orient}
+              onCornerLink={linkCornerPartner}
+              onShaftLink={linkShaftPartner}
+              onJunctionLink={linkJunctionPartner}
+            />
 
-          <CollapsibleSection icon={<Frame size={13} />} label="Wall geometry" badge={profileLabel} defaultOpen>
-            {geometryContent}
-            {panelLengthContent}
-          </CollapsibleSection>
+            <section className="card geometry-card">
+              <div className="card-hd">
+                <div className="section-title"><span className="dot" /><span>Wall geometry</span></div>
+                <span className="pill blue">{profileLabel} profile</span>
+              </div>
+              <div className="geometry-body">
+                {geometryContent}
+              </div>
+            </section>
 
-          {/* Tracks and flashing -- defaults open now that this lives in the
-              wider main-column workspace, not the space-constrained sidebar
-              (see Phase B's CollapsibleSection doc comment for that original
-              rationale, which no longer applies here). */}
-          <CollapsibleSection icon={<Lock size={13} />} label="Tracks and flashing" badge={edgesBadge} defaultOpen>
-            {tracksContent}
-          </CollapsibleSection>
+            <section className="card product-card">
+              <div className="card-hd">
+                <div className="section-title"><span className="dot" /><span>Panel length &amp; materials</span></div>
+                <span className="pill cyan">{edgesBadge}</span>
+              </div>
+              <div className="product-body">
+                <div className="stock-col">{panelLengthContent}</div>
+                <div className="materials-col">{tracksContent}</div>
+              </div>
+            </section>
 
-          <WarningsList warnings={!out.empty ? out.warnings : null} />
-        </>
-      )}
-    </>
+            <WarningsList warnings={!out.empty ? out.warnings : null} />
+          </>
+        )}
+      </div>
+      <EstimateSummarySidebar
+        walls={walls} results={results} kits={kits} out={out}
+        projChosenAgg={projChosenAgg}
+        onReviewOrder={() => setOrderDrawerOpen(true)}
+        onExport={handleExport} exportDisabled={!hasExportData}
+      />
+    </div>
   );
 
   const workspaceNode = layoutMode === "phone" ? phoneWorkspaceNode : webWorkspaceNode;
-
-  // Hoisted so both the Excel export handler AND the Project Order Sheet
-  // (spec's Final Order Review) build from the exact same report snapshot --
-  // previously only handleExport computed this, inline.
-  const reportData = useMemo(() => buildInternalReportData({
-    orient, dimUnit, toDisp, walls, results, warnById,
-    projChosenAgg, combinedEstimate,
-  }), [orient, dimUnit, toDisp, walls, results, warnById, projChosenAgg, combinedEstimate]);
-  const hasExportData = !!(projChosenAgg && projChosenAgg.totalPanels > 0);
-  const handleExport = () => exportEstimateToExcel(reportData);
 
   const orderSheetRef = useRef<HTMLDivElement>(null);
   const scrollToOrderSheet = () => orderSheetRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });

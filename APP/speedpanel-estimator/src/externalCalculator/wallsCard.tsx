@@ -112,22 +112,28 @@ export interface WallsCardProps {
   onJunctionLink?: (targetId: number | null) => void; // Generic adjoining-wall linking
 }
 export const WallsCard = ({ walls, active, update, duplicateWall, deleteWall, systemSelector, onJunctionLink }: WallsCardProps) => (
-  <div className={cx.section}>
-    {systemSelector && (
-      <div>
-        {systemSelector}
+  <section className="card config-card">
+    <div className="card-hd">
+      <div className="section-title"><span className="dot" /><span>Wall setup</span></div>
+      <div className="wall-actions">
+        <IconButton onClick={duplicateWall} title="Duplicate"><Copy size={15} /></IconButton>
+        <IconButton onClick={deleteWall} variant="danger" title="Delete"><Trash2 size={15} /></IconButton>
       </div>
-    )}
-    {/* Generic adjoining-wall junction link -- available on every wall in
-        the project (see JunctionLinkSelector). */}
-    {onJunctionLink && walls.length > 1 && (
-      <JunctionLinkSelector active={active} walls={walls} onLink={onJunctionLink} />
-    )}
-    {/* Name/duplicate/delete toolbar for whichever wall is active. The
-        Estimate Structure nav is the wall picker + add-wall entry point, so
-        the old tab-strip (once rendered here too) is gone. */}
-    <div className={systemSelector ? "border-t border-slate-100 dark:border-slate-700 pt-3" : ""}>
-      <WallNameAndActions active={active} update={update} duplicateWall={duplicateWall} deleteWall={deleteWall} />
     </div>
-  </div>
+    <div className="config-body">
+      <div className="config-row" style={{ gridTemplateColumns: "1fr" }}>
+        <div><label className="label">Wall name</label><input className="input" value={active.name} onChange={e => update({ name: e.target.value })} maxLength={32} /></div>
+      </div>
+      {systemSelector && (
+        <div>
+          {systemSelector}
+        </div>
+      )}
+      {/* Generic adjoining-wall junction link -- available on every wall in
+          the project (see JunctionLinkSelector). */}
+      {onJunctionLink && walls.length > 1 && (
+        <JunctionLinkSelector active={active} walls={walls} onLink={onJunctionLink} />
+      )}
+    </div>
+  </section>
 );

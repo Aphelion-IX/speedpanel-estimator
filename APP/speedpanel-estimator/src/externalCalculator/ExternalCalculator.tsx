@@ -19,26 +19,21 @@
 // nav), web is untouched.
 // =============================================================================
 import { useState, useMemo, useRef } from "react";
-import { Box, Frame, Gauge, Lock, Settings } from "lucide-react";
 import { cx } from "../styleTokens";
 import { useWallResults } from "../wallStore";
 import type { WallStore } from "../wallStore";
 import { computeExternal } from "../estimate/computeWall";
 import { buildExtProjAgg } from "../estimate/aggregate";
-import { r1 } from "../estimate/mathUtils";
-import { stockLengthLabel } from "../estimate/computeUtils";
 import { useCombinedEstimateCalc } from "../estimate/useCombinedEstimateCalc";
 import { HEAD_FLASH_LABEL, HEAD_FLASH_SUBLABEL, EXT_STOCK, EXT_STOCKED_COLOURS } from "../data";
 import type { Wall } from "../estimate/wall.types";
 import type { EffectiveLayout } from "../useLayoutMode";
-import {
-  SectionLabel, WarningsList, UnitToggle, CalculatorShell,
-  CollapsibleSection, StatsGrid,
-} from "../ui/primitives";
+import { WarningsList, UnitToggle, CalculatorShell } from "../ui/primitives";
 import { LockedDataExt, LockedDataFooter } from "../ui/lockedData";
 import { PanelLengthSection } from "./lengthExplorer";
 import { WallsCard } from "./wallsCard";
 import { EstimateStructureNav } from "./estimateStructureNav";
+import { EstimateSummarySidebar } from "./estimateSummarySidebar";
 import {
   ProfileSection, DimensionInputs, SpanTable, EdgeRestraintSelector, ProjectSeparator,
 } from "./wallConfig";
@@ -157,17 +152,6 @@ export function ExternalCalculator({
 
   const ScheduleComp = layoutMode === "web" ? PanelScheduleTable : PanelScheduleCard;
 
-  const workspaceTitle = `${active.name} — ${active.orient === "vertical" ? "Vertical" : "Horizontal"} · P78`;
-  const colourEntry = active.colour ? EXT_STOCKED_COLOURS.find(c => c.code === active.colour) : null;
-  const colourLabel = active.colourType === "special" ? "Custom" : (colourEntry?.label ?? "--");
-  const selectedItemStats = [
-    { value: out.empty ? "--" : `${out.area} m2`, label: "Total area" },
-    { value: out.empty ? "--" : (out.result?.panels ?? "--"), label: "Panels" },
-    { value: colourLabel, label: "Colour" },
-    { value: active.orient === "vertical" ? "Vertical" : "Horizontal", label: "Config" },
-    { value: out.empty ? "--" : stockLengthLabel(out.result?.groups), label: "Length" },
-    { value: out.empty ? "--" : `${r1(out.result?.wastePct ?? 0)}%`, label: "Waste" },
-  ];
   const stickyProjectStats = [
     { value: `${projAgg.totalArea} m2`, label: "Project area" },
     { value: projAgg.panels, label: "Panels" },
@@ -228,15 +212,22 @@ export function ExternalCalculator({
       corners={{ intCorners: active.intCorners, extCorners: active.extCorners, onChange: (f: CornersField, v: string) => update({ [f]: v } as Pick<Wall, CornersField>) }}
     />
   );
-  // CollapsibleSection header badges -- a status summary visible even while
-  // collapsed, echoing the "Estimate structure (N)" pattern already used in
-  // the sidebar heading.
+  // product-card header pill -- a status summary of the selected wall's
+  // panel colour, echoing the "Estimate structure (N)" pattern already used
+  // in the sidebar heading.
   const profileLabel = active.profile === "standard" ? "Standard" : active.profile === "rake" ? "Raked" : "Gable";
   const isCustomColour = active.colourType === "special";
   const colourName = !isCustomColour && active.colour ? EXT_STOCKED_COLOURS.find(c => c.code === active.colour)?.label ?? "" : "";
   const panelBadge = isCustomColour ? "Custom" : colourName || "No colour";
-  const edgeCount = Object.values(active.edges).filter(Boolean).length;
-  const edgesBadge = `${edgeCount} edge${edgeCount === 1 ? "" : "s"}`;
+
+  // Hoisted above both workspace nodes so both the Summary sidebar's Export
+  // button AND the Project Order Sheet (spec's Final Order Review) build
+  // from the exact same report snapshot.
+  const reportData = useMemo(() => buildExternalReportData({
+    orient, dimUnit, toDisp, walls, results, warnById, projAgg, combinedEstimate,
+  }), [orient, dimUnit, toDisp, walls, results, warnById, projAgg, combinedEstimate]);
+  const hasExportData = projAgg.panels > 0;
+  const handleExport = () => exportEstimateToExcel(reportData);
 
   const phoneWorkspaceNode = (
     <>
@@ -272,47 +263,58 @@ export function ExternalCalculator({
     </>
   );
 
+  // Ported to the mockup's `.workspace` 3-column grid (ui/estimatorTheme.css)
+  // -- structure nav | main-column (config/geometry/product cards for the
+  // selected wall) | sticky summary sidebar. Mirrors InternalCalculator.tsx's
+  // own restructure -- see its comment for why the old CollapsibleSection
+  // accordion pairing is gone.
   const webWorkspaceNode = (
-    <>
-      <SectionLabel icon={<Gauge size={13} />}>Selected item metrics</SectionLabel>
-      <StatsGrid stats={selectedItemStats} />
-
-      <SectionLabel icon={<Settings size={13} />}>{`Calculator workspace — ${workspaceTitle}`}</SectionLabel>
-      <WallsCard
-        walls={walls}
-        active={active} update={update}
-        duplicateWall={duplicateWall} deleteWall={handleDeleteActiveWall}
-        systemSelector={systemSelector}
-        onJunctionLink={linkJunctionPartner}
-      />
+    <div className="workspace">
       {wallNavNode}
+      <div className="main-column">
+        <WallsCard
+          walls={walls}
+          active={active} update={update}
+          duplicateWall={duplicateWall} deleteWall={handleDeleteActiveWall}
+          systemSelector={systemSelector}
+          onJunctionLink={linkJunctionPartner}
+        />
 
-      <CollapsibleSection icon={<Box size={13} />} label="Panel configuration" badge={panelBadge} defaultOpen>
-        <PanelColourSection active={active} update={update} />
-        {panelLengthContent}
-      </CollapsibleSection>
+        <section className="card geometry-card">
+          <div className="card-hd">
+            <div className="section-title"><span className="dot" /><span>Wall geometry</span></div>
+            <span className="pill blue">{profileLabel} profile</span>
+          </div>
+          <div className="geometry-body">
+            {geometryContent}
+          </div>
+        </section>
 
-      <CollapsibleSection icon={<Frame size={13} />} label="Wall geometry" badge={profileLabel} defaultOpen>
-        {geometryContent}
-      </CollapsibleSection>
+        <section className="card product-card">
+          <div className="card-hd">
+            <div className="section-title"><span className="dot" /><span>Panel colour &amp; materials</span></div>
+            <span className="pill cyan">{panelBadge}</span>
+          </div>
+          <div className="product-body">
+            <div className="stock-col">
+              <PanelColourSection active={active} update={update} />
+              {panelLengthContent}
+            </div>
+            <div className="materials-col">{tracksContent}</div>
+          </div>
+        </section>
 
-      <CollapsibleSection icon={<Lock size={13} />} label="Tracks and flashing" badge={edgesBadge} defaultOpen>
-        {tracksContent}
-      </CollapsibleSection>
-
-      <WarningsList warnings={!out.empty ? out.warnings : null} />
-    </>
+        <WarningsList warnings={!out.empty ? out.warnings : null} />
+      </div>
+      <EstimateSummarySidebar
+        results={results} out={out} projAgg={projAgg}
+        onReviewOrder={() => setOrderDrawerOpen(true)}
+        onExport={handleExport} exportDisabled={!hasExportData}
+      />
+    </div>
   );
 
   const workspaceNode = layoutMode === "phone" ? phoneWorkspaceNode : webWorkspaceNode;
-
-  // Hoisted so both the Excel export handler AND the Project Order Sheet
-  // (spec's Final Order Review) build from the exact same report snapshot.
-  const reportData = useMemo(() => buildExternalReportData({
-    orient, dimUnit, toDisp, walls, results, warnById, projAgg, combinedEstimate,
-  }), [orient, dimUnit, toDisp, walls, results, warnById, projAgg, combinedEstimate]);
-  const hasExportData = projAgg.panels > 0;
-  const handleExport = () => exportEstimateToExcel(reportData);
 
   const orderSheetRef = useRef<HTMLDivElement>(null);
   const scrollToOrderSheet = () => orderSheetRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });

@@ -262,48 +262,55 @@ export interface WallsCardProps {
   onJunctionLink?: (targetId: number | null) => void; // Generic adjoining-wall linking -- any orient/wallSystem
 }
 export const WallsCard = ({ walls, active, update, duplicateWall, deleteWall, showTypes = true, systemSelector, orient, onCornerLink, onShaftLink, onJunctionLink }: WallsCardProps) => (
-  <div className={cx.section}>
-    {/* 1 -- System selector */}
-    {systemSelector && (
-      <div>
-        {systemSelector}
+  <section className="card config-card">
+    <div className="card-hd">
+      <div className="section-title"><span className="dot" /><span>Wall setup</span></div>
+      <div className="wall-actions">
+        <IconButton onClick={duplicateWall} title="Duplicate"><Copy size={15} /></IconButton>
+        <IconButton onClick={deleteWall} variant="danger" title="Delete"><Trash2 size={15} /></IconButton>
       </div>
-    )}
-    {/* 1b -- Horizontal-only wall system dropdown (Standard / Corner / Shaft). */}
-    {showTypes && orient === "horizontal" && (
-      <>
-        <WallSystemSelector
-          value={active.wallSystem}
-          onChange={id => update(id === "shaft" ? { wallSystem: id, type: 78 } : { wallSystem: id })}
-        />
-        {active.wallSystem === "corner" && onCornerLink && (
-          <CornerLinkSelector
-            active={active} walls={walls}
-            onLink={onCornerLink}
-            onSideChange={side => update({ cornerSide: side })}
-          />
-        )}
-        {active.wallSystem === "shaft" && onShaftLink && (
-          <ShaftLinkSelector active={active} walls={walls} onLink={onShaftLink} />
-        )}
-      </>
-    )}
-    {/* 1c -- Generic adjoining-wall junction link. Not gated by showTypes/
-        orient/wallSystem -- available on every wall in the project (see
-        JunctionLinkSelector). */}
-    {onJunctionLink && walls.length > 1 && (
-      <JunctionLinkSelector active={active} walls={walls} onLink={onJunctionLink} />
-    )}
-    {/* 2 -- Panel configuration. Shaft wall is always 78 mm -- hidden rather
-        than shown-but-disabled, since it's not a user choice. */}
-    {showTypes && (
-      <PanelTypeSelector active={active} update={update} topBorder={!!systemSelector} />
-    )}
-    {/* 3 -- Name/duplicate/delete toolbar for whichever wall is active.
-        The Estimate Structure nav is the wall picker + add-wall entry point,
-        so the old tab-strip (once rendered here too) is gone. */}
-    <div className={(showTypes || !!systemSelector) ? "border-t border-slate-100 dark:border-slate-700 pt-3" : ""}>
-      <WallNameAndActions active={active} update={update} duplicateWall={duplicateWall} deleteWall={deleteWall} />
     </div>
-  </div>
+    <div className="config-body">
+      {/* 0 -- Wall name. */}
+      <div className="config-row" style={{ gridTemplateColumns: "1fr" }}>
+        <div><label className="label">Wall name</label><input className="input" value={active.name} onChange={e => update({ name: e.target.value })} maxLength={32} /></div>
+      </div>
+      {/* 1 -- System selector */}
+      {systemSelector && (
+        <div>
+          {systemSelector}
+        </div>
+      )}
+      {/* 1b -- Horizontal-only wall system dropdown (Standard / Corner / Shaft). */}
+      {showTypes && orient === "horizontal" && (
+        <>
+          <WallSystemSelector
+            value={active.wallSystem}
+            onChange={id => update(id === "shaft" ? { wallSystem: id, type: 78 } : { wallSystem: id })}
+          />
+          {active.wallSystem === "corner" && onCornerLink && (
+            <CornerLinkSelector
+              active={active} walls={walls}
+              onLink={onCornerLink}
+              onSideChange={side => update({ cornerSide: side })}
+            />
+          )}
+          {active.wallSystem === "shaft" && onShaftLink && (
+            <ShaftLinkSelector active={active} walls={walls} onLink={onShaftLink} />
+          )}
+        </>
+      )}
+      {/* 1c -- Generic adjoining-wall junction link. Not gated by showTypes/
+          orient/wallSystem -- available on every wall in the project (see
+          JunctionLinkSelector). */}
+      {onJunctionLink && walls.length > 1 && (
+        <JunctionLinkSelector active={active} walls={walls} onLink={onJunctionLink} />
+      )}
+      {/* 2 -- Panel configuration. Shaft wall is always 78 mm -- hidden rather
+          than shown-but-disabled, since it's not a user choice. */}
+      {showTypes && (
+        <PanelTypeSelector active={active} update={update} topBorder={!!systemSelector} />
+      )}
+    </div>
+  </section>
 );
