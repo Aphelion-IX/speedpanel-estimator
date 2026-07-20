@@ -5,18 +5,26 @@
 // error-text paragraph duplicated across ~15 files with one shared,
 // consistent component each.
 // =============================================================================
-import { Loader2, AlertTriangle } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
 import { cx } from "../styleTokens";
+import { SkeletonBar, SkeletonIcon } from "./skeleton";
 
+// Renders as pulsing placeholder shapes (not the real label/hint text) so
+// sighted users see a skeleton, while role="status"/aria-live and a visually-
+// hidden text node keep the actual message announced to screen readers --
+// the app had zero role="status" usage anywhere before this.
 export const LoadingState = ({ label = "Loading", hint, className = "" }: {
   label?: string; hint?: string; className?: string;
 }) => (
-  <div className={`${cx.card} flex items-center gap-3.5 ${className}`}>
-    <Loader2 size={20} className="shrink-0 animate-spin text-[color:var(--blue)]" />
-    <div className="min-w-0">
-      <p className="text-sm font-bold text-[color:var(--navy)]">{label}</p>
-      {hint && <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-300">{hint}</p>}
-    </div>
+  <div role="status" aria-live="polite" className={`${cx.card} flex items-center gap-3.5 ${className}`}>
+    <span aria-hidden="true" className="contents">
+      <SkeletonIcon size={20} />
+      <span className="min-w-0 flex-1">
+        <SkeletonBar className="h-3.5 w-2/5" />
+        {hint && <SkeletonBar className="mt-2 h-2.5 w-1/4" />}
+      </span>
+    </span>
+    <span className="sr-only">{label}{hint ? ` -- ${hint}` : ""}</span>
   </div>
 );
 

@@ -21,6 +21,7 @@ import { useState } from "react";
 import { cx, NAVY, MUTED } from "../../../styleTokens";
 import { STAFF_ROLES, STAFF_ROLE_LABELS, STAFF_ROLE_MULTI, staffDisplayName, type StaffRole } from "../../company/staffTypes";
 import { useAdminStaffCandidates, useStaffAssignments } from "./companiesStore";
+import { LoadingState } from "../../../ui/states";
 
 export const StaffTeamAssignmentPanel = ({ companyId }: { companyId: string }) => {
   const { staff, loading: staffLoading, error: staffError, setAssignment, removeAssignment } = useStaffAssignments(companyId);
@@ -33,7 +34,7 @@ export const StaffTeamAssignmentPanel = ({ companyId }: { companyId: string }) =
     if (err) setActionError(err);
   };
 
-  if (staffLoading || candidatesLoading) return <p className={cx.footnote}>Loading...</p>;
+  if (staffLoading || candidatesLoading) return <LoadingState label="Loading staff team" />;
   if (staffError || candidatesError) return <p className="text-sm text-red-600 dark:text-red-300">{staffError || candidatesError}</p>;
   if (candidates.length === 0) return <p className={cx.footnote}>No Speedpanel admin accounts to assign yet.</p>;
 

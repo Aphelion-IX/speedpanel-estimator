@@ -13,6 +13,7 @@ import { cx, NAVY, MUTED } from "../../../styleTokens";
 import { Card, IconButton } from "../../../ui/primitives";
 import { Button } from "../../../ui/button";
 import { ConfirmDialog } from "../../../ui/confirmDialog";
+import { LoadingState } from "../../../ui/states";
 import { useProjectDocuments } from "./projectDocumentsStore";
 import { formatFileSize, type ProjectDocumentRow } from "./projectDocumentsTypes";
 
@@ -95,7 +96,7 @@ export const ProjectDocumentsCard = ({ projectId, userId }: { projectId: string;
       />
 
       {loading ? (
-        <p className={cx.footnote} style={{ paddingTop: 0 }}>Loading...</p>
+        <LoadingState label="Loading documents" />
       ) : error ? (
         <p className="text-sm text-red-600 dark:text-red-300">{error}</p>
       ) : documents.length === 0 ? (

@@ -19,6 +19,7 @@ import { ORDER_ADJUSTMENT_TYPE_LABELS } from "./orderOperationsTypes";
 
 import { exportOrderToExcel } from "../../../export/exportOrderToExcel";
 import { NAVY, BLUE, MUTED } from "../../../styleTokens";
+import { LoadingState } from "../../../ui/states";
 
 export const ProformaInvoicePage = ({ orderId, onBack }: { orderId: string; onBack: () => void }) => {
   const { order, loading: orderLoading, error: orderError } = useOrder(orderId);
@@ -27,7 +28,7 @@ export const ProformaInvoicePage = ({ orderId, onBack }: { orderId: string; onBa
   const { adjustments, totals, loading: commercialLoading } = useOrderCommercialSummary(orderId);
 
   if (orderLoading || deliveriesLoading || commercialLoading) {
-    return <div className="p-8 text-sm" style={{ color: MUTED }}>Loading...</div>;
+    return <LoadingState className="m-8" label="Loading pro forma invoice" />;
   }
 
   if (orderError || !order) {
