@@ -13,7 +13,7 @@ import { packPanels, buildOption } from "../estimate/packPanels";
 import { cx, NAVY, BLUE, MUTED } from "../styleTokens";
 import type { ComputeOut, Wall } from "../estimate/wall.types";
 import { ToggleSwitch, ProjectLockNote } from "../ui/primitives";
-import { CustomLengthSection } from "./wallConfig";
+import { CustomLengthSection } from "../calculator/wallConfig";
 
 // --- LengthExplorer -----------------------------------------------------------
 // Shows every candidate stock length with a waste bar so the user can

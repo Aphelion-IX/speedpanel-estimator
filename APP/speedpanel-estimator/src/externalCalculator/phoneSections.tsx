@@ -30,14 +30,14 @@ import { cx, tone, BLUE, NAVY, MUTED } from "../styleTokens";
 import { RAKE_NOTE } from "../data";
 import type { Wall, ComputeOut, DimField, EdgeState } from "../estimate/wall.types";
 import { UnitToggle } from "../ui/primitives";
-import { JunctionLinkSelector, WallNameAndActions } from "./wallsCard";
+import { JunctionLinkSelector, WallNameAndActions } from "../calculator/wallsCard";
 import {
   DimensionInputs, SpanTable, HeadFlashingToggle, CornerAnglesBlock,
   type ProfileId, type CornersField, type EdgeOption,
-} from "./wallConfig";
+} from "../calculator/wallConfig";
 import { WallPreviewSection } from "../ui/wallPreview";
 import { PanelLengthSection, type PanelLengthSectionProps } from "./lengthExplorer";
-import { PanelColourSection } from "./panelColourSection";
+import { PanelColourSection } from "../calculator/panelColourSection";
 
 // --- SegPhone -------------------------------------------------------------
 // The mockup's ".seg" pattern: grey track, unselected = transparent/navy

@@ -1,5 +1,5 @@
 // =============================================================================
-// Wall configuration inputs (Internal Calculator only)
+// Wall configuration inputs (shared -- src/calculator/)
 // =============================================================================
 // Wall-configuration form pieces: the span table lookup display, panel
 // profile selector/section, edge restraint (head/base/left/right + J/C track
@@ -7,11 +7,14 @@
 // No dependency on WallsCard/WallsSummaryTable -- those compose this file's
 // pieces at the call site, not the other way round.
 //
-// Forked from what used to be a single file shared with ExternalCalculator
-// (see externalCalculator/wallConfig.tsx for its own, independent, trimmed
-// copy -- External never used TrackFinishBlock/OtherOptionsBlock or
-// SpanTable's Standard/Corner/Shaft-specific branches, so that copy simply
-// doesn't carry them).
+// Formerly internalCalculator/wallConfig.tsx, forked from a shared file with
+// externalCalculator's own trimmed copy. Part of the unified-estimator merge
+// (see docs/unified-estimator-merge-plan.md): this file is confirmed to
+// already be a strict superset of the deleted externalCalculator/wallConfig.tsx
+// -- TrackFinishBlock/OtherOptionsBlock and SpanTable's Standard/Corner/Shaft
+// branches are simply never invoked by a caller that doesn't pass those
+// props/values, exactly how External's own copy omitted them, so moving it
+// here needed zero logic changes.
 // =============================================================================
 import { useState } from "react";
 import { ChevronDown, AlertTriangle } from "lucide-react";

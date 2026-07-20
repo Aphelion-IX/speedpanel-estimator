@@ -19,9 +19,9 @@ import { useState } from "react";
 import { Pencil, Copy, ArrowRight, FolderOpen } from "lucide-react";
 import { cx, NAVY, BLUE, selectedFill, selectableOffCx } from "../styleTokens";
 import type { Wall } from "../estimate/wall.types";
-import { ProfileSection } from "./wallConfig";
-import type { ProfileId } from "./wallConfig";
-import { PanelColourSection } from "./panelColourSection";
+import { ProfileSection } from "../calculator/wallConfig";
+import type { ProfileId } from "../calculator/wallConfig";
+import { PanelColourSection } from "../calculator/panelColourSection";
 
 const Seg = <T extends string>({ value, options, onChange }: { value: T; options: [T, string][]; onChange: (v: T) => void }) => (
   <div className="grid gap-1.5" style={{ gridTemplateColumns: `repeat(${options.length}, 1fr)` }}>

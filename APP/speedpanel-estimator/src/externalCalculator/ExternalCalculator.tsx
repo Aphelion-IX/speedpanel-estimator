@@ -30,16 +30,16 @@ import type { EffectiveLayout } from "../useLayoutMode";
 import { WarningsList, UnitToggle, CalculatorShell } from "../ui/primitives";
 import { LockedDataExt, LockedDataFooter } from "../ui/lockedData";
 import { PanelLengthSection } from "./lengthExplorer";
-import { WallsCard } from "./wallsCard";
+import { WallsCard } from "../calculator/wallsCard";
 import { EstimateStructureNav } from "./estimateStructureNav";
 import { EstimateSummarySidebar } from "./estimateSummarySidebar";
 import {
   ProfileSection, DimensionInputs, SpanTable, EdgeRestraintSelector, ProjectSeparator,
-} from "./wallConfig";
-import type { CornersField } from "./wallConfig";
+} from "../calculator/wallConfig";
+import type { CornersField } from "../calculator/wallConfig";
 import { WallPreviewSection } from "../ui/wallPreview";
 import { PanelScheduleCard, PanelScheduleTable } from "../ui/scheduleCards";
-import { PanelColourSection } from "./panelColourSection";
+import { PanelColourSection } from "../calculator/panelColourSection";
 import { EstimateResultsCard } from "./estimateResultsCard";
 import { ProjectOrderSheet } from "./projectOrderSheet";
 import { OrderReviewDrawer } from "./orderReviewDrawer";
@@ -220,6 +220,7 @@ export function ExternalCalculator({
       edges={active.edges}
       onEdgeToggle={k => update({ edges: { ...active.edges, [k]: !active.edges[k] } })}
       options={edgeOptions}
+      orient={orient}
       corners={{ intCorners: active.intCorners, extCorners: active.extCorners, onChange: (f: CornersField, v: string) => update({ [f]: v } as Pick<Wall, CornersField>) }}
     />
   );

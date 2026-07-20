@@ -30,11 +30,11 @@ import type { EffectiveLayout } from "../useLayoutMode";
 import { WarningsList, UnitToggle, CalculatorShell } from "../ui/primitives";
 import { LockedDataInt, LockedDataFooter } from "../ui/lockedData";
 import { PanelLengthSection } from "./lengthExplorer";
-import { WallsCard } from "./wallsCard";
+import { WallsCard } from "../calculator/wallsCard";
 import { EstimateStructureNav } from "./estimateStructureNav";
 import { EstimateSummarySidebar } from "./estimateSummarySidebar";
-import { KitWorkspace } from "./kitWorkspace";
-import { KitWorkspacePhone } from "./kitWorkspacePhone";
+import { KitWorkspace } from "../calculator/kitWorkspace";
+import { KitWorkspacePhone } from "../calculator/kitWorkspacePhone";
 import { StickyBarTilesPhone } from "./phoneShell";
 import { EstimateTopCard } from "./EstimateTopCard";
 import type { OpenProjectInfo } from "./EstimateTopCard";
@@ -50,8 +50,8 @@ import {
 } from "./phoneSections";
 import {
   ProfileSection, DimensionInputs, SpanTable, EdgeRestraintSelector, ProjectSeparator,
-} from "./wallConfig";
-import type { FinishKey, CornersField } from "./wallConfig";
+} from "../calculator/wallConfig";
+import type { FinishKey, CornersField } from "../calculator/wallConfig";
 import { WallPreviewSection } from "../ui/wallPreview";
 import { PanelScheduleCard, PanelScheduleTable } from "../ui/scheduleCards";
 import { EstimateResultsCard } from "./estimateResultsCard";

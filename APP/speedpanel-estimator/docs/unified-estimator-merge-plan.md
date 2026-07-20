@@ -151,7 +151,38 @@ than pushing through into an unverified state.
 184 tests passing, typecheck/build/depcruise clean at every commit. All backward-compatible —
 no existing saved project or user-visible behavior changed by these three phases.
 
-**Not started: Phase 4 (UI consolidation), Phase 5 (routing/cleanup), Phase 6 (verification).**
+**Phase 4 in progress — warm-up file consolidation done, tested, committed, pushed to
+`claude/pr122-phase-4-7opvpy`:**
+- Created `src/calculator/` (new shared location, outside both fork trees).
+- Moved `wallsCard.tsx` and `wallConfig.tsx` there from `internalCalculator/` (confirmed superset,
+  zero logic changes — see "What Phase 4 actually requires" below) and deleted the
+  `externalCalculator/` copies, updating every import site (`InternalCalculator.tsx`,
+  `ExternalCalculator.tsx`, `firstWallSetup.tsx`, `lengthExplorer.tsx`, `phoneSections.tsx` in both
+  trees, `estimateResultsCard.tsx`, `mainSections.tsx`, `export/buildInternalReportData.ts`) to the
+  new path.
+- Also moved `kitCards.tsx`/`kitWorkspace.tsx`/`kitWorkspacePhone.tsx` (Internal-only) and
+  `panelColourSection.tsx` (External-only) into `src/calculator/` unchanged internally — these were
+  already scoped by the plan as "stays conditional, not merged... move to a shared location but keep
+  their existing internals", and moving them doesn't depend on the six-consumer aggregate-shape work
+  below, so it was safe to do in the same warm-up pass.
+- One real fix needed along the way: `ExternalCalculator.tsx`'s `EdgeRestraintSelector` call was
+  missing the now-required `orient` prop (External's old trimmed `wallConfig.tsx` didn't require it;
+  Internal's superset does, for its `TrackFinishBlock`/`SpanTable` branches) — added
+  `orient={orient}`, an existing in-scope value, no behavior change for External (those branches
+  still don't render for it).
+- `.dependency-cruiser.js` needed **no change** — its rule only forbids direct
+  `internalCalculator/`↔`externalCalculator/` imports; both importing from the new sibling
+  `src/calculator/` was already unaffected. `npm run depcruise` stays 0 errors (36 pre-existing-
+  pattern `no-circular` warnings, up from 28 — same root cause as before, `calculator/wallsCard.tsx`
+  importing the `WallSystemId` type from `App.tsx` while `App.tsx` imports the calculator
+  components; now hit via both the Internal and External import paths instead of just Internal's,
+  not a new category of problem. Confirmed via `git stash` that the pre-existing tree was also
+  warnings-only, exit 0).
+- 184 tests passing, typecheck/build/depcruise clean.
+
+**Still not started: the six-consumer aggregate-shape merge (the real bulk of Phase 4), Phase 5
+(routing/cleanup), Phase 6 (final verification).** See "What Phase 4 actually requires" and the
+(renumbered) "Recommended execution order" below — this session completed old step 1 only.
 
 ### What Phase 4 actually requires (learned this session, more precise than the tier plan above)
 
@@ -181,15 +212,15 @@ halfway state where some files reference the old shape and others the new one, a
 threading the new aggregate shape through, every one of those six consumers needs it
 simultaneously for the app to even typecheck.
 
-### Recommended execution order for Phase 4, once picked up
+### Recommended execution order for Phase 4, remaining steps
 
-1. Delete `externalCalculator/wallsCard.tsx` and `externalCalculator/wallConfig.tsx` (no-op merge,
-   confirmed above) as a warm-up, low-risk commit — but note this alone will already violate
-   `.dependency-cruiser.js`'s no-cross-import rule the moment `ExternalCalculator.tsx` imports from
-   `internalCalculator/`, so either do it together with the dependency-cruiser rule relaxation
-   (pull that piece of Phase 5 forward), or expect `npm run depcruise` to fail until the full merge
-   lands.
-2. Write the new unified `Calculator.tsx` (working name) by extending `InternalCalculator.tsx`:
+1. ~~Delete `externalCalculator/wallsCard.tsx` and `externalCalculator/wallConfig.tsx`~~ **DONE**
+   this session — see Handoff status above (also moved `kitCards.tsx`/`kitWorkspace.tsx`/
+   `kitWorkspacePhone.tsx`/`panelColourSection.tsx`, all into the new `src/calculator/`). Turned out
+   `.dependency-cruiser.js` needed no relaxation — its rule was already scoped to direct
+   internal↔external imports only, not a shared-sibling-folder restriction.
+2. Write the new unified `Calculator.tsx` (working name) by extending `InternalCalculator.tsx`,
+   in `src/calculator/`:
    swap `aggregate(results)` for `aggregateProject(results)`, gate kit logic
    (`synthesizeKits`/`computeCornerPair`/`computeShaftPair`/`KitWorkspace`) to only run over
    `results.filter(r => r.wall.application === "internal")`, and add External's colour section

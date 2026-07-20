@@ -22,7 +22,7 @@ import type { EffectiveLayout } from "../useLayoutMode";
 import { Card, CardGrid, Row, WarningsList } from "../ui/primitives";
 import { TabPanel } from "../ui/tabs";
 import { ConnectionBreakdownCard, PanelScheduleCard } from "../ui/scheduleCards";
-import { CornerKitCard, ShaftJunctionCard } from "./kitCards";
+import { CornerKitCard, ShaftJunctionCard } from "../calculator/kitCards";
 import { WallEstimateCards } from "./mainSections";
 import { OrderContent } from "./orderContent";
 import { MetricsGridPhone } from "./phoneShell";

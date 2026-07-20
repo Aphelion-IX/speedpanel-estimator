@@ -16,7 +16,7 @@ import type { ComputeOut, Wall } from "../estimate/wall.types";
 import type { EffectiveLayout } from "../useLayoutMode";
 import { CardGrid, NotesList } from "../ui/primitives";
 import { PanelScheduleCard, FixingSealantCard } from "../ui/scheduleCards";
-import { CornerKitCard, ShaftVerticalCard, ShaftSlabCard, ShaftJunctionCard } from "./kitCards";
+import { CornerKitCard, ShaftVerticalCard, ShaftSlabCard, ShaftJunctionCard } from "../calculator/kitCards";
 import { TrackFlashingCardInt } from "./trackFlashingCards";
 
 // --- WallEstimateCards -------------------------------------------------------

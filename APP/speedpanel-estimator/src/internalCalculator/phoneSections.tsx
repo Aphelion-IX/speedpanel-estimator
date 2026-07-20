@@ -35,11 +35,11 @@ import { RAKE_NOTE } from "../data";
 import type { Wall, ComputeOut, DimField, EdgeState } from "../estimate/wall.types";
 import type { WallSystemId } from "../App";
 import { UnitToggle } from "../ui/primitives";
-import { WALL_SYSTEMS, PanelTypeSelector, CornerLinkSelector, ShaftLinkSelector, JunctionLinkSelector, WallNameAndActions } from "./wallsCard";
+import { WALL_SYSTEMS, PanelTypeSelector, CornerLinkSelector, ShaftLinkSelector, JunctionLinkSelector, WallNameAndActions } from "../calculator/wallsCard";
 import {
   DimensionInputs, SpanTable, TrackFinishBlock, HeadFlashingToggle, CornerAnglesBlock,
   type ProfileId, type FinishKey, type CornersField, type EdgeOption,
-} from "./wallConfig";
+} from "../calculator/wallConfig";
 import { WallPreviewSection } from "../ui/wallPreview";
 import { PanelLengthSection, type PanelLengthSectionProps } from "./lengthExplorer";
 

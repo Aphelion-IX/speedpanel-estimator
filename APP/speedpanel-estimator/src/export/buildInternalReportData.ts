@@ -15,7 +15,7 @@ import {
 import type { Wall, WallResult, ComputeOut } from "../estimate/wall.types";
 import type { aggregate, AggPanelEntry, AggCustomEntry, CTrackAggEntry } from "../estimate/aggregate";
 import type { CombinedEstimate } from "../estimate/calculateCombinedEstimate";
-import { WALL_SYSTEMS } from "../internalCalculator/wallsCard";
+import { WALL_SYSTEMS } from "../calculator/wallsCard";
 import type { EstimateReportData, WallSummaryRow, PanelGroupRow, TrackLineRow } from "./reportTypes";
 
 const wallSystemLabel = (id: Wall["wallSystem"]) => WALL_SYSTEMS.find(([wid]) => wid === id)?.[1];

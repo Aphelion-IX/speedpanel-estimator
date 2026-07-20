@@ -1,17 +1,18 @@
 // =============================================================================
-// Walls card (Internal Calculator only)
+// Walls card (shared -- src/calculator/)
 // =============================================================================
 // Wall-list management UI: horizontal-only wall system selector (Standard/
 // Corner/Shaft) plus its Corner/Shaft/generic junction link pickers, and the
 // WallsCard itself (system buttons, panel type, name/duplicate/delete).
 //
-// Forked from what used to be a single file shared with ExternalCalculator
-// (see externalCalculator/wallsCard.tsx for its own, independent copy) --
-// External never used the Corner/Shaft/panel-type pieces here (it always
-// called WallsCard with showTypes=false and no onCornerLink/onShaftLink), so
-// keeping one shared file meant every Internal-only change (colours, new
-// controls) had to be checked against "does this leak into External" first.
-// Splitting them means each calculator can now evolve its own UI freely.
+// Formerly internalCalculator/wallsCard.tsx, forked from a shared file with
+// externalCalculator's own trimmed copy. Part of the unified-estimator merge
+// (see docs/unified-estimator-merge-plan.md): this file is confirmed to
+// already be a strict superset of the deleted externalCalculator/wallsCard.tsx
+// -- every Internal-only control (WallSystemSelector, CornerLinkSelector,
+// ShaftLinkSelector, PanelTypeSelector) is gated off via showTypes/
+// onCornerLink/onShaftLink exactly the way External's own copy called this
+// component before the split, so moving it here needed zero logic changes.
 // =============================================================================
 import { Copy, Trash2 } from "lucide-react";
 import { cx, NAVY, BLUE, MUTED, selectedFill, selectableOffCx } from "../styleTokens";

@@ -22,9 +22,9 @@ import { cx, NAVY, BLUE, selectedFill, selectableOffCx } from "../styleTokens";
 import { TYPES } from "../data";
 import type { Wall } from "../estimate/wall.types";
 import type { WallSystemId } from "../App";
-import { WALL_SYSTEMS } from "./wallsCard";
-import { ProfileSection } from "./wallConfig";
-import type { ProfileId } from "./wallConfig";
+import { WALL_SYSTEMS } from "../calculator/wallsCard";
+import { ProfileSection } from "../calculator/wallConfig";
+import type { ProfileId } from "../calculator/wallConfig";
 
 const Seg = <T extends string | number>({ value, options, onChange }: { value: T; options: [T, string][]; onChange: (v: T) => void }) => (
   <div className="grid gap-1.5" style={{ gridTemplateColumns: `repeat(${options.length}, 1fr)` }}>
