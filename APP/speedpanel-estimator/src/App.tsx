@@ -101,6 +101,16 @@ export default function SpeedpanelEstimator() {
   const [saveProjectError, setSaveProjectError] = useState<string | null>(null);
   const [confirmReset, setConfirmReset] = useState(false);
   const [pendingCreationError, setPendingCreationError] = useState<string | null>(null);
+  // Spec §13 "Read-only access" -- no edit-vs-view permission concept exists
+  // anywhere in the app yet (ProjectDetailPage.tsx has no such gate today),
+  // so this is a plain constant, not state: there is nothing that can set it
+  // to true yet. The rendering path it drives (ui/readOnlyGate.tsx's
+  // ReadOnlyBanner, InternalCalculator's readOnlyProject prop) is real and
+  // wired now so behaviour only needs to change HERE -- swap this for real
+  // state derived from a confirmed non-edit company-membership role (or an
+  // equivalent signal) -- once that signal exists, not be built from
+  // scratch at that point.
+  const readOnlyProject = false;
 
   // Persist the current view on change (skipped while a saved project is open).
   useEffect(() => {
@@ -413,6 +423,7 @@ export default function SpeedpanelEstimator() {
               onSaveDraftAsProject={saveDraftAsProject} onSaveOpenProject={saveOpenProject}
               savingProject={savingProject} saveProjectError={saveProjectError} projectDirty={projectDirty}
               onGoToProjects={() => navigate({ tab: "projects" })}
+              readOnlyProject={readOnlyProject}
             />
           )
         )}

@@ -45,6 +45,7 @@ import { FirstWallSetup } from "./firstWallSetup";
 import { isNoEstimate } from "../estimate/estimatorSession";
 import { wouldLoseData } from "../estimate/validateWall";
 import { ConfirmDialog } from "../ui/confirmDialog";
+import { ReadOnlyBanner } from "../ui/readOnlyGate";
 import {
   SheetCardPhone, SheetSectionPhone, SystemConfigSectionPhone, GeometrySectionPhone,
   PanelLengthSectionPhone, TracksFlashingSectionPhone, WarningsListPhone,
@@ -63,10 +64,11 @@ import { exportEstimateToExcel } from "../export/exportEstimateToExcel";
 
 export function InternalCalculator({
   store, orient, dimUnit, setDimUnit, systemSelector, layoutMode,
-  linkCornerPartner, linkShaftPartner,
+  linkCornerPartner: rawLinkCornerPartner, linkShaftPartner: rawLinkShaftPartner,
   switchOrient, switchToExternal,
   openProject, draftLabel, onSetDraftLabel, lastEditedAt,
   onSaveDraftAsProject, onSaveOpenProject, savingProject, saveProjectError, projectDirty, onGoToProjects,
+  readOnlyProject = false,
 }: {
   store: WallStore; orient: "vertical" | "horizontal"; dimUnit: string;
   setDimUnit: (u: string) => void; systemSelector?: React.ReactNode; layoutMode: EffectiveLayout;
@@ -95,6 +97,12 @@ export function InternalCalculator({
   // openProject is set; harmless/ignored otherwise.
   projectDirty: boolean;
   onGoToProjects: () => void;
+  // Spec §13 "Read-only access" -- see App.tsx's own readOnlyProject comment
+  // for why this is always false today. Gates the same mutation choke
+  // points Stage 3's incompatible-change guard already funnels through
+  // (update, handleDeleteWall below), plus add/duplicate/link/save, rather
+  // than threading a `disabled` prop through every individual leaf input.
+  readOnlyProject?: boolean;
 }) {
   const [showTrackFinish, setShowTrackFinish] = useState(false);
   const [orderDrawerOpen, setOrderDrawerOpen] = useState(false);
@@ -107,12 +115,29 @@ export function InternalCalculator({
     walls, activeId, setActiveId,
     projectStock, projectLock, customLengthInput, customActive,
     active, update: rawUpdate, toDisp, updDim,
-    setProjectLength, addBlankWall, duplicateWall,
-    duplicateWallById, deleteWallById, resetWalls,
+    setProjectLength, addBlankWall: rawAddBlankWall, duplicateWall,
+    duplicateWallById: rawDuplicateWallById, deleteWallById, resetWalls,
     commitCustomLength, toggleCustom, clearCustomLength,
-    linkJunctionPartner,
-    convertActiveToCornerPair, convertActiveToShaftPair,
+    linkJunctionPartner: rawLinkJunctionPartner,
+    convertActiveToCornerPair: rawConvertActiveToCornerPair, convertActiveToShaftPair: rawConvertActiveToShaftPair,
   } = store;
+
+  // Spec §13 read-only access: "may not change wall data, links, or save" --
+  // a no-op wrapper for every mutating store action, applied once here
+  // rather than threading a `disabled` prop through each individual leaf
+  // input (see InternalCalculator's own readOnlyProject prop comment and
+  // ui/readOnlyGate.tsx). Always a passthrough today since readOnlyProject
+  // is always false (see App.tsx).
+  function guard<A extends unknown[]>(fn: (...a: A) => void): (...a: A) => void {
+    return readOnlyProject ? () => {} : fn;
+  }
+  const addBlankWall = guard(rawAddBlankWall);
+  const duplicateWallById = guard(rawDuplicateWallById);
+  const linkJunctionPartner = guard(rawLinkJunctionPartner);
+  const linkCornerPartner = guard(rawLinkCornerPartner);
+  const linkShaftPartner = guard(rawLinkShaftPartner);
+  const convertActiveToCornerPair = guard(rawConvertActiveToCornerPair);
+  const convertActiveToShaftPair = guard(rawConvertActiveToShaftPair);
 
   // Spec §7.12/§7.14 changeWallApplication/changeWallSystem: "require
   // confirmation when data loss is possible" -- gated once here (rather than
@@ -126,13 +151,18 @@ export function InternalCalculator({
   // there) -- it doesn't go through this update() at all for the web
   // SystemRows selector.
   const [pendingIncompatibleChange, setPendingIncompatibleChange] = useState<{ message: string; apply: () => void } | null>(null);
-  const update = (patch: Partial<Wall>) => {
+  const update = guard((patch: Partial<Wall>) => {
     if ("orient" in patch || "wallSystem" in patch) {
       const message = wouldLoseData(active, patch);
       if (message) { setPendingIncompatibleChange({ message, apply: () => rawUpdate(patch) }); return; }
     }
     rawUpdate(patch);
-  };
+  });
+
+  // Same read-only guard as above, for the two save actions (spec §13:
+  // "may not... save").
+  const guardedSaveDraftAsProject = readOnlyProject ? async () => null : onSaveDraftAsProject;
+  const guardedSaveOpenProject = readOnlyProject ? async () => {} : onSaveOpenProject;
 
   // Spec §7.10 deleteWall: "if it was the last wall, retain a Blank Draft
   // project" -- deleteWallById already no-ops on the last wall (a project
@@ -141,10 +171,10 @@ export function InternalCalculator({
   // existing whole-project resetWalls(), which is exactly "one blank wall"
   // when there's only ever been one) instead of silently doing nothing.
   const [confirmClearLastWall, setConfirmClearLastWall] = useState(false);
-  const handleDeleteWall = (id: number) => {
+  const handleDeleteWall = guard((id: number) => {
     if (walls.length === 1) { setConfirmClearLastWall(true); return; }
     deleteWallById(id);
-  };
+  });
   const handleDeleteActiveWall = () => handleDeleteWall(activeId);
   const { results, out, warnById } = useWallResults(walls, activeId, compute);
   const kits = useMemo(() => synthesizeKits(walls, INT_CONFIG), [walls]);
@@ -457,7 +487,7 @@ export function InternalCalculator({
       results={results} kits={kits} projAgg={projChosenAgg}
       openProject={openProject} draftLabel={draftLabel} onSetDraftLabel={onSetDraftLabel}
       lastEditedAt={lastEditedAt}
-      onSaveDraftAsProject={onSaveDraftAsProject} onSaveOpenProject={onSaveOpenProject}
+      onSaveDraftAsProject={guardedSaveDraftAsProject} onSaveOpenProject={guardedSaveOpenProject}
       savingProject={savingProject} saveProjectError={saveProjectError} projectDirty={projectDirty}
       onGoToProjects={onGoToProjects} onViewDetails={scrollToResults} onViewOrder={scrollToOrderSheet}
     />
@@ -486,10 +516,13 @@ export function InternalCalculator({
     </>
   );
 
-  if (layoutMode === "phone") return <>{dialogsNode}{topCardNode}{mainNode}{footerNode}{stickyBarNode}{orderDrawerNode}</>;
+  const readOnlyBannerNode = readOnlyProject && <div className="mt-3">{<ReadOnlyBanner />}</div>;
+
+  if (layoutMode === "phone") return <>{dialogsNode}{readOnlyBannerNode}{topCardNode}{mainNode}{footerNode}{stickyBarNode}{orderDrawerNode}</>;
   return (
     <>
       {dialogsNode}
+      {readOnlyBannerNode}
       {topCardNode}
       <CalculatorShell main={mainNode} footer={footerNode} />
       {orderDrawerNode}
