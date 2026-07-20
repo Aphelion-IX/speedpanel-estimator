@@ -73,11 +73,16 @@ export function validateWall(wall: Wall, walls: Wall[], out: ComputeOut): WallVa
   // Corner wall always needs its partner ("always 1 corner" -- see
   // useCornerShaftLinking.ts); Shaft wall's secondary partner is optional
   // (a shaft can be a lone primary stack -- see Wall.shaftPartnerId's own
-  // comment), so only floor height is required there.
-  if (wall.wallSystem === "corner" && wall.cornerPartnerId == null) {
+  // comment), so only floor height is required there. wallSystem is
+  // Internal-only (see Wall.application/wallSystem) -- gated so a leftover
+  // "corner"/"shaft" value on a wall that's since become External (its
+  // application field, not wallSystem itself, is the source of truth once a
+  // wall's application can change) doesn't spuriously demand a corner
+  // partner/floor height it no longer needs.
+  if (wall.application === "internal" && wall.wallSystem === "corner" && wall.cornerPartnerId == null) {
     issues.push({ kind: "compatibility", message: "Corner wall is missing its partner wall." });
   }
-  if (wall.wallSystem === "shaft" && !isSet(wall.floorHeight)) {
+  if (wall.application === "internal" && wall.wallSystem === "shaft" && !isSet(wall.floorHeight)) {
     issues.push({ field: "floorHeight", kind: "required", message: "Shaft system is missing its floor height." });
   }
 
@@ -92,7 +97,8 @@ export function validateWall(wall: Wall, walls: Wall[], out: ComputeOut): WallVa
     issues.push({ kind: "compatibility", message: "Linked shaft partner no longer exists." });
   }
 
-  if (wall.colourType === "special" && !isSet(wall.colour)) {
+  // Colour is External-only -- same reasoning as the wallSystem gate above.
+  if (wall.application === "external" && wall.colourType === "special" && !isSet(wall.colour)) {
     issues.push({ field: "colour", kind: "required", message: "Custom colour name is required." });
   }
 

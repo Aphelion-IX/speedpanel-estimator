@@ -38,6 +38,24 @@ describe("parseProjectRow / parseProjectRows", () => {
     expect(parsed!.data.walls[0].orient).toBe("vertical");
   });
 
+  it("backfills a legacy row whose wall predates per-wall application, deriving the default from the row's own (legacy, project-level) system", () => {
+    const { application: _application, ...legacyWall } = defaultWall(1);
+    const row = validRow({ walls: [legacyWall] });
+    row.data.system = "ext-vert";
+    const parsed = parseProjectRow(row);
+    expect(parsed).not.toBeNull();
+    expect(parsed!.data.walls[0].application).toBe("external");
+  });
+
+  it("backfills application to \"internal\" for a legacy row whose system was an Internal one", () => {
+    const { application: _application, ...legacyWall } = defaultWall(1);
+    const row = validRow({ walls: [legacyWall] });
+    row.data.system = "int-horiz";
+    const parsed = parseProjectRow(row);
+    expect(parsed).not.toBeNull();
+    expect(parsed!.data.walls[0].application).toBe("internal");
+  });
+
   it("parseProjectRows backfills every legacy row in a list, not just the first", () => {
     const { orient: _orient, ...legacyWall } = defaultWall(1);
     const rows = [

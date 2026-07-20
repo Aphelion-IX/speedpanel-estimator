@@ -4,11 +4,13 @@ import { useLayoutMode } from "./useLayoutMode";
 import { useThemeMode } from "./useThemeMode";
 import { useAuth } from "./lib/useAuth";
 import { useCompanyMemberships } from "./lib/useCompanyMemberships";
+import { useOnlineStatus } from "./lib/useOnlineStatus";
 import { useWallStore } from "./wallStore";
 import { NAVY, BLUE, GOLD } from "./styleTokens";
 import { IconButton } from "./ui/primitives";
 import { ConfirmDialog, ErrorDialog } from "./ui/confirmDialog";
 import { LoadingState } from "./ui/states";
+import { OfflineBanner } from "./ui/offlineBanner";
 import { EducationHub } from "./education/EducationHub";
 import { SystemSelector } from "./systemSelector/SystemSelector";
 import { ExternalCalculator } from "./externalCalculator/ExternalCalculator";
@@ -32,6 +34,7 @@ import { OverviewDashboardPage } from "./pages/home/OverviewDashboardPage";
 import { OrdersHubPage } from "./pages/order/OrdersHubPage";
 import { saveProjectSnapshot } from "./pages/projects/saveProjectSnapshot";
 import { insertProject, seedSnapshotForSystem, useProjects } from "./pages/projects/projectsStore";
+import { useProjectEditAccess } from "./pages/projects/useProjectEditAccess";
 import type { ProjectRow, SavedProjectData } from "./pages/projects/projectTypes";
 import { ProformaInvoicePage } from "./pages/projects/orders/ProformaInvoicePage";
 import { CompanyRouter } from "./pages/company/CompanyRouter";
@@ -96,22 +99,29 @@ export default function SpeedpanelEstimator() {
   // Which saved (Supabase) project, if any, is currently open in the
   // Estimator tab -- see wallStore.ts's persistLocally/loadFrom/exportSnapshot.
   // While a project is open, the device-local session/wall autosave is
-  // bypassed in favour of the explicit Save button below.
-  const [openProject, setOpenProject] = useState<{ id: string; name: string; updatedAt: string } | null>(null);
+  // bypassed in favour of the explicit Save button below. ownerId/companyId
+  // ride along (straight off the ProjectRow it was opened from) purely to
+  // drive useProjectEditAccess below -- nothing here reads them otherwise.
+  const [openProject, setOpenProject] = useState<{ id: string; name: string; updatedAt: string; ownerId: string; companyId: string | null } | null>(null);
   const [savingProject, setSavingProject] = useState(false);
   const [saveProjectError, setSaveProjectError] = useState<string | null>(null);
+  // Spec §11 "Project deleted while open" -- distinguishes "the save failed"
+  // (Retry makes sense) from "this project isn't reachable any more"
+  // (Retry never will succeed; offer Save as new project instead). See
+  // saveProjectSnapshot.ts's own notFound result.
+  const [saveProjectNotFound, setSaveProjectNotFound] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
   const [pendingCreationError, setPendingCreationError] = useState<string | null>(null);
-  // Spec §13 "Read-only access" -- no edit-vs-view permission concept exists
-  // anywhere in the app yet (ProjectDetailPage.tsx has no such gate today),
-  // so this is a plain constant, not state: there is nothing that can set it
-  // to true yet. The rendering path it drives (ui/readOnlyGate.tsx's
-  // ReadOnlyBanner, InternalCalculator's readOnlyProject prop) is real and
-  // wired now so behaviour only needs to change HERE -- swap this for real
-  // state derived from a confirmed non-edit company-membership role (or an
-  // equivalent signal) -- once that signal exists, not be built from
-  // scratch at that point.
-  const readOnlyProject = false;
+  // Spec §13 "Read-only access" -- mirrors supabase/schema.sql's
+  // can_edit_project() from already-loaded client state (owner/staff/company
+  // role) plus, only when none of those already grant access, one lookup of
+  // this project's own project_memberships row -- see
+  // useProjectEditAccess.ts. The real gate stays server-side RLS regardless.
+  const readOnlyProject = useProjectEditAccess(openProject, auth, company, isInternalStaff);
+  // Spec §11 "Offline or connection lost" -- see useOnlineStatus.ts. Local
+  // wall edits are unaffected (wallStore.ts autosaves to localStorage either
+  // way); this only gates the network-dependent Save actions below.
+  const online = useOnlineStatus();
 
   // Persist the current view on change (skipped while a saved project is open).
   useEffect(() => {
@@ -212,8 +222,9 @@ export default function SpeedpanelEstimator() {
     loadFrom(project.data);
     setSystem(project.data.system);
     setDimUnit(project.data.dimUnit);
-    setOpenProject({ id: project.id, name: project.name, updatedAt: project.updated_at });
+    setOpenProject({ id: project.id, name: project.name, updatedAt: project.updated_at, ownerId: project.owner_id, companyId: project.company_id });
     setSaveProjectError(null);
+    setSaveProjectNotFound(false);
     lastSavedSnapshotRef.current = snapshotKey(project.data);
     setProjectDirty(false);
     navigate({ tab: "estimator" });
@@ -223,10 +234,11 @@ export default function SpeedpanelEstimator() {
     if (!openProject) return;
     setSavingProject(true);
     setSaveProjectError(null);
+    setSaveProjectNotFound(false);
     const snapshot: SavedProjectData = { ...exportSnapshot(), system, dimUnit };
-    const err = await saveProjectSnapshot(openProject.id, snapshot);
+    const { error: err, notFound } = await saveProjectSnapshot(openProject.id, snapshot);
     setSavingProject(false);
-    if (err) setSaveProjectError(err);
+    if (err) { setSaveProjectError(err); setSaveProjectNotFound(!!notFound); }
     else {
       // saveProjectSnapshot doesn't return the updated row -- optimistically
       // stamp "now" for the top card's "Last edited" display; Supabase's own
@@ -236,6 +248,22 @@ export default function SpeedpanelEstimator() {
       lastSavedSnapshotRef.current = snapshotKey(snapshot);
       setProjectDirty(false);
     }
+  };
+
+  // Spec §11 "Project deleted while open" recovery path -- offered instead of
+  // Retry once saveOpenProject reports notFound (Retry against a project
+  // that's gone/unreachable can never succeed). Re-inserts the in-memory
+  // state as a brand new project, same insertProject() call Save to Projects
+  // already uses, so nothing the user was working on is lost.
+  const saveOpenProjectAsNew = async () => {
+    if (!openProject) return;
+    setSavingProject(true);
+    setSaveProjectError(null);
+    const snapshot: SavedProjectData = { ...exportSnapshot(), system, dimUnit };
+    const { project, error } = await insertProject(auth.user!.id, openProject.name, snapshot, company.activeCompanyId);
+    setSavingProject(false);
+    if (error || !project) { setSaveProjectError(error); return; }
+    openProjectInEstimator(project);
   };
 
   // Two ways to create a saved project from a device-local state: System
@@ -379,6 +407,11 @@ export default function SpeedpanelEstimator() {
             about the account, not any one page. */}
         {auth.session && <PendingInvitationsBanner userEmail={auth.user?.email} onAccepted={company.reload} />}
 
+        {/* Every tab depends on Supabase, not just the Estimator -- shown
+            globally, same "mount unconditionally" precedent as the
+            invitations banner above. */}
+        {!online && <OfflineBanner />}
+
         {route.tab === "home" && (
           <OverviewDashboardPage auth={auth} navigate={navigate}
             isInternalStaff={isInternalStaff} activeCompanyId={company.activeCompanyId} />
@@ -426,9 +459,11 @@ export default function SpeedpanelEstimator() {
               openProject={openProject} draftLabel={store.draftLabel} onSetDraftLabel={store.setDraftLabel}
               lastEditedAt={store.lastEditedAt}
               onSaveDraftAsProject={saveDraftAsProject} onSaveOpenProject={saveOpenProject}
-              savingProject={savingProject} saveProjectError={saveProjectError} projectDirty={projectDirty}
+              onSaveOpenProjectAsNew={saveOpenProjectAsNew}
+              savingProject={savingProject} saveProjectError={saveProjectError} saveProjectNotFound={saveProjectNotFound}
+              projectDirty={projectDirty}
               onGoToProjects={() => navigate({ tab: "projects" })}
-              readOnlyProject={readOnlyProject}
+              readOnlyProject={readOnlyProject} offline={!online}
             />
           ) : (
             <InternalCalculator
@@ -440,9 +475,11 @@ export default function SpeedpanelEstimator() {
               openProject={openProject} draftLabel={store.draftLabel} onSetDraftLabel={store.setDraftLabel}
               lastEditedAt={store.lastEditedAt}
               onSaveDraftAsProject={saveDraftAsProject} onSaveOpenProject={saveOpenProject}
-              savingProject={savingProject} saveProjectError={saveProjectError} projectDirty={projectDirty}
+              onSaveOpenProjectAsNew={saveOpenProjectAsNew}
+              savingProject={savingProject} saveProjectError={saveProjectError} saveProjectNotFound={saveProjectNotFound}
+              projectDirty={projectDirty}
               onGoToProjects={() => navigate({ tab: "projects" })}
-              readOnlyProject={readOnlyProject}
+              readOnlyProject={readOnlyProject} offline={!online}
             />
           )
         )}

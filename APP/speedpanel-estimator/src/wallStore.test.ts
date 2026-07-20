@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 import { describe, it, expect } from "vitest";
 import { renderHook, act } from "@testing-library/react";
-import { backfillOrient, defaultWall, useWallStore, WallSchema, PersistedProjectSchema } from "./wallStore";
+import { backfillOrient, backfillApplication, defaultWall, useWallStore, useWallResults, WallSchema, PersistedProjectSchema } from "./wallStore";
 
 describe("backfillOrient", () => {
   it("leaves an already-set orient untouched", () => {
@@ -20,6 +20,49 @@ describe("backfillOrient", () => {
     const [result] = backfillOrient([wall]);
     expect(result).not.toBe(wall);
     expect(wall.orient).toBe("horizontal");
+  });
+});
+
+describe("backfillApplication", () => {
+  it("leaves an already-set application untouched, even against a different default", () => {
+    const walls = [{ ...defaultWall(1, "vertical", "external") }];
+    expect(backfillApplication(walls, "internal")[0].application).toBe("external");
+  });
+
+  it("defaults a missing application to the caller-supplied legacy default (pre-per-wall-application saves)", () => {
+    const { application: _application, ...legacyWall } = defaultWall(1);
+    const [backfilled] = backfillApplication([legacyWall as ReturnType<typeof defaultWall>], "external");
+    expect(backfilled.application).toBe("external");
+  });
+
+  it("falls back to \"internal\" when no legacy default is supplied", () => {
+    const { application: _application, ...legacyWall } = defaultWall(1);
+    const [backfilled] = backfillApplication([legacyWall as ReturnType<typeof defaultWall>]);
+    expect(backfilled.application).toBe("internal");
+  });
+
+  it("doesn't mutate the input array's objects", () => {
+    const wall = defaultWall(1, "vertical", "external");
+    const [result] = backfillApplication([wall]);
+    expect(result).not.toBe(wall);
+    expect(wall.application).toBe("external");
+  });
+});
+
+describe("useWallResults", () => {
+  it("dispatches each wall to compute() or computeExternal() based on its OWN application field", () => {
+    const internalWall = { ...defaultWall(1, "vertical", "internal"), width: "3", height: "3" };
+    const externalWall = { ...defaultWall(2, "vertical", "external"), width: "3", height: "3" };
+    const { result } = renderHook(() => useWallResults([internalWall, externalWall], 1));
+
+    const [internalResult, externalResult] = result.current.results;
+    // computeWall.ts: cfg.hasZFlash picks `chosen` (Internal) vs `result`
+    // (External) -- a wall dispatched through the wrong engine would have
+    // the wrong one of these populated.
+    expect(internalResult.out.chosen).toBeTruthy();
+    expect(internalResult.out.result).toBeFalsy();
+    expect(externalResult.out.result).toBeTruthy();
+    expect(externalResult.out.chosen).toBeFalsy();
   });
 });
 

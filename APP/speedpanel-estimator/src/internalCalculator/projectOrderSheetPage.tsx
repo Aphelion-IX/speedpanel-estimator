@@ -14,12 +14,11 @@
 // through InternalCalculator's own render tree, so the clean route works
 // whether or not the full calculator UI is even mounted.
 // =============================================================================
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { NAVY, BLUE, MUTED } from "../styleTokens";
 import { useWallResults } from "../wallStore";
 import type { WallStore } from "../wallStore";
-import { compute } from "../estimate/computeWall";
 import { aggregate } from "../estimate/aggregate";
 import { useCombinedEstimateCalc } from "../estimate/useCombinedEstimateCalc";
 import { synthesizeKits } from "../estimate/synthesizeKits";
@@ -28,6 +27,7 @@ import { buildInternalReportData } from "../export/buildInternalReportData";
 import { exportEstimateToExcel } from "../export/exportEstimateToExcel";
 import type { EffectiveLayout } from "../useLayoutMode";
 import { ProjectOrderSheet } from "./projectOrderSheet";
+import { ErrorDialog } from "../ui/confirmDialog";
 
 export interface ProjectOrderSheetPageProps {
   store: WallStore;
@@ -39,7 +39,7 @@ export interface ProjectOrderSheetPageProps {
 
 export const ProjectOrderSheetPage = ({ store, dimUnit, layoutMode, projectName, onBack }: ProjectOrderSheetPageProps) => {
   const { walls, activeId, active, toDisp } = store;
-  const { results, warnById } = useWallResults(walls, activeId, compute);
+  const { results, warnById } = useWallResults(walls, activeId);
   const kits = useMemo(() => synthesizeKits(walls, INT_CONFIG), [walls]);
   const projChosenAgg = useMemo(() => aggregate(results), [results]);
   const combinedEstimate = useCombinedEstimateCalc(walls);
@@ -47,9 +47,17 @@ export const ProjectOrderSheetPage = ({ store, dimUnit, layoutMode, projectName,
     orient: active.orient, dimUnit, toDisp, walls, results, warnById, projChosenAgg, combinedEstimate,
   }), [active.orient, dimUnit, toDisp, walls, results, warnById, projChosenAgg, combinedEstimate]);
   const hasExportData = !!(projChosenAgg && projChosenAgg.totalPanels > 0);
+  // Spec §11 "Excel export failed" -- see InternalCalculator.tsx's own
+  // handleExport for why this needs a try/catch.
+  const [exportError, setExportError] = useState<string | null>(null);
+  const handleExport = async () => {
+    try { await exportEstimateToExcel(reportData); }
+    catch { setExportError("The Excel export couldn't be generated. Please try again."); }
+  };
 
   return (
     <div className="est-shell min-h-screen py-6 sm:py-10" style={{ background: "var(--surface3)" }}>
+      <ErrorDialog message={exportError} onDismiss={() => setExportError(null)} />
       <div className="mx-auto max-w-5xl px-4 sm:px-6">
         <div className="print:hidden mb-4 flex items-center justify-between">
           <button onClick={onBack} className="flex items-center gap-1.5 text-sm font-semibold hover:underline" style={{ color: BLUE }}>
@@ -64,7 +72,7 @@ export const ProjectOrderSheetPage = ({ store, dimUnit, layoutMode, projectName,
           layoutMode={layoutMode} projectName={projectName}
           results={results} kits={kits} projChosenAgg={projChosenAgg} combinedEstimate={combinedEstimate}
           reportData={reportData}
-          onExportExcel={() => exportEstimateToExcel(reportData)} exportDisabled={!hasExportData}
+          onExportExcel={handleExport} exportDisabled={!hasExportData}
           standalone
         />
       </div>

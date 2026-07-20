@@ -38,21 +38,25 @@ export function computeWall(rawInp: WallInput, cfg: SystemConfig): ComputeOut {
   // corner kit (computeCornerPair), not per-run. cornerSide picks which side
   // edge is excluded; fullyEngaged is forced off for the same reason as above.
   //
-  // Both are Internal-only (!cfg.hasZFlash) -- confirmed scope. Without this
-  // check, selecting Standard/Corner wall on the External calculator would
-  // silently apply these Internal-specific rules there too, since wallSystem
-  // itself doesn't encode internal/external.
+  // Both are Internal-only. Gated on BOTH !cfg.hasZFlash (which config the
+  // caller picked) AND the wall's own application field, now that a single
+  // mixed project can hold both Internal and External walls (see
+  // wallDomain.ts's Wall.application) -- useWallResults picks cfg from each
+  // wall's own application, so the two should always agree, but checking
+  // both here means a dispatch bug can't silently apply these
+  // Internal-specific rules to a wall whose own data says External.
   let inp: WallInput = rawInp;
-  if (!cfg.hasZFlash && rawInp.orient === "horizontal" && rawInp.wallSystem === "standard") {
+  const isInternalWall = rawInp.application === "internal";
+  if (!cfg.hasZFlash && isInternalWall && rawInp.orient === "horizontal" && rawInp.wallSystem === "standard") {
     inp = { ...rawInp, edges: { top: true, bottom: true, left: true, right: true }, fullyEngaged: false };
-  } else if (!cfg.hasZFlash && rawInp.orient === "horizontal" && rawInp.wallSystem === "corner") {
+  } else if (!cfg.hasZFlash && isInternalWall && rawInp.orient === "horizontal" && rawInp.wallSystem === "corner") {
     const cornerSide = rawInp.cornerSide ?? "right";
     inp = {
       ...rawInp,
       edges: { top: true, bottom: true, left: cornerSide !== "left", right: cornerSide !== "right" },
       fullyEngaged: false,
     };
-  } else if (!cfg.hasZFlash && rawInp.orient === "horizontal" && rawInp.wallSystem === "shaft") {
+  } else if (!cfg.hasZFlash && isInternalWall && rawInp.orient === "horizontal" && rawInp.wallSystem === "shaft") {
     // "Shaft wall" (see estimate_shaft_wall.md): always the 78 mm panel (per
     // user decision, forced regardless of the wall's own type field), all four
     // edges restrained (head, base, both vertical tracks), fullyEngaged forced

@@ -6,14 +6,12 @@
 // Genuinely calculator-agnostic (no fork-not-share concern), so this lives
 // in src/ui/ and is shared by both calculators.
 //
-// No edit-vs-view permission concept exists anywhere in the app yet --
-// ProjectDetailPage.tsx has no such gate today, and it's unconfirmed whether
-// company-membership `role` values distinguish a non-edit tier. Real
-// enforcement is RLS's job regardless (a write fails server-side if
-// unauthorized, per CLAUDE.md); this is the UX layer, wired to a flag
-// (App.tsx's readOnlyProject) that is always `false` today so behaviour is
-// unchanged until a real permission signal exists to set it -- see App.tsx's
-// own comment at that state's declaration.
+// App.tsx's readOnlyProject is derived by useProjectEditAccess.ts, which
+// mirrors supabase/schema.sql's can_edit_project() from already-loaded
+// client state (project owner, internal staff, company role) plus one
+// project_memberships lookup for the "viewer" case. Real enforcement is
+// RLS's job regardless (a write fails server-side if unauthorized, per
+// CLAUDE.md); this is the UX layer only.
 // =============================================================================
 import { Lock } from "lucide-react";
 import { cx } from "../styleTokens";

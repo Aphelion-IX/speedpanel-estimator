@@ -61,11 +61,10 @@ export const WallPillStripPhone = ({ items, onSelect, onAddWall }: {
   // Pills already swipe-scroll natively (touch), but that's not discoverable
   // from a static screenshot/screen-reader, and this same strip is also used
   // in the phone-width web dev viewport where a mouse has no swipe gesture --
-  // so add explicit prev/next arrows too, same as the web card carousel
-  // (ui/cardCarousel.tsx). No IntersectionObserver here (pills are cheap,
-  // uniform width, no per-card "active" concept to derive) -- plain
-  // scrollLeft/scrollWidth bounds checked on scroll are enough to know
-  // whether each arrow has anywhere left to go.
+  // so add explicit prev/next arrows too. No IntersectionObserver here
+  // (pills are cheap, uniform width, no per-card "active" concept to derive)
+  // -- plain scrollLeft/scrollWidth bounds checked on scroll are enough to
+  // know whether each arrow has anywhere left to go.
   const trackRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);

@@ -7,7 +7,7 @@
 // goes through LoadingState (full-page, route-level, list-page-with-header,
 // card/section-embedded, sub-section-within-page), so there's no case yet for
 // bespoke table-row/list-row skeleton variants -- add those if/when a real
-// caller renders Table or CardCarousel mid-loading.
+// caller renders Table mid-loading.
 // =============================================================================
 
 export const SkeletonBar = ({ className = "" }: { className?: string }) => (

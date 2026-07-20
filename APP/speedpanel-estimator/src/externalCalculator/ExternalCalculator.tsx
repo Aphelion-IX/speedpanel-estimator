@@ -22,7 +22,6 @@ import { useState, useMemo, useRef } from "react";
 import { cx } from "../styleTokens";
 import { useWallResults } from "../wallStore";
 import type { WallStore } from "../wallStore";
-import { computeExternal } from "../estimate/computeWall";
 import { buildExtProjAgg } from "../estimate/aggregate";
 import { useCombinedEstimateCalc } from "../estimate/useCombinedEstimateCalc";
 import { HEAD_FLASH_LABEL, HEAD_FLASH_SUBLABEL, EXT_STOCK, EXT_STOCKED_COLOURS } from "../data";
@@ -49,7 +48,7 @@ import { EstimateTopCard } from "./EstimateTopCard";
 import type { OpenProjectInfo } from "./EstimateTopCard";
 import { FirstWallSetup } from "./firstWallSetup";
 import { isNoEstimate } from "../estimate/estimatorSession";
-import { ConfirmDialog } from "../ui/confirmDialog";
+import { ConfirmDialog, ErrorDialog } from "../ui/confirmDialog";
 import { ReadOnlyBanner } from "../ui/readOnlyGate";
 import "../ui/estimatorTheme.css";
 import {
@@ -63,8 +62,9 @@ export function ExternalCalculator({
   store, orient, dimUnit, setDimUnit, systemSelector, layoutMode,
   switchOrient, switchToInternal,
   openProject, draftLabel, onSetDraftLabel, lastEditedAt,
-  onSaveDraftAsProject, onSaveOpenProject, savingProject, saveProjectError, projectDirty, onGoToProjects,
-  readOnlyProject = false,
+  onSaveDraftAsProject, onSaveOpenProject, onSaveOpenProjectAsNew,
+  savingProject, saveProjectError, saveProjectNotFound, projectDirty, onGoToProjects,
+  readOnlyProject = false, offline = false,
 }: {
   store: WallStore; orient: "vertical" | "horizontal"; dimUnit: string;
   setDimUnit: (u: string) => void; systemSelector?: React.ReactNode; layoutMode: EffectiveLayout;
@@ -85,8 +85,12 @@ export function ExternalCalculator({
   lastEditedAt?: number;
   onSaveDraftAsProject: (name: string) => Promise<string | null>;
   onSaveOpenProject: () => Promise<void>;
+  // Spec §11 "Project deleted while open" recovery action -- see App.tsx's
+  // saveOpenProjectAsNew. Only ever offered once saveProjectNotFound is set.
+  onSaveOpenProjectAsNew: () => Promise<void>;
   savingProject: boolean;
   saveProjectError: string | null;
+  saveProjectNotFound: boolean;
   // Whether the open saved project has edits since it was opened/last saved
   // -- see App.tsx's projectDirty. Only meaningful (and only shown) once
   // openProject is set; harmless/ignored otherwise.
@@ -94,8 +98,12 @@ export function ExternalCalculator({
   onGoToProjects: () => void;
   // Spec §13 "Read-only access" -- see App.tsx's own readOnlyProject
   // comment and internalCalculator/InternalCalculator.tsx's mirror of this
-  // same prop for why this is always false today.
+  // same prop.
   readOnlyProject?: boolean;
+  // Spec §11 "Offline or connection lost" -- see App.tsx's useOnlineStatus.
+  // Gates the same save choke points as readOnlyProject (local wall edits
+  // stay unaffected either way).
+  offline?: boolean;
 }) {
   const [orderDrawerOpen, setOrderDrawerOpen] = useState(false);
   // EstimateTopCard's "View estimate details" link scrolls here rather than
@@ -112,14 +120,13 @@ export function ExternalCalculator({
     commitCustomLength, toggleCustom, clearCustomLength,
     linkJunctionPartner: rawLinkJunctionPartner,
   } = store;
-  const { results, out, warnById } = useWallResults(walls, activeId, computeExternal);
+  const { results, out, warnById } = useWallResults(walls, activeId);
 
   // Spec §13 read-only access: "may not change wall data, links, or save" --
   // a no-op wrapper for every mutating store action, applied once here
   // rather than threading a `disabled` prop through each individual leaf
   // input (see InternalCalculator.tsx's identical pattern and ui/
-  // readOnlyGate.tsx). Always a passthrough today since readOnlyProject is
-  // always false (see App.tsx).
+  // readOnlyGate.tsx).
   function guard<A extends unknown[]>(fn: (...a: A) => void): (...a: A) => void {
     return readOnlyProject ? () => {} : fn;
   }
@@ -138,8 +145,12 @@ export function ExternalCalculator({
   });
   const handleDeleteActiveWall = () => handleDeleteWall(activeId);
 
-  const guardedSaveDraftAsProject = readOnlyProject ? async () => null : onSaveDraftAsProject;
-  const guardedSaveOpenProject = readOnlyProject ? async () => {} : onSaveOpenProject;
+  // Spec §11 "Offline": Save is a network call, so it's gated the same way
+  // while offline -- everything else (wall editing) stays live, since that's
+  // local-only regardless of connectivity.
+  const saveBlocked = readOnlyProject || offline;
+  const guardedSaveDraftAsProject = saveBlocked ? async () => null : onSaveDraftAsProject;
+  const guardedSaveOpenProject = saveBlocked ? async () => {} : onSaveOpenProject;
 
   const switchDimUnit = (u: string) => { setDimUnit(u); clearCustomLength(); };
   const projAgg  = useMemo(() => buildExtProjAgg(results), [results]);
@@ -227,7 +238,15 @@ export function ExternalCalculator({
     orient, dimUnit, toDisp, walls, results, warnById, projAgg, combinedEstimate,
   }), [orient, dimUnit, toDisp, walls, results, warnById, projAgg, combinedEstimate]);
   const hasExportData = projAgg.panels > 0;
-  const handleExport = () => exportEstimateToExcel(reportData);
+  // Spec §11 "Excel export failed" -- exportEstimateToExcel dynamically
+  // imports the xlsx library and triggers a browser download; either step
+  // can throw (network hiccup fetching the chunk, popup/download blocked,
+  // etc.), and this had no error handling at all.
+  const [exportError, setExportError] = useState<string | null>(null);
+  const handleExport = async () => {
+    try { await exportEstimateToExcel(reportData); }
+    catch { setExportError("The Excel export couldn't be generated. Please try again."); }
+  };
 
   const phoneWorkspaceNode = (
     <>
@@ -380,21 +399,26 @@ export function ExternalCalculator({
       openProject={openProject} draftLabel={draftLabel} onSetDraftLabel={onSetDraftLabel}
       lastEditedAt={lastEditedAt}
       onSaveDraftAsProject={guardedSaveDraftAsProject} onSaveOpenProject={guardedSaveOpenProject}
-      savingProject={savingProject} saveProjectError={saveProjectError} projectDirty={projectDirty}
+      onSaveOpenProjectAsNew={onSaveOpenProjectAsNew}
+      savingProject={savingProject} saveProjectError={saveProjectError} saveProjectNotFound={saveProjectNotFound}
+      offline={offline} projectDirty={projectDirty}
       onGoToProjects={onGoToProjects} onViewDetails={scrollToResults} onViewOrder={scrollToOrderSheet}
     />
   );
 
   const dialogsNode = (
-    <ConfirmDialog
-      open={confirmClearLastWall}
-      danger
-      title="Delete the last wall"
-      description="A project always keeps at least one wall to configure, so this wall won't be removed entirely -- it will be cleared back to a blank draft instead."
-      confirmLabel="Clear wall"
-      onConfirm={() => { resetWalls(); setConfirmClearLastWall(false); }}
-      onCancel={() => setConfirmClearLastWall(false)}
-    />
+    <>
+      <ConfirmDialog
+        open={confirmClearLastWall}
+        danger
+        title="Delete the last wall"
+        description="A project always keeps at least one wall to configure, so this wall won't be removed entirely -- it will be cleared back to a blank draft instead."
+        confirmLabel="Clear wall"
+        onConfirm={() => { resetWalls(); setConfirmClearLastWall(false); }}
+        onCancel={() => setConfirmClearLastWall(false)}
+      />
+      <ErrorDialog message={exportError} onDismiss={() => setExportError(null)} />
+    </>
   );
 
   const readOnlyBannerNode = readOnlyProject && <div className="mt-3">{<ReadOnlyBanner />}</div>;

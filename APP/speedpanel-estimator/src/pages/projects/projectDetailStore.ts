@@ -44,7 +44,7 @@ export function useProject(id: string | undefined) {
 
   const saveSnapshot = async (data: SavedProjectData): Promise<string | null> => {
     if (!id) return NOT_CONFIGURED;
-    const err = await saveProjectSnapshot(id, data);
+    const { error: err } = await saveProjectSnapshot(id, data);
     if (err) return err;
     setData(prev => (prev ? { ...prev, data, updated_at: new Date().toISOString() } : prev));
     return null;

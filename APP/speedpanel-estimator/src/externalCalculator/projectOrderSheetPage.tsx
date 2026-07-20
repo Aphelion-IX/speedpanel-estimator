@@ -6,18 +6,18 @@
 // header comment for the full "no app chrome, same precedent as
 // ProformaInvoicePage.tsx" rationale).
 // =============================================================================
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { NAVY, BLUE, MUTED } from "../styleTokens";
 import { useWallResults } from "../wallStore";
 import type { WallStore } from "../wallStore";
-import { computeExternal } from "../estimate/computeWall";
 import { buildExtProjAgg } from "../estimate/aggregate";
 import { useCombinedEstimateCalc } from "../estimate/useCombinedEstimateCalc";
 import { buildExternalReportData } from "../export/buildExternalReportData";
 import { exportEstimateToExcel } from "../export/exportEstimateToExcel";
 import type { EffectiveLayout } from "../useLayoutMode";
 import { ProjectOrderSheet } from "./projectOrderSheet";
+import { ErrorDialog } from "../ui/confirmDialog";
 
 export interface ProjectOrderSheetPageProps {
   store: WallStore;
@@ -29,16 +29,24 @@ export interface ProjectOrderSheetPageProps {
 
 export const ProjectOrderSheetPage = ({ store, dimUnit, layoutMode, projectName, onBack }: ProjectOrderSheetPageProps) => {
   const { walls, activeId, active, toDisp } = store;
-  const { results, warnById } = useWallResults(walls, activeId, computeExternal);
+  const { results, warnById } = useWallResults(walls, activeId);
   const projAgg = useMemo(() => buildExtProjAgg(results), [results]);
   const combinedEstimate = useCombinedEstimateCalc(walls);
   const reportData = useMemo(() => buildExternalReportData({
     orient: active.orient, dimUnit, toDisp, walls, results, warnById, projAgg, combinedEstimate,
   }), [active.orient, dimUnit, toDisp, walls, results, warnById, projAgg, combinedEstimate]);
   const hasExportData = projAgg.panels > 0;
+  // Spec §11 "Excel export failed" -- see ExternalCalculator.tsx's own
+  // handleExport for why this needs a try/catch.
+  const [exportError, setExportError] = useState<string | null>(null);
+  const handleExport = async () => {
+    try { await exportEstimateToExcel(reportData); }
+    catch { setExportError("The Excel export couldn't be generated. Please try again."); }
+  };
 
   return (
     <div className="est-shell min-h-screen py-6 sm:py-10" style={{ background: "var(--surface3)" }}>
+      <ErrorDialog message={exportError} onDismiss={() => setExportError(null)} />
       <div className="mx-auto max-w-5xl px-4 sm:px-6">
         <div className="print:hidden mb-4 flex items-center justify-between">
           <button onClick={onBack} className="flex items-center gap-1.5 text-sm font-semibold hover:underline" style={{ color: BLUE }}>
@@ -53,7 +61,7 @@ export const ProjectOrderSheetPage = ({ store, dimUnit, layoutMode, projectName,
           layoutMode={layoutMode} projectName={projectName}
           results={results} projAgg={projAgg} combinedEstimate={combinedEstimate}
           reportData={reportData}
-          onExportExcel={() => exportEstimateToExcel(reportData)} exportDisabled={!hasExportData}
+          onExportExcel={handleExport} exportDisabled={!hasExportData}
           standalone
         />
       </div>

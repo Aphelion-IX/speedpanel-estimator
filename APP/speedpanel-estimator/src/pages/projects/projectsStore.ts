@@ -43,9 +43,11 @@ export function blankSnapshot(): SavedProjectData {
 // (WallSchema.wallSystem), not the project shell, so seeding it here on the
 // one starting wall is the only place it can go.
 export function seedSnapshotForSystem(system: string, wallSystem?: WallSystemId): SavedProjectData {
-  const orient = SYSTEMS.find(s => s.id === system)?.orient ?? "vertical";
+  const sys = SYSTEMS.find(s => s.id === system);
+  const orient = sys?.orient ?? "vertical";
+  const application = sys?.ext ? "external" : "internal";
   return {
-    v: 1, walls: [{ ...defaultWall(1, orient), wallSystem: wallSystem ?? "standard" }], activeId: 1, nextId: 2,
+    v: 1, walls: [{ ...defaultWall(1, orient, application), wallSystem: wallSystem ?? "standard" }], activeId: 1, nextId: 2,
     projectStock: "", projectLock: false, customLengthInput: "", customActive: false,
     system, dimUnit: "m",
   };
@@ -123,7 +125,7 @@ export function useProjects(user: User | null, activeCompanyId?: string | null) 
   };
 
   const saveSnapshot = async (id: string, data: SavedProjectData): Promise<string | null> => {
-    const err = await saveProjectSnapshot(id, data);
+    const { error: err } = await saveProjectSnapshot(id, data);
     if (err) return err;
     setData(prev => prev.map(p => p.id === id ? { ...p, data, updated_at: new Date().toISOString() } : p));
     return null;

@@ -120,7 +120,13 @@ export function aggregate(results: WallResult[], cfg: SystemConfig = INT_CONFIG)
     flashLM: flLMr, flashPieces: ceilDiv0(flLMr, FLASH_STOCK),
     fix30: f30 + totalPostScrews + totalJunctionScrews, fix16: f16,
     boxes30: boxesOf(f30 + totalPostScrews + totalJunctionScrews), boxes16: boxesOf(f16),
-    totalPanels: panels.reduce((a, p) => a + p.pieces, 0) + customPanels.reduce((a, s) => a + s.qty, 0),
+    // Every "Panels ordered"/"Total panels" summary tile across the app reads
+    // this field, so it must be the pack-rounded ORDER quantity (p.ordered),
+    // not the raw required count (p.pieces) -- otherwise it silently
+    // disagrees with the per-group "N req / M ordered" breakdown shown right
+    // below it (see ui/scheduleCards.tsx), which is exactly the required-vs-
+    // ordered distinction spec section 2.3 says must never be conflated.
+    totalPanels: panels.reduce((a, p) => a + p.ordered, 0) + customPanels.reduce((a, s) => a + s.ordered, 0),
     totalPacks: panels.reduce((a, p) => a + p.packs, 0) + customPanels.reduce((a, s) => a + s.packs, 0),
     totalArea: r2(ta), sausages: sus + cornerSausages2, sealantBoxes: (sus + cornerSausages2) > 0 ? Math.ceil((sus + cornerSausages2) / SEALANT_PER_BOX) : 0,
     // Shaft wall project totals (vertical track LM already includes per-wall
