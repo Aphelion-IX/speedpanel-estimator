@@ -43,6 +43,8 @@ import { EstimateTopCard } from "./EstimateTopCard";
 import type { OpenProjectInfo } from "./EstimateTopCard";
 import { FirstWallSetup } from "./firstWallSetup";
 import { isNoEstimate } from "../estimate/estimatorSession";
+import { wouldLoseData } from "../estimate/validateWall";
+import { ConfirmDialog } from "../ui/confirmDialog";
 import {
   SheetCardPhone, SheetSectionPhone, SystemConfigSectionPhone, GeometrySectionPhone,
   PanelLengthSectionPhone, TracksFlashingSectionPhone, WarningsListPhone,
@@ -103,13 +105,46 @@ export function InternalCalculator({
   const {
     walls, activeId, setActiveId,
     projectStock, projectLock, customLengthInput, customActive,
-    active, update, toDisp, updDim,
-    setProjectLength, addBlankWall, duplicateWall, deleteWall,
-    duplicateWallById, deleteWallById,
+    active, update: rawUpdate, toDisp, updDim,
+    setProjectLength, addBlankWall, duplicateWall,
+    duplicateWallById, deleteWallById, resetWalls,
     commitCustomLength, toggleCustom, clearCustomLength,
     linkJunctionPartner,
     convertActiveToCornerPair, convertActiveToShaftPair,
   } = store;
+
+  // Spec §7.12/§7.14 changeWallApplication/changeWallSystem: "require
+  // confirmation when data loss is possible" -- gated once here (rather than
+  // at each of WallsCard's WallSystemSelector/SystemConfigSectionPhone's own
+  // onChange handlers) since `update` is the single choke point every field
+  // change in this component already flows through; wouldLoseData is a
+  // no-op passthrough for any patch that doesn't touch orient/wallSystem, so
+  // every OTHER existing update() call site (dimensions, name, panel type,
+  // profile, etc.) is unaffected. Orientation's own vertical<->horizontal
+  // toggle is gated separately, at the App.tsx level (see guardedSwitchOrient
+  // there) -- it doesn't go through this update() at all for the web
+  // SystemRows selector.
+  const [pendingIncompatibleChange, setPendingIncompatibleChange] = useState<{ message: string; apply: () => void } | null>(null);
+  const update = (patch: Partial<Wall>) => {
+    if ("orient" in patch || "wallSystem" in patch) {
+      const message = wouldLoseData(active, patch);
+      if (message) { setPendingIncompatibleChange({ message, apply: () => rawUpdate(patch) }); return; }
+    }
+    rawUpdate(patch);
+  };
+
+  // Spec §7.10 deleteWall: "if it was the last wall, retain a Blank Draft
+  // project" -- deleteWallById already no-ops on the last wall (a project
+  // always keeps at least one wall, see wallStore.ts), so the UI-level
+  // delete action for that case clears the wall back to blank (via the
+  // existing whole-project resetWalls(), which is exactly "one blank wall"
+  // when there's only ever been one) instead of silently doing nothing.
+  const [confirmClearLastWall, setConfirmClearLastWall] = useState(false);
+  const handleDeleteWall = (id: number) => {
+    if (walls.length === 1) { setConfirmClearLastWall(true); return; }
+    deleteWallById(id);
+  };
+  const handleDeleteActiveWall = () => handleDeleteWall(activeId);
   const { results, out, warnById } = useWallResults(walls, activeId, compute);
   const kits = useMemo(() => synthesizeKits(walls, INT_CONFIG), [walls]);
   const [selectedNavItem, setSelectedNavItem] = useState<SelectedNavItem>({ type: "wall", wallId: activeId });
@@ -188,7 +223,7 @@ export function InternalCalculator({
       selected={selectedNavItem} onSelect={handleSelectNavItem}
       warnById={warnById}
       addBlankWall={addBlankWall}
-      duplicateWallById={duplicateWallById} deleteWallById={deleteWallById}
+      duplicateWallById={duplicateWallById} deleteWallById={handleDeleteWall}
       layoutMode={layoutMode}
       dimUnit={dimUnit} toDisp={toDisp}
     />
@@ -270,7 +305,7 @@ export function InternalCalculator({
         <>
           <SystemConfigSectionPhone
             walls={walls} active={active} update={update}
-            duplicateWall={duplicateWall} deleteWall={deleteWall} orient={orient}
+            duplicateWall={duplicateWall} deleteWall={handleDeleteActiveWall} orient={orient}
             onCornerLink={linkCornerPartner} onShaftLink={linkShaftPartner} onJunctionLink={linkJunctionPartner}
             switchOrient={switchOrient} switchToExternal={switchToExternal}
           />
@@ -317,7 +352,7 @@ export function InternalCalculator({
           <WallsCard
             walls={walls}
             active={active} update={update}
-            duplicateWall={duplicateWall} deleteWall={deleteWall}
+            duplicateWall={duplicateWall} deleteWall={handleDeleteActiveWall}
             showTypes={true} systemSelector={systemSelector} orient={orient}
             onCornerLink={linkCornerPartner}
             onShaftLink={linkShaftPartner}
@@ -408,9 +443,33 @@ export function InternalCalculator({
     />
   );
 
-  if (layoutMode === "phone") return <>{topCardNode}{mainNode}{footerNode}{stickyBarNode}{orderDrawerNode}</>;
+  const dialogsNode = (
+    <>
+      <ConfirmDialog
+        open={pendingIncompatibleChange !== null}
+        danger
+        title="This change will remove a link"
+        description={pendingIncompatibleChange?.message ?? ""}
+        confirmLabel="Continue"
+        onConfirm={() => { pendingIncompatibleChange?.apply(); setPendingIncompatibleChange(null); }}
+        onCancel={() => setPendingIncompatibleChange(null)}
+      />
+      <ConfirmDialog
+        open={confirmClearLastWall}
+        danger
+        title="Delete the last wall"
+        description="A project always keeps at least one wall to configure, so this wall won't be removed entirely -- it will be cleared back to a blank draft instead."
+        confirmLabel="Clear wall"
+        onConfirm={() => { resetWalls(); setConfirmClearLastWall(false); }}
+        onCancel={() => setConfirmClearLastWall(false)}
+      />
+    </>
+  );
+
+  if (layoutMode === "phone") return <>{dialogsNode}{topCardNode}{mainNode}{footerNode}{stickyBarNode}{orderDrawerNode}</>;
   return (
     <>
+      {dialogsNode}
       {topCardNode}
       <CalculatorShell main={mainNode} footer={footerNode} />
       {orderDrawerNode}

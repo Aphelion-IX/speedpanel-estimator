@@ -158,7 +158,7 @@ export const EstimateStructureNav = ({
         thumbnail: <WallPreviewSection active={w} walls={walls} out={r} dimUnit={dimUnit} toDisp={toDisp} size="thumb" />,
         onDuplicate: () => duplicateWallById(w.id),
         onDelete: () => deleteWallById(w.id),
-        deleteDisabled: walls.length === 1,
+        deleteDisabled: false,
       })),
       ...kits.map(k => ({
         id: kitPillId(k),
@@ -202,7 +202,7 @@ export const EstimateStructureNav = ({
             onClick={() => onSelect({ type: "wall", wallId: item.wall.id })}
             onDuplicate={() => duplicateWallById(item.wall.id)}
             onDelete={() => deleteWallById(item.wall.id)}
-            deleteDisabled={walls.length === 1}
+            deleteDisabled={false}
             dimUnit={dimUnit} toDisp={toDisp} walls={walls}
           />
         ) : item.type === "kit" ? (

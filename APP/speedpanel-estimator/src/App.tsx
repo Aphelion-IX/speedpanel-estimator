@@ -22,6 +22,7 @@ import { CompanySwitcher } from "./appShell/CompanySwitcher";
 import { useMyInternalRole } from "./pages/admin/useMyInternalRole";
 import { SystemRows } from "./appShell/systemRows";
 import { useCornerShaftLinking } from "./appShell/useCornerShaftLinking";
+import { wouldLoseData } from "./estimate/validateWall";
 import { useHashRoute } from "./appShell/useHashRoute";
 import { ProjectsRouter } from "./pages/projects/ProjectsRouter";
 import { LandingPage } from "./pages/home/LandingPage";
@@ -134,6 +135,22 @@ export default function SpeedpanelEstimator() {
   }, [openProject, store.walls, store.activeId, store.nextId, store.projectStock, store.projectLock, store.customLengthInput, store.customActive, system, dimUnit]);
 
   const { linkCornerPartner, linkShaftPartner, switchOrient } = useCornerShaftLinking(store);
+
+  // Spec §7.13 changeWallOrientation: "warn before data loss". switchOrient's
+  // own vertical branch already unlinks a Corner/Shaft partner before
+  // applying the patch (see useCornerShaftLinking.ts) -- that cleanup was
+  // already correct, it just happened silently. This wraps the SAME
+  // switchOrient reference used by both the web SystemRows selector
+  // (constructed below, in systemSelector) and each calculator's own phone
+  // SystemConfigSectionPhone, so gating it once here covers both surfaces
+  // without threading a second confirm-flow through InternalCalculator.tsx/
+  // ExternalCalculator.tsx.
+  const [pendingOrientChange, setPendingOrientChange] = useState<{ o: "vertical" | "horizontal"; message: string } | null>(null);
+  const guardedSwitchOrient = (o: "vertical" | "horizontal") => {
+    const message = wouldLoseData(active, { orient: o });
+    if (message) { setPendingOrientChange({ o, message }); return; }
+    switchOrient(o);
+  };
 
   const switchDimUnit = (u: string) => { setDimUnit(u); clearCustomLength(); };
   // Deliberate "start over": reset the shared store + view, and close any
@@ -277,6 +294,15 @@ export default function SpeedpanelEstimator() {
         onCancel={() => setConfirmReset(false)}
       />
       <ErrorDialog message={pendingCreationError} onDismiss={() => setPendingCreationError(null)} />
+      <ConfirmDialog
+        open={pendingOrientChange !== null}
+        danger
+        title="Change wall orientation?"
+        description={pendingOrientChange?.message ?? ""}
+        confirmLabel="Change orientation"
+        onConfirm={() => { if (pendingOrientChange) switchOrient(pendingOrientChange.o); setPendingOrientChange(null); }}
+        onCancel={() => setPendingOrientChange(null)}
+      />
       {/* Full-width header bar -- pulled out of the padded content column
           below so it spans edge to edge, with the brand gradient line as
           its own bottom edge rather than a separate divider. */}
@@ -349,9 +375,9 @@ export default function SpeedpanelEstimator() {
         {route.tab === "estimator" && (
           isExt ? (
             <ExternalCalculator store={store} orient={orient} dimUnit={dimUnit} setDimUnit={switchDimUnit}
-              systemSelector={<SystemRows orient={orient} switchOrient={switchOrient} isExt={isExt} switchSystem={switchSystem} findSys={findSys} />}
+              systemSelector={<SystemRows orient={orient} switchOrient={guardedSwitchOrient} isExt={isExt} switchSystem={switchSystem} findSys={findSys} />}
               layoutMode={layoutMode}
-              switchOrient={switchOrient} switchToInternal={switchToInternal}
+              switchOrient={guardedSwitchOrient} switchToInternal={switchToInternal}
               openProject={openProject} draftLabel={store.draftLabel} onSetDraftLabel={store.setDraftLabel}
               lastEditedAt={store.lastEditedAt}
               onSaveDraftAsProject={saveDraftAsProject} onSaveOpenProject={saveOpenProject}
@@ -361,10 +387,10 @@ export default function SpeedpanelEstimator() {
           ) : (
             <InternalCalculator
               store={store} orient={orient} dimUnit={dimUnit} setDimUnit={switchDimUnit}
-              systemSelector={<SystemRows orient={orient} switchOrient={switchOrient} isExt={isExt} switchSystem={switchSystem} findSys={findSys} />}
+              systemSelector={<SystemRows orient={orient} switchOrient={guardedSwitchOrient} isExt={isExt} switchSystem={switchSystem} findSys={findSys} />}
               layoutMode={layoutMode}
               linkCornerPartner={linkCornerPartner} linkShaftPartner={linkShaftPartner}
-              switchOrient={switchOrient} switchToExternal={switchToExternal}
+              switchOrient={guardedSwitchOrient} switchToExternal={switchToExternal}
               openProject={openProject} draftLabel={store.draftLabel} onSetDraftLabel={store.setDraftLabel}
               lastEditedAt={store.lastEditedAt}
               onSaveDraftAsProject={saveDraftAsProject} onSaveOpenProject={saveOpenProject}
