@@ -12,6 +12,13 @@ export interface EdgeState { top: boolean; bottom: boolean; left: boolean; right
 
 export interface Wall {
   id: number; name: string;
+  // Which product line this wall belongs to -- a per-wall property (not a
+  // global project-level toggle), so a single project can freely mix
+  // Internal and External walls. computeWall.ts picks INT_CONFIG/EXT_CONFIG
+  // per wall from this field (see useWallResults in wallStore.ts); the
+  // Internal-only wallSystem (Standard/Corner/Shaft) and External-only
+  // colour/colourType fields below are gated on it the same way.
+  application: "internal" | "external";
   // Orientation is a per-wall property (not a global toggle) so a single
   // project/combined estimate can freely mix vertical and horizontal walls.
   // The "Orientation" buttons in the UI edit *this* field on the active wall.

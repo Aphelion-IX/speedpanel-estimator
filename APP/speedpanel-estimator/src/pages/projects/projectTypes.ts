@@ -19,7 +19,8 @@
 // =============================================================================
 import { z } from "zod";
 import { tone } from "../../styleTokens";
-import { PersistedProjectSchema, backfillOrient } from "../../wallStore";
+import { PersistedProjectSchema, backfillOrient, backfillApplication } from "../../wallStore";
+import { SYSTEMS } from "../../appShell/systems";
 
 export const STAGES = ["draft", "install_review", "technical_review", "approved"] as const;
 export type Stage = typeof STAGES[number];
@@ -72,15 +73,22 @@ export type ProjectRow = z.infer<typeof ProjectRowSchema>;
 
 // Patches a raw (pre-validation) Supabase project row's data.walls the same
 // way wallStore.ts's loadProject() already does for device-local saves --
-// WallSchema.orient has no default, so a project saved before per-wall
-// orientation existed fails ProjectRowSchema validation outright otherwise.
+// WallSchema.orient/application have no default, so a project saved before
+// per-wall orientation/application existed fails ProjectRowSchema validation
+// outright otherwise. application's legacy default comes from the project's
+// own (project-level, pre-merge) `system` field -- every wall in a project
+// saved before Internal/External became per-wall belonged to whichever one
+// calculator that project's `system` selected.
 function patchLegacyProjectRow(raw: unknown): unknown {
   if (!raw || typeof raw !== "object") return raw;
   const row = raw as { data?: unknown };
   if (!row.data || typeof row.data !== "object") return raw;
-  const data = row.data as { walls?: unknown };
+  const data = row.data as { walls?: unknown; system?: unknown };
   if (!Array.isArray(data.walls)) return raw;
-  return { ...row, data: { ...data, walls: backfillOrient(data.walls) } };
+  const legacySystem = typeof data.system === "string" ? SYSTEMS.find(s => s.id === data.system) : undefined;
+  const defaultApplication = legacySystem?.ext ? "external" : "internal";
+  const walls = backfillApplication(backfillOrient(data.walls), defaultApplication);
+  return { ...row, data: { ...data, walls } };
 }
 
 export function parseProjectRow(raw: unknown): ProjectRow | null {

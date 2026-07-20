@@ -23,6 +23,7 @@ const edgeStateSchema = z.object({ top: z.boolean(), bottom: z.boolean(), left: 
 
 export const WallSchema = z.object({
   id: z.number(), name: z.string(),
+  application: z.enum(["internal", "external"]),
   orient: z.enum(["vertical", "horizontal"]),
   type: z.union([z.literal(51), z.literal(64), z.literal(78)]),
   profile: z.enum(["standard", "rake", "gable"]),
@@ -48,8 +49,8 @@ export const WallSchema = z.object({
 // fields are only read by External (Internal ignores them), but every wall
 // carries them so the same wall list can be shown/computed in either mode --
 // see useWallStore, which keeps one shared list across all system switches.
-export const defaultWall = (id: number, orient: "vertical" | "horizontal" = "vertical"): Wall => ({
-  id, name: `Wall ${id}`, orient, type: 78, profile: "standard", wallSystem: "standard",
+export const defaultWall = (id: number, orient: "vertical" | "horizontal" = "vertical", application: "internal" | "external" = "internal"): Wall => ({
+  id, name: `Wall ${id}`, application, orient, type: 78, profile: "standard", wallSystem: "standard",
   cornerPartnerId: null, cornerSide: "right",
   floorHeight: "", shaftPartnerId: null, junctionPartnerId: null,
   width: "", height: "", leftH: "", rightH: "", eavesH: "", apexH: "", ridgeX: "",
@@ -97,17 +98,30 @@ export function backfillOrient(walls: Wall[]): Wall[] {
   return walls.map(w => ({ ...w, orient: w.orient ?? "vertical" }));
 }
 
-export function loadProject(): PersistedProject | null {
+// Backfill application for walls saved before Internal/External became a
+// per-wall field -- every wall in a pre-merge project belonged to whichever
+// single calculator (system) the project was opened in, so that's the only
+// sensible default for its walls. Same "patch raw JSON before validation"
+// shape as backfillOrient; callers that know the project's legacy
+// system/isExt pass the resolved default explicitly (see
+// patchLegacyProjectRow below and loadProject's defaultApplication param) --
+// callers that don't (e.g. a defensive re-backfill after data is already
+// known-valid) can rely on the "internal" fallback.
+export function backfillApplication(walls: Wall[], defaultApplication: "internal" | "external" = "internal"): Wall[] {
+  return walls.map(w => ({ ...w, application: w.application ?? defaultApplication }));
+}
+
+export function loadProject(defaultApplication: "internal" | "external" = "internal"): PersistedProject | null {
   if (typeof window === "undefined") return null;
   try {
     const raw = window.localStorage.getItem(PROJECT_KEY);
     if (!raw) return null;
     const p = JSON.parse(raw);
     if (!p || p.v !== 1 || !Array.isArray(p.walls) || p.walls.length === 0) return null;
-    // backfillOrient runs BEFORE validation -- older saves predate the
-    // per-wall orient field entirely, and PersistedProjectSchema requires
-    // it, so the raw JSON needs that default patched in first.
-    p.walls = backfillOrient(p.walls);
+    // backfillOrient/backfillApplication run BEFORE validation -- older saves
+    // predate these per-wall fields entirely, and PersistedProjectSchema
+    // requires both, so the raw JSON needs the defaults patched in first.
+    p.walls = backfillApplication(backfillOrient(p.walls), defaultApplication);
     const parsed = PersistedProjectSchema.safeParse(p);
     return parsed.success ? parsed.data : null;
   } catch {
@@ -188,7 +202,7 @@ export function useWallStore({ dimUnit, onWallAdded, persistLocally = true }: { 
   // MouseEvent could be mistaken for.
   const addWall = (patch?: Partial<Wall>) => {
     const id = nextId;
-    setWalls(ws => [...ws, { ...defaultWall(id, active.orient), forcedStock: projectForcedStock(), ...patch }]);
+    setWalls(ws => [...ws, { ...defaultWall(id, active.orient, active.application), forcedStock: projectForcedStock(), ...patch }]);
     setNextId(id + 1);
     setActiveId(id);
     onWallAdded?.();
@@ -212,8 +226,11 @@ export function useWallStore({ dimUnit, onWallAdded, persistLocally = true }: { 
     const stock = projectForcedStock();
     setWalls(ws => [
       ...ws,
-      { ...defaultWall(idA, "horizontal"), wallSystem: "corner", forcedStock: stock, cornerPartnerId: idB, cornerSide: "right" },
-      { ...defaultWall(idB, "horizontal"), wallSystem: "corner", forcedStock: stock, cornerPartnerId: idA, cornerSide: "left" },
+      // Corner is Internal-only (see Wall.wallSystem) -- explicit "internal",
+      // not inherited from active, so this stays correct regardless of what
+      // triggered it.
+      { ...defaultWall(idA, "horizontal", "internal"), wallSystem: "corner", forcedStock: stock, cornerPartnerId: idB, cornerSide: "right" },
+      { ...defaultWall(idB, "horizontal", "internal"), wallSystem: "corner", forcedStock: stock, cornerPartnerId: idA, cornerSide: "left" },
     ]);
     setNextId(idB + 1);
     setActiveId(idA);
@@ -224,8 +241,9 @@ export function useWallStore({ dimUnit, onWallAdded, persistLocally = true }: { 
     const stock = projectForcedStock();
     setWalls(ws => [
       ...ws,
-      { ...defaultWall(idA, "horizontal"), wallSystem: "shaft", type: 78, forcedStock: stock, shaftPartnerId: idB },
-      { ...defaultWall(idB, "horizontal"), wallSystem: "shaft", type: 78, forcedStock: stock, shaftPartnerId: idA },
+      // Shaft is Internal-only too -- same explicit "internal" as createCornerPair.
+      { ...defaultWall(idA, "horizontal", "internal"), wallSystem: "shaft", type: 78, forcedStock: stock, shaftPartnerId: idB },
+      { ...defaultWall(idB, "horizontal", "internal"), wallSystem: "shaft", type: 78, forcedStock: stock, shaftPartnerId: idA },
     ]);
     setNextId(idB + 1);
     setActiveId(idA);
@@ -248,9 +266,9 @@ export function useWallStore({ dimUnit, onWallAdded, persistLocally = true }: { 
     const partnerId = nextId;
     setWalls(ws => [
       ...ws.map(w => w.id === activeId
-        ? { ...w, orient: "horizontal" as const, wallSystem: "corner" as const, cornerPartnerId: partnerId, cornerSide: "right" as const }
+        ? { ...w, application: "internal" as const, orient: "horizontal" as const, wallSystem: "corner" as const, cornerPartnerId: partnerId, cornerSide: "right" as const }
         : w),
-      { ...defaultWall(partnerId, "horizontal"), wallSystem: "corner", forcedStock: projectForcedStock(), cornerPartnerId: activeId, cornerSide: "left" },
+      { ...defaultWall(partnerId, "horizontal", "internal"), wallSystem: "corner", forcedStock: projectForcedStock(), cornerPartnerId: activeId, cornerSide: "left" },
     ]);
     setNextId(partnerId + 1);
   };
@@ -258,9 +276,9 @@ export function useWallStore({ dimUnit, onWallAdded, persistLocally = true }: { 
     const partnerId = nextId;
     setWalls(ws => [
       ...ws.map(w => w.id === activeId
-        ? { ...w, orient: "horizontal" as const, wallSystem: "shaft" as const, type: 78 as const, shaftPartnerId: partnerId }
+        ? { ...w, application: "internal" as const, orient: "horizontal" as const, wallSystem: "shaft" as const, type: 78 as const, shaftPartnerId: partnerId }
         : w),
-      { ...defaultWall(partnerId, "horizontal"), wallSystem: "shaft", type: 78, forcedStock: projectForcedStock(), shaftPartnerId: activeId },
+      { ...defaultWall(partnerId, "horizontal", "internal"), wallSystem: "shaft", type: 78, forcedStock: projectForcedStock(), shaftPartnerId: activeId },
     ]);
     setNextId(partnerId + 1);
   };
@@ -353,10 +371,15 @@ export function useWallStore({ dimUnit, onWallAdded, persistLocally = true }: { 
   // given payload instead of a blank wall. exportSnapshot reads the current
   // in-memory state back out in the same shape, for an explicit Save action
   // (as opposed to persistLocally's automatic device-local save). Kept
-  // symmetric with loadProject()'s own orient-backfill so snapshots saved
-  // before orientation became per-wall still load correctly here too.
+  // symmetric with loadProject()'s own orient/application backfill so
+  // snapshots saved before those became per-wall fields still load correctly
+  // here too -- the real backfill for a Supabase row already happened
+  // upstream, in projectTypes.ts's patchLegacyProjectRow (which knows the
+  // project's legacy system/isExt, unlike this generic PersistedProject
+  // shape), this is just the same defensive re-guard backfillOrient already
+  // is here.
   const loadFrom = (data: PersistedProject) => {
-    setWalls(backfillOrient(data.walls));
+    setWalls(backfillApplication(backfillOrient(data.walls)));
     setActiveId(data.activeId);
     setNextId(data.nextId);
     setProjectStock(data.projectStock);
