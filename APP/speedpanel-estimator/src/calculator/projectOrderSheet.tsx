@@ -1,30 +1,40 @@
 // =============================================================================
-// Project Order Sheet / Final Order Review (External Calculator only)
+// Project Order Sheet / Final Order Review (shared -- src/calculator/)
 // =============================================================================
-// Spec §4.5/§7.23 Final Order Review + the v5 mockup's "Project Order Sheet"
-// -- mirrors internalCalculator/projectOrderSheet.tsx (see its header
-// comment for the full rationale), simplified for External's domain: no
-// kits/Corner/Shaft concept, so the KPI strip shows junction connections
-// (generic adjoining-wall links) instead of connection kits, and readiness
-// is computed from walls alone (no kits array to pass).
+// Spec §4.5/§7.23 Final Order Review + the v5 mockup's "Project Order Sheet":
+// a readiness checkpoint (§6) plus the wall schedule and complete material
+// order in one place, with Copy summary / Print / Export to Excel actions.
+// Rendered TWICE from this one component (spec's own "embedded section +
+// standalone clean page" split) -- once inline after EstimateResultsCard in
+// Calculator.tsx's mainNode (embedded prop, default), and once alone via
+// projectOrderSheetPage.tsx's standalone route (standalone prop) -- see that
+// file for why a route-level wrapper exists rather than branching inside
+// App.tsx directly.
 //
 // Reuses OrderContent (the existing Order tab/drawer's material breakdown)
-// and buildExternalReportData's already-computed report snapshot rather
-// than re-deriving the same numbers a third time.
+// for the panel/track/connection/fixing cards rather than re-deriving the
+// same numbers into a second table shape -- only the wall schedule table and
+// the readiness/KPI/actions chrome around it are new here. The wall schedule
+// table's "System" column reads a per-row optional `system` label (Internal
+// wallSystem name, e.g. "Corner wall") -- undefined for External rows, which
+// just fall back to showing orientation alone, so one table serves both.
 //
-// Deliberately its own copy, not shared with internalCalculator's mirror --
-// same fork-not-share convention as phoneShell.tsx (see its header comment).
+// Formerly internalCalculator/projectOrderSheet.tsx (kits-aware "System"
+// column) + externalCalculator/projectOrderSheet.tsx (Orientation-only
+// column, no kits) -- Internal's version was already a safe superset since
+// its `system` column degrades gracefully when a row has no system label.
 // =============================================================================
 import { Copy, Printer, ExternalLink, CheckCircle2, AlertTriangle, XCircle, HelpCircle } from "lucide-react";
 import { tone } from "../styleTokens";
 import type { WallResult } from "../estimate/wall.types";
 import type { EffectiveLayout } from "../useLayoutMode";
-import { buildExtProjAgg } from "../estimate/aggregate";
+import type { aggregateProject } from "../estimate/aggregate";
 import type { CombinedEstimate } from "../estimate/calculateCombinedEstimate";
 import type { EstimateReportData, WallSummaryRow } from "../export/reportTypes";
 import { determineProjectReadiness, READINESS_LABEL, type ProjectReadinessResult } from "../estimate/projectReadiness";
 import { buildOrderSummaryText } from "../estimate/copyOrderSummary";
 import { copyText } from "../estimate/clipboard";
+import type { KitEntry } from "../estimate/synthesizeKits";
 import { OrderContent } from "./orderContent";
 
 const READINESS_ICON: Record<ProjectReadinessResult["state"], React.ReactNode> = {
@@ -61,9 +71,9 @@ const ReadinessBanner = ({ readiness }: { readiness: ProjectReadinessResult }) =
 );
 
 // Spec §12.3: "On phone, the Final Order Review must not render a desktop-
-// width table. Use one grouped card per wall or material line." -- mirrors
-// internalCalculator/projectOrderSheet.tsx's identical component (the
-// mockup's own `.order-mobile-row` shape).
+// width table. Use one grouped card per wall or material line." -- the
+// mockup's own `.order-mobile-row` shape (speedpanel-project-order-sheet-
+// v5.html), used here on phone instead of the `.order-table` below.
 const WallScheduleMobileCard = ({ wall }: { wall: WallSummaryRow }) => (
   <div className="order-mobile-row">
     <div className="top">
@@ -71,7 +81,7 @@ const WallScheduleMobileCard = ({ wall }: { wall: WallSummaryRow }) => (
       {wall.warning ? <span className="pill red">Review</span> : <span className="pill cyan">{wall.panels} panels</span>}
     </div>
     <div className="meta">
-      <span><b>Orientation:</b> {wall.orientation === "vertical" ? "Vertical" : "Horizontal"}</span>
+      <span><b>System:</b> {wall.orientation === "vertical" ? "Vertical" : "Horizontal"}{wall.system ? ` · ${wall.system}` : ""}</span>
       <span><b>Panel:</b> {wall.panelType}</span>
       <span><b>Size:</b> {wall.width} x {wall.height}</span>
       <span><b>Area:</b> {wall.area}</span>
@@ -79,20 +89,21 @@ const WallScheduleMobileCard = ({ wall }: { wall: WallSummaryRow }) => (
   </div>
 );
 
-// The mockup's own `.order-table` markup, mirrors
-// internalCalculator/projectOrderSheet.tsx's identical component (see its
-// header comment for why this bypasses the sitewide ui/table.tsx <Table>).
+// The mockup's own `.order-table` markup (speedpanel-project-order-sheet-
+// v5.html) written directly here rather than through the sitewide ui/
+// table.tsx <Table> -- that component is also used outside the estimator
+// (ProjectDetailPage.tsx and others), so its own styling stays untouched.
 const WallScheduleTable = ({ rows }: { rows: WallSummaryRow[] }) => (
   <div className="order-table-wrap">
     <table className="order-table">
       <thead>
-        <tr><th>Wall</th><th>Orientation</th><th>Panel</th><th>Dimensions</th><th>Area</th><th>Panels</th><th>Warnings</th></tr>
+        <tr><th>Wall</th><th>System</th><th>Panel</th><th>Dimensions</th><th>Area</th><th>Panels</th><th>Warnings</th></tr>
       </thead>
       <tbody>
         {rows.map((r, i) => (
           <tr key={`${r.name}-${i}`}>
             <td><strong>{r.name}</strong></td>
-            <td>{r.orientation === "vertical" ? "Vertical" : "Horizontal"}</td>
+            <td>{r.orientation === "vertical" ? "Vertical" : "Horizontal"}{r.system ? ` · ${r.system}` : ""}</td>
             <td>{r.panelType}</td>
             <td>{r.width} x {r.height}</td>
             <td>{r.area}</td>
@@ -109,7 +120,8 @@ export interface ProjectOrderSheetProps {
   layoutMode: EffectiveLayout;
   projectName: string;
   results: WallResult[];
-  projAgg: ReturnType<typeof buildExtProjAgg>;
+  kits: KitEntry[];
+  aggProject: ReturnType<typeof aggregateProject>;
   combinedEstimate: CombinedEstimate;
   reportData: EstimateReportData;
   onExportExcel: () => void;
@@ -121,18 +133,20 @@ export interface ProjectOrderSheetProps {
 }
 
 export const ProjectOrderSheet = ({
-  layoutMode, projectName, results, projAgg, combinedEstimate, reportData,
+  layoutMode, projectName, results, kits, aggProject, combinedEstimate, reportData,
   onExportExcel, exportDisabled, standalone = false,
 }: ProjectOrderSheetProps) => {
-  const readiness = determineProjectReadiness(results, []);
+  const readiness = determineProjectReadiness(results, kits);
   const handleCopy = () => copyText(buildOrderSummaryText(reportData, readiness.state, projectName));
 
   return (
     <div id="project-order-sheet" className={standalone ? "" : "mt-3"}>
-      {/* Same "hide everything except this element" print pattern as the v5
-          mockup -- see internalCalculator/projectOrderSheet.tsx's header
-          comment for why this is a scoped inline stylesheet, not a new
-          global CSS file. */}
+      {/* Print stylesheet: same "hide everything except this element" pattern
+          as the v5 mockup's own #project-order-sheet print rules -- scoped
+          inline here rather than a new global CSS file, since this is the
+          only place in the app that needs it (see reportOrderReview.tsx's
+          header comment; print was previously removed app-wide in favour of
+          Excel export, per ProformaInvoicePage.tsx's own history). */}
       <style>{`
         @media print {
           body * { visibility: hidden !important; }
@@ -164,7 +178,7 @@ export const ProjectOrderSheet = ({
           <div className="order-kpi primary"><strong>{reportData.totals.panels}</strong><span>Panels ordered</span></div>
           <div className="order-kpi"><strong>{reportData.totals.packs ?? "--"}</strong><span>Panel packs</span></div>
           <div className="order-kpi cyan"><strong>{reportData.totals.area} m²</strong><span>Total area</span></div>
-          <div className="order-kpi"><strong>{combinedEstimate.connections.length}</strong><span>Connections</span></div>
+          <div className="order-kpi"><strong>{kits.length}</strong><span>Connection kits</span></div>
         </div>
 
         <div className="order-sheet-body">
@@ -183,7 +197,7 @@ export const ProjectOrderSheet = ({
 
           <div className="order-sheet-section">
             <h3>Complete material order</h3>
-            <OrderContent layoutMode={layoutMode} projAgg={projAgg} combinedEstimate={combinedEstimate} />
+            <OrderContent layoutMode={layoutMode} aggProject={aggProject} combinedEstimate={combinedEstimate} results={results} />
           </div>
 
           <div className="order-sheet-note">

@@ -1,12 +1,15 @@
 // =============================================================================
 // dependency-cruiser config
 // =============================================================================
-// Mechanically enforces the "fork-not-share" convention documented in
-// CLAUDE.md: internalCalculator/ and externalCalculator/ each keep their own
-// copy of calculator-specific UI and must never import from one another.
-// Shared code belongs in src/ui/, src/estimate/, or src/wallStore.ts instead
-// -- this rule only forbids DIRECT cross-imports between the two calculator
-// folders, so importing a shared sibling module is unaffected.
+// Used to mechanically enforce a "fork-not-share" convention between
+// internalCalculator/ and externalCalculator/ (each kept its own copy of
+// calculator-specific UI and could never import from the other). That split
+// is gone -- the unified-estimator merge (see docs/unified-estimator-merge-
+// plan.md) replaced both trees with one src/calculator/, where each wall
+// picks its own Internal/External application at the field level (see
+// wallDomain.ts's Wall.application) rather than the whole project being one
+// or the other. No fork-not-share rule to enforce here any more; this stays
+// around for the general no-circular check.
 //
 // Run with `npm run depcruise` (validates, exits non-zero on violation) or
 // `npm run depcruise:graph` (writes a Mermaid dependency graph to
@@ -16,22 +19,6 @@
 /** @type {import('dependency-cruiser').IConfiguration} */
 module.exports = {
   forbidden: [
-    {
-      name: "no-internal-to-external",
-      severity: "error",
-      comment:
-        "internalCalculator must not import from externalCalculator -- they're deliberately forked, not shared (see CLAUDE.md's 'Estimator UI architecture' section).",
-      from: { path: "^src/internalCalculator" },
-      to: { path: "^src/externalCalculator" },
-    },
-    {
-      name: "no-external-to-internal",
-      severity: "error",
-      comment:
-        "externalCalculator must not import from internalCalculator -- they're deliberately forked, not shared (see CLAUDE.md's 'Estimator UI architecture' section).",
-      from: { path: "^src/externalCalculator" },
-      to: { path: "^src/internalCalculator" },
-    },
     {
       name: "no-circular",
       severity: "warn",

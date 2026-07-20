@@ -1,40 +1,54 @@
 // =============================================================================
-// Internal Calculator
+// Calculator (shared -- src/calculator/)
 // =============================================================================
-// The Internal calculator (P51/P64/P78, vertical or horizontal, Standard/
-// Corner/Shaft wall systems). Shares the same wall store as the External
-// calculator (passed down from the root component) so walls survive
-// switching between Internal/External and orientation. Always renders the
-// combined project view (single-wall-only mode was retired -- see git
-// history for the old EstimateModeSelector toggle) -- showTrackFinish/
-// showData are local UI-only state. useWallResults (wallStore.ts) now
-// dispatches each wall to compute()/computeExternal() based on its OWN
-// application field rather than one fixed function for the whole array;
-// aggregate() (aggregateInternal.ts) still assumes every wall in `results`
-// is Internal, since there's no UI path yet to mix applications within one
-// project.
+// The unified estimator: every wall in the store picks its own Internal/
+// External application (see wallDomain.ts's Wall.application), computed via
+// compute()/computeExternal() dispatch (wallStore.ts's useWallResults) and
+// combined via aggregateProject() into { internal, external, combined }
+// (aggregateProject.ts). Shares the same wall store the whole app uses, so
+// walls survive orientation changes and never get discarded switching
+// between applications. Always renders the combined project view
+// (single-wall-only mode was retired -- see git history for the old
+// EstimateModeSelector toggle) -- showTrackFinish/showData are local UI-only
+// state.
+//
+// Per-wall dispatch on `active.application` happens at several leaf call
+// sites below (WallsCard's showTypes, the product card's colour section vs.
+// panel-length stock table, SpanTable's fixed-vs-looked-up C-track section,
+// EdgeRestraintSelector's Internal-only track-finish/locked-edges pieces) --
+// each one is a single flag read, not a fork of this component, since
+// wallsCard.tsx/wallConfig.tsx already carry both sides' pieces as a
+// superset (see docs/unified-estimator-merge-plan.md's Phase 4 research).
+// Corner/Shaft kit logic (synthesizeKits/computeCornerPair/computeShaftPair)
+// needs no such dispatch -- kits are inherently Internal-only, since
+// wallStore.ts's createCornerPair/createShaftPair/convertActiveTo* always
+// set application: "internal" regardless of what triggered them.
+//
+// Formerly internalCalculator/InternalCalculator.tsx +
+// externalCalculator/ExternalCalculator.tsx.
 // =============================================================================
 import { useState, useEffect, useMemo, useRef } from "react";
 import { Link2 } from "lucide-react";
 import { cx } from "../styleTokens";
 import { useWallResults } from "../wallStore";
 import type { WallStore } from "../wallStore";
-import { aggregate } from "../estimate/aggregate";
+import { aggregateProject } from "../estimate/aggregate";
 import { useCombinedEstimateCalc } from "../estimate/useCombinedEstimateCalc";
 import { computeCornerPair, computeShaftPair } from "../estimate/cornerShaftKits";
 import { synthesizeKits } from "../estimate/synthesizeKits";
 import type { SelectedNavItem } from "../estimate/navSelection";
-import { HEAD_FLASH_LABEL, HEAD_FLASH_SUBLABEL, STOCK_LENGTHS, INT_CONFIG } from "../data";
+import { HEAD_FLASH_LABEL, HEAD_FLASH_SUBLABEL, STOCK_LENGTHS, EXT_STOCK, EXT_STOCKED_COLOURS, INT_CONFIG } from "../data";
 import type { Wall } from "../estimate/wall.types";
 import type { EffectiveLayout } from "../useLayoutMode";
 import { WarningsList, UnitToggle, CalculatorShell } from "../ui/primitives";
-import { LockedDataInt, LockedDataFooter } from "../ui/lockedData";
+import { LockedDataInt, LockedDataExt, LockedDataFooter } from "../ui/lockedData";
 import { PanelLengthSection } from "./lengthExplorer";
-import { WallsCard } from "../calculator/wallsCard";
+import { WallsCard } from "./wallsCard";
+import { PanelColourSection } from "./panelColourSection";
 import { EstimateStructureNav } from "./estimateStructureNav";
 import { EstimateSummarySidebar } from "./estimateSummarySidebar";
-import { KitWorkspace } from "../calculator/kitWorkspace";
-import { KitWorkspacePhone } from "../calculator/kitWorkspacePhone";
+import { KitWorkspace } from "./kitWorkspace";
+import { KitWorkspacePhone } from "./kitWorkspacePhone";
 import { StickyBarTilesPhone } from "./phoneShell";
 import { EstimateTopCard } from "./EstimateTopCard";
 import type { OpenProjectInfo } from "./EstimateTopCard";
@@ -50,20 +64,20 @@ import {
 } from "./phoneSections";
 import {
   ProfileSection, DimensionInputs, SpanTable, EdgeRestraintSelector, ProjectSeparator,
-} from "../calculator/wallConfig";
-import type { FinishKey, CornersField } from "../calculator/wallConfig";
+} from "./wallConfig";
+import type { FinishKey, CornersField } from "./wallConfig";
 import { WallPreviewSection } from "../ui/wallPreview";
 import { PanelScheduleCard, PanelScheduleTable } from "../ui/scheduleCards";
 import { EstimateResultsCard } from "./estimateResultsCard";
 import { ProjectOrderSheet } from "./projectOrderSheet";
 import { OrderReviewDrawer } from "./orderReviewDrawer";
-import { buildInternalReportData } from "../export/buildInternalReportData";
+import { buildReportData } from "../export/buildReportData";
 import { exportEstimateToExcel } from "../export/exportEstimateToExcel";
 
-export function InternalCalculator({
+export function Calculator({
   store, orient, dimUnit, setDimUnit, systemSelector, layoutMode,
   linkCornerPartner: rawLinkCornerPartner, linkShaftPartner: rawLinkShaftPartner,
-  switchOrient, switchToExternal,
+  switchOrient,
   openProject, draftLabel, onSetDraftLabel, lastEditedAt,
   onSaveDraftAsProject, onSaveOpenProject, onSaveOpenProjectAsNew,
   savingProject, saveProjectError, saveProjectNotFound, projectDirty, onGoToProjects,
@@ -73,13 +87,12 @@ export function InternalCalculator({
   setDimUnit: (u: string) => void; systemSelector?: React.ReactNode; layoutMode: EffectiveLayout;
   linkCornerPartner: (targetId: number | null) => void;
   linkShaftPartner: (targetId: number | null) => void;
-  // Phone-only SystemConfigSectionPhone's Orientation/Wall type segments --
-  // same store/App.tsx wiring web's SystemRows uses, just threaded straight
+  // Phone-only SystemConfigSectionPhone's Orientation segment -- same
+  // store/App.tsx wiring web's SystemRows uses, just threaded straight
   // through instead of via the opaque systemSelector render-prop, so the
   // phone-only restyle doesn't need to branch inside the shared SystemRows
   // component (see phoneSections.tsx's header comment).
   switchOrient: (o: "vertical" | "horizontal") => void;
-  switchToExternal: () => void;
   // EstimateTopCard's save-flow wiring -- lifted from App.tsx, which used to
   // render this as a standalone banner above the calculator (see
   // EstimateTopCard.tsx's header comment).
@@ -129,10 +142,12 @@ export function InternalCalculator({
     convertActiveToCornerPair: rawConvertActiveToCornerPair, convertActiveToShaftPair: rawConvertActiveToShaftPair,
   } = store;
 
+  const isInternal = active.application === "internal";
+
   // Spec §13 read-only access: "may not change wall data, links, or save" --
   // a no-op wrapper for every mutating store action, applied once here
   // rather than threading a `disabled` prop through each individual leaf
-  // input (see InternalCalculator's own readOnlyProject prop comment and
+  // input (see Calculator's own readOnlyProject prop comment and
   // ui/readOnlyGate.tsx).
   function guard<A extends unknown[]>(fn: (...a: A) => void): (...a: A) => void {
     return readOnlyProject ? () => {} : fn;
@@ -201,14 +216,14 @@ export function InternalCalculator({
   };
 
   const switchDimUnit = (u: string) => { setDimUnit(u); clearCustomLength(); };
-  const projChosenAgg = useMemo(() => aggregate(results), [results]);
+  const aggProject = useMemo(() => aggregateProject(results), [results]);
   const combinedEstimate = useCombinedEstimateCalc(walls);
   // Rough "line item" count for the Review Order trigger/sticky bar -- stock
   // panel groups + custom-length groups, not every card's every row.
-  const orderLineItemCount = projChosenAgg.panels.length + projChosenAgg.customPanels.length;
+  const orderLineItemCount = aggProject.internal.panels.length + aggProject.internal.customPanels.length + aggProject.external.groups.length;
   const stickyProjectStats = [
-    { value: `${projChosenAgg.totalArea} m2`, label: "Project area" },
-    { value: projChosenAgg.totalPanels, label: "Panels" },
+    { value: `${aggProject.combined.totalArea} m2`, label: "Project area" },
+    { value: aggProject.combined.totalPanels, label: "Panels" },
     { value: results.length, label: "Walls" },
   ];
 
@@ -269,7 +284,12 @@ export function InternalCalculator({
             (phoneSections.tsx), which now also always shows the preview
             inline below Dimensions, matching this. */}
         <WallPreviewSection active={active} walls={walls} out={out} dimUnit={dimUnit} toDisp={toDisp} />
-        <SpanTable orient={orient} type={active.type} wallSystem={active.wallSystem} />
+        {/* External's C-track requirement is looked up from the generic
+            span table (varies by width/height) -- Internal Standard/Corner
+            walls use one fixed section regardless of size instead (see
+            SpanTable's own branch in wallConfig.tsx). Passing wallSystem
+            only for Internal walls is what selects between the two. */}
+        <SpanTable orient={orient} type={active.type} wallSystem={isInternal ? active.wallSystem : undefined} />
       </div>
     </>
   );
@@ -278,13 +298,17 @@ export function InternalCalculator({
       dimUnit={dimUnit} out={out} active={active} walls={walls}
       projectLock={projectLock} projectStock={projectStock}
       customLengthInput={customLengthInput} customActive={customActive}
-      stocks={STOCK_LENGTHS} packType={active.type}
+      stocks={isInternal ? STOCK_LENGTHS : EXT_STOCK} packType={isInternal ? active.type : 78}
       update={update} setProjectLength={setProjectLength}
       commitCustomLength={commitCustomLength} toggleCustom={toggleCustom} clearCustomLength={clearCustomLength}
     />
   );
-  const edgesLocked = orient === "horizontal" && active.wallSystem === "standard";
-  const tracksContent = (
+  // Standard-wall edges are locked by spec only for Internal (Corner/Shaft
+  // are Internal-only concepts too, both horizontal-only) -- External always
+  // leaves every edge freely toggleable, exactly as its own original
+  // EdgeRestraintSelector call did.
+  const edgesLocked = isInternal && orient === "horizontal" && active.wallSystem === "standard";
+  const tracksContent = isInternal ? (
     <EdgeRestraintSelector
       edges={active.edges}
       onEdgeToggle={k => update({ edges: { ...active.edges, [k]: !active.edges[k] } })}
@@ -297,6 +321,14 @@ export function InternalCalculator({
       onFinishChange={(field, val) => update({ [field]: val } as Pick<Wall, FinishKey>)}
       corners={{ intCorners: active.intCorners, extCorners: active.extCorners, onChange: (f: CornersField, v: string) => update({ [f]: v } as Pick<Wall, CornersField>) }}
     />
+  ) : (
+    <EdgeRestraintSelector
+      edges={active.edges}
+      onEdgeToggle={k => update({ edges: { ...active.edges, [k]: !active.edges[k] } })}
+      options={[{ key: "headFlash", label: HEAD_FLASH_LABEL, sublabel: HEAD_FLASH_SUBLABEL, value: active.headFlash, onToggle: () => update({ headFlash: !active.headFlash }) }]}
+      orient={orient}
+      corners={{ intCorners: active.intCorners, extCorners: active.extCorners, onChange: (f: CornersField, v: string) => update({ [f]: v } as Pick<Wall, CornersField>) }}
+    />
   );
   // CollapsibleSection header badges -- a status summary visible even while
   // collapsed, echoing the "Estimate structure (N)" pattern already used in
@@ -304,16 +336,19 @@ export function InternalCalculator({
   const profileLabel = active.profile === "standard" ? "Standard" : active.profile === "rake" ? "Raked" : "Gable";
   const edgeCount = edgesLocked ? 4 : Object.values(active.edges).filter(Boolean).length;
   const edgesBadge = `${edgeCount} edge${edgeCount === 1 ? "" : "s"}`;
+  const isCustomColour = active.colourType === "special";
+  const colourName = !isCustomColour && active.colour ? EXT_STOCKED_COLOURS.find(c => c.code === active.colour)?.label ?? "" : "";
+  const panelBadge = isCustomColour ? "Custom" : colourName || "No colour";
 
   // Hoisted above both workspace nodes so both the Summary sidebar's Export
   // button AND the Project Order Sheet (spec's Final Order Review) build
   // from the exact same report snapshot -- previously only handleExport
   // (defined further down, near mainNode) computed this.
-  const reportData = useMemo(() => buildInternalReportData({
+  const reportData = useMemo(() => buildReportData({
     orient, dimUnit, toDisp, walls, results, warnById,
-    projChosenAgg, combinedEstimate,
-  }), [orient, dimUnit, toDisp, walls, results, warnById, projChosenAgg, combinedEstimate]);
-  const hasExportData = !!(projChosenAgg && projChosenAgg.totalPanels > 0);
+    aggProject, combinedEstimate,
+  }), [orient, dimUnit, toDisp, walls, results, warnById, aggProject, combinedEstimate]);
+  const hasExportData = aggProject.combined.totalPanels > 0;
   // Spec §11 "Excel export failed" -- exportEstimateToExcel dynamically
   // imports the xlsx library and triggers a browser download; either step
   // can throw (network hiccup fetching the chunk, popup/download blocked,
@@ -348,7 +383,7 @@ export function InternalCalculator({
             walls={walls} active={active} update={update}
             duplicateWall={duplicateWall} deleteWall={handleDeleteActiveWall} orient={orient}
             onCornerLink={linkCornerPartner} onShaftLink={linkShaftPartner} onJunctionLink={linkJunctionPartner}
-            switchOrient={switchOrient} switchToExternal={switchToExternal}
+            switchOrient={switchOrient}
           />
           {wallNavNode}
           <GeometrySectionPhone
@@ -359,7 +394,7 @@ export function InternalCalculator({
             dimUnit={dimUnit} out={out} active={active} walls={walls}
             projectLock={projectLock} projectStock={projectStock}
             customLengthInput={customLengthInput} customActive={customActive}
-            stocks={STOCK_LENGTHS} packType={active.type}
+            stocks={isInternal ? STOCK_LENGTHS : EXT_STOCK} packType={isInternal ? active.type : 78}
             update={update} setProjectLength={setProjectLength}
             commitCustomLength={commitCustomLength} toggleCustom={toggleCustom} clearCustomLength={clearCustomLength}
           />
@@ -396,7 +431,7 @@ export function InternalCalculator({
               walls={walls}
               active={active} update={update}
               duplicateWall={duplicateWall} deleteWall={handleDeleteActiveWall}
-              showTypes={true} systemSelector={systemSelector} orient={orient}
+              showTypes={isInternal} systemSelector={systemSelector} orient={orient}
               onCornerLink={linkCornerPartner}
               onShaftLink={linkShaftPartner}
               onJunctionLink={linkJunctionPartner}
@@ -414,11 +449,14 @@ export function InternalCalculator({
 
             <section className="card product-card">
               <div className="card-hd">
-                <div className="section-title"><span className="dot" /><span>Panel length &amp; materials</span></div>
-                <span className="pill cyan">{edgesBadge}</span>
+                <div className="section-title"><span className="dot" /><span>{isInternal ? "Panel length & materials" : "Panel colour & materials"}</span></div>
+                <span className="pill cyan">{isInternal ? edgesBadge : panelBadge}</span>
               </div>
               <div className="product-body">
-                <div className="stock-col">{panelLengthContent}</div>
+                <div className="stock-col">
+                  {!isInternal && <PanelColourSection active={active} update={update} />}
+                  {panelLengthContent}
+                </div>
                 <div className="materials-col">{tracksContent}</div>
               </div>
             </section>
@@ -429,7 +467,7 @@ export function InternalCalculator({
       </div>
       <EstimateSummarySidebar
         walls={walls} results={results} kits={kits} out={out}
-        projChosenAgg={projChosenAgg}
+        aggProject={aggProject}
         onReviewOrder={() => setOrderDrawerOpen(true)}
         onExport={handleExport} exportDisabled={!hasExportData}
       />
@@ -449,7 +487,7 @@ export function InternalCalculator({
       <ProjectSeparator />
       <EstimateResultsCard
         layoutMode={layoutMode} results={results} walls={walls} kits={kits}
-        projChosenAgg={projChosenAgg} combinedEstimate={combinedEstimate}
+        aggProject={aggProject} combinedEstimate={combinedEstimate}
         active={active} out={out} orient={orient} cornerPair={cornerPair} shaftPair={shaftPair}
         ScheduleComp={ScheduleComp}
       />
@@ -460,20 +498,22 @@ export function InternalCalculator({
       <div ref={orderSheetRef} className="scroll-mt-4">
         <ProjectOrderSheet
           layoutMode={layoutMode} projectName={openProject ? openProject.name : (draftLabel ?? "")}
-          results={results} kits={kits} projChosenAgg={projChosenAgg} combinedEstimate={combinedEstimate}
+          results={results} kits={kits} aggProject={aggProject} combinedEstimate={combinedEstimate}
           reportData={reportData} onExportExcel={handleExport} exportDisabled={!hasExportData}
         />
       </div>
     </div>
   );
-  const footerNode = (
+  const footerNode = isInternal ? (
     <LockedDataFooter title="Locked system data" table={<LockedDataInt />} onExport={handleExport} disabled={!hasExportData} />
+  ) : (
+    <LockedDataFooter title="Locked external system data" table={<LockedDataExt />} onExport={handleExport} disabled={!hasExportData} />
   );
 
   const orderDrawerNode = (
     <OrderReviewDrawer
       open={orderDrawerOpen} onClose={() => setOrderDrawerOpen(false)} layoutMode={layoutMode}
-      projChosenAgg={projChosenAgg} combinedEstimate={combinedEstimate} results={results} kits={kits}
+      aggProject={aggProject} combinedEstimate={combinedEstimate} results={results} kits={kits}
       reportData={reportData} projectName={openProject ? openProject.name : (draftLabel ?? "")}
       onExport={handleExport} exportDisabled={!hasExportData}
     />
@@ -500,7 +540,7 @@ export function InternalCalculator({
     />
   ) : (
     <EstimateTopCard
-      results={results} kits={kits} projAgg={projChosenAgg}
+      results={results} kits={kits} aggProject={aggProject}
       openProject={openProject} draftLabel={draftLabel} onSetDraftLabel={onSetDraftLabel}
       lastEditedAt={lastEditedAt}
       onSaveDraftAsProject={guardedSaveDraftAsProject} onSaveOpenProject={guardedSaveOpenProject}

@@ -98,7 +98,16 @@ export function priceReportData(report: EstimateReportData, catalog: ProductCata
     const fixing16 = catalog.fixings.find(f => f.lengthMm === 16);
     items.push(makeItem("fixing", "Fixings - 16 mm", report.fixings.boxes16, "box", fixing16?.pricePerBox ?? null));
   }
-  if (report.fixings.sealantBoxes > 0) {
+  if (report.fixings.sealantLines && report.fixings.sealantLines.length > 0) {
+    // A mixed Internal+External project uses two genuinely different
+    // sealant products (see reportTypes.ts's SealantLine) -- price each
+    // side's line separately rather than the single sealantLabel/
+    // sealantBoxes pair below, which can only ever represent one of them.
+    for (const line of report.fixings.sealantLines) {
+      const sealant = catalog.sealants.find(s => s.system === line.system);
+      items.push(makeItem("sealant", line.label, line.boxes, "box", sealant?.pricePerBox ?? null));
+    }
+  } else if (report.fixings.sealantBoxes > 0) {
     // reportTypes.ts's fixings summary doesn't carry a system field directly --
     // systemLabel ("Internal calculator - ..." / "External calculator - ...")
     // is the one place this report already records which system it's for.

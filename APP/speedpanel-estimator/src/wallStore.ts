@@ -1,12 +1,12 @@
 // =============================================================================
 // Wall store
 // =============================================================================
-// Owns the single, SHARED wall/project state used by BOTH the Internal
-// (InternalCalculator) and External (ExternalCalculator) calculators, plus the
-// hook that derives per-mode compute results from that shared wall list. Lives
-// at the top level (not under estimate/) since it's app state/persistence, not
-// pure compute -- but is importable by both calculators without either
-// importing from the other.
+// Owns the single, SHARED wall/project state the unified Calculator
+// (src/calculator/Calculator.tsx) reads, plus the hook that derives each
+// wall's own compute result (Internal or External, dispatched per wall via
+// its `application` field -- see wallDomain.ts) from that shared wall list.
+// Lives at the top level (not under estimate/) since it's app state/
+// persistence, not pure compute.
 // =============================================================================
 import { useState, useEffect, useMemo } from "react";
 import { z } from "zod";

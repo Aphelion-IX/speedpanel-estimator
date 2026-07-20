@@ -13,11 +13,8 @@ import { LoadingState } from "./ui/states";
 import { OfflineBanner } from "./ui/offlineBanner";
 import { EducationHub } from "./education/EducationHub";
 import { SystemSelector } from "./systemSelector/SystemSelector";
-import { ExternalCalculator } from "./externalCalculator/ExternalCalculator";
-import { InternalCalculator } from "./internalCalculator/InternalCalculator";
-import { ProjectOrderSheetPage as InternalProjectOrderSheetPage } from "./internalCalculator/projectOrderSheetPage";
-import { ProjectOrderSheetPage as ExternalProjectOrderSheetPage } from "./externalCalculator/projectOrderSheetPage";
-import { SYSTEMS } from "./appShell/systems";
+import { Calculator } from "./calculator/Calculator";
+import { ProjectOrderSheetPage } from "./calculator/projectOrderSheetPage";
 import { loadSession, saveSession } from "./appShell/session";
 import { TopNav, type TopNavTab } from "./appShell/topNav";
 import { LayoutModeToggle, ThemeToggle, NotificationBell } from "./appShell/headerToggles";
@@ -129,9 +126,6 @@ export default function SpeedpanelEstimator() {
     saveSession({ v: 1, system, dimUnit });
   }, [system, dimUnit, openProject]);
 
-  const sys    = SYSTEMS.find(s => s.id === system) || SYSTEMS[0];
-  const isExt  = sys.ext;
-
   // Single SHARED wall store (persisted); the Internal and External calculators
   // each independently destructure/compute what they need from it, so walls
   // survive switching in/out of External mode and between orientations.
@@ -200,20 +194,6 @@ export default function SpeedpanelEstimator() {
     setConfirmReset(false);
     resetWalls(); setSystem("int-vert"); setDimUnit("m"); setOpenProject(null);
   };
-  // Switching system no longer clears walls -- the shared store is preserved
-  // across every orientation/wall-type change.
-  const switchSystem = (id: string) => { setSystem(id); };
-  const findSys = (orientVal: "vertical" | "horizontal", ext: boolean) =>
-    SYSTEMS.find(s => s.orient === orientVal && s.ext === ext)!;
-  // Phone SystemConfigSectionPhone's "Wall type -> External" segment: mirrors
-  // SystemRows' real "Wall type" toggle exactly (see systemRows.tsx), without
-  // adding a wall -- there's no per-wall internal/external flag, External-
-  // ness is a project-level system choice (see isExt above).
-  const switchToExternal = () => switchSystem(findSys(orient, true).id);
-  // Mirror image, for External's own phone System configuration
-  // "Wall type -> Internal" segment.
-  const switchToInternal = () => switchSystem(findSys(orient, false).id);
-
   // Opening a saved project from Projects loads its snapshot into the shared
   // wall store/view state and switches to the Estimator tab -- the builder UI
   // itself is the existing InternalCalculator/ExternalCalculator, not a
@@ -340,14 +320,10 @@ export default function SpeedpanelEstimator() {
   }
 
   // Same "no app chrome" precedent as proforma above -- the Project Order
-  // Sheet's clean/printable route (see internalCalculator/
-  // projectOrderSheetPage.tsx and its externalCalculator mirror), one branch
-  // per fork-not-share calculator, picked the same way the Estimator tab
-  // itself picks Internal vs External below (isExt).
+  // Sheet's clean/printable route (see calculator/projectOrderSheetPage.tsx).
   if (route.tab === "estimator" && route.orderSheet) {
-    const OrderSheetPage = isExt ? ExternalProjectOrderSheetPage : InternalProjectOrderSheetPage;
     return (
-      <OrderSheetPage
+      <ProjectOrderSheetPage
         store={store} dimUnit={dimUnit} layoutMode={layoutMode}
         projectName={openProject ? openProject.name : (store.draftLabel ?? "")}
         onBack={() => navigate({ tab: "estimator" })}
@@ -448,40 +424,27 @@ export default function SpeedpanelEstimator() {
         )}
 
         {/* System configuration + calculator body -- EstimateTopCard (inside
-            each Calculator) now renders the save-draft/editing-project
-            controls that used to live here as standalone banners. */}
+            Calculator) now renders the save-draft/editing-project controls
+            that used to live here as standalone banners. One unified
+            Calculator now -- each wall picks its own Internal/External
+            application (see wallDomain.ts), so there's no longer a project-
+            level Internal-vs-External branch here. */}
         {route.tab === "estimator" && (
-          isExt ? (
-            <ExternalCalculator store={store} orient={orient} dimUnit={dimUnit} setDimUnit={switchDimUnit}
-              systemSelector={<SystemRows orient={orient} switchOrient={guardedSwitchOrient} isExt={isExt} switchSystem={switchSystem} findSys={findSys} />}
-              layoutMode={layoutMode}
-              switchOrient={guardedSwitchOrient} switchToInternal={switchToInternal}
-              openProject={openProject} draftLabel={store.draftLabel} onSetDraftLabel={store.setDraftLabel}
-              lastEditedAt={store.lastEditedAt}
-              onSaveDraftAsProject={saveDraftAsProject} onSaveOpenProject={saveOpenProject}
-              onSaveOpenProjectAsNew={saveOpenProjectAsNew}
-              savingProject={savingProject} saveProjectError={saveProjectError} saveProjectNotFound={saveProjectNotFound}
-              projectDirty={projectDirty}
-              onGoToProjects={() => navigate({ tab: "projects" })}
-              readOnlyProject={readOnlyProject} offline={!online}
-            />
-          ) : (
-            <InternalCalculator
-              store={store} orient={orient} dimUnit={dimUnit} setDimUnit={switchDimUnit}
-              systemSelector={<SystemRows orient={orient} switchOrient={guardedSwitchOrient} isExt={isExt} switchSystem={switchSystem} findSys={findSys} />}
-              layoutMode={layoutMode}
-              linkCornerPartner={linkCornerPartner} linkShaftPartner={linkShaftPartner}
-              switchOrient={guardedSwitchOrient} switchToExternal={switchToExternal}
-              openProject={openProject} draftLabel={store.draftLabel} onSetDraftLabel={store.setDraftLabel}
-              lastEditedAt={store.lastEditedAt}
-              onSaveDraftAsProject={saveDraftAsProject} onSaveOpenProject={saveOpenProject}
-              onSaveOpenProjectAsNew={saveOpenProjectAsNew}
-              savingProject={savingProject} saveProjectError={saveProjectError} saveProjectNotFound={saveProjectNotFound}
-              projectDirty={projectDirty}
-              onGoToProjects={() => navigate({ tab: "projects" })}
-              readOnlyProject={readOnlyProject} offline={!online}
-            />
-          )
+          <Calculator
+            store={store} orient={orient} dimUnit={dimUnit} setDimUnit={switchDimUnit}
+            systemSelector={<SystemRows orient={orient} switchOrient={guardedSwitchOrient} />}
+            layoutMode={layoutMode}
+            linkCornerPartner={linkCornerPartner} linkShaftPartner={linkShaftPartner}
+            switchOrient={guardedSwitchOrient}
+            openProject={openProject} draftLabel={store.draftLabel} onSetDraftLabel={store.setDraftLabel}
+            lastEditedAt={store.lastEditedAt}
+            onSaveDraftAsProject={saveDraftAsProject} onSaveOpenProject={saveOpenProject}
+            onSaveOpenProjectAsNew={saveOpenProjectAsNew}
+            savingProject={savingProject} saveProjectError={saveProjectError} saveProjectNotFound={saveProjectNotFound}
+            projectDirty={projectDirty}
+            onGoToProjects={() => navigate({ tab: "projects" })}
+            readOnlyProject={readOnlyProject} offline={!online}
+          />
         )}
 
         {route.tab === "estimator" && (

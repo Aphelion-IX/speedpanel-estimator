@@ -1,18 +1,22 @@
 // =============================================================================
 // System rows
 // =============================================================================
-// Two full-weight rows, each with its own small label, so Orientation and
-// Wall type read as two distinct, equally important decisions -- not one
-// primary control with a smaller secondary one attached to it. Instantiated
-// once by the root component and passed down as `systemSelector` into
-// whichever of ExternalCalculator/InternalCalculator renders.
+// A full-weight Orientation row for the active wall. Instantiated once by
+// the root component and passed down as `systemSelector` into Calculator.
+//
+// Used to also carry a second "Wall type" row (Internal/External), switching
+// which of ExternalCalculator/InternalCalculator rendered for the whole
+// project. That project-level split is gone now that each wall picks its
+// own application (see wallDomain.ts's Wall.application) -- the equivalent
+// choice lives in firstWallSetup.tsx's "1. Wall type" step for a project's
+// first wall instead (see docs/unified-estimator-merge-plan.md's Phase 4
+// scope note for why this doesn't yet add a way to change an existing
+// wall's application afterward).
 // =============================================================================
 import { BLUE, WHITE, cx, selectedFill, selectableOffCx } from "../styleTokens";
 
-export const SystemRows = ({ orient, switchOrient, isExt, switchSystem, findSys }: {
+export const SystemRows = ({ orient, switchOrient }: {
   orient: "vertical" | "horizontal"; switchOrient: (o: "vertical" | "horizontal") => void;
-  isExt: boolean; switchSystem: (id: string) => void;
-  findSys: (orientVal: "vertical" | "horizontal", ext: boolean) => { id: string };
 }) => {
   const isHoriz = orient === "horizontal";
   return (
@@ -35,21 +39,6 @@ export const SystemRows = ({ orient, switchOrient, isExt, switchSystem, findSys 
               <path d="M1.5 3h10M1.5 6.5h10M1.5 10h10" stroke={isHoriz ? WHITE : BLUE} strokeWidth="1.4" strokeLinecap="round"/>
             </svg>
             <span className="text-sm font-bold uppercase tracking-wide" style={{ color: isHoriz ? WHITE : BLUE }}>Horizontal</span>
-          </button>
-        </div>
-      </div>
-      <div>
-        <div className={cx.cardHd}>Wall type</div>
-        <div className="grid grid-cols-2 gap-2">
-          <button onClick={() => switchSystem(findSys(orient, false).id)}
-            className={"w-full rounded-xl border-2 py-3 px-3 text-center active:scale-95 transition-all " + (!isExt ? "" : `border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 ${selectableOffCx}`)}
-            style={!isExt ? selectedFill : undefined}>
-            <span className="text-sm font-bold uppercase tracking-wide" style={{ color: !isExt ? WHITE : BLUE }}>Internal</span>
-          </button>
-          <button onClick={() => switchSystem(findSys(orient, true).id)}
-            className={"w-full rounded-xl border-2 py-3 px-3 text-center active:scale-95 transition-all " + (isExt ? "" : `border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 ${selectableOffCx}`)}
-            style={isExt ? selectedFill : undefined}>
-            <span className="text-sm font-bold uppercase tracking-wide" style={{ color: isExt ? WHITE : BLUE }}>External</span>
           </button>
         </div>
       </div>

@@ -86,10 +86,11 @@ call `aggregate()`/`buildExtProjAgg()` directly, which is fine today since no UI
 project mix applications yet. This is the summary layer the unified calculator (Phase 4) reads
 from.
 
-### Phase 4 — Merge components — NOT STARTED
+### Phase 4 — Merge components — DONE (see Handoff status)
 
-See "Handoff status" below — this phase turned out to be one atomic, unsplittable change, not a
-series of independently-mergeable file pairs the way the tier breakdown below originally assumed.
+This phase turned out to be one atomic, unsplittable change, not a series of independently-
+mergeable file pairs the way the tier breakdown below originally assumed — see "Handoff status"
+for what actually shipped.
 
 **Tier A — near-identical, merge directly:** `lengthExplorer.tsx` (confirmed identical logic),
 `orderReviewDrawer.tsx`, `estimateStructureNav.tsx`, `projectOrderSheetPage.tsx`.
@@ -114,23 +115,32 @@ Panel length & materials card gets its mockup-matching visual rebuild (card-base
 Reduced-cutting/Cutting-optimiser strategy picker, always-visible track toggles) as a follow-up
 on top of the structural merge, not blocking it.
 
-### Phase 5 — Routing, System Selector, cleanup — NOT STARTED
-- `App.tsx`: remove the `isExt` branch, render one `<Calculator>` always.
+### Phase 5 — Routing, System Selector, cleanup — MOSTLY DONE (see Handoff status)
+- `App.tsx`: remove the `isExt` branch, render one `<Calculator>` always. **DONE.**
 - `systemSelector/`: repurpose from "pick the project's system" to "pick the default
   application/profile for the next new wall" (or fold into the merged first-wall-setup flow —
-  decide during implementation based on what reads cleanest).
+  decide during implementation based on what reads cleanest). **Partially done** — the project-
+  level Internal/External toggle (`SystemRows`'s "Wall type" row, `SystemConfigSectionPhone`'s
+  matching phone segment) is removed rather than repurposed (see Handoff status for why); the real
+  choice now lives in `firstWallSetup.tsx`'s new "1. Wall type" step. The `systemSelector/` route
+  itself (`SystemSelector.tsx`, `/#selector`, used for creating a new *saved project* from a
+  template) is untouched — still fine, since it seeds a whole new project/wall rather than editing
+  an in-progress one.
 - `.dependency-cruiser.js`: remove the internalCalculator/externalCalculator no-cross-import
-  rule (the boundary is intentionally gone now).
+  rule (the boundary is intentionally gone now). **DONE.**
 - Delete the old `src/internalCalculator/`/`src/externalCalculator/` trees once
-  `src/calculator/` (or similar) replaces them.
+  `src/calculator/` (or similar) replaces them. **DONE** — both trees are gone entirely.
 - Update CLAUDE.md's "Estimator UI architecture" section to describe the merged model,
-  replacing the fork-not-share paragraph.
+  replacing the fork-not-share paragraph. **DONE.**
 
-### Phase 6 — Full verification — NOT STARTED
-`npm run typecheck && npm test && npm run build && npm run depcruise`, then a fresh visual pass
-confirming: mixed Internal+External project works end to end, the Wall Setup and Panel length
-cards match the mockup, and nothing in the existing test suite regressed in meaning (not just
-passing — re-read any test whose expected values changed).
+### Phase 6 — Full verification — typecheck/test/build/depcruise DONE; visual pass NOT DONE
+`npm run typecheck && npm test && npm run build && npm run depcruise` all clean (187 tests passing,
+0 depcruise errors). A headless-Chromium smoke check confirmed the app still boots and renders the
+sign-in landing page with no console errors. **What's NOT done**: an authenticated visual pass
+against the real running app (mixed Internal+External project end to end, Wall Setup/Panel length
+cards matching the mockup) — this session didn't set up local Supabase (see "Verifying against the
+real running app" below for the recipe); next session should do this pass before considering Phase
+6 fully closed, especially for the phone layout and the new First-Wall Setup "Wall type" step.
 
 ## Execution discipline
 
@@ -151,40 +161,68 @@ than pushing through into an unverified state.
 184 tests passing, typecheck/build/depcruise clean at every commit. All backward-compatible —
 no existing saved project or user-visible behavior changed by these three phases.
 
-**Phase 4 in progress — warm-up file consolidation done, tested, committed, pushed to
+**Phase 4 done, Phase 5 mostly done, Phase 6 partly done — tested, committed, pushed to
 `claude/pr122-phase-4-7opvpy`:**
-- Created `src/calculator/` (new shared location, outside both fork trees).
-- Moved `wallsCard.tsx` and `wallConfig.tsx` there from `internalCalculator/` (confirmed superset,
-  zero logic changes — see "What Phase 4 actually requires" below) and deleted the
-  `externalCalculator/` copies, updating every import site (`InternalCalculator.tsx`,
-  `ExternalCalculator.tsx`, `firstWallSetup.tsx`, `lengthExplorer.tsx`, `phoneSections.tsx` in both
-  trees, `estimateResultsCard.tsx`, `mainSections.tsx`, `export/buildInternalReportData.ts`) to the
-  new path.
-- Also moved `kitCards.tsx`/`kitWorkspace.tsx`/`kitWorkspacePhone.tsx` (Internal-only) and
-  `panelColourSection.tsx` (External-only) into `src/calculator/` unchanged internally — these were
-  already scoped by the plan as "stays conditional, not merged... move to a shared location but keep
-  their existing internals", and moving them doesn't depend on the six-consumer aggregate-shape work
-  below, so it was safe to do in the same warm-up pass.
-- One real fix needed along the way: `ExternalCalculator.tsx`'s `EdgeRestraintSelector` call was
-  missing the now-required `orient` prop (External's old trimmed `wallConfig.tsx` didn't require it;
-  Internal's superset does, for its `TrackFinishBlock`/`SpanTable` branches) — added
-  `orient={orient}`, an existing in-scope value, no behavior change for External (those branches
-  still don't render for it).
-- `.dependency-cruiser.js` needed **no change** — its rule only forbids direct
-  `internalCalculator/`↔`externalCalculator/` imports; both importing from the new sibling
-  `src/calculator/` was already unaffected. `npm run depcruise` stays 0 errors (36 pre-existing-
-  pattern `no-circular` warnings, up from 28 — same root cause as before, `calculator/wallsCard.tsx`
-  importing the `WallSystemId` type from `App.tsx` while `App.tsx` imports the calculator
-  components; now hit via both the Internal and External import paths instead of just Internal's,
-  not a new category of problem. Confirmed via `git stash` that the pre-existing tree was also
-  warnings-only, exit 0).
-- 184 tests passing, typecheck/build/depcruise clean.
 
-**Still not started: the six-consumer aggregate-shape merge (the real bulk of Phase 4), Phase 5
-(routing/cleanup), Phase 6 (final verification).** See "What Phase 4 actually requires" and the
-(renumbered) "Recommended execution order" below — this session completed old step 1 only.
+Picked up from the warm-up-only state (wallsCard.tsx/wallConfig.tsx/kitCards.tsx/kitWorkspace*.tsx/
+panelColourSection.tsx consolidated into `src/calculator/`, described in the previous handoff below)
+and completed the rest of the merge in one pass, per the "execution discipline" above's own
+allowance for one atomic commit when a phase can't be safely split:
 
-### What Phase 4 actually requires (learned this session, more precise than the tier plan above)
+- Every remaining `internalCalculator/`/`externalCalculator/` file pair merged into
+  `src/calculator/`, dispatching on `active.application`/`wall.application` at each per-wall leaf
+  call site (WallsCard's `showTypes`, the product card's colour-section-vs-panel-length-stock split,
+  `SpanTable`'s fixed-vs-looked-up C-track section, `EdgeRestraintSelector`'s Internal-only track-
+  finish/locked-edges pieces, `WallEstimateCards`' colour-note-vs-kit-cards split) and on
+  `results.some(r => r.wall.application === ...)` at each project-level leaf (which materials
+  section(s) to render in `OrderContent`, whether to show a project-wide waste% stat, etc.) —
+  `lengthExplorer.tsx`/`estimateStructureNav.tsx`/`phoneShell.tsx` needed no such dispatch (confirmed
+  the same "already a safe superset" property wallsCard.tsx/wallConfig.tsx had).
+- New `src/calculator/Calculator.tsx` replaces `InternalCalculator.tsx`/`ExternalCalculator.tsx`.
+- `aggregateProject(results)` (`{ internal, external, combined }`) threaded through all six
+  consumers named in the original plan, via a barrel re-export already anticipating this
+  (`src/estimate/aggregate.ts` already exported `aggregateProject` alongside `aggregate`/
+  `buildExtProjAgg` — a piece of forward-compatible groundwork from Phase 3 this session didn't
+  know about until it got there).
+- `firstWallSetup.tsx`: added "1. Wall type" (Internal/External) as the real first step (spec §4.3),
+  before Orientation. Choosing External drops to External's simpler flow (no wall-system/panel-type
+  steps, colour picker instead); Internal keeps the original flow including Corner/Shaft.
+- `buildInternalReportData.ts`/`buildExternalReportData.ts` merged into `export/buildReportData.ts`.
+  Found and fixed a real latent gap while doing this: `computeProjectReportData.ts` (the headless
+  recompute the Orders/pricing feature uses, `OrderBuilderPage.tsx` → `priceEstimateReportData.ts`)
+  was still dispatching a WHOLE project to `compute()` or `computeExternal()` based on the legacy
+  `system` field, never adopted the per-wall `application` dispatch Phase 2 introduced three phases
+  ago — harmless while no UI path could create a mixed project, but silently wrong the moment one
+  could. Fixed to dispatch per wall (with `backfillApplication()` for pre-Phase-1 saves, mirroring
+  `loadProject()`). Also found that `FixingsSummary`'s single `sealantLabel`/`sealantBoxes` pair
+  can't represent both sides' genuinely different sealant products (Hilti CP606 vs Sikaflex 400) for
+  a mixed project — added an optional `sealantLines` breakdown array (additive, doesn't change
+  behavior for any pure-Internal or pure-External project) and taught
+  `priceEstimateReportData.ts` to price from it when present, so a mixed project's Excel export and
+  Order pricing both account for both sealants instead of silently dropping one.
+- `App.tsx`: removed the `isExt` branch; renders one `<Calculator>`. The `SystemRows`/
+  `SystemConfigSectionPhone` project-level "Wall type" toggle is removed (not repurposed) — with
+  per-wall application, there's no whole-project system left to switch; First-Wall Setup's new step
+  is the one place this choice is made. **Known gap, out of scope for this pass**: there is still no
+  way to change an existing wall's application after First-Wall Setup, or to add a wall of the
+  *other* application to a project that already has one (the mockup's separate "+ Internal wall"/
+  "+ External wall" sidebar buttons from this plan's own Context section aren't implemented) — every
+  "+ Add wall" still inherits the active wall's application, same as Phase 1 left it.
+- `.dependency-cruiser.js`: removed the internal/external no-cross-import rule (kept the
+  general no-circular check). `src/internalCalculator/`/`src/externalCalculator/` deleted entirely.
+  CLAUDE.md's "Estimator UI architecture" section rewritten for the merged model.
+- 187 tests passing (184 existing + 3 new covering the mixed-application path specifically:
+  `reportData.test.ts`'s "mixes Internal and External walls" case,
+  `computeProjectReportData.test.ts`'s mixed-project and backfill cases), typecheck/build/depcruise
+  (0 errors) clean. A headless-Chromium check confirmed the app still boots and renders the sign-in
+  landing page with no console errors — **not** an authenticated visual pass of the estimator itself
+  (see Phase 6 above and "Verifying against the real running app" below).
+
+**Not done**: the mockup's separate "+ Internal wall"/"+ External wall" creation buttons (see gap
+above); the Panel length & materials card's mockup-matching visual rebuild (always noted as a
+follow-up, not blocking the structural merge); an authenticated visual pass.
+
+### What Phase 4 actually required (historical — kept for context; Phase 4 is now done, see above)
 
 Two files need **zero changes** — confirmed by full diff, not just line-count comparison:
 - `internalCalculator/wallsCard.tsx` is already a superset of `externalCalculator/wallsCard.tsx`,
@@ -212,7 +250,7 @@ halfway state where some files reference the old shape and others the new one, a
 threading the new aggregate shape through, every one of those six consumers needs it
 simultaneously for the app to even typecheck.
 
-### Recommended execution order for Phase 4, remaining steps
+### Recommended execution order for Phase 4 (historical — this is what was actually followed)
 
 1. ~~Delete `externalCalculator/wallsCard.tsx` and `externalCalculator/wallConfig.tsx`~~ **DONE**
    this session — see Handoff status above (also moved `kitCards.tsx`/`kitWorkspace.tsx`/

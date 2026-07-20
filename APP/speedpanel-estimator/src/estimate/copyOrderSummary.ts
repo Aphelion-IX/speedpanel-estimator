@@ -3,8 +3,8 @@
 // =============================================================================
 // Spec §7.29: a plain-text version of the complete order, for pasting into
 // email/chat/an internal system. Built from the SAME EstimateReportData
-// exportEstimateToExcel.ts already assembles via buildInternalReportData/
-// buildExternalReportData -- this is a second renderer of already-computed
+// exportEstimateToExcel.ts already assembles via buildReportData.ts -- this
+// is a second renderer of already-computed
 // data, not a new aggregation pass.
 // =============================================================================
 import type { EstimateReportData } from "../export/reportTypes";
