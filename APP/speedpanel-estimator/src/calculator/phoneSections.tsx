@@ -14,13 +14,16 @@
 // `active.application` (Internal's Panel type/Wall system/Corner-Shaft-link
 // pieces and TrackFinishBlock/locked-edges vs. External's PanelColourSection
 // and freely-toggleable edges), same per-wall dispatch pattern
-// mainSections.tsx's WallEstimateCards uses -- the previous project-level
-// "Wall location: Internal/External" toggle is gone (switchToExternal/
-// switchToInternal are gone with it): with per-wall application there's no
-// whole-project system to switch, and this merge doesn't add a way to
-// change an existing wall's application after First-Wall Setup (see
-// docs/unified-estimator-merge-plan.md's Phase 4 scope note) -- it only
-// removes the now-meaningless whole-project toggle.
+// mainSections.tsx's WallEstimateCards uses. SystemConfigSectionPhone's own
+// "Wall type" segment (mockup's `.seg[data-seg="walltype"]`,
+// speedpanel-estimator-phone-v5.html) switches the ACTIVE WALL's own
+// application via `update({ application })` -- the old project-level
+// switchToExternal/switchToInternal machinery this used to route through
+// (back when a whole project was one system or the other) is gone, but the
+// mockup makes clear the control itself was always meant to be per-wall,
+// not removed -- `update` is the same guarded wrapper Calculator.tsx passes
+// everywhere else, so switching a Corner/Shaft-linked wall's type here goes
+// through the same wouldLoseData confirmation as switching its wallSystem.
 //
 // Every colour used here resolves to an existing styleTokens.ts token
 // (BLUE/NAVY/MUTED, tone(), or the exact blue-tint classes cx.infoBox/
@@ -199,11 +202,19 @@ export const SystemConfigSectionPhone = ({
 }) => (
   <SheetCardPhone>
   <SheetSectionPhone icon={<Settings size={13} />} label="System configuration" noDivider>
-    <div className={cx.cardHd}>Panel orientation</div>
+    <div className={cx.cardHd}>Wall type</div>
     <SegPhone
-      options={[{ id: "vertical" as const, label: "Vertical" }, { id: "horizontal" as const, label: "Horizontal" }]}
-      value={orient} onChange={switchOrient}
+      options={[{ id: "internal" as const, label: "Internal" }, { id: "external" as const, label: "External" }]}
+      value={active.application} onChange={application => update({ application })}
     />
+
+    <div className="mt-3">
+      <div className={cx.cardHd}>Panel orientation</div>
+      <SegPhone
+        options={[{ id: "vertical" as const, label: "Vertical" }, { id: "horizontal" as const, label: "Horizontal" }]}
+        value={orient} onChange={switchOrient}
+      />
+    </div>
 
     {active.application === "internal" ? (
       <>

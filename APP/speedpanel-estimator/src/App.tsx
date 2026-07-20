@@ -21,7 +21,6 @@ import { LayoutModeToggle, ThemeToggle, NotificationBell } from "./appShell/head
 import { AuthStatus } from "./appShell/AuthStatus";
 import { CompanySwitcher } from "./appShell/CompanySwitcher";
 import { useMyInternalRole } from "./pages/admin/useMyInternalRole";
-import { SystemRows } from "./appShell/systemRows";
 import { useCornerShaftLinking } from "./appShell/useCornerShaftLinking";
 import { wouldLoseData } from "./estimate/validateWall";
 import { useHashRoute } from "./appShell/useHashRoute";
@@ -173,8 +172,8 @@ export default function SpeedpanelEstimator() {
   // own vertical branch already unlinks a Corner/Shaft partner before
   // applying the patch (see useCornerShaftLinking.ts) -- that cleanup was
   // already correct, it just happened silently. This wraps the SAME
-  // switchOrient reference used by both the web SystemRows selector
-  // (constructed below, in systemSelector) and each calculator's own phone
+  // switchOrient reference passed straight into Calculator, used by both
+  // WallsCard's OrientationSelector (web) and each calculator's own phone
   // SystemConfigSectionPhone, so gating it once here covers both surfaces
   // without threading a second confirm-flow through InternalCalculator.tsx/
   // ExternalCalculator.tsx.
@@ -432,7 +431,6 @@ export default function SpeedpanelEstimator() {
         {route.tab === "estimator" && (
           <Calculator
             store={store} orient={orient} dimUnit={dimUnit} setDimUnit={switchDimUnit}
-            systemSelector={<SystemRows orient={orient} switchOrient={guardedSwitchOrient} />}
             layoutMode={layoutMode}
             linkCornerPartner={linkCornerPartner} linkShaftPartner={linkShaftPartner}
             switchOrient={guardedSwitchOrient}

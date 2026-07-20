@@ -20,6 +20,42 @@ import { TYPES } from "../data";
 import { IconButton } from "../ui/primitives";
 import type { Wall } from "../estimate/wall.types";
 import type { WallSystemId } from "../App";
+import { PanelColourSection } from "./panelColourSection";
+
+// --- WallTypeSelector -----------------------------------------------------------
+// Mockup's own `.seg[data-seg="walltype"]` (speedpanel-estimator-web-v5.html) --
+// each wall picks its own Internal/External application here, not just once
+// at First-Wall Setup (firstWallSetup.tsx's "1. Wall type" step sets the
+// FIRST wall's application; this is the one place an EXISTING wall's
+// application can be changed afterward, or a project can start mixing
+// applications by editing a wall added via one of the structure nav's
+// "+ Internal wall"/"+ External wall" buttons). The caller (Calculator.tsx)
+// gates this through the same wouldLoseData confirmation guard already used
+// for orient/wallSystem changes -- switching a Corner/Shaft-linked wall away
+// from Internal is exactly as link-breaking as switching its wallSystem.
+const WallTypeSelector = ({ value, onChange }: { value: Wall["application"]; onChange: (id: Wall["application"]) => void }) => (
+  <div>
+    <label className="label">Wall type</label>
+    <div className="seg">
+      <button type="button" className={value === "internal" ? "active" : ""} onClick={() => onChange("internal")}>Internal</button>
+      <button type="button" className={value === "external" ? "active" : ""} onClick={() => onChange("external")}>External</button>
+    </div>
+  </div>
+);
+
+// --- OrientationSelector --------------------------------------------------------
+// Mockup's `.seg[data-seg="orientation"]`, sharing Wall setup's row 1 with
+// WallTypeSelector rather than App.tsx's old standalone SystemRows sidebar
+// widget (which used a differently-styled hand-rolled button grid).
+const OrientationSelector = ({ value, onChange }: { value: "vertical" | "horizontal"; onChange: (o: "vertical" | "horizontal") => void }) => (
+  <div>
+    <label className="label">Orientation</label>
+    <div className="seg">
+      <button type="button" className={value === "vertical" ? "active" : ""} onClick={() => onChange("vertical")}>Vertical</button>
+      <button type="button" className={value === "horizontal" ? "active" : ""} onClick={() => onChange("horizontal")}>Horizontal</button>
+    </div>
+  </div>
+);
 
 // --- WallSystemSelector --------------------------------------------------------
 // Horizontal-only wall system variant (Standard / Corner / Shaft), each with its
@@ -253,13 +289,13 @@ export interface WallsCardProps {
   active: Wall; update: (patch: Partial<Wall>) => void;
   duplicateWall: () => void; deleteWall: () => void;
   showTypes?: boolean;
-  systemSelector?: React.ReactNode; // optional system buttons rendered at the top
-  orient?: "vertical" | "horizontal"; // gates the horizontal-only wall system dropdown
+  orient: "vertical" | "horizontal"; // row 1's OrientationSelector, and gates the horizontal-only wall system dropdown
+  switchOrient: (o: "vertical" | "horizontal") => void;
   onCornerLink?: (targetId: number | null) => void; // Corner wall run linking
   onShaftLink?: (targetId: number | null) => void; // Shaft wall primary/secondary linking
   onJunctionLink?: (targetId: number | null) => void; // Generic adjoining-wall linking -- any orient/wallSystem
 }
-export const WallsCard = ({ walls, active, update, duplicateWall, deleteWall, showTypes = true, systemSelector, orient, onCornerLink, onShaftLink, onJunctionLink }: WallsCardProps) => (
+export const WallsCard = ({ walls, active, update, duplicateWall, deleteWall, showTypes = true, orient, switchOrient, onCornerLink, onShaftLink, onJunctionLink }: WallsCardProps) => (
   <section className="card config-card">
     <div className="card-hd">
       <div className="section-title"><span className="dot" /><span>Wall setup</span></div>
@@ -269,45 +305,62 @@ export const WallsCard = ({ walls, active, update, duplicateWall, deleteWall, sh
       </div>
     </div>
     <div className="config-body">
-      {/* 0 -- Wall name. */}
-      <div className="config-row" style={{ gridTemplateColumns: "1fr" }}>
+      {/* 1 -- Wall name, wall type (this wall's own Internal/External
+          application) and orientation, grouped on one row -- mockup's
+          config-row 1 (default .config-row grid is already 1fr 1fr 1.25fr,
+          matching it exactly with no override needed). */}
+      <div className="config-row">
         <div><label className="label">Wall name</label><input className="input" value={active.name} onChange={e => update({ name: e.target.value })} maxLength={32} /></div>
+        <WallTypeSelector value={active.application} onChange={application => update({ application })} />
+        <OrientationSelector value={orient} onChange={switchOrient} />
       </div>
-      {/* 1 -- System selector */}
-      {systemSelector && (
-        <div>
-          {systemSelector}
-        </div>
-      )}
-      {/* 1b -- Horizontal-only wall system dropdown (Standard / Corner / Shaft). */}
-      {showTypes && orient === "horizontal" && (
-        <>
-          <WallSystemSelector
-            value={active.wallSystem}
-            onChange={id => update(id === "shaft" ? { wallSystem: id, type: 78 } : { wallSystem: id })}
-          />
-          {active.wallSystem === "corner" && onCornerLink && (
-            <CornerLinkSelector
-              active={active} walls={walls}
-              onLink={onCornerLink}
-              onSideChange={side => update({ cornerSide: side })}
+      {/* 2 -- Panel configuration, paired with the horizontal-only wall
+          system dropdown (Standard / Corner / Shaft) on one row when it
+          applies -- mockup's config-row 2 (internal-only). Shaft wall is
+          always 78 mm -- hidden rather than shown-but-disabled, since it's
+          not a user choice. Internal only -- External is always P78
+          coloured (see the colour picker below). */}
+      {showTypes && (
+        <div className="config-row" style={{ gridTemplateColumns: orient === "horizontal" ? "1fr 1fr" : "1fr" }}>
+          <PanelTypeSelector active={active} update={update} topBorder={false} />
+          {orient === "horizontal" && (
+            <WallSystemSelector
+              value={active.wallSystem}
+              onChange={id => update(id === "shaft" ? { wallSystem: id, type: 78 } : { wallSystem: id })}
             />
           )}
-          {active.wallSystem === "shaft" && onShaftLink && (
-            <ShaftLinkSelector active={active} walls={walls} onLink={onShaftLink} />
-          )}
-        </>
+        </div>
       )}
-      {/* 1c -- Generic adjoining-wall junction link. Not gated by showTypes/
+      {showTypes && orient === "horizontal" && active.wallSystem === "corner" && onCornerLink && (
+        <CornerLinkSelector
+          active={active} walls={walls}
+          onLink={onCornerLink}
+          onSideChange={side => update({ cornerSide: side })}
+        />
+      )}
+      {showTypes && orient === "horizontal" && active.wallSystem === "shaft" && onShaftLink && (
+        <ShaftLinkSelector active={active} walls={walls} onLink={onShaftLink} />
+      )}
+      {/* 2b -- External-only: panel type badge + colour picker (a richer
+          swatch grid than the mockup's own plain "Panel colour" <select>,
+          kept for the same reason the Corner/Shaft/Junction link selectors
+          below aren't collapsed into the mockup's plain "Adjoining wall"
+          <select> either -- real functionality over static-prototype
+          simplification), part of Wall setup here rather than the Panel
+          length & materials card below it (matches
+          speedpanel-estimator-web-v5.html's config-card `external-only` row
+          -- moved out of Calculator.tsx's product-card). */}
+      {!showTypes && (
+        <div className="border-t border-slate-100 dark:border-slate-700 pt-3">
+          <PanelColourSection active={active} update={update} />
+        </div>
+      )}
+      {/* 3 -- Generic adjoining-wall junction link. Not gated by showTypes/
           orient/wallSystem -- available on every wall in the project (see
-          JunctionLinkSelector). */}
+          JunctionLinkSelector), matching both the internal- and
+          external-only config-rows' own "Adjoining wall" field. */}
       {onJunctionLink && walls.length > 1 && (
         <JunctionLinkSelector active={active} walls={walls} onLink={onJunctionLink} />
-      )}
-      {/* 2 -- Panel configuration. Shaft wall is always 78 mm -- hidden rather
-          than shown-but-disabled, since it's not a user choice. */}
-      {showTypes && (
-        <PanelTypeSelector active={active} update={update} topBorder={!!systemSelector} />
       )}
     </div>
   </section>

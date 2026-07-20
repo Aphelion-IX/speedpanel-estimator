@@ -36,14 +36,13 @@ import { useCombinedEstimateCalc } from "../estimate/useCombinedEstimateCalc";
 import { computeCornerPair, computeShaftPair } from "../estimate/cornerShaftKits";
 import { synthesizeKits } from "../estimate/synthesizeKits";
 import type { SelectedNavItem } from "../estimate/navSelection";
-import { HEAD_FLASH_LABEL, HEAD_FLASH_SUBLABEL, STOCK_LENGTHS, EXT_STOCK, EXT_STOCKED_COLOURS, INT_CONFIG } from "../data";
+import { HEAD_FLASH_LABEL, HEAD_FLASH_SUBLABEL, STOCK_LENGTHS, EXT_STOCK, INT_CONFIG } from "../data";
 import type { Wall } from "../estimate/wall.types";
 import type { EffectiveLayout } from "../useLayoutMode";
 import { WarningsList, UnitToggle, CalculatorShell } from "../ui/primitives";
 import { LockedDataInt, LockedDataExt, LockedDataFooter } from "../ui/lockedData";
 import { PanelLengthSection } from "./lengthExplorer";
 import { WallsCard } from "./wallsCard";
-import { PanelColourSection } from "./panelColourSection";
 import { EstimateStructureNav } from "./estimateStructureNav";
 import { EstimateSummarySidebar } from "./estimateSummarySidebar";
 import { KitWorkspace } from "./kitWorkspace";
@@ -74,7 +73,7 @@ import { buildReportData } from "../export/buildReportData";
 import { exportEstimateToExcel } from "../export/exportEstimateToExcel";
 
 export function Calculator({
-  store, orient, dimUnit, setDimUnit, systemSelector, layoutMode,
+  store, orient, dimUnit, setDimUnit, layoutMode,
   linkCornerPartner: rawLinkCornerPartner, linkShaftPartner: rawLinkShaftPartner,
   switchOrient,
   openProject, draftLabel, onSetDraftLabel, lastEditedAt,
@@ -83,14 +82,12 @@ export function Calculator({
   readOnlyProject = false, offline = false,
 }: {
   store: WallStore; orient: "vertical" | "horizontal"; dimUnit: string;
-  setDimUnit: (u: string) => void; systemSelector?: React.ReactNode; layoutMode: EffectiveLayout;
+  setDimUnit: (u: string) => void; layoutMode: EffectiveLayout;
   linkCornerPartner: (targetId: number | null) => void;
   linkShaftPartner: (targetId: number | null) => void;
-  // Phone-only SystemConfigSectionPhone's Orientation segment -- same
-  // store/App.tsx wiring web's SystemRows uses, just threaded straight
-  // through instead of via the opaque systemSelector render-prop, so the
-  // phone-only restyle doesn't need to branch inside the shared SystemRows
-  // component (see phoneSections.tsx's header comment).
+  // App.tsx's guardedSwitchOrient -- threaded straight into both WallsCard's
+  // (web) and SystemConfigSectionPhone's (phone) own Orientation segment, so
+  // neither needs a shared standalone widget component for it.
   switchOrient: (o: "vertical" | "horizontal") => void;
   // EstimateTopCard's save-flow wiring -- lifted from App.tsx, which used to
   // render this as a standalone banner above the calculator (see
@@ -133,7 +130,7 @@ export function Calculator({
     walls, activeId, setActiveId,
     projectStock, projectLock, customLengthInput, customActive,
     active, update: rawUpdate, toDisp, updDim,
-    setProjectLength, addBlankWall: rawAddBlankWall, duplicateWall,
+    setProjectLength, addBlankWall: rawAddBlankWall, addWallWithApplication: rawAddWallWithApplication, duplicateWall,
     duplicateWallById: rawDuplicateWallById, deleteWallById, resetWalls,
     commitCustomLength, toggleCustom, clearCustomLength,
     linkJunctionPartner: rawLinkJunctionPartner,
@@ -151,6 +148,7 @@ export function Calculator({
     return readOnlyProject ? () => {} : fn;
   }
   const addBlankWall = guard(rawAddBlankWall);
+  const addWallWithApplication = guard(rawAddWallWithApplication);
   const duplicateWallById = guard(rawDuplicateWallById);
   const linkJunctionPartner = guard(rawLinkJunctionPartner);
   const linkCornerPartner = guard(rawLinkCornerPartner);
@@ -171,7 +169,7 @@ export function Calculator({
   // SystemRows selector.
   const [pendingIncompatibleChange, setPendingIncompatibleChange] = useState<{ message: string; apply: () => void } | null>(null);
   const update = guard((patch: Partial<Wall>) => {
-    if ("orient" in patch || "wallSystem" in patch) {
+    if ("orient" in patch || "wallSystem" in patch || "application" in patch) {
       const message = wouldLoseData(active, patch);
       if (message) { setPendingIncompatibleChange({ message, apply: () => rawUpdate(patch) }); return; }
     }
@@ -258,6 +256,7 @@ export function Calculator({
       selected={selectedNavItem} onSelect={handleSelectNavItem}
       warnById={warnById}
       addBlankWall={addBlankWall}
+      addWallWithApplication={addWallWithApplication}
       duplicateWallById={duplicateWallById} deleteWallById={handleDeleteWall}
       layoutMode={layoutMode}
       dimUnit={dimUnit} toDisp={toDisp}
@@ -330,11 +329,6 @@ export function Calculator({
   // collapsed, echoing the "Estimate structure (N)" pattern already used in
   // the sidebar heading.
   const profileLabel = active.profile === "standard" ? "Standard" : active.profile === "rake" ? "Raked" : "Gable";
-  const edgeCount = edgesLocked ? 4 : Object.values(active.edges).filter(Boolean).length;
-  const edgesBadge = `${edgeCount} edge${edgeCount === 1 ? "" : "s"}`;
-  const isCustomColour = active.colourType === "special";
-  const colourName = !isCustomColour && active.colour ? EXT_STOCKED_COLOURS.find(c => c.code === active.colour)?.label ?? "" : "";
-  const panelBadge = isCustomColour ? "Custom" : colourName || "No colour";
 
   // Hoisted above both workspace nodes so both the Summary sidebar's Export
   // button AND the Project Order Sheet (spec's Final Order Review) build
@@ -427,7 +421,7 @@ export function Calculator({
               walls={walls}
               active={active} update={update}
               duplicateWall={duplicateWall} deleteWall={handleDeleteActiveWall}
-              showTypes={isInternal} systemSelector={systemSelector} orient={orient}
+              showTypes={isInternal} orient={orient} switchOrient={switchOrient}
               onCornerLink={linkCornerPartner}
               onShaftLink={linkShaftPartner}
               onJunctionLink={linkJunctionPartner}
@@ -445,14 +439,11 @@ export function Calculator({
 
             <section className="card product-card">
               <div className="card-hd">
-                <div className="section-title"><span className="dot" /><span>{isInternal ? "Panel length & materials" : "Panel colour & materials"}</span></div>
-                <span className="pill cyan">{isInternal ? edgesBadge : panelBadge}</span>
+                <div className="section-title"><span className="dot" /><span>Panel length &amp; materials</span></div>
+                <span className="pill cyan">Project stock {projectLock ? "enabled" : "disabled"}</span>
               </div>
               <div className="product-body">
-                <div className="stock-col">
-                  {!isInternal && <PanelColourSection active={active} update={update} />}
-                  {panelLengthContent}
-                </div>
+                <div className="stock-col">{panelLengthContent}</div>
                 <div className="materials-col">{tracksContent}</div>
               </div>
             </section>

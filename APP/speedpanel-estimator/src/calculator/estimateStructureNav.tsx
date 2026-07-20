@@ -78,12 +78,19 @@ const KitRow = ({ kit, kits, on, onClick }: { kit: KitEntry; kits: KitEntry[]; o
 
 export const EstimateStructureNav = ({
   walls, results, kits, selected, onSelect, warnById,
-  addBlankWall, duplicateWallById, deleteWallById, layoutMode, dimUnit, toDisp,
+  addBlankWall, addWallWithApplication, duplicateWallById, deleteWallById, layoutMode, dimUnit, toDisp,
 }: {
   walls: Wall[]; results: WallResult[]; kits: KitEntry[];
   selected: SelectedNavItem; onSelect: (item: SelectedNavItem) => void;
   warnById: Record<number, boolean>;
   addBlankWall: () => void;
+  // Mockup's own explicit "+ Internal wall"/"+ External wall" footer
+  // buttons (speedpanel-estimator-web-v5.html's `.add-wall-buttons`) --
+  // addBlankWall (header "+" icon) still inherits the active wall's own
+  // application as before; these two create a wall of a specific
+  // application regardless of what's currently active, the one UI path
+  // that lets a project actually mix Internal and External walls.
+  addWallWithApplication: (application: "internal" | "external") => void;
   duplicateWallById: (id: number) => void; deleteWallById: (id: number) => void;
   layoutMode?: EffectiveLayout;
   dimUnit: string; toDisp: (m: string) => string;
@@ -141,7 +148,8 @@ export const EstimateStructureNav = ({
         ))}
       </div>
       <div className="add-wall-buttons">
-        <button className="btn" onClick={addBlankWall}><Plus size={14} />Add wall</button>
+        <button className="btn" onClick={() => addWallWithApplication("internal")}><Plus size={14} />Internal wall</button>
+        <button className="btn" onClick={() => addWallWithApplication("external")}><Plus size={14} />External wall</button>
       </div>
     </aside>
   );

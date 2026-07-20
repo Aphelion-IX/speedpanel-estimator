@@ -110,13 +110,20 @@ export function validateWall(wall: Wall, walls: Wall[], out: ComputeOut): WallVa
 // application/orientation/wall-system changes (spec §7.12-7.14) behind a
 // ConfirmDialog rather than applying the patch immediately.
 export function wouldLoseData(wall: Wall, patch: Partial<Wall>): string | null {
+  // Corner/Shaft are Internal-only concepts (see wallDomain.ts's Wall.wallSystem)
+  // -- switching an existing linked wall to External is exactly as
+  // link-breaking as switching its wallSystem away from corner/shaft.
+  const losingApplication = patch.application === "external" && wall.application === "internal";
+
   const losingCornerLink = wall.wallSystem === "corner" && wall.cornerPartnerId != null &&
     ((patch.orient === "vertical" && wall.orient === "horizontal") ||
+      losingApplication ||
       (patch.wallSystem != null && patch.wallSystem !== "corner"));
   if (losingCornerLink) return "This wall is linked as part of a Corner system. This change will remove the link, and the linked partner will become a standalone wall.";
 
   const losingShaftLink = wall.wallSystem === "shaft" && wall.shaftPartnerId != null &&
     ((patch.orient === "vertical" && wall.orient === "horizontal") ||
+      losingApplication ||
       (patch.wallSystem != null && patch.wallSystem !== "shaft"));
   if (losingShaftLink) return "This wall is linked as part of a Shaft system. This change will remove the link, and the linked partner will become a standalone wall.";
 

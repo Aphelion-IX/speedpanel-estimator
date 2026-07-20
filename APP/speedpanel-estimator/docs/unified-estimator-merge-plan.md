@@ -240,8 +240,9 @@ allowance for one atomic commit when a phase can't be safely split:
   (signed in, drove First-Wall Setup, an Internal wall, an External wall, and the phone layout with
   Playwright) — see Phase 6 above for exactly what was checked. No console/page errors in any of it.
 
-**Not done**: the mockup's separate "+ Internal wall"/"+ External wall" creation buttons (see gap
-above).
+**Not done at this point in history**: the mockup's separate "+ Internal wall"/"+ External wall"
+creation buttons (see gap above) — since implemented, see the "Full mockup-parity audit" entry
+further down this Handoff status section.
 
 **Panel length & materials card's mockup-matching visual rebuild — DONE** (follow-up session, once
 the actual mockup files were supplied — they aren't stored in this repo, see the header note on
@@ -288,6 +289,82 @@ rather than guessing:
   counts/materials recomputed correctly), toggled the project-lock checkbox and a C/J track finish
   select (both took effect with no console errors), and confirmed the same rebuild renders
   correctly on the phone layout (which reuses `PanelLengthSection` directly).
+
+**Full mockup-parity audit (add/remove UI to match the mockup exactly) — DONE** (follow-up
+session, "use the mockups as a single source of truth" pass). This directly reversed part of the
+"Known gap, out of scope for this pass" note above — the mockup's own markup makes clear the
+per-wall Wall-type toggle and separate add-wall buttons were always intended, not new scope:
+
+- **Reinstated the per-wall "Wall type" toggle**, gone since Phase 5's project-level `SystemRows`
+  removal. This is *not* the old project-level system switch coming back — it's `wallsCard.tsx`'s
+  new `WallTypeSelector`, which flips a single wall's own `application` field (`wall.application`,
+  Phase 1) via `update({ application })`, exactly the same choke point every other per-wall field
+  change already goes through. `validateWall.ts`'s `wouldLoseData()` extended so switching a
+  Corner/Shaft-linked wall's application to External is gated by the same confirm-dialog flow as
+  switching its orientation or wall system away from corner/shaft (both are equally link-breaking).
+- **Added the mockup's own "+ Internal wall"/"+ External wall" structure-nav buttons**
+  (`estimateStructureNav.tsx`), replacing the single generic "+ Add wall" footer button. New
+  `wallStore.ts` action `addWallWithApplication(application)` (kept separate from `addBlankWall`,
+  not an optional param on it, for the same "never take an argument a MouseEvent could be mistaken
+  for" reason `addBlankWall`'s own header comment gives). This closes the other half of the
+  "Known gap" above — a project can now genuinely mix applications from the structure nav, not just
+  via First-Wall Setup.
+- **Restructured `WallsCard`'s body to match the mockup's actual 3-column `config-row` grid**
+  (`speedpanel-estimator-web-v5.html`'s `.config-row{grid-template-columns:1fr 1fr 1.25fr}`,
+  confirmed identical in the iPad mockup). Two real, previously-undetected mismatches fixed here,
+  not just the toggle/buttons above:
+  - Row 1 (Wall name / Wall type / Orientation) was three separate pieces before this pass: Wall
+    name got its own single-column row, Wall type shared a row with an opaque `systemSelector`
+    render-prop, and that render-prop was `App.tsx`'s standalone `SystemRows` component — a
+    completely differently-styled hand-rolled Tailwind button grid, not the shared mockup `.seg`
+    control every other segmented toggle on the card uses. All three now share one `.config-row`
+    (the CSS default is already the mockup's exact 3-column grid, so no inline override is needed
+    here), and Orientation is a new inline `OrientationSelector` in `wallsCard.tsx` using the same
+    `.label`/`.seg` markup as `WallTypeSelector`, wired straight to the `switchOrient` prop
+    Calculator already threads through for phone. `SystemRows`/`systemRows.tsx` deleted entirely
+    (dead after this — it had exactly one call site) along with the `systemSelector` render-prop on
+    `Calculator`/`WallsCard`.
+  - External wall setup had a **duplicate P78 badge**: a static blue "External panel: P78"
+    placeholder block (added in the earlier Panel-length-rebuild pass, guessing at the mockup's
+    static `<div class="seg"><button class="active">P78</button></div>`) stacked directly on top of
+    `PanelColourSection`'s own pre-existing dynamic badge (colour-tinted, reads "P78 - Off White"
+    etc.). Removed the static duplicate; `PanelColourSection` already renders the equivalent badge
+    plus the colour swatch grid.
+  - Row 2 (Panel / Wall system, internal-only) now pairs `PanelTypeSelector` and
+    `WallSystemSelector` on one `.config-row` when the wall is horizontal (matching the mockup's
+    grouping), single-column when vertical (`WallSystemSelector` doesn't apply to vertical walls —
+    Corner/Shaft are horizontal-only per `estimate_free_corner_wall.md`/`estimate_shaft_wall.md`,
+    a real domain rule the mockup's static demo doesn't encode, so this orientation gate is kept
+    even though the mockup always shows the row).
+  - **Deliberately not changed**: `CornerLinkSelector`/`ShaftLinkSelector`/`JunctionLinkSelector`
+    stay their own rich blocks below the config-row grid (with the Corner side-selector,
+    orientation-aware labels, and contextual notes), rather than collapsing into the mockup's
+    single static "Adjoining wall" `<select>` — same reasoning as keeping `PanelColourSection`'s
+    swatch grid over a plain "Panel colour" `<select>`: real functionality over static-prototype
+    simplification. Both are noted inline in `wallsCard.tsx`.
+- Audited the remaining mockup files (`speedpanel-estimator-ipad-v5.html`,
+  `speedpanel-estimator-ipad-states-v5.html`, `-web-states-v5.html`, `-phone-states-v5.html`,
+  `speedpanel-project-order-sheet-v5.html`, `index-v5.html`). Findings:
+  - `speedpanel-estimator-ipad-v5.html` uses the identical `.config-row`/`.seg`/`.strategy`/etc.
+    CSS as the web mockup at a different viewport, not a distinct component set — nothing
+    iPad-specific to build; the app's existing responsive breakpoints already cover it.
+  - The three `-states-v5.html` files and `index-v5.html` are a separate design-QA artifact (own
+    "Estimator state prototype" nav, explicitly linking back to the real
+    `speedpanel-estimator-web-v5.html` as "Active estimator") documenting *behavior* contracts
+    (empty states, save-conflict states, validation banners, error/access states) for design
+    review, not literal screens to add to the real app's routing — confirmed by its own markup
+    (`<span class="pill blue">Estimator state prototype</span>` vs. the active-estimator page's
+    `<span class="pill cyan">Active estimator</span>`). Not treated as a UI source of truth for
+    this pass; the corresponding real behaviors (wall status pills, save states, read-only
+    guard) already exist in the actual app in dynamic form.
+  - `speedpanel-project-order-sheet-v5.html`'s standalone "clean order sheet" already has a
+    matching implementation (`projectOrderSheet.tsx` + `projectOrderSheetPage.tsx`, the
+    `#/estimator/order-sheet` route) from an earlier phase — confirmed present, not re-audited
+    line-by-line this pass.
+- Verified live against a local Supabase instance (Playwright, signed in): Wall setup card in
+  Internal/vertical, External, and Internal/horizontal+Corner states all screenshot-confirmed to
+  render the new row layout correctly with no console/page errors at any step.
+- 187 tests passing, typecheck/build clean.
 
 ### What Phase 4 actually required (historical — kept for context; Phase 4 is now done, see above)
 
