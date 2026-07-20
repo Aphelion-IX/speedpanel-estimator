@@ -16,7 +16,7 @@ import { defaultWall } from "../../wallStore";
 import { SYSTEMS } from "../../appShell/systems";
 import type { WallSystemId } from "../../App";
 import { saveProjectSnapshot } from "./saveProjectSnapshot";
-import { ProjectRowSchema, type ProjectRow, type SavedProjectData } from "./projectTypes";
+import { ProjectRowSchema, parseProjectRows, type ProjectRow, type SavedProjectData } from "./projectTypes";
 import { useAsyncResource, useStableIds } from "./useAsyncResource";
 
 const NOT_CONFIGURED = "Projects aren't configured for this environment.";
@@ -93,8 +93,8 @@ export function useProjects(user: User | null, activeCompanyId?: string | null) 
       .is("deleted_at", null)
       .order("updated_at", { ascending: false });
     if (error) return { data: [], error: error.message };
-    const parsed = ProjectRowSchema.array().safeParse(data ?? []);
-    return parsed.success ? { data: parsed.data, error: null } : { data: [], error: BAD_SHAPE };
+    const parsed = parseProjectRows(data ?? []);
+    return parsed ? { data: parsed, error: null } : { data: [], error: BAD_SHAPE };
   }, [user]);
 
   const { data: projects, loading, error, reload, setData } = useAsyncResource(fetchProjects, [user], {

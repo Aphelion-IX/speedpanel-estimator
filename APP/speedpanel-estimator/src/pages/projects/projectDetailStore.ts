@@ -10,7 +10,7 @@
 import { useCallback } from "react";
 import { supabase } from "../../lib/supabaseClient";
 import { saveProjectSnapshot } from "./saveProjectSnapshot";
-import { ProjectRowSchema, type ProjectRow, type SavedProjectData } from "./projectTypes";
+import { parseProjectRow, type ProjectRow, type SavedProjectData } from "./projectTypes";
 import { useAsyncResource } from "./useAsyncResource";
 
 const NOT_CONFIGURED = "Projects aren't configured for this environment.";
@@ -24,8 +24,8 @@ export function useProject(id: string | undefined) {
     if (!id || !supabase) return { data: null, error: null };
     const { data, error } = await supabase.from("projects").select("*").eq("id", id).single();
     if (error) return { data: null, error: error.message };
-    const parsed = ProjectRowSchema.safeParse(data);
-    return parsed.success ? { data: parsed.data, error: null } : { data: null, error: BAD_SHAPE };
+    const parsed = parseProjectRow(data);
+    return parsed ? { data: parsed, error: null } : { data: null, error: BAD_SHAPE };
   }, [id]);
 
   const { data: project, loading, error, reload: load, setData } = useAsyncResource(fetchProject, [id], {

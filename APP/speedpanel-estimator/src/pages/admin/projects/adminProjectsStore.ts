@@ -19,7 +19,7 @@
 // =============================================================================
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "../../../lib/supabaseClient";
-import { ProjectRowSchema, type ProjectRow } from "../../projects/projectTypes";
+import { parseProjectRows, type ProjectRow } from "../../projects/projectTypes";
 import { useMyQueueScope, applyQueueScope } from "../shared/useMyQueueScope";
 import type { InternalRole } from "../../company/staffTypes";
 
@@ -48,9 +48,9 @@ export function useAdminProjects(userId: string | null, staffRole: InternalRole 
       supabase.from("projects").select("*").in("stage", ["install_review", "technical_review"]), scope,
     ).order("updated_at", { ascending: true });
     if (error) { setState({ projects: [], loading: false, error: error.message }); return; }
-    const parsed = ProjectRowSchema.array().safeParse(data ?? []);
-    if (!parsed.success) { setState({ projects: [], loading: false, error: BAD_SHAPE }); return; }
-    setState({ projects: parsed.data, loading: false, error: null });
+    const parsed = parseProjectRows(data ?? []);
+    if (!parsed) { setState({ projects: [], loading: false, error: BAD_SHAPE }); return; }
+    setState({ projects: parsed, loading: false, error: null });
   }, [scopeLoading, scopeError, scope.kind === "companies" ? scope.companyIds.join(",") : "all"]);
 
   useEffect(() => { load(); }, [load]);
@@ -94,9 +94,9 @@ export function useMyPmProjects(companyIds: string[]) {
     const { data, error } = await supabase.from("projects").select("*")
       .in("company_id", companyIds).order("updated_at", { ascending: false });
     if (error) { setState({ projects: [], loading: false, error: error.message }); return; }
-    const parsed = ProjectRowSchema.array().safeParse(data ?? []);
-    if (!parsed.success) { setState({ projects: [], loading: false, error: BAD_SHAPE }); return; }
-    setState({ projects: parsed.data, loading: false, error: null });
+    const parsed = parseProjectRows(data ?? []);
+    if (!parsed) { setState({ projects: [], loading: false, error: BAD_SHAPE }); return; }
+    setState({ projects: parsed, loading: false, error: null });
   }, [companyIds.join(",")]);
 
   useEffect(() => { load(); }, [load]);
