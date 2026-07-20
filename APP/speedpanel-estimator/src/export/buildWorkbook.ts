@@ -10,6 +10,14 @@
 // isn't bundled into the initial page load -- it's only needed once someone
 // actually clicks Export, same "fetch the heavy dependency on first use"
 // approach as src/education/pdfjsLoader.ts's pdfjs-dist loading.
+//
+// Sheet list checked against the implementation spec's §7.31
+// exportProjectOrderExcel minimum set (Project Summary, Wall Schedule,
+// Panel Order, Tracks and Flashings, Connections, Fixings and Sealants,
+// Special and Custom Items, Warnings and Notes) -- Summary/Walls/Panel
+// Schedule/Track & Flashing/Fixings & Sealant are always present;
+// Connections/Special & Custom Items/Warnings & Notes are added only when
+// there's real data for them (an empty sheet is worse than no sheet).
 // =============================================================================
 import type * as XLSXType from "xlsx";
 import type { EstimateReportData } from "./reportTypes";
@@ -78,9 +86,11 @@ export async function buildWorkbook(data: EstimateReportData): Promise<XLSXType.
   ]);
   XLSX.utils.book_append_sheet(wb, sheetFromRows(XLSX, wallHeader, wallRows), "Walls");
 
-  // --- Panel schedule ------------------------------------------------------------
+  // --- Panel schedule (standard/stocked order only -- spec §7.31's "Panel
+  // Order" sheet; custom-length panels get their own "Special & Custom
+  // Items" sheet below, matching the spec's minimum sheet list) ------------
   const panelHeader = ["Length", "Status", "Required", "Pack size", "Packs", "Ordered", "Spare"];
-  const panelRows = [...data.panelGroups, ...data.customPanels].map(g => [
+  const panelRows = data.panelGroups.map(g => [
     g.label, g.status, g.required, g.packSize, g.packs, g.ordered, g.spare,
   ]);
   if (panelRows.length === 0) panelRows.push(["No panels", "", 0, 0, 0, 0, 0]);
@@ -115,6 +125,27 @@ export async function buildWorkbook(data: EstimateReportData): Promise<XLSXType.
       c.wallA, c.wallB, c.lengthM, c.quantity, c.stock, c.pieces, c.reason, c.warnings.join(" | "),
     ]);
     XLSX.utils.book_append_sheet(wb, sheetFromRows(XLSX, connHeader, connRows), "Connections");
+  }
+
+  // --- Special & custom items (spec §7.31's minimum sheet list -- only
+  // when present, same "don't add a sheet with nothing in it" convention
+  // Connections above already uses) ------------------------------------------
+  if (data.customPanels.length > 0) {
+    const customHeader = ["Length", "Status", "Required", "Pack size", "Packs", "Ordered", "Spare"];
+    const customRows = data.customPanels.map(g => [g.label, g.status, g.required, g.packSize, g.packs, g.ordered, g.spare]);
+    XLSX.utils.book_append_sheet(wb, sheetFromRows(XLSX, customHeader, customRows), "Special & Custom Items");
+  }
+
+  // --- Warnings & notes (spec §7.31's minimum sheet list -- the Summary
+  // sheet above already inlines these for a quick read, this is the
+  // dedicated, easier-to-scan sheet the spec asks for) -----------------------
+  if (data.warnings.length > 0 || data.notes.length > 0) {
+    const noteHeader = ["Type", "Detail"];
+    const noteRows: (string | number)[][] = [
+      ...data.warnings.map(w => ["Warning", w]),
+      ...data.notes.map(n => ["Note", n]),
+    ];
+    XLSX.utils.book_append_sheet(wb, sheetFromRows(XLSX, noteHeader, noteRows), "Warnings & Notes");
   }
 
   return wb;

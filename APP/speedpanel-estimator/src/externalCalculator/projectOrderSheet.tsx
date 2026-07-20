@@ -61,6 +61,26 @@ const ReadinessBanner = ({ readiness }: { readiness: ProjectReadinessResult }) =
   </div>
 );
 
+// Spec §12.3: "On phone, the Final Order Review must not render a desktop-
+// width table. Use one grouped card per wall or material line." -- mirrors
+// internalCalculator/projectOrderSheet.tsx's identical component.
+const WallScheduleMobileCard = ({ wall }: { wall: WallSummaryRow }) => (
+  <div className="rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 p-3">
+    <div className="flex items-center justify-between gap-2">
+      <span className="text-sm font-bold" style={{ color: NAVY }}>{wall.name}</span>
+      {wall.warning
+        ? <span className={`${cx.badge} ${tone("warn")}`}>Review</span>
+        : <span className={`${cx.badge} ${tone("ok")}`}>{wall.panels} panels</span>}
+    </div>
+    <div className="mt-2 grid grid-cols-2 gap-1.5 text-xs" style={{ color: MUTED }}>
+      <span><b style={{ color: NAVY }}>Orientation:</b> {wall.orientation === "vertical" ? "Vertical" : "Horizontal"}</span>
+      <span><b style={{ color: NAVY }}>Panel:</b> {wall.panelType}</span>
+      <span><b style={{ color: NAVY }}>Size:</b> {wall.width} x {wall.height}</span>
+      <span><b style={{ color: NAVY }}>Area:</b> {wall.area}</span>
+    </div>
+  </div>
+);
+
 const wallScheduleColumns: TableColumn<WallSummaryRow>[] = [
   { key: "name", header: "Wall", cell: r => <span className="font-bold" style={{ color: NAVY }}>{r.name}</span> },
   { key: "orient", header: "Orientation", cell: r => r.orientation === "vertical" ? "Vertical" : "Horizontal" },
@@ -149,7 +169,13 @@ export const ProjectOrderSheet = ({
 
         <div className="mt-5">
           <div className={cx.cardHd}>Wall schedule</div>
-          <Table columns={wallScheduleColumns} rows={reportData.walls} rowKey={(r, i) => `${r.name}-${i}`} />
+          {layoutMode === "phone" ? (
+            <div className="space-y-2">
+              {reportData.walls.map((w, i) => <WallScheduleMobileCard key={`${w.name}-${i}`} wall={w} />)}
+            </div>
+          ) : (
+            <Table columns={wallScheduleColumns} rows={reportData.walls} rowKey={(r, i) => `${r.name}-${i}`} />
+          )}
         </div>
 
         <div className="mt-5">

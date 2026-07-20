@@ -46,6 +46,41 @@ describe("buildWorkbook", () => {
     expect(rows[0]["Pieces"]).toBe(1);
   });
 
+  it("adds a Special & Custom Items sheet when custom-length panels are present, separate from the standard Panel Schedule", async () => {
+    const wb = await buildWorkbook(baseReport({
+      customPanels: [{ label: "P51 - 4200 mm", status: "Custom", required: 2, packSize: 21, packs: 1, ordered: 21, spare: 19, panelType: 51 }],
+    }));
+    expect(wb.SheetNames).toContain("Special & Custom Items");
+    const customRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(wb.Sheets["Special & Custom Items"]);
+    expect(customRows).toHaveLength(1);
+    expect(customRows[0]["Length"]).toBe("P51 - 4200 mm");
+
+    // The standard Panel Schedule sheet only carries panelGroups, not customPanels.
+    const panelRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(wb.Sheets["Panel Schedule"]);
+    expect(panelRows).toHaveLength(1);
+    expect(panelRows[0]["Length"]).toBe("P51 - 3.0 m");
+  });
+
+  it("omits the Special & Custom Items sheet when there are no custom-length panels", async () => {
+    const wb = await buildWorkbook(baseReport());
+    expect(wb.SheetNames).not.toContain("Special & Custom Items");
+  });
+
+  it("adds a Warnings & Notes sheet when either is present", async () => {
+    const wb = await buildWorkbook(baseReport({ warnings: ["Span review required"], notes: ["Custom panel length used"] }));
+    expect(wb.SheetNames).toContain("Warnings & Notes");
+    const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(wb.Sheets["Warnings & Notes"]);
+    expect(rows).toEqual([
+      { Type: "Warning", Detail: "Span review required" },
+      { Type: "Note", Detail: "Custom panel length used" },
+    ]);
+  });
+
+  it("omits the Warnings & Notes sheet when there are neither", async () => {
+    const wb = await buildWorkbook(baseReport());
+    expect(wb.SheetNames).not.toContain("Warnings & Notes");
+  });
+
   it("includes wall list, panel schedule and fixings data in their respective sheets", async () => {
     const wb = await buildWorkbook(baseReport());
 

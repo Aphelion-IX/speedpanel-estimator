@@ -146,6 +146,23 @@ export default function SpeedpanelEstimator() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openProject, store.walls, store.activeId, store.nextId, store.projectStock, store.projectLock, store.customLengthInput, store.customActive, system, dimUnit]);
 
+  // Spec §7.27 guardUnsavedChanges: "leaving the Estimator page" via browser
+  // navigation (tab close, refresh, back/forward) is the one trigger this
+  // can guard natively -- the browser's own beforeunload confirmation is the
+  // standard "Stay/Leave" prompt for that case, and only fires while there's
+  // an open saved project with real unsaved edits (a local, unsaved draft is
+  // already autosaved to the device, see wallStore.ts's persistLocally, so
+  // there's nothing to lose there). In-app navigation between tabs (Projects,
+  // Home, etc.) is NOT guarded here -- that would mean intercepting every
+  // navigate() call site across the app, a larger change than this pass
+  // covers; only the browser-level leave is handled.
+  useEffect(() => {
+    if (!openProject || !projectDirty) return;
+    const onBeforeUnload = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ""; };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [openProject, projectDirty]);
+
   const { linkCornerPartner, linkShaftPartner, switchOrient } = useCornerShaftLinking(store);
 
   // Spec §7.13 changeWallOrientation: "warn before data loss". switchOrient's
