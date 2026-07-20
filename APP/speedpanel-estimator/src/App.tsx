@@ -355,7 +355,7 @@ export default function SpeedpanelEstimator() {
           below so it spans edge to edge, with the brand gradient line as
           its own bottom edge rather than a separate divider. */}
       <header className="bg-white/95 backdrop-blur dark:bg-slate-950/95">
-        <div className={layoutMode === "web" ? "mx-auto w-full max-w-[1520px] px-6 py-3" : "mx-auto w-full max-w-md px-3 sm:px-4 py-3"}>
+        <div className={layoutMode === "web" ? "mx-auto w-full max-w-[1520px] px-6 py-3" : "mx-auto w-full max-w-md px-2 sm:px-4 py-3"}>
           <TopNav
             activeTab={route.tab}
             onTabChange={switchTab}
@@ -364,7 +364,7 @@ export default function SpeedpanelEstimator() {
               <CompanySwitcher company={company} />
               <ThemeToggle effective={themeMode} onToggle={toggleTheme} />
               <LayoutModeToggle effective={layoutMode} onToggle={toggleLayout} />
-              <IconButton onClick={() => setConfirmReset(true)}>
+              <IconButton size="header" onClick={() => setConfirmReset(true)}>
                 <RotateCcw size={16} />
               </IconButton>
               <AuthStatus auth={auth} onSignInClick={() => navigate({ tab: "home" })}

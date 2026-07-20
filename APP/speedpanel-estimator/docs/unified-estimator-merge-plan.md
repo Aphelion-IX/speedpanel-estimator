@@ -403,6 +403,65 @@ gaps, both in `phoneSections.tsx`/`Calculator.tsx`:
   never meant to be copied verbatim onto the real multi-page site nav) and sits well outside
   `src/calculator/`, so it wasn't touched here — flagged for a separate pass if wanted.
 
+**Follow-up fixes: TopNav overflow, estimator workspace overflow, phone header crowding, dark
+mode — DONE** (two more follow-up sessions, outside `src/calculator/` — noted here anyway since
+this doc is this branch's running log). The user asked for the flagged TopNav bug to be fixed,
+then for two more bugs it surfaced along the way, then for a full dark-mode pass:
+- **`appShell/topNav.tsx` overflow**: the first fix attempt (bump the fixed Tailwind breakpoint
+  from `md` 768px to `lg` 1024px) just relocated the same clipping bug instead of fixing it —
+  measuring the real rendered content showed the six tab labels plus the right-hand icon/avatar
+  cluster don't actually fit until nearly full desktop width (as late as ~1360px). Replaced the
+  fixed breakpoint with `useNavFit`: an always-mounted, unconstrained measuring twin of the tab
+  row (kept out of the page's paint/scroll area via a 0×0 `overflow-hidden` wrapper, itself using
+  `inline-flex` rather than `flex` after a first attempt silently measured `offsetWidth: 0` --
+  `display:flex`'s `width:auto` fills a 0px-wide container instead of sizing to content) compared
+  against the real row's allocated width via `ResizeObserver`, so the hamburger menu appears
+  exactly when the tabs would actually overflow, at any width. Verified with a live width sweep,
+  360px-1920px: zero clipping, zero page overflow everywhere.
+- **`ui/estimatorTheme.css` `.workspace` overflow at ~1280px**: the 3-column grid's middle column
+  has a `minmax(640px, 1fr)` floor (itself correctly sized to `.geometry-body`'s own two
+  `minmax(280px,...)` sub-columns, not an arbitrary number) requiring 1278px of *workspace* width
+  before the 2-column collapse breakpoint should kick in, but that breakpoint was set to 1180px —
+  146px short once the page's own outer padding (48px) is added on top, so viewports in the
+  1181-1326px range rendered 3 columns without enough room, pushing the `.summary` sidebar's right
+  edge past the viewport. Fixed by correcting the breakpoint to 1340px (the real minimum, with a
+  small buffer) rather than shrinking the column floor (which would have just overflowed
+  `.geometry-body` internally instead). Verified with a live sweep, 901-1600px: zero overflow
+  anywhere, including a probe of the previously-untested 900-1180px 2-column zone.
+- **Phone-width (`appShell/topNav.tsx`/`AuthStatus.tsx`) icon-row crowding**: confirmed
+  pre-existing (identical before/after the TopNav fix above, via `git stash`) — the wordmark and
+  the five-element icon/avatar cluster are both `shrink-0`, and their combined natural width
+  didn't fit a 390px header once the header's own padding was accounted for (a mistake in the
+  first sizing pass here too — see `IconButton`'s new `size="header"` variant, `topNav.tsx`'s
+  tightened gaps/wordmark size, and `AuthStatus.tsx`'s tightened avatar/padding). Verified with a
+  live width sweep measuring the actual gap between the two groups (not just page `scrollWidth`,
+  which had masked overlap at 320-360px in an earlier pass): clean from 360px up, which covers
+  effectively every real device in use.
+- **Dark mode audit**: `estimatorTheme.css` already had a `.est-shell.dark` override block for
+  every CSS variable it defines except two -- `.pill.green`/`.pill.orange` (the wall-status
+  "Ready"/"Warning" pills) used hardcoded hex/rgba literals instead of `var(--...)`, so they never
+  changed the same relative way (`--green`/`--orange` were missing entirely from both the light and
+  dark variable blocks); fixed by giving them their own light/dark pair, following the exact pattern
+  `.pill.red`/`.pill.cyan` already used. Everything else in the estimator (a heavier grep sweep for
+  any other bare hex/rgba not going through a var()) was already dark-aware. The bigger finding was
+  outside the estimator entirely: `projectsTheme.css`/`ordersTheme.css`/`projectsAdminTheme.css`
+  (Projects, Orders, and Admin → Projects Administration) had **no dark-mode overrides at all** --
+  hardcoded `#fff` card backgrounds and light-only borders/text throughout, rendering as
+  white-cards-on-black once dark mode was toggled (confirmed live). `projectsAdminTheme.css` was
+  worse than just missing: it unconditionally shadows the site-wide `--navy`/`--blue` variable
+  names (`index.css`'s own `.dark` class already has real dark values for those two), so nesting
+  ANY shared Tailwind component inside `.pa-shell` was actively overriding those back to
+  light-mode values even when dark mode was otherwise active. Fixed all three the same way as
+  `estimatorTheme.css` already does it: added a `surface`/`surface-soft`/`line-soft`/tinted-border
+  token for whatever was still a bare hex literal, then a `.<prefix>-shell.dark, :root.dark
+  .<prefix>-shell { ... }` block giving every token (existing and new) a dark equivalent in the
+  same relative-lightness relationship `estimatorTheme.css`'s own shift already established.
+  Verified live: Projects/Orders/Admin→Projects Administration all fully dark-themed now, light
+  mode screenshotted before/after and confirmed pixel-identical (only additive variable/dark-block
+  changes, no light-mode value was touched).
+- Full verification suite (typecheck/test/build/depcruise) clean after each of the four fixes
+  above, 187 tests passing throughout.
+
 ### What Phase 4 actually required (historical — kept for context; Phase 4 is now done, see above)
 
 Two files need **zero changes** — confirmed by full diff, not just line-count comparison:

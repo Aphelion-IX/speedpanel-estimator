@@ -110,12 +110,12 @@ export const TopNav = ({ activeTab, onTabChange, right }: { activeTab: TopNavTab
 
   return (
     <div>
-      <div className="flex items-center justify-between gap-2">
-        <div className="relative flex min-w-0 flex-1 items-center gap-4">
+      <div className="flex items-center justify-between gap-1 sm:gap-2">
+        <div className="relative flex min-w-0 flex-1 items-center gap-0 sm:gap-4">
           <div className="shrink-0 leading-none">
-            <div className="flex items-baseline">
-              <span className="text-xl font-black tracking-[-0.04em] text-slate-950 dark:text-white">my</span>
-              <span className="text-xl font-black tracking-[-0.04em]" style={{ color: BLUE }}>SPEEDPORTAL</span>
+            <div className="flex items-baseline whitespace-nowrap">
+              <span className="text-sm font-black tracking-[-0.04em] text-slate-950 dark:text-white sm:text-xl">my</span>
+              <span className="text-sm font-black tracking-[-0.04em] sm:text-xl" style={{ color: BLUE }}>SPEEDPORTAL</span>
             </div>
           </div>
           <div ref={rowRef} className="flex min-w-0 flex-1 items-center gap-0.5 overflow-hidden">
@@ -144,10 +144,10 @@ export const TopNav = ({ activeTab, onTabChange, right }: { activeTab: TopNavTab
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-1.5 shrink-0">
+        <div className="flex items-center gap-0.5 shrink-0 sm:gap-1.5">
           {right}
           {!fits && (
-            <IconButton onClick={() => setMobileOpen(v => !v)}>
+            <IconButton size="header" onClick={() => setMobileOpen(v => !v)}>
               {mobileOpen ? <X size={16} /> : <Menu size={16} />}
             </IconButton>
           )}
