@@ -52,8 +52,9 @@ export const LandingPage = ({ auth, pendingNote }: { auth: UseAuth; pendingNote?
       </div>
 
       <div className="relative mx-auto grid min-h-screen max-w-[1600px] lg:grid-cols-[1.25fr_0.75fr]">
-        {/* Brand panel */}
-        <section className="flex min-w-0 items-center px-6 py-12 sm:px-10 lg:px-16 xl:px-20">
+        {/* Brand panel -- marketing copy, hidden on phone widths so the login
+            card is the whole screen instead of something to scroll past */}
+        <section className="hidden min-w-0 items-center px-6 py-12 sm:flex sm:px-10 lg:px-16 xl:px-20">
           <div className="min-w-0 max-w-2xl">
             <div>
               <div className="flex flex-wrap items-baseline">
