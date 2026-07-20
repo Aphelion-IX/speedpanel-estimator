@@ -74,11 +74,6 @@ export type ProjectRow = z.infer<typeof ProjectRowSchema>;
 // way wallStore.ts's loadProject() already does for device-local saves --
 // WallSchema.orient has no default, so a project saved before per-wall
 // orientation existed fails ProjectRowSchema validation outright otherwise.
-// Every network read of a projects row (list and single-row fetches alike,
-// across projectsStore.ts/projectDetailStore.ts/adminProjectsStore.ts) needs
-// this, or a single legacy row in the result set takes the whole fetch down
-// with "Unexpected data shape from the server" -- .array().safeParse() fails
-// wholesale on one bad element, not just that element.
 function patchLegacyProjectRow(raw: unknown): unknown {
   if (!raw || typeof raw !== "object") return raw;
   const row = raw as { data?: unknown };
@@ -93,9 +88,22 @@ export function parseProjectRow(raw: unknown): ProjectRow | null {
   return parsed.success ? parsed.data : null;
 }
 
-export function parseProjectRows(raw: unknown[]): ProjectRow[] | null {
-  const parsed = ProjectRowSchema.array().safeParse(raw.map(patchLegacyProjectRow));
-  return parsed.success ? parsed.data : null;
+// Parses each row independently and drops (with a console warning, not a
+// thrown/returned error) any that don't validate, instead of failing the
+// whole list the way a single .array().safeParse() call would. A corrupted
+// or hand-inserted row (missing far more than just `orient` -- e.g. seen in
+// production, a wall object reduced to just `{id, orient}`) shouldn't be
+// able to take the entire Projects page down with "Unexpected data shape
+// from the server" for every row in the result set; it should just be
+// invisible until whoever owns that row's data fixes or removes it.
+export function parseProjectRows(raw: unknown[]): ProjectRow[] {
+  const out: ProjectRow[] = [];
+  for (const item of raw) {
+    const parsed = ProjectRowSchema.safeParse(patchLegacyProjectRow(item));
+    if (parsed.success) out.push(parsed.data);
+    else console.warn("Skipping a project row that failed validation:", parsed.error.issues, item);
+  }
+  return out;
 }
 
 export const STAGE_LABELS: Record<Stage, string> = {

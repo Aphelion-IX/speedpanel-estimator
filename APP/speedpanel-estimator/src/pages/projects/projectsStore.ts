@@ -93,8 +93,7 @@ export function useProjects(user: User | null, activeCompanyId?: string | null) 
       .is("deleted_at", null)
       .order("updated_at", { ascending: false });
     if (error) return { data: [], error: error.message };
-    const parsed = parseProjectRows(data ?? []);
-    return parsed ? { data: parsed, error: null } : { data: [], error: BAD_SHAPE };
+    return { data: parseProjectRows(data ?? []), error: null };
   }, [user]);
 
   const { data: projects, loading, error, reload, setData } = useAsyncResource(fetchProjects, [user], {

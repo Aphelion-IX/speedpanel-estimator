@@ -45,15 +45,26 @@ describe("parseProjectRow / parseProjectRows", () => {
       validRow({ walls: [legacyWall] }),
     ];
     const parsed = parseProjectRows(rows);
-    expect(parsed).not.toBeNull();
     expect(parsed).toHaveLength(2);
-    expect(parsed![0].data.walls[0].orient).toBe("horizontal");
-    expect(parsed![1].data.walls[0].orient).toBe("vertical");
+    expect(parsed[0].data.walls[0].orient).toBe("horizontal");
+    expect(parsed[1].data.walls[0].orient).toBe("vertical");
   });
 
-  it("still rejects a genuinely malformed row (missing required fields)", () => {
+  it("still rejects a genuinely malformed row on its own (single-row detail fetch)", () => {
     const { name: _name, ...broken } = validRow();
     expect(parseProjectRow(broken)).toBeNull();
-    expect(parseProjectRows([broken])).toBeNull();
+  });
+
+  it("parseProjectRows skips a corrupted row instead of failing the whole list (regression: a stray {id, orient}-only wall took the entire Projects page down)", () => {
+    // Reproduces the row actually found in production: a wall reduced to
+    // just {id, orient}, missing every other required WallSchema field --
+    // far more broken than the legacy-orient case above, which
+    // backfillOrient can't (and shouldn't try to) paper over. The list
+    // should still return every OTHER valid row, not error out entirely.
+    const good = validRow();
+    const corrupted = validRow({ walls: [{ id: 1, orient: "vertical" }] });
+    const parsed = parseProjectRows([good, corrupted]);
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0].id).toBe(good.id);
   });
 });
