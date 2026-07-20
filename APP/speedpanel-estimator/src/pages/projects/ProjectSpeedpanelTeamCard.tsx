@@ -9,6 +9,7 @@
 import { Mail, Phone, Users } from "lucide-react";
 import { cx, NAVY, BLUE } from "../../styleTokens";
 import { Card } from "../../ui/primitives";
+import { LoadingState } from "../../ui/states";
 import { STAFF_ROLES, STAFF_ROLE_LABELS, STAFF_ROLE_MULTI, staffDisplayName } from "../company/staffTypes";
 import { useCompanyStaffTeam } from "../company/companyStore";
 
@@ -20,7 +21,7 @@ export const ProjectSpeedpanelTeamCard = ({ companyId }: { companyId: string }) 
   return (
     <Card title="Your Speedpanel Team" icon={<Users size={14} />}>
       {loading ? (
-        <p className={cx.footnote} style={{ paddingTop: 0 }}>Loading...</p>
+        <LoadingState label="Loading your Speedpanel team" />
       ) : staff.length === 0 ? (
         <p className={cx.footnote} style={{ paddingTop: 0 }}>Not assigned yet -- contact Speedpanel for help.</p>
       ) : (

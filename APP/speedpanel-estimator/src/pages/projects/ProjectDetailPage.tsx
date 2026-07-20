@@ -500,7 +500,7 @@ export const ProjectDetailPage = ({ id, userId, onBack, onOpenEstimator, onCreat
             <section className="pj-section">
               <div className="pj-sectionhead"><div><h2>Recent Activity</h2><p>Latest project changes</p></div></div>
               {activityLoading ? (
-                <p className={cx.footnote} style={{ paddingTop: 0 }}>Loading...</p>
+                <LoadingState label="Loading recent activity" />
               ) : activityError ? (
                 <p className="text-sm text-red-600 dark:text-red-300">{activityError}</p>
               ) : recentEvents.length === 0 ? (

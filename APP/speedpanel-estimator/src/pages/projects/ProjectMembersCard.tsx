@@ -18,6 +18,7 @@ import { Trash2 } from "lucide-react";
 import { cx, NAVY, MUTED } from "../../styleTokens";
 import { Card, IconButton } from "../../ui/primitives";
 import { Button } from "../../ui/button";
+import { LoadingState } from "../../ui/states";
 import { SelectField } from "../shared/fields";
 import { supabase } from "../../lib/supabaseClient";
 import { ProjectMembershipRowSchema, PROJECT_ROLES, type ProjectMembershipRow, type ProjectRole } from "../company/companyTypes";
@@ -74,7 +75,7 @@ export const ProjectMembersCard = ({ projectId, companyId }: { projectId: string
   return (
     <Card title="Project Access" icon={<Users size={14} />}>
       {loading ? (
-        <p className={cx.footnote} style={{ paddingTop: 0 }}>Loading...</p>
+        <LoadingState label="Loading project access" />
       ) : assignments.length === 0 ? (
         <p className={cx.footnote} style={{ paddingTop: 0 }}>No teammates explicitly assigned -- Owners, Admins and Project Managers already see every company project.</p>
       ) : (
