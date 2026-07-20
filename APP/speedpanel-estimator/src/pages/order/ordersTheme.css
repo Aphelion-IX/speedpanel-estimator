@@ -13,15 +13,22 @@
  * are `ord-`-prefixed (unlike the mockup's own unprefixed `.card`/`.row`/
  * `.table`/`.section` etc.) to avoid colliding with this app's existing
  * Tailwind-based `cx.card` etc. used everywhere else.
+ *
+ * Tokens with a value byte-identical to projectsTheme.css/
+ * projectsAdminTheme.css (in both light and dark) are aliased to
+ * ui/scopedThemeTokens.css's shared `--sp-*` set instead of being
+ * redeclared here -- see that file's header comment for why.
  * ============================================================================= */
+@import "../../ui/scopedThemeTokens.css";
+
 .ord-shell {
-  --ord-blue: #0075cc; --ord-blue700: #005fa7; --ord-blue50: #eef7fd; --ord-cyan: #18a7c9; --ord-cyan700: #0f7f99; --ord-cyan50: #e9f8fb;
-  --ord-red: #c83d42; --ord-red50: #fff0f1; --ord-red-border: #f1d9dc; --ord-green: #238a5a; --ord-green50: #edf8f2; --ord-green-border: #d5eee1;
+  --ord-blue: #0075cc; --ord-blue700: var(--sp-blue700); --ord-blue50: #eef7fd; --ord-cyan: #18a7c9; --ord-cyan700: #0f7f99; --ord-cyan50: #e9f8fb;
+  --ord-red: var(--sp-red); --ord-red50: var(--sp-red50); --ord-red-border: #f1d9dc; --ord-green: #238a5a; --ord-green50: var(--sp-green50); --ord-green-border: #d5eee1;
   --ord-attention: #005fa7; --ord-attention50: #eef7fd; --ord-blue-border: #d7eaf6;
-  --ord-ink: #17212b; --ord-muted: #687581; --ord-muted2: #8b96a0; --ord-line: #dce4e9; --ord-line2: #cbd6dd; --ord-line-soft: #edf0f2;
-  --ord-bg: #f5f7f9; --ord-soft: #edf2f5; --ord-warm: #f4f1ed; --ord-nav: #102332;
-  --ord-surface: #fff; --ord-surface-soft: #fbfcfd; --ord-neutral-bg: #eef1f4;
-  --ord-shadow: 0 10px 30px rgba(22, 39, 52, .08); --ord-radius: 18px; --ord-radius-sm: 12px;
+  --ord-ink: #17212b; --ord-muted: var(--sp-muted); --ord-muted2: var(--sp-muted2); --ord-line: var(--sp-line); --ord-line2: #cbd6dd; --ord-line-soft: var(--sp-line-soft);
+  --ord-bg: var(--sp-bg); --ord-soft: #edf2f5; --ord-warm: #f4f1ed; --ord-nav: var(--sp-nav);
+  --ord-surface: var(--sp-surface); --ord-surface-soft: var(--sp-surface-soft); --ord-neutral-bg: #eef1f4;
+  --ord-shadow: var(--sp-shadow); --ord-radius: 18px; --ord-radius-sm: 12px;
   color: var(--ord-ink);
 }
 .ord-shell.dark, :root.dark .ord-shell {
@@ -29,12 +36,12 @@
      in the same relative-lightness relationship as estimatorTheme.css's own
      light->dark token shifts (light text on a dark surface, brightened
      accent tints) rather than leaving this page's cards white-on-black. */
-  --ord-blue: #5b9dff; --ord-blue700: #8ec1ff; --ord-blue50: rgba(91,157,255,.14); --ord-cyan: #4fd6ee; --ord-cyan700: #7de2f2; --ord-cyan50: rgba(6,168,201,.16);
-  --ord-red: #ff6b83; --ord-red50: rgba(217,54,79,.16); --ord-red-border: rgba(255,107,131,.28); --ord-green: #34d399; --ord-green50: rgba(22,134,93,.16); --ord-green-border: rgba(52,211,153,.28);
+  --ord-blue: #5b9dff; --ord-blue50: rgba(91,157,255,.14); --ord-cyan: #4fd6ee; --ord-cyan700: #7de2f2; --ord-cyan50: rgba(6,168,201,.16);
+  --ord-red-border: rgba(255,107,131,.28); --ord-green: #34d399; --ord-green-border: rgba(52,211,153,.28);
   --ord-attention: #8ec1ff; --ord-attention50: rgba(91,157,255,.14); --ord-blue-border: rgba(91,157,255,.28);
-  --ord-ink: #e6ebf5; --ord-muted: #93a0b8; --ord-muted2: #7688a3; --ord-line: #2a3a56; --ord-line2: #34456a; --ord-line-soft: #24314a;
-  --ord-bg: #0d1626; --ord-soft: #16223b; --ord-warm: #2a2620; --ord-nav: #0a1520;
-  --ord-surface: #16223b; --ord-surface-soft: #101a2e; --ord-neutral-bg: #1b2942;
+  --ord-ink: #e6ebf5; --ord-line2: #34456a;
+  --ord-soft: #16223b; --ord-warm: #2a2620;
+  --ord-neutral-bg: #1b2942;
 }
 
 .ord-crumbs { display: flex; align-items: center; gap: 6px; color: var(--ord-muted); font-size: 11px; font-weight: 750; margin-bottom: 8px; }

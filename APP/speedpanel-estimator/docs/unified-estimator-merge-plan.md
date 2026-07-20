@@ -462,6 +462,28 @@ then for two more bugs it surfaced along the way, then for a full dark-mode pass
 - Full verification suite (typecheck/test/build/depcruise) clean after each of the four fixes
   above, 187 tests passing throughout.
 
+**Follow-up refactor: shared theme tokens across the three ordering-suite CSS files — DONE.**
+The dark-mode fix above added near-identical `.dark` override blocks to `projectsTheme.css`,
+`ordersTheme.css`, and `projectsAdminTheme.css` (all three ported from the same mockup source,
+per each file's own header comment) — duplication the user asked to be refactored away. Pulled
+every token with a byte-identical value (light AND dark) across all three into a new
+`ui/scopedThemeTokens.css`, a `:root`/`.dark`-scoped `--sp-*` set consumed via
+`@import "...scopedThemeTokens.css";` and aliased (e.g. `--pj-muted: var(--sp-muted);`) from each
+file's own class-scoped block, with each file's `.dark` override trimmed to only the tokens that
+still need a page-specific dark value. Any token differing by even one hex digit between files
+(accent blues/greens/cyans and their tints, `--pj-warm`/`--ord-warm`, `projectsAdminTheme.css`'s
+own `--blue`/`--navy` which deliberately match `index.css`'s site-wide dark values instead of this
+shared set's) was deliberately left local — unifying an existing discrepancy is a palette
+decision, not a refactor, even where two values look close enough to be a typo (see
+`scopedThemeTokens.css`'s own header comment). `projectsAdminTheme.css` needed `../../../ui/...`
+rather than `../../ui/...` for the import (one directory deeper than the other two under
+`pages/admin/projects/`) — caught by `npm run build` failing on an unresolved `@import` before the
+path was corrected; Vite/PostCSS resolves relative `@import` paths in plain (non-Tailwind-`@apply`)
+CSS with no extra config needed. Verified live: read every resolved CSS custom property off
+`.pj-shell`/`.ord-shell`/`.pa-shell` in both light and dark before and after the refactor —
+byte-identical in every case, confirming the refactor is a pure structural no-op with zero visible
+change. Full verification suite (typecheck/test/build/depcruise) clean, 187 tests passing.
+
 ### What Phase 4 actually required (historical — kept for context; Phase 4 is now done, see above)
 
 Two files need **zero changes** — confirmed by full diff, not just line-count comparison:

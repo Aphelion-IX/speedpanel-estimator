@@ -13,24 +13,30 @@
  * iPad's override becomes `@media (max-width:1023px)`, phone's override
  * becomes `@media (max-width:639px)` -- placed last so it wins at narrow
  * widths where both queries match).
+ *
+ * Tokens shared byte-for-byte (light AND dark) with ordersTheme.css/
+ * projectsAdminTheme.css come from ui/scopedThemeTokens.css via var(--sp-*)
+ * below, instead of being redeclared here too -- see that file's own header
+ * comment for which tokens qualify and why the rest (accent colours mostly)
+ * stay local to each file.
  * ============================================================================= */
+@import "../../ui/scopedThemeTokens.css";
+
 .pj-shell {
-  --pj-blue: #0075cc; --pj-blue-700: #005fa7; --pj-blue-50: #eef7fd; --pj-blue-100: #d6eaf6; --pj-cyan: #17a7c8;
-  --pj-ink: #17212b; --pj-muted: #687581; --pj-muted2: #8b96a0; --pj-line: #dce4e9; --pj-line-soft: #edf0f2;
-  --pj-bg: #f5f7f9; --pj-warm: #f4f0eb; --pj-nav: #102332; --pj-surface: #fff; --pj-surface-soft: #fbfcfd;
-  --pj-red: #c83d42; --pj-red50: #fff0f1; --pj-green: #248b5d; --pj-green50: #edf8f2;
-  --pj-shadow: 0 10px 30px rgba(22, 39, 52, .08); --pj-radius: 18px;
+  --pj-blue: #0075cc; --pj-blue-700: var(--sp-blue700); --pj-blue-50: #eef7fd; --pj-blue-100: #d6eaf6; --pj-cyan: #17a7c8;
+  --pj-ink: #17212b; --pj-muted: var(--sp-muted); --pj-muted2: var(--sp-muted2); --pj-line: var(--sp-line); --pj-line-soft: var(--sp-line-soft);
+  --pj-bg: var(--sp-bg); --pj-warm: #f4f0eb; --pj-nav: var(--sp-nav); --pj-surface: var(--sp-surface); --pj-surface-soft: var(--sp-surface-soft);
+  --pj-red: var(--sp-red); --pj-red50: var(--sp-red50); --pj-green: #248b5d; --pj-green50: var(--sp-green50);
+  --pj-shadow: var(--sp-shadow); --pj-radius: 18px;
   color: var(--pj-ink);
 }
 .pj-shell.dark, :root.dark .pj-shell {
-  /* Dark-mode equivalents -- not in the mockup (light-only prototype), kept
-     in the same relative-lightness relationship as estimatorTheme.css's own
-     light->dark token shifts (light text on a dark surface, brightened
-     accent tints) rather than leaving this page's cards white-on-black. */
-  --pj-blue: #5b9dff; --pj-blue-700: #8ec1ff; --pj-blue-50: rgba(91,157,255,.14); --pj-blue-100: rgba(91,157,255,.28); --pj-cyan: #4fd6ee;
-  --pj-ink: #e6ebf5; --pj-muted: #93a0b8; --pj-muted2: #7688a3; --pj-line: #2a3a56; --pj-line-soft: #24314a;
-  --pj-bg: #0d1626; --pj-warm: #2a2620; --pj-nav: #0a1520; --pj-surface: #16223b; --pj-surface-soft: #101a2e;
-  --pj-red: #ff6b83; --pj-red50: rgba(217,54,79,.16); --pj-green: #34d399; --pj-green50: rgba(22,134,93,.16);
+  /* Only the tokens NOT sourced from scopedThemeTokens.css above need a dark
+     override here -- the var(--sp-*) ones already resolve to their dark
+     value automatically once :root has .dark, in the same relative-
+     lightness relationship as estimatorTheme.css's own light->dark shift. */
+  --pj-blue: #5b9dff; --pj-blue-50: rgba(91,157,255,.14); --pj-blue-100: rgba(91,157,255,.28); --pj-cyan: #4fd6ee;
+  --pj-ink: #e6ebf5; --pj-warm: #2a2620; --pj-green: #34d399;
 }
 
 .pj-pagehead { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; margin-bottom: 18px; flex-wrap: wrap; }

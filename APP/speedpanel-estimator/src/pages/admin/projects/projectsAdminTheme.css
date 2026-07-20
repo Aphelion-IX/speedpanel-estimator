@@ -9,13 +9,22 @@
    --cyan/etc are new names, not used anywhere else in this app's CSS, so
    there's no cross-app collision risk. Class names are pa-* prefixed so
    they can't collide with anything else in the bundle.
+
+   Tokens with a value byte-identical to projectsTheme.css/ordersTheme.css
+   (in both light and dark) are aliased to ui/scopedThemeTokens.css's shared
+   `--sp-*` set instead of being redeclared here -- see that file's header
+   comment for why. --blue/--navy stay local (see the .dark block below):
+   their dark values deliberately match index.css's own site-wide dark
+   tokens, not this shared set's.
    ============================================================================= */
+@import "../../../ui/scopedThemeTokens.css";
+
 .pa-shell {
-  --blue: #0075cc; --blue700: #005fa7; --blue50: #eef7fd; --cyan: #18a7c9; --cyan700: #0f7f99; --cyan50: #e9f8fb;
-  --red: #c83d42; --red50: #fff0f1; --red-border: #f1d9dc; --green: #238a5a; --green50: #edf8f2; --green-border: #d5eee1;
-  --navy: #17212b; --muted: #687581; --muted2: #8b96a0; --line: #dce4e9; --line-soft: #edf0f2; --surface: #fff; --surface-soft: #fbfcfd;
-  --pa-bg: #f5f7f9; --pa-soft: #edf2f5; --nav: #102332; --pa-blue-border: #d7eaf6; --pa-neutral-bg: #eef1f4;
-  --pa-shadow: 0 10px 30px rgba(22, 39, 52, .08);
+  --blue: #0075cc; --blue700: var(--sp-blue700); --blue50: #eef7fd; --cyan: #18a7c9; --cyan700: #0f7f99; --cyan50: #e9f8fb;
+  --red: var(--sp-red); --red50: var(--sp-red50); --red-border: #f1d9dc; --green: #238a5a; --green50: var(--sp-green50); --green-border: #d5eee1;
+  --navy: #17212b; --muted: var(--sp-muted); --muted2: var(--sp-muted2); --line: var(--sp-line); --line-soft: var(--sp-line-soft); --surface: var(--sp-surface); --surface-soft: var(--sp-surface-soft);
+  --pa-bg: var(--sp-bg); --pa-soft: #edf2f5; --nav: var(--sp-nav); --pa-blue-border: #d7eaf6; --pa-neutral-bg: #eef1f4;
+  --pa-shadow: var(--sp-shadow);
   background: var(--pa-bg);
   margin: -8px -8px 0;
   padding: 8px;
@@ -30,10 +39,10 @@
      overriding the site-wide dark values back to light for anything nested
      here); every other token gets its own dark equivalent in the same
      relative-lightness relationship as estimatorTheme.css's shift. */
-  --blue: #3AA8FF; --blue700: #8ec1ff; --blue50: rgba(58,168,255,.14); --cyan: #4fd6ee; --cyan700: #7de2f2; --cyan50: rgba(6,168,201,.16);
-  --red: #ff6b83; --red50: rgba(217,54,79,.16); --red-border: rgba(255,107,131,.28); --green: #34d399; --green50: rgba(22,134,93,.16); --green-border: rgba(52,211,153,.28);
-  --navy: #E8ECF6; --muted: #93a0b8; --muted2: #7688a3; --line: #2a3a56; --line-soft: #24314a; --surface: #16223b; --surface-soft: #101a2e;
-  --pa-bg: #0d1626; --pa-soft: #16223b; --nav: #0a1520; --pa-blue-border: rgba(58,168,255,.28); --pa-neutral-bg: #1b2942;
+  --blue: #3AA8FF; --blue50: rgba(58,168,255,.14); --cyan: #4fd6ee; --cyan700: #7de2f2; --cyan50: rgba(6,168,201,.16);
+  --red-border: rgba(255,107,131,.28); --green: #34d399; --green-border: rgba(52,211,153,.28);
+  --navy: #E8ECF6;
+  --pa-soft: #16223b; --pa-blue-border: rgba(58,168,255,.28); --pa-neutral-bg: #1b2942;
 }
 .pa-layout { display: grid; grid-template-columns: 238px minmax(0, 1fr); gap: 16px; align-items: start; }
 .pa-side { background: var(--nav); border-radius: 16px; padding: 16px 12px; position: sticky; top: 12px; }
