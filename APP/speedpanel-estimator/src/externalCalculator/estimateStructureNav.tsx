@@ -17,7 +17,7 @@ import { Plus, Layers, Pencil, Copy, Trash2 } from "lucide-react";
 import { cx, BLUE, NAVY, MUTED, selectableOffCx, goldBubbleFill } from "../styleTokens";
 import type { Wall, WallResult } from "../estimate/wall.types";
 import type { EffectiveLayout } from "../useLayoutMode";
-import { WallPillStripPhone, deriveWallStatus, type PhonePillItem } from "./phoneShell";
+import { WallPillStripPhone, deriveWallStatus, statusChipCx, statusLabel, type PhonePillItem } from "./phoneShell";
 import { CardCarousel } from "../ui/cardCarousel";
 import { WallPreviewSection } from "../ui/wallPreview";
 
@@ -54,11 +54,11 @@ export const EstimateStructureNav = ({
       label: w.name,
       sublabel: `${w.orient === "vertical" ? "Vert" : "Horiz"}${r.empty ? "" : ` · ${r.area} m2`}`,
       active: w.id === activeId,
-      status: deriveWallStatus(w, r),
+      status: deriveWallStatus(w, walls, r),
       thumbnail: <WallPreviewSection active={w} walls={walls} out={r} dimUnit={dimUnit} toDisp={toDisp} size="thumb" />,
       onDuplicate: () => duplicateWallById(w.id),
       onDelete: () => deleteWallById(w.id),
-      deleteDisabled: walls.length === 1,
+      deleteDisabled: false,
     }));
     return <WallPillStripPhone items={items} onSelect={id => onSelectWall(Number(id))} onAddWall={addBlankWall} />;
   }
@@ -108,6 +108,9 @@ export const EstimateStructureNav = ({
                 <div className="mt-0.5 truncate text-xs font-medium" style={{ color: MUTED }}>
                   {w.orient === "vertical" ? "Vertical" : "Horizontal"} · P78 · External
                 </div>
+                <span className={`mt-2 inline-flex ${statusChipCx(deriveWallStatus(w, walls, r))}`}>
+                  {statusLabel(deriveWallStatus(w, walls, r))}
+                </span>
               </div>
               <div className="mt-3 flex items-center gap-3 border-t border-slate-100 dark:border-slate-700 pt-2.5">
                 <button type="button" onClick={e => { e.stopPropagation(); duplicateWallById(w.id); }}
@@ -115,7 +118,7 @@ export const EstimateStructureNav = ({
                   <Copy size={13} />Duplicate
                 </button>
                 <span className="h-4 w-px bg-slate-200 dark:bg-slate-600" />
-                <button type="button" disabled={walls.length === 1} onClick={e => { e.stopPropagation(); deleteWallById(w.id); }}
+                <button type="button" onClick={e => { e.stopPropagation(); deleteWallById(w.id); }}
                   className="flex items-center gap-1.5 text-xs font-bold text-red-600 disabled:opacity-40 disabled:pointer-events-none dark:text-red-300">
                   <Trash2 size={13} />Delete
                 </button>

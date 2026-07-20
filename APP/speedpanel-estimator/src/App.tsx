@@ -13,7 +13,8 @@ import { EducationHub } from "./education/EducationHub";
 import { SystemSelector } from "./systemSelector/SystemSelector";
 import { ExternalCalculator } from "./externalCalculator/ExternalCalculator";
 import { InternalCalculator } from "./internalCalculator/InternalCalculator";
-import { ProjectOrderSheetPage } from "./internalCalculator/projectOrderSheetPage";
+import { ProjectOrderSheetPage as InternalProjectOrderSheetPage } from "./internalCalculator/projectOrderSheetPage";
+import { ProjectOrderSheetPage as ExternalProjectOrderSheetPage } from "./externalCalculator/projectOrderSheetPage";
 import { SYSTEMS } from "./appShell/systems";
 import { loadSession, saveSession } from "./appShell/session";
 import { TopNav, type TopNavTab } from "./appShell/topNav";
@@ -295,13 +296,13 @@ export default function SpeedpanelEstimator() {
 
   // Same "no app chrome" precedent as proforma above -- the Project Order
   // Sheet's clean/printable route (see internalCalculator/
-  // projectOrderSheetPage.tsx). External's own mirror doesn't exist yet
-  // (fork-not-share), so this only intercepts the route for Internal; an
-  // External project hitting this hash just falls through to the normal
-  // Estimator tab below until that fork gets its own copy.
-  if (route.tab === "estimator" && route.orderSheet && !isExt) {
+  // projectOrderSheetPage.tsx and its externalCalculator mirror), one branch
+  // per fork-not-share calculator, picked the same way the Estimator tab
+  // itself picks Internal vs External below (isExt).
+  if (route.tab === "estimator" && route.orderSheet) {
+    const OrderSheetPage = isExt ? ExternalProjectOrderSheetPage : InternalProjectOrderSheetPage;
     return (
-      <ProjectOrderSheetPage
+      <OrderSheetPage
         store={store} dimUnit={dimUnit} layoutMode={layoutMode}
         projectName={openProject ? openProject.name : (store.draftLabel ?? "")}
         onBack={() => navigate({ tab: "estimator" })}
@@ -410,6 +411,7 @@ export default function SpeedpanelEstimator() {
               onSaveDraftAsProject={saveDraftAsProject} onSaveOpenProject={saveOpenProject}
               savingProject={savingProject} saveProjectError={saveProjectError} projectDirty={projectDirty}
               onGoToProjects={() => navigate({ tab: "projects" })}
+              readOnlyProject={readOnlyProject}
             />
           ) : (
             <InternalCalculator

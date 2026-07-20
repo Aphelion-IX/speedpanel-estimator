@@ -88,14 +88,18 @@ export const JunctionLinkSelector = ({ active, walls, onLink }: {
 );
 
 // --- WallNameAndActions -----------------------------------------------------------
-export const WallNameAndActions = ({ walls, active, update, duplicateWall, deleteWall }: {
-  walls: Wall[]; active: Wall; update: (patch: Partial<Wall>) => void;
+// deleteWall is no longer gated on walls.length here -- deleting the sole
+// remaining wall is confirm-gated by the caller instead (see
+// ExternalCalculator.tsx's handleDeleteWall/confirmClearLastWall), which
+// clears it back to blank rather than silently no-opping a disabled button.
+export const WallNameAndActions = ({ active, update, duplicateWall, deleteWall }: {
+  active: Wall; update: (patch: Partial<Wall>) => void;
   duplicateWall: () => void; deleteWall: () => void;
 }) => (
   <div className="flex items-center gap-2 mt-2">
     <input value={active.name} onChange={e => update({ name: e.target.value })} maxLength={32} className={cx.wallName} style={{ color: NAVY }} />
     <IconButton onClick={duplicateWall} title="Duplicate"><Copy size={15} /></IconButton>
-    <IconButton onClick={deleteWall} disabled={walls.length === 1} variant="danger" title="Delete"><Trash2 size={15} /></IconButton>
+    <IconButton onClick={deleteWall} variant="danger" title="Delete"><Trash2 size={15} /></IconButton>
   </div>
 );
 
@@ -123,7 +127,7 @@ export const WallsCard = ({ walls, active, update, duplicateWall, deleteWall, sy
         Estimate Structure nav is the wall picker + add-wall entry point, so
         the old tab-strip (once rendered here too) is gone. */}
     <div className={systemSelector ? "border-t border-slate-100 dark:border-slate-700 pt-3" : ""}>
-      <WallNameAndActions walls={walls} active={active} update={update} duplicateWall={duplicateWall} deleteWall={deleteWall} />
+      <WallNameAndActions active={active} update={update} duplicateWall={duplicateWall} deleteWall={deleteWall} />
     </div>
   </div>
 );

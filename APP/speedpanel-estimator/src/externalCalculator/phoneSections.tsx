@@ -194,7 +194,7 @@ export const SystemConfigSectionPhone = ({
     )}
 
     <div className="mt-3">
-      <WallNameAndActions walls={walls} active={active} update={update} duplicateWall={duplicateWall} deleteWall={deleteWall} />
+      <WallNameAndActions active={active} update={update} duplicateWall={duplicateWall} deleteWall={deleteWall} />
     </div>
   </SheetSectionPhone>
   </SheetCardPhone>

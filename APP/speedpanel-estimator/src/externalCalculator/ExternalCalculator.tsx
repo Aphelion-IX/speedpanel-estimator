@@ -47,10 +47,15 @@ import { WallPreviewSection } from "../ui/wallPreview";
 import { PanelScheduleCard, PanelScheduleTable } from "../ui/scheduleCards";
 import { PanelColourSection } from "./panelColourSection";
 import { EstimateResultsCard } from "./estimateResultsCard";
+import { ProjectOrderSheet } from "./projectOrderSheet";
 import { OrderReviewDrawer } from "./orderReviewDrawer";
 import { StickyBarTilesPhone } from "./phoneShell";
 import { EstimateTopCard } from "./EstimateTopCard";
 import type { OpenProjectInfo } from "./EstimateTopCard";
+import { FirstWallSetup } from "./firstWallSetup";
+import { isNoEstimate } from "../estimate/estimatorSession";
+import { ConfirmDialog } from "../ui/confirmDialog";
+import { ReadOnlyBanner } from "../ui/readOnlyGate";
 import {
   SheetCardPhone, SheetSectionPhone, SystemConfigSectionPhone, GeometrySectionPhone,
   PanelLengthSectionPhone, TracksFlashingSectionPhone, WarningsListPhone,
@@ -63,6 +68,7 @@ export function ExternalCalculator({
   switchOrient, switchToInternal,
   openProject, draftLabel, onSetDraftLabel, lastEditedAt,
   onSaveDraftAsProject, onSaveOpenProject, savingProject, saveProjectError, projectDirty, onGoToProjects,
+  readOnlyProject = false,
 }: {
   store: WallStore; orient: "vertical" | "horizontal"; dimUnit: string;
   setDimUnit: (u: string) => void; systemSelector?: React.ReactNode; layoutMode: EffectiveLayout;
@@ -90,6 +96,10 @@ export function ExternalCalculator({
   // openProject is set; harmless/ignored otherwise.
   projectDirty: boolean;
   onGoToProjects: () => void;
+  // Spec §13 "Read-only access" -- see App.tsx's own readOnlyProject
+  // comment and internalCalculator/InternalCalculator.tsx's mirror of this
+  // same prop for why this is always false today.
+  readOnlyProject?: boolean;
 }) {
   const [orderDrawerOpen, setOrderDrawerOpen] = useState(false);
   // EstimateTopCard's "View estimate details" link scrolls here rather than
@@ -100,13 +110,40 @@ export function ExternalCalculator({
   const {
     walls, activeId, setActiveId,
     projectStock, projectLock, customLengthInput, customActive,
-    active, update, toDisp, updDim,
-    setProjectLength, addBlankWall, duplicateWall, deleteWall,
-    duplicateWallById, deleteWallById,
+    active, update: rawUpdate, toDisp, updDim,
+    setProjectLength, addBlankWall: rawAddBlankWall, duplicateWall,
+    duplicateWallById: rawDuplicateWallById, deleteWallById, resetWalls,
     commitCustomLength, toggleCustom, clearCustomLength,
-    linkJunctionPartner,
+    linkJunctionPartner: rawLinkJunctionPartner,
   } = store;
   const { results, out, warnById } = useWallResults(walls, activeId, computeExternal);
+
+  // Spec §13 read-only access: "may not change wall data, links, or save" --
+  // a no-op wrapper for every mutating store action, applied once here
+  // rather than threading a `disabled` prop through each individual leaf
+  // input (see InternalCalculator.tsx's identical pattern and ui/
+  // readOnlyGate.tsx). Always a passthrough today since readOnlyProject is
+  // always false (see App.tsx).
+  function guard<A extends unknown[]>(fn: (...a: A) => void): (...a: A) => void {
+    return readOnlyProject ? () => {} : fn;
+  }
+  const addBlankWall = guard(rawAddBlankWall);
+  const duplicateWallById = guard(rawDuplicateWallById);
+  const linkJunctionPartner = guard(rawLinkJunctionPartner);
+  // External has no wallSystem/Corner/Shaft concept, so unlike Internal's
+  // update() this never needs a wouldLoseData incompatible-change check --
+  // just the read-only guard.
+  const update = guard(rawUpdate);
+
+  const [confirmClearLastWall, setConfirmClearLastWall] = useState(false);
+  const handleDeleteWall = guard((id: number) => {
+    if (walls.length === 1) { setConfirmClearLastWall(true); return; }
+    deleteWallById(id);
+  });
+  const handleDeleteActiveWall = () => handleDeleteWall(activeId);
+
+  const guardedSaveDraftAsProject = readOnlyProject ? async () => null : onSaveDraftAsProject;
+  const guardedSaveOpenProject = readOnlyProject ? async () => {} : onSaveOpenProject;
 
   const switchDimUnit = (u: string) => { setDimUnit(u); clearCustomLength(); };
   const projAgg  = useMemo(() => buildExtProjAgg(results), [results]);
@@ -144,7 +181,7 @@ export function ExternalCalculator({
     <EstimateStructureNav
       walls={walls} results={results} activeId={activeId} onSelectWall={setActiveId}
       warnById={warnById} addBlankWall={addBlankWall}
-      duplicateWallById={duplicateWallById} deleteWallById={deleteWallById}
+      duplicateWallById={duplicateWallById} deleteWallById={handleDeleteWall}
       layoutMode={layoutMode}
       dimUnit={dimUnit} toDisp={toDisp}
     />
@@ -204,7 +241,7 @@ export function ExternalCalculator({
     <>
       <SystemConfigSectionPhone
         walls={walls} active={active} update={update}
-        duplicateWall={duplicateWall} deleteWall={deleteWall} orient={orient}
+        duplicateWall={duplicateWall} deleteWall={handleDeleteActiveWall} orient={orient}
         onJunctionLink={linkJunctionPartner}
         switchOrient={switchOrient} switchToInternal={switchToInternal}
       />
@@ -243,7 +280,7 @@ export function ExternalCalculator({
       <WallsCard
         walls={walls}
         active={active} update={update}
-        duplicateWall={duplicateWall} deleteWall={deleteWall}
+        duplicateWall={duplicateWall} deleteWall={handleDeleteActiveWall}
         systemSelector={systemSelector}
         onJunctionLink={linkJunctionPartner}
       />
@@ -268,6 +305,17 @@ export function ExternalCalculator({
 
   const workspaceNode = layoutMode === "phone" ? phoneWorkspaceNode : webWorkspaceNode;
 
+  // Hoisted so both the Excel export handler AND the Project Order Sheet
+  // (spec's Final Order Review) build from the exact same report snapshot.
+  const reportData = useMemo(() => buildExternalReportData({
+    orient, dimUnit, toDisp, walls, results, warnById, projAgg, combinedEstimate,
+  }), [orient, dimUnit, toDisp, walls, results, warnById, projAgg, combinedEstimate]);
+  const hasExportData = projAgg.panels > 0;
+  const handleExport = () => exportEstimateToExcel(reportData);
+
+  const orderSheetRef = useRef<HTMLDivElement>(null);
+  const scrollToOrderSheet = () => orderSheetRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+
   const mainNode = (
     <div ref={resultsRef}>
       {workspaceNode}
@@ -278,14 +326,20 @@ export function ExternalCalculator({
         projAgg={projAgg} combinedEstimate={combinedEstimate}
         active={active} out={out} orient={orient} ScheduleComp={ScheduleComp}
       />
+
+      {/* Final Order Review / Project Order Sheet -- anchor target for
+          EstimateTopCard's order-jump banner (onViewOrder) and the Order
+          Review drawer/sticky bar's "Review order" actions alike. */}
+      <div ref={orderSheetRef} className="scroll-mt-4">
+        <ProjectOrderSheet
+          layoutMode={layoutMode} projectName={openProject ? openProject.name : (draftLabel ?? "")}
+          results={results} projAgg={projAgg} combinedEstimate={combinedEstimate}
+          reportData={reportData} onExportExcel={handleExport} exportDisabled={!hasExportData}
+        />
+      </div>
     </div>
   );
 
-  const hasExportData = projAgg.panels > 0;
-  const handleExport = () => exportEstimateToExcel(buildExternalReportData({
-    orient, dimUnit, toDisp, walls, results, warnById,
-    projAgg, combinedEstimate,
-  }));
   const footerNode = (
     <LockedDataFooter title="Locked external system data" table={<LockedDataExt />} onExport={handleExport} disabled={!hasExportData} />
   );
@@ -293,7 +347,8 @@ export function ExternalCalculator({
   const orderDrawerNode = (
     <OrderReviewDrawer
       open={orderDrawerOpen} onClose={() => setOrderDrawerOpen(false)} layoutMode={layoutMode}
-      projAgg={projAgg} combinedEstimate={combinedEstimate}
+      projAgg={projAgg} combinedEstimate={combinedEstimate} results={results}
+      reportData={reportData} projectName={openProject ? openProject.name : (draftLabel ?? "")}
       onExport={handleExport} exportDisabled={!hasExportData}
     />
   );
@@ -307,22 +362,45 @@ export function ExternalCalculator({
   // Unconditional now (used to be phone-only) -- see EstimateTopCard.tsx's
   // header comment for why it now also covers the web layout's top-of-page
   // slot, in place of App.tsx's old standalone save-draft/editing-project
-  // banners.
-  const topCardNode = (
+  // banners. Renders FirstWallSetup instead while the store's single seeded
+  // wall is still fully blank and no saved project is open (spec's "No
+  // Project" state -- see estimatorSession.ts's isNoEstimate/design call).
+  const topCardNode = isNoEstimate(results, []) ? (
+    <FirstWallSetup
+      active={active} update={update}
+      draftLabel={draftLabel} onSetDraftLabel={onSetDraftLabel}
+      onDuplicateDraft={duplicateWall} onGoToProjects={onGoToProjects}
+    />
+  ) : (
     <EstimateTopCard
       results={results} projAgg={projAgg}
       openProject={openProject} draftLabel={draftLabel} onSetDraftLabel={onSetDraftLabel}
-      onDuplicateDraft={duplicateWall}
       lastEditedAt={lastEditedAt}
-      onSaveDraftAsProject={onSaveDraftAsProject} onSaveOpenProject={onSaveOpenProject}
+      onSaveDraftAsProject={guardedSaveDraftAsProject} onSaveOpenProject={guardedSaveOpenProject}
       savingProject={savingProject} saveProjectError={saveProjectError} projectDirty={projectDirty}
-      onGoToProjects={onGoToProjects} onViewDetails={scrollToResults}
+      onGoToProjects={onGoToProjects} onViewDetails={scrollToResults} onViewOrder={scrollToOrderSheet}
     />
   );
 
-  if (layoutMode === "phone") return <>{topCardNode}{mainNode}{footerNode}{stickyBarNode}{orderDrawerNode}</>;
+  const dialogsNode = (
+    <ConfirmDialog
+      open={confirmClearLastWall}
+      danger
+      title="Delete the last wall"
+      description="A project always keeps at least one wall to configure, so this wall won't be removed entirely -- it will be cleared back to a blank draft instead."
+      confirmLabel="Clear wall"
+      onConfirm={() => { resetWalls(); setConfirmClearLastWall(false); }}
+      onCancel={() => setConfirmClearLastWall(false)}
+    />
+  );
+
+  const readOnlyBannerNode = readOnlyProject && <div className="mt-3">{<ReadOnlyBanner />}</div>;
+
+  if (layoutMode === "phone") return <>{dialogsNode}{readOnlyBannerNode}{topCardNode}{mainNode}{footerNode}{stickyBarNode}{orderDrawerNode}</>;
   return (
     <>
+      {dialogsNode}
+      {readOnlyBannerNode}
       {topCardNode}
       <CalculatorShell main={mainNode} footer={footerNode} />
       {orderDrawerNode}
