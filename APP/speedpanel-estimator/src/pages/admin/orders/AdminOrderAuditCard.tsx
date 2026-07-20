@@ -1,8 +1,5 @@
 
-import { ClipboardList } from "lucide-react";
-import { Card } from "../../../ui/primitives";
 import { LoadingState } from "../../../ui/states";
-import { cx, MUTED, NAVY } from "../../../styleTokens";
 import { useOrderOperationsAudit } from "../../projects/orders/orderOperationsStore";
 
 export const AdminOrderAuditCard = ({
@@ -14,43 +11,29 @@ export const AdminOrderAuditCard = ({
     useOrderOperationsAudit(orderId);
 
   return (
-    <Card title="Order Audit" icon={<ClipboardList size={14} />}>
+    <div className="ord-section">
+      <div className="ord-section-head"><div><h2>Order Audit</h2></div></div>
       {loading ? (
         <LoadingState label="Loading order audit" />
       ) : error ? (
-        <p className="text-sm text-red-600 dark:text-red-300">
+        <p className="ord-small" style={{ color: "var(--ord-red)" }}>
           {error}
         </p>
       ) : events.length === 0 ? (
-        <p className={cx.footnote} style={{ paddingTop: 0 }}>
-          No operational changes recorded.
-        </p>
+        <p className="ord-small ord-muted">No operational changes recorded.</p>
       ) : (
-        <div className="space-y-3">
-          {events.map(event => (
-            <div key={event.id} className={cx.rowBorder}>
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p
-                    className="text-sm font-semibold capitalize"
-                    style={{ color: NAVY }}
-                  >
-                    {event.event_type.replace(/_/g, " ")}
-                  </p>
-                  {event.reason && (
-                    <p className="mt-1 text-xs" style={{ color: MUTED }}>
-                      {event.reason}
-                    </p>
-                  )}
-                </div>
-                <time className="text-xs" style={{ color: MUTED }}>
-                  {new Date(event.created_at).toLocaleString()}
-                </time>
-              </div>
+        events.map(event => (
+          <div key={event.id} className="ord-row">
+            <div className="ord-row-copy">
+              <strong className="capitalize">{event.event_type.replace(/_/g, " ")}</strong>
+              {event.reason && <span>{event.reason}</span>}
             </div>
-          ))}
-        </div>
+            <span className="ord-row-end" style={{ fontWeight: 700 }}>
+              {new Date(event.created_at).toLocaleString()}
+            </span>
+          </div>
+        ))
       )}
-    </Card>
+    </div>
   );
 };

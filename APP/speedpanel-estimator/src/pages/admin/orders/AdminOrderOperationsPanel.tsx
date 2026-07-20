@@ -1,14 +1,5 @@
 
 import { useMemo, useState } from "react";
-import { RefreshCcw } from "lucide-react";
-import { Card } from "../../../ui/primitives";
-import { Button } from "../../../ui/button";
-import {
-  Field,
-  SelectField,
-  TextAreaField,
-} from "../../shared/fields";
-import { cx, MUTED } from "../../../styleTokens";
 import {
   ORDER_ALLOWED_TRANSITIONS,
   ORDER_OPERATIONAL_STATUSES,
@@ -91,7 +82,10 @@ export const AdminOrderOperationsPanel = ({
   };
 
   return (
-    <Card title="Order Operations" icon={<RefreshCcw size={14} />}>
+    <div className="ord-section">
+      <div className="ord-section-head"><div><h2>Order Operations</h2></div></div>
+
+      <h3 style={{ marginBottom: 8 }}>Update Status</h3>
       <form
         onSubmit={event => {
           event.preventDefault();
@@ -109,53 +103,35 @@ export const AdminOrderOperationsPanel = ({
                 ),
           );
         }}
-        className="grid gap-3 sm:grid-cols-2"
+        className="ord-fieldgrid"
       >
-        <SelectField
-          label="Update mode"
-          value={mode}
-          options={[
-            {
-              value: "progression",
-              label: "Normal progression",
-            },
-            {
-              value: "correction",
-              label: "Administrative correction",
-            },
-          ]}
-          onChange={value =>
-            setMode(value as "progression" | "correction")
-          }
-        />
-        <SelectField
-          label="Target status"
-          value={
-            mode === "progression"
-              ? progressionTarget
-              : targetStatus
-          }
-          options={
-            mode === "progression"
-              ? progressionOptions
-              : STATUS_OPTIONS
-          }
-          onChange={value =>
-            setTargetStatus(value as OrderOperationalStatus)
-          }
-        />
+        <div className="ord-field">
+          <label>Update mode</label>
+          <select value={mode} onChange={e => setMode(e.target.value as "progression" | "correction")}>
+            <option value="progression">Normal progression</option>
+            <option value="correction">Administrative correction</option>
+          </select>
+        </div>
+        <div className="ord-field">
+          <label>Target status</label>
+          <select
+            value={mode === "progression" ? progressionTarget : targetStatus}
+            onChange={e => setTargetStatus(e.target.value as OrderOperationalStatus)}
+          >
+            {(mode === "progression" ? progressionOptions : STATUS_OPTIONS).map(o => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+        </div>
         {mode === "correction" && (
-          <div className="sm:col-span-2">
-            <Field
-              label="Correction reason"
-              value={reason}
-              onChange={setReason}
-              required
-            />
+          <div className="ord-field full">
+            <label>Correction reason</label>
+            <input value={reason} onChange={e => setReason(e.target.value)} required />
           </div>
         )}
-        <div className="sm:col-span-2">
-          <Button
+        <div className="ord-field full">
+          <button
+            className="ord-btn primary"
             type="submit"
             disabled={
               busy ||
@@ -165,32 +141,29 @@ export const AdminOrderOperationsPanel = ({
             }
           >
             {busy ? "Saving..." : "Update Status"}
-          </Button>
+          </button>
         </div>
       </form>
 
-      <div className={cx.hr} />
-
-      <div className="grid gap-3">
-        <SelectField
-          label="Customer action"
-          value={customerActionRequired ? "required" : "none"}
-          options={[
-            { value: "none", label: "No action required" },
-            { value: "required", label: "Action required" },
-          ]}
-          onChange={value =>
-            setCustomerActionRequired(value === "required")
-          }
-        />
-        <TextAreaField
-          label="Customer message"
-          value={customerActionNote}
-          onChange={setCustomerActionNote}
-        />
-        <div>
-          <Button
-            variant="secondary"
+      <h3 className="mt-4" style={{ marginBottom: 8 }}>Customer Action</h3>
+      <div className="ord-fieldgrid">
+        <div className="ord-field">
+          <label>Customer action</label>
+          <select
+            value={customerActionRequired ? "required" : "none"}
+            onChange={e => setCustomerActionRequired(e.target.value === "required")}
+          >
+            <option value="none">No action required</option>
+            <option value="required">Action required</option>
+          </select>
+        </div>
+        <div className="ord-field full">
+          <label>Customer message</label>
+          <textarea value={customerActionNote} onChange={e => setCustomerActionNote(e.target.value)} />
+        </div>
+        <div className="ord-field full">
+          <button
+            className="ord-btn secondary"
             disabled={busy}
             onClick={() =>
               run(() =>
@@ -203,50 +176,47 @@ export const AdminOrderOperationsPanel = ({
             }
           >
             Save Customer Action
-          </Button>
+          </button>
         </div>
       </div>
 
-      <div className={cx.hr} />
-
+      <h3 className="mt-4" style={{ marginBottom: 8 }}>Completion Checks</h3>
       {check?.blockers.length ? (
-        <div className="space-y-2">
+        <div className="ord-note-list">
           {check.blockers.map(blocker => (
-            <div
-              key={blocker}
-              className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300"
-            >
+            <div key={blocker} className="ord-note-item" style={{ borderColor: "var(--ord-red)", color: "var(--ord-red)" }}>
               {blocker}
             </div>
           ))}
         </div>
       ) : (
-        <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-300">
+        <p className="ord-small" style={{ color: "var(--ord-green)", fontWeight: 850 }}>
           All completion checks have passed.
         </p>
       )}
 
       <div className="mt-3">
-        <Button
+        <button
+          className="ord-btn primary"
           disabled={busy || !check?.canComplete}
           onClick={() =>
             run(() => complete(operations.version))
           }
         >
           Complete Order
-        </Button>
+        </button>
       </div>
 
-      <p className={cx.footnote} style={{ color: MUTED }}>
+      <p className="ord-tiny ord-muted mt-2">
         Accepted orders are immutable. Use a linked amendment
         for post-acceptance commercial or quantity changes.
       </p>
 
       {(error || checkError || actionError) && (
-        <p className="mt-2 text-sm text-red-600 dark:text-red-300">
+        <p className="mt-2 ord-small" style={{ color: "var(--ord-red)" }}>
           {error || checkError || actionError}
         </p>
       )}
-    </Card>
+    </div>
   );
 };

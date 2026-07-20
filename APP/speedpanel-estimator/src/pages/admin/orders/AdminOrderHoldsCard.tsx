@@ -1,14 +1,5 @@
 
 import { useState } from "react";
-import { ShieldAlert } from "lucide-react";
-import { Card } from "../../../ui/primitives";
-import { Button } from "../../../ui/button";
-import {
-  Field,
-  SelectField,
-  TextAreaField,
-} from "../../shared/fields";
-import { cx, MUTED, NAVY } from "../../../styleTokens";
 import {
   ORDER_HOLD_TYPES,
   ORDER_HOLD_TYPE_LABELS,
@@ -78,125 +69,90 @@ export const AdminOrderHoldsCard = ({
   };
 
   return (
-    <Card title="Order Holds" icon={<ShieldAlert size={14} />}>
+    <div className="ord-section">
       {openHolds.length === 0 ? (
-        <p className={cx.footnote} style={{ paddingTop: 0 }}>
-          No active holds.
-        </p>
+        <div className="ord-section-head"><div><h2>Order Holds</h2><p>No active holds.</p></div></div>
       ) : (
-        <div className="space-y-2">
-          {openHolds.map(hold => (
-            <div
-              key={hold.id}
-              className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 dark:border-red-900 dark:bg-red-950/30"
+        openHolds.map(hold => (
+          <div key={hold.id} className="ord-info-banner red">
+            <span className="ord-info-copy">
+              <strong>{hold.title}</strong>
+              <span>{hold.reason}</span>
+              <span>
+                {ORDER_HOLD_TYPE_LABELS[hold.hold_type]}
+                {hold.customer_visible ? " · Customer visible" : " · Internal only"}
+              </span>
+            </span>
+            <button
+              className="ord-btn success"
+              disabled={busy}
+              onClick={async () => {
+                const result = await resolveHold(hold.id);
+                if (result) setActionError(result);
+              }}
             >
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-sm font-semibold text-red-700 dark:text-red-300">
-                    {hold.title}
-                  </p>
-                  <p className="mt-1 text-xs text-red-600 dark:text-red-300">
-                    {hold.reason}
-                  </p>
-                  <p className="mt-1 text-[10px]" style={{ color: MUTED }}>
-                    {ORDER_HOLD_TYPE_LABELS[hold.hold_type]}
-                    {hold.customer_visible
-                      ? " · Customer visible"
-                      : " · Internal only"}
-                  </p>
-                </div>
-                <Button
-                  variant="secondary"
-                  disabled={busy}
-                  onClick={async () => {
-                    const result = await resolveHold(hold.id);
-                    if (result) setActionError(result);
-                  }}
-                >
-                  Resolve
-                </Button>
-              </div>
-            </div>
-          ))}
-        </div>
+              Release Hold
+            </button>
+          </div>
+        ))
       )}
 
-      <div className={cx.hr} />
-
-      <div className="grid gap-3 sm:grid-cols-2">
-        <SelectField
-          label="Hold type"
-          value={holdType}
-          options={TYPE_OPTIONS}
-          onChange={value =>
-            setHoldType(value as OrderHoldType)
-          }
-        />
-        <Field label="Title" value={title} onChange={setTitle} />
-        <div className="sm:col-span-2">
-          <TextAreaField
-            label="Internal reason"
-            value={reason}
-            onChange={setReason}
-          />
+      <div className="ord-fieldgrid mt-3">
+        <div className="ord-field">
+          <label>Hold Category</label>
+          <select value={holdType} onChange={e => setHoldType(e.target.value as OrderHoldType)}>
+            {TYPE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
         </div>
-        <SelectField
-          label="Customer visibility"
-          value={customerVisible ? "visible" : "internal"}
-          options={[
-            { value: "visible", label: "Customer visible" },
-            { value: "internal", label: "Internal only" },
-          ]}
-          onChange={value =>
-            setCustomerVisible(value === "visible")
-          }
-        />
+        <div className="ord-field">
+          <label>Title</label>
+          <input value={title} onChange={e => setTitle(e.target.value)} />
+        </div>
+        <div className="ord-field full">
+          <label>Internal Reason</label>
+          <textarea value={reason} onChange={e => setReason(e.target.value)} />
+        </div>
+        <div className="ord-field">
+          <label>Customer Visibility</label>
+          <select
+            value={customerVisible ? "visible" : "internal"}
+            onChange={e => setCustomerVisible(e.target.value === "visible")}
+          >
+            <option value="visible">Customer visible</option>
+            <option value="internal">Internal only</option>
+          </select>
+        </div>
         {customerVisible && (
-          <div className="sm:col-span-2">
-            <TextAreaField
-              label="Customer message"
-              value={customerMessage}
-              onChange={setCustomerMessage}
-            />
+          <div className="ord-field full">
+            <label>Customer Message</label>
+            <textarea value={customerMessage} onChange={e => setCustomerMessage(e.target.value)} />
           </div>
         )}
-        <div className="sm:col-span-2">
-          <Button
-            disabled={busy || !title.trim() || !reason.trim()}
-            onClick={add}
-          >
+        <div className="ord-field full">
+          <button className="ord-btn primary" disabled={busy || !title.trim() || !reason.trim()} onClick={add}>
             {busy ? "Saving..." : "Place Hold"}
-          </Button>
+          </button>
         </div>
       </div>
 
       {resolvedHolds.length > 0 && (
-        <details className="mt-3">
-          <summary
-            className="cursor-pointer text-sm font-semibold"
-            style={{ color: NAVY }}
-          >
-            Resolved holds ({resolvedHolds.length})
-          </summary>
-          <div className="mt-2 space-y-2">
+        <div className="mt-3">
+          <h3 className="ord-small" style={{ fontWeight: 850, marginBottom: 8 }}>Resolved holds ({resolvedHolds.length})</h3>
+          <div className="ord-note-list">
             {resolvedHolds.map(hold => (
-              <div
-                key={hold.id}
-                className="rounded-xl border border-slate-200 px-3 py-2 text-xs dark:border-slate-600"
-                style={{ color: MUTED }}
-              >
-                {hold.title}
+              <div key={hold.id} className="ord-note-item">
+                <strong>{hold.title}</strong>
               </div>
             ))}
           </div>
-        </details>
+        </div>
       )}
 
       {(error || actionError) && (
-        <p className="mt-2 text-sm text-red-600 dark:text-red-300">
+        <p className="mt-2 ord-small" style={{ color: "var(--ord-red)" }}>
           {error || actionError}
         </p>
       )}
-    </Card>
+    </div>
   );
 };
