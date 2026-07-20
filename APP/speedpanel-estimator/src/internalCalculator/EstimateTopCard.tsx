@@ -36,8 +36,17 @@ export interface EstimateTopCardProps {
   lastEditedAt?: number;
   onSaveDraftAsProject: (name: string) => Promise<string | null>;
   onSaveOpenProject: () => Promise<void>;
+  // Spec §11 "Project deleted while open" recovery action -- offered instead
+  // of Retry once saveProjectNotFound is set (Retry against a project that's
+  // gone/unreachable can never succeed).
+  onSaveOpenProjectAsNew: () => Promise<void>;
   savingProject: boolean;
   saveProjectError: string | null;
+  saveProjectNotFound: boolean;
+  // Spec §11 "Offline" -- disables the network-dependent Save actions;
+  // wall editing itself stays live regardless (see InternalCalculator.tsx's
+  // saveBlocked comment).
+  offline?: boolean;
   // Whether the open saved project has edits since it was opened/last saved
   // -- see App.tsx's projectDirty. Only meaningful once openProject is set.
   projectDirty: boolean;
@@ -80,7 +89,8 @@ function orderTotals(projAgg: ProjAgg, kitCount: number) {
 export const EstimateTopCard = ({
   results, kits, projAgg,
   openProject, draftLabel, onSetDraftLabel, lastEditedAt,
-  onSaveDraftAsProject, onSaveOpenProject, savingProject, saveProjectError, projectDirty,
+  onSaveDraftAsProject, onSaveOpenProject, onSaveOpenProjectAsNew,
+  savingProject, saveProjectError, saveProjectNotFound, offline = false, projectDirty,
   onGoToProjects, onViewDetails, onViewOrder,
 }: EstimateTopCardProps) => {
   const nameFieldRef = useRef<HTMLInputElement>(null);
@@ -112,8 +122,12 @@ export const EstimateTopCard = ({
   // Save to Projects button below turns it into one.
   const projectWord = isSaved ? "project" : "draft";
   const saveFailed = isSaved && !!saveProjectError;
-  const saveStatusLabel = savingProject ? "Saving..." : saveFailed ? "Save failed" : projectDirty ? "Unsaved changes" : "All changes saved";
-  const saveStatusPillClass = saveFailed ? "pill red" : projectDirty ? "pill" : "pill cyan";
+  const saveStatusLabel = savingProject ? "Saving..."
+    : saveFailed && saveProjectNotFound ? "Project unavailable"
+    : saveFailed ? "Save failed"
+    : offline ? "Offline"
+    : projectDirty ? "Unsaved changes" : "All changes saved";
+  const saveStatusPillClass = saveFailed ? "pill red" : offline ? "pill" : projectDirty ? "pill" : "pill cyan";
 
   const kitNoun = kits.length === 1 ? kits[0].kind === "corner" ? "linked corner kit" : "linked shaft junction" : `linked kit${kits.length === 1 ? "" : "s"}`;
   const totals = orderTotals(projAgg, kits.length);
@@ -153,15 +167,20 @@ export const EstimateTopCard = ({
         <div className="project-actions">
           {isSaved ? (
             <>
-              {saveFailed && (
-                <button className="btn small" onClick={onSaveOpenProject} disabled={savingProject}>
+              {saveFailed && saveProjectNotFound ? (
+                <button className="btn small" onClick={onSaveOpenProjectAsNew} disabled={savingProject || offline}>
+                  <Save size={13} />Save as new project
+                </button>
+              ) : saveFailed ? (
+                <button className="btn small" onClick={onSaveOpenProject} disabled={savingProject || offline}>
                   <RefreshCw size={13} />Retry
                 </button>
-              )}
+              ) : null}
               <button className="btn icon-only" title="Rename" aria-label="Rename" onClick={() => { setLabelInput(openProject.name); setEditingLabel(true); }}>
                 <Pencil size={15} />
               </button>
-              <button className="btn primary" onClick={onSaveOpenProject} disabled={savingProject}>
+              <button className="btn primary" onClick={onSaveOpenProject} disabled={savingProject || offline || saveProjectNotFound}
+                title={offline ? "You're offline -- reconnect to save" : undefined}>
                 <Save size={15} />{savingProject ? "Saving..." : "Save project"}
               </button>
             </>
@@ -169,7 +188,7 @@ export const EstimateTopCard = ({
             <form onSubmit={handleSaveAsProject} className="flex flex-wrap items-center gap-2">
               <input value={nameInput} onChange={e => setNameInput(e.target.value)} placeholder="Project name" required autoFocus className="input" style={{ width: 180 }} />
               {draftSaveError && <span style={{ color: "var(--red)" }} className="text-xs">{draftSaveError}</span>}
-              <button type="submit" className="btn primary small" disabled={savingDraft || !nameInput.trim()}>{savingDraft ? "Saving..." : "Save"}</button>
+              <button type="submit" className="btn primary small" disabled={savingDraft || !nameInput.trim() || offline}>{savingDraft ? "Saving..." : "Save"}</button>
               <button type="button" className="btn small" onClick={() => { setNamingOpen(false); setDraftSaveError(null); }}>Cancel</button>
             </form>
           ) : (

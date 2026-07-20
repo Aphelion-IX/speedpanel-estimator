@@ -123,7 +123,7 @@ export function useProjects(user: User | null, activeCompanyId?: string | null) 
   };
 
   const saveSnapshot = async (id: string, data: SavedProjectData): Promise<string | null> => {
-    const err = await saveProjectSnapshot(id, data);
+    const { error: err } = await saveProjectSnapshot(id, data);
     if (err) return err;
     setData(prev => prev.map(p => p.id === id ? { ...p, data, updated_at: new Date().toISOString() } : p));
     return null;
