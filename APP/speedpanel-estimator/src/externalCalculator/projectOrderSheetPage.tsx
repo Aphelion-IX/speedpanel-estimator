@@ -38,7 +38,7 @@ export const ProjectOrderSheetPage = ({ store, dimUnit, layoutMode, projectName,
   const hasExportData = projAgg.panels > 0;
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 py-6 sm:py-10" style={{ color: NAVY }}>
+    <div className="est-shell min-h-screen py-6 sm:py-10" style={{ background: "var(--surface3)" }}>
       <div className="mx-auto max-w-5xl px-4 sm:px-6">
         <div className="print:hidden mb-4 flex items-center justify-between">
           <button onClick={onBack} className="flex items-center gap-1.5 text-sm font-semibold hover:underline" style={{ color: BLUE }}>

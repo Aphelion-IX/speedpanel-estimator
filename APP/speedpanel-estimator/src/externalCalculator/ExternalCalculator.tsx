@@ -56,6 +56,7 @@ import { FirstWallSetup } from "./firstWallSetup";
 import { isNoEstimate } from "../estimate/estimatorSession";
 import { ConfirmDialog } from "../ui/confirmDialog";
 import { ReadOnlyBanner } from "../ui/readOnlyGate";
+import "../ui/estimatorTheme.css";
 import {
   SheetCardPhone, SheetSectionPhone, SystemConfigSectionPhone, GeometrySectionPhone,
   PanelLengthSectionPhone, TracksFlashingSectionPhone, WarningsListPhone,
@@ -396,14 +397,14 @@ export function ExternalCalculator({
 
   const readOnlyBannerNode = readOnlyProject && <div className="mt-3">{<ReadOnlyBanner />}</div>;
 
-  if (layoutMode === "phone") return <>{dialogsNode}{readOnlyBannerNode}{topCardNode}{mainNode}{footerNode}{stickyBarNode}{orderDrawerNode}</>;
+  if (layoutMode === "phone") return <div className="est-shell">{dialogsNode}{readOnlyBannerNode}{topCardNode}{mainNode}{footerNode}{stickyBarNode}{orderDrawerNode}</div>;
   return (
-    <>
+    <div className="est-shell">
       {dialogsNode}
       {readOnlyBannerNode}
       {topCardNode}
       <CalculatorShell main={mainNode} footer={footerNode} />
       {orderDrawerNode}
-    </>
+    </div>
   );
 }
