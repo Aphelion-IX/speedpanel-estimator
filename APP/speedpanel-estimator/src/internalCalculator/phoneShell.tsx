@@ -15,45 +15,35 @@ import { useEffect, useRef, useState } from "react";
 import { Layers, Copy, Trash2, Plus, ChevronLeft, ChevronRight } from "lucide-react";
 import { cx, tone, BLUE, NAVY, MUTED } from "../styleTokens";
 import type { Wall, ComputeOut } from "../estimate/wall.types";
+import { determineWallStatus, WALL_STATUS_LABEL, WALL_STATUS_TONE, type WallStatus } from "../estimate/wallStatus";
 
 // --- Derived item status ------------------------------------------------------
-// No persisted "status" field exists on Wall/KitEntry -- this derives a
-// mockup-style status chip from fields that already exist, so it can't drift
-// out of sync with the actual compute/link state.
-//
-// Colour rule (per the approved mockup's visual rules -- blue/neutral/cyan/
-// red only, no yellow or gold): the mockup's own item-pill markup only ever
-// uses 3 chip colours -- default blue (Complete/Needs input/Linked), cyan
-// (Custom/special-order, `.status.cyan`), and red (Not linked, `.status.red`).
-// tone() has no blue entry (its "ok"/"warn" emerald/amber cases don't exist
-// in this palette), so BLUE_CHIP_CX borrows the exact blue-tint classes
-// styleTokens.ts's cx.infoBox/cx.accordionInner already use elsewhere in the
-// app, rather than inventing a new colour.
-export type ItemStatusKey = "complete" | "needsInput" | "custom" | "linked" | "notLinked";
-
-const BLUE_CHIP_CX = "bg-blue-50 dark:bg-blue-900/55 text-[color:var(--blue)]";
+// No persisted "status" field exists on Wall/KitEntry -- this is a thin
+// display mapper over the spec's formal 5-state wall status taxonomy (see
+// ../estimate/wallStatus.ts's determineWallStatus), so it can't drift out of
+// sync with the actual compute/validation state. "linked" is the one value
+// here that ISN'T a wall status -- it's kit-only (a Corner/Shaft kit card
+// always reads "Linked" once its pair exists at all -- see synthesizeKits.ts,
+// which only ever produces a kit entry once both partners resolve).
+export type ItemStatusKey = WallStatus | "linked";
 
 const STATUS: Record<ItemStatusKey, { label: string; chipCx: string }> = {
-  complete:   { label: "Complete",    chipCx: BLUE_CHIP_CX },
-  needsInput: { label: "Needs input", chipCx: BLUE_CHIP_CX },
-  custom:     { label: "Custom",      chipCx: tone("info") },
-  linked:     { label: "Linked",      chipCx: BLUE_CHIP_CX },
-  notLinked:  { label: "Not linked",  chipCx: tone("danger") },
+  notStarted: { label: WALL_STATUS_LABEL.notStarted, chipCx: tone(WALL_STATUS_TONE.notStarted) },
+  incomplete: { label: WALL_STATUS_LABEL.incomplete, chipCx: tone(WALL_STATUS_TONE.incomplete) },
+  ready:      { label: WALL_STATUS_LABEL.ready,      chipCx: tone(WALL_STATUS_TONE.ready) },
+  warning:    { label: WALL_STATUS_LABEL.warning,    chipCx: tone(WALL_STATUS_TONE.warning) },
+  error:      { label: WALL_STATUS_LABEL.error,      chipCx: tone(WALL_STATUS_TONE.error) },
+  linked:     { label: "Linked",                     chipCx: tone("info") },
 };
 
 export const statusLabel = (key: ItemStatusKey) => STATUS[key].label;
 export const statusChipCx = (key: ItemStatusKey) => `${cx.badge} ${STATUS[key].chipCx}`;
-export const isConfigured = (key: ItemStatusKey) => key !== "needsInput" && key !== "notLinked";
+// Only Ready/Warning count toward the top card's "% configured" figure --
+// Not Started/Incomplete/Error all mean the wall isn't usably calculated yet.
+export const isConfigured = (key: ItemStatusKey) => key === "ready" || key === "warning";
 
-// A corner/shaft wall only ever appears in `kits` once BOTH partners are
-// linked (see synthesizeKits.ts) -- an unlinked corner/shaft wall instead
-// shows up standalone in `results`, which is what "notLinked" surfaces here.
-export const deriveWallStatus = (wall: Wall, out: ComputeOut): ItemStatusKey => {
-  if (out.empty) return "needsInput";
-  if ((wall.wallSystem === "corner" && !wall.cornerPartnerId) || (wall.wallSystem === "shaft" && !wall.shaftPartnerId)) return "notLinked";
-  if (wall.forcedStock) return "custom";
-  return "complete";
-};
+export const deriveWallStatus = (wall: Wall, walls: Wall[], out: ComputeOut): ItemStatusKey =>
+  determineWallStatus(wall, walls, out);
 
 // --- Wall/kit pill strip -------------------------------------------------------
 // `thumbnail` (a small WallPreviewSection size="thumb", or a kit icon) sits in

@@ -236,7 +236,7 @@ export const SystemConfigSectionPhone = ({
     )}
 
     <div className="mt-3">
-      <WallNameAndActions walls={walls} active={active} update={update} duplicateWall={duplicateWall} deleteWall={deleteWall} />
+      <WallNameAndActions active={active} update={update} duplicateWall={duplicateWall} deleteWall={deleteWall} />
     </div>
   </SheetSectionPhone>
   </SheetCardPhone>
@@ -268,7 +268,7 @@ export const GeometrySectionPhone = ({
       <UnitToggle unit={dimUnit} setUnit={switchDimUnit} />
     </div>
     <div className="mt-2">
-      <DimensionInputs active={active} toDisp={toDisp} updDim={updDim} out={out} orient={orient} />
+      <DimensionInputs active={active} toDisp={toDisp} updDim={updDim} out={out} orient={orient} walls={walls} />
     </div>
 
     <WallPreviewSection active={active} walls={walls} out={out} dimUnit={dimUnit} toDisp={toDisp} />

@@ -1,0 +1,293 @@
+/* =============================================================================
+ * Estimator -- scoped theme, ported directly from the v5 mockups:
+ * speedpanel-estimator-web-v5.html / -ipad-v5.html / -phone-v5.html and
+ * speedpanel-project-order-sheet-v5.html.
+ * =============================================================================
+ * Same technique as pages/projects/projectsTheme.css: an `.est-shell` wrapper
+ * carries the mockup's OWN CSS custom properties (--navy/--blue/--cyan/etc,
+ * literal mockup hex values, deliberately NOT the app's PANTONE-matched brand
+ * tokens in index.css -- those are used site-wide outside the estimator and
+ * are staying put) so nothing outside the estimator is touched. Class names
+ * below are the mockup's own generic names (.card, .btn, .pill, .row, ...) --
+ * kept as-is for 1:1 fidelity with the mockup markup rather than renamed,
+ * but every rule is scoped under `.est-shell` (descendant selector) so they
+ * can't collide with anything else in the app; nothing here is ever a bare
+ * top-level selector.
+ * ============================================================================= */
+
+.est-shell {
+  --navy: #0b1f3a; --blue: #1259d6; --blue2: #2b78ff; --cyan: #06a8c9; --cyan-soft: #e9fbff;
+  --red: #d9364f; --red-soft: #fff0f3; --ink: #172033; --muted: #68748a; --line: #dce4ef;
+  --surface: #fff; --surface2: #f6f8fb; --surface3: #edf2f8;
+  --shadow: 0 16px 50px rgba(22, 42, 77, .09);
+  --r: 18px; --r2: 13px;
+  color: var(--ink);
+}
+.est-shell.dark, :root.dark .est-shell {
+  /* Dark-mode equivalents -- not in the mockup (light-only prototype), kept
+     in the same relative-lightness relationship as index.css's own
+     light->dark token shifts (light text on a dark surface, brightened
+     accent tints) rather than leaving the estimator unreadable in dark mode. */
+  --navy: #e6ebf5; --blue: #5b9dff; --blue2: #6faeff; --cyan: #4fd6ee; --cyan-soft: rgba(6,168,201,.16);
+  --red: #ff6b83; --red-soft: rgba(217,54,79,.16); --ink: #e6ebf5; --muted: #93a0b8; --line: #2a3a56;
+  --surface: #101a2e; --surface2: #16223b; --surface3: #1b2942;
+}
+
+.est-shell * { box-sizing: border-box; }
+.est-shell [hidden] { display: none !important; }
+
+/* -- Icon chips ------------------------------------------------------------ */
+.est-shell .icon { display: inline-grid; place-items: center; width: 36px; height: 36px; border-radius: 11px; color: var(--navy); background: var(--surface2); border: 1px solid var(--line); }
+.est-shell .icon.sm { width: 30px; height: 30px; border-radius: 9px; }
+.est-shell .icon.xs { width: 26px; height: 26px; border-radius: 8px; }
+.est-shell .icon.blue { background: color-mix(in srgb, var(--blue) 10%, var(--surface)); color: var(--blue); border-color: color-mix(in srgb, var(--blue) 30%, var(--surface)); }
+.est-shell .icon.cyan { background: var(--cyan-soft); color: color-mix(in srgb, var(--cyan) 70%, black 20%); border-color: color-mix(in srgb, var(--cyan) 35%, var(--surface)); }
+.est-shell .icon.red { background: var(--red-soft); color: var(--red); border-color: color-mix(in srgb, var(--red) 30%, var(--surface)); }
+
+/* -- Buttons ----------------------------------------------------------------- */
+.est-shell .btn { min-height: 40px; border-radius: 11px; border: 1px solid var(--line); background: var(--surface); color: var(--navy); font-weight: 750; padding: 0 14px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; font-size: 13px; }
+.est-shell .btn:hover { border-color: color-mix(in srgb, var(--navy) 25%, var(--line)); background: var(--surface2); }
+.est-shell .btn.primary { background: var(--blue); border-color: var(--blue); color: #fff; box-shadow: 0 8px 20px rgba(18, 89, 214, .2); }
+.est-shell .btn.primary:hover { background: color-mix(in srgb, var(--blue) 85%, black 12%); }
+.est-shell .btn.cyan { background: var(--cyan); border-color: var(--cyan); color: #fff; }
+.est-shell .btn.ghost { background: transparent; }
+.est-shell .btn.danger { color: var(--red); }
+.est-shell .btn.icon-only { width: 40px; padding: 0; }
+.est-shell .btn.small { min-height: 34px; padding: 0 10px; font-size: 11px; }
+.est-shell .btn:disabled { opacity: .5; cursor: not-allowed; }
+
+/* -- Cards -------------------------------------------------------------------- */
+.est-shell .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); box-shadow: 0 1px 1px rgba(17, 31, 54, .02); }
+.est-shell .card-hd { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 18px; border-bottom: 1px solid var(--line); }
+.est-shell .card-title { font-weight: 850; color: var(--navy); letter-spacing: -.01em; }
+
+/* -- Text ----------------------------------------------------------------- */
+.est-shell .eyebrow { text-transform: uppercase; font-size: 10px; letter-spacing: .12em; font-weight: 850; color: var(--muted); }
+.est-shell .subtle { color: var(--muted); }
+.est-shell .label { display: block; font-size: 11px; font-weight: 800; color: color-mix(in srgb, var(--navy) 70%, var(--muted) 30%); margin: 0 0 7px; }
+
+/* -- Inputs ----------------------------------------------------------------- */
+.est-shell .input, .est-shell .select { width: 100%; height: 42px; border: 1px solid var(--line); background: var(--surface); border-radius: 11px; padding: 0 12px; color: var(--navy); outline: none; font-size: 13px; }
+.est-shell .input:focus, .est-shell .select:focus { border-color: var(--blue2); box-shadow: 0 0 0 3px color-mix(in srgb, var(--blue2) 12%, transparent); }
+
+/* -- Segmented control -------------------------------------------------------- */
+.est-shell .seg { display: flex; background: var(--surface3); border: 1px solid var(--line); padding: 4px; border-radius: 12px; gap: 3px; }
+.est-shell .seg button { border: 0; background: transparent; color: color-mix(in srgb, var(--navy) 55%, var(--muted) 45%); font-weight: 750; border-radius: 8px; min-height: 32px; padding: 0 12px; flex: 1; white-space: nowrap; cursor: pointer; font-size: 13px; }
+.est-shell .seg button.active { background: var(--surface); color: var(--blue); box-shadow: 0 2px 7px rgba(23, 44, 78, .1); }
+
+/* -- Pills / badges ----------------------------------------------------------- */
+.est-shell .pill { display: inline-flex; align-items: center; gap: 6px; padding: 5px 9px; border-radius: 999px; font-size: 11px; font-weight: 800; border: 1px solid var(--line); color: color-mix(in srgb, var(--navy) 65%, var(--muted) 35%); background: var(--surface); white-space: nowrap; }
+.est-shell .pill.cyan { background: var(--cyan-soft); color: color-mix(in srgb, var(--cyan) 60%, black 25%); border-color: color-mix(in srgb, var(--cyan) 35%, var(--surface)); }
+.est-shell .pill.red { background: var(--red-soft); color: var(--red); border-color: color-mix(in srgb, var(--red) 30%, var(--surface)); }
+.est-shell .pill.blue { background: color-mix(in srgb, var(--blue) 10%, var(--surface)); color: var(--blue); border-color: color-mix(in srgb, var(--blue) 30%, var(--surface)); }
+.est-shell .pill.green { background: rgba(22, 134, 93, .12); color: #16865d; border-color: rgba(22, 134, 93, .3); }
+.est-shell .pill.orange { background: rgba(189, 108, 0, .12); color: #bd6c00; border-color: rgba(189, 108, 0, .3); }
+.est-shell .pill.neutral { background: var(--surface3); color: var(--muted); }
+
+/* -- Metrics / stat tiles ----------------------------------------------------- */
+.est-shell .metric { min-width: 0; padding: 13px 14px; border: 1px solid var(--line); background: var(--surface); border-radius: 13px; }
+.est-shell .metric strong { display: block; color: var(--navy); font-size: 20px; line-height: 1.1; letter-spacing: -.03em; }
+.est-shell .metric span { display: block; color: var(--muted); font-size: 11px; font-weight: 700; margin-top: 5px; }
+
+/* -- Notes -------------------------------------------------------------------- */
+.est-shell .note { display: flex; gap: 9px; align-items: flex-start; padding: 11px 13px; border-radius: 12px; background: color-mix(in srgb, var(--blue) 6%, var(--surface)); border: 1px solid color-mix(in srgb, var(--blue) 18%, var(--surface)); color: color-mix(in srgb, var(--navy) 75%, var(--blue) 25%); font-size: 12px; }
+.est-shell .note svg { flex: 0 0 auto; }
+.est-shell .note.warning { background: var(--red-soft); border-color: color-mix(in srgb, var(--red) 25%, var(--surface)); color: color-mix(in srgb, var(--red) 70%, var(--navy) 30%); }
+
+/* -- Section title / rows ----------------------------------------------------- */
+.est-shell .section-title { display: flex; align-items: center; gap: 9px; color: var(--navy); font-weight: 850; }
+.est-shell .section-title .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--cyan); box-shadow: 0 0 0 4px var(--cyan-soft); }
+.est-shell .row { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; padding: 9px 0; border-bottom: 1px solid color-mix(in srgb, var(--line) 70%, transparent); font-size: 13px; }
+.est-shell .row:last-child { border-bottom: 0; }
+.est-shell .row > span:first-child { color: color-mix(in srgb, var(--navy) 45%, var(--muted) 55%); }
+.est-shell .row strong { color: var(--navy); text-align: right; }
+.est-shell .divider { height: 1px; background: var(--line); }
+
+/* -- Tabs (pill in a groove) --------------------------------------------------- */
+.est-shell .tabs { display: flex; gap: 4px; padding: 5px; background: var(--surface3); border: 1px solid var(--line); border-radius: 12px; overflow: auto; }
+.est-shell .tabs button { border: 0; background: transparent; border-radius: 8px; padding: 9px 13px; color: color-mix(in srgb, var(--navy) 55%, var(--muted) 45%); font-weight: 800; white-space: nowrap; cursor: pointer; font-size: 12px; }
+.est-shell .tabs button.active { background: var(--surface); color: var(--blue); box-shadow: 0 2px 8px rgba(20, 42, 75, .09); }
+
+/* -- Edge / profile selectors -------------------------------------------------- */
+.est-shell .edge-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.est-shell .edge { border: 1px solid var(--line); background: var(--surface); border-radius: 11px; padding: 10px; text-align: center; font-weight: 800; color: color-mix(in srgb, var(--navy) 55%, var(--muted) 45%); cursor: pointer; font-size: 13px; }
+.est-shell .edge.active { background: color-mix(in srgb, var(--blue) 8%, var(--surface)); color: var(--blue); border-color: color-mix(in srgb, var(--blue) 35%, var(--surface)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--blue) 35%, var(--surface)); }
+.est-shell .profile-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.est-shell .profile { border: 1px solid var(--line); background: var(--surface); border-radius: 12px; padding: 10px 8px; text-align: center; color: color-mix(in srgb, var(--navy) 55%, var(--muted) 45%); font-weight: 800; cursor: pointer; font-size: 13px; }
+.est-shell .profile.active { background: color-mix(in srgb, var(--blue) 8%, var(--surface)); border-color: color-mix(in srgb, var(--blue) 35%, var(--surface)); color: var(--blue); }
+.est-shell .shape { height: 24px; width: 44px; background: color-mix(in srgb, var(--blue) 12%, var(--surface)); border: 1px solid color-mix(in srgb, var(--blue) 45%, var(--surface)); margin: 0 auto 7px; }
+.est-shell .shape.rake { clip-path: polygon(0 35%, 100% 0, 100% 100%, 0 100%); }
+.est-shell .shape.gable { clip-path: polygon(0 40%, 50% 0, 100% 40%, 100% 100%, 0 100%); }
+
+/* -- Order grid / material cards (Order tab / drawer) -------------------------- */
+.est-shell .order-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.est-shell .material { padding: 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+.est-shell .material h4 { margin: 0 0 10px; color: var(--navy); font-size: 13px; }
+.est-shell .material .row { font-size: 12px; }
+.est-shell .mini-wall { height: 52px; border: 1px solid color-mix(in srgb, var(--navy) 15%, var(--line)); border-radius: 8px; background: repeating-linear-gradient(90deg, color-mix(in srgb, var(--blue) 6%, var(--surface)) 0 9px, color-mix(in srgb, var(--blue) 22%, var(--surface)) 9px 10px); position: relative; }
+.est-shell .mini-wall.horizontal { background: repeating-linear-gradient(0deg, color-mix(in srgb, var(--blue) 6%, var(--surface)) 0 9px, color-mix(in srgb, var(--blue) 22%, var(--surface)) 9px 10px); }
+@media (max-width: 700px) { .est-shell .order-grid { grid-template-columns: 1fr; } }
+
+/* -- Project identity bar ------------------------------------------------------ */
+.est-shell .project-bar { display: flex; align-items: center; justify-content: space-between; padding: 16px 18px; margin-bottom: 14px; flex-wrap: wrap; gap: 12px; }
+.est-shell .project-identity { display: flex; align-items: center; gap: 13px; min-width: 0; }
+.est-shell .project-icon { width: 48px; height: 48px; border-radius: 14px; background: color-mix(in srgb, var(--blue) 10%, var(--surface)); color: var(--blue); display: grid; place-items: center; flex: 0 0 auto; }
+.est-shell .project-identity h1 { font-size: 18px; margin: 2px 0; color: var(--navy); font-weight: 850; }
+.est-shell .project-meta { display: flex; align-items: center; gap: 11px; font-size: 11px; color: var(--muted); flex-wrap: wrap; }
+.est-shell .project-actions { display: flex; gap: 8px; flex-shrink: 0; }
+@media (max-width: 700px) { .est-shell .project-bar { display: block; } .est-shell .project-actions { margin-top: 10px; } }
+
+/* -- Order-jump banner ---------------------------------------------------------- */
+.est-shell .order-jump-banner { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 14px; padding: 13px 15px; border: 1px solid color-mix(in srgb, var(--blue) 25%, var(--surface)); border-radius: 15px; background: color-mix(in srgb, var(--blue) 6%, var(--surface)); flex-wrap: wrap; }
+.est-shell .order-jump-left { display: flex; align-items: center; gap: 11px; min-width: 0; }
+.est-shell .order-jump-icon { width: 39px; height: 39px; display: grid; place-items: center; flex: 0 0 auto; border-radius: 11px; background: var(--surface); color: var(--blue); border: 1px solid color-mix(in srgb, var(--blue) 25%, var(--surface)); }
+.est-shell .order-jump-copy strong { display: block; color: var(--navy); font-size: 13px; }
+.est-shell .order-jump-copy span { display: block; color: color-mix(in srgb, var(--navy) 45%, var(--muted) 55%); font-size: 11px; margin-top: 2px; }
+.est-shell .order-jump-stats { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-left: auto; }
+@media (max-width: 700px) { .est-shell .order-jump-banner { display: block; padding: 11px; } .est-shell .order-jump-stats { margin: 9px 0; } .est-shell .order-jump-banner > .btn { width: 100%; } }
+
+/* -- Workspace: 3-column grid (structure | main | summary) --------------------- */
+.est-shell .workspace { display: grid; grid-template-columns: 270px minmax(640px, 1fr) 340px; gap: 14px; align-items: start; }
+.est-shell .structure { padding: 15px; position: sticky; top: 14px; }
+.est-shell .structure-head { display: flex; align-items: center; justify-content: space-between; }
+.est-shell .structure-head h2 { font-size: 16px; margin: 2px 0; color: var(--navy); }
+.est-shell .structure-note { font-size: 11px; color: var(--muted); margin: 10px 0 12px; }
+.est-shell .add-wall-buttons { display: grid; grid-template-columns: 1fr; gap: 7px; margin-top: 12px; }
+.est-shell .add-wall-buttons .btn { font-size: 12px; }
+.est-shell .main-column { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.est-shell .summary { position: sticky; top: 14px; }
+.est-shell .summary-body { padding: 14px; }
+.est-shell .summary-metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+.est-shell .progress-block { padding: 15px 0; }
+.est-shell .progress-block > div:first-child { display: flex; justify-content: space-between; color: var(--muted); font-size: 11px; font-weight: 750; }
+.est-shell .progress { height: 7px; border-radius: 999px; background: var(--surface3); margin-top: 8px; overflow: hidden; }
+.est-shell .progress i { display: block; height: 100%; background: var(--blue); border-radius: inherit; }
+.est-shell .warning-item { display: flex; gap: 9px; padding: 11px; border-radius: 12px; background: var(--red-soft); border: 1px solid color-mix(in srgb, var(--red) 25%, var(--surface)); color: var(--red); }
+.est-shell .warning-item > svg { flex: 0 0 auto; margin-top: 2px; }
+.est-shell .warning-item strong { display: block; font-size: 12px; }
+.est-shell .warning-item span { display: block; color: color-mix(in srgb, var(--red) 70%, var(--navy) 30%); font-size: 10px; margin-top: 3px; }
+.est-shell .full { width: 100%; margin-top: 8px; }
+@media (max-width: 1180px) {
+  .est-shell .workspace { grid-template-columns: 240px 1fr; }
+  .est-shell .summary { grid-column: 2; position: static; }
+}
+@media (max-width: 900px) {
+  .est-shell .workspace { grid-template-columns: 1fr; }
+  .est-shell .summary { grid-column: 1; }
+}
+
+/* -- Wall / kit list cards (structure nav) -------------------------------------- */
+.est-shell .wall-list { display: flex; flex-direction: column; gap: 8px; }
+.est-shell .wall-item, .est-shell .kit-item { border: 1px solid var(--line); background: var(--surface); border-radius: 13px; padding: 9px; display: grid; grid-template-columns: 62px 1fr auto; gap: 9px; align-items: center; text-align: left; color: inherit; cursor: pointer; width: 100%; }
+.est-shell .wall-item:hover, .est-shell .kit-item:hover { border-color: color-mix(in srgb, var(--navy) 20%, var(--line)); }
+.est-shell .wall-item.active, .est-shell .kit-item.active { border-color: var(--blue2); box-shadow: 0 0 0 3px color-mix(in srgb, var(--blue2) 11%, transparent); background: color-mix(in srgb, var(--blue) 3%, var(--surface)); }
+.est-shell .wall-meta { min-width: 0; }
+.est-shell .wall-meta strong, .est-shell .wall-meta span { display: block; }
+.est-shell .wall-meta strong { font-size: 12px; color: var(--navy); }
+.est-shell .wall-meta span { font-size: 10px; color: var(--muted); margin-top: 3px; }
+.est-shell .kit-link { height: 52px; border-radius: 9px; display: grid; place-items: center; background: var(--cyan-soft); color: color-mix(in srgb, var(--cyan) 55%, black 25%); }
+
+/* -- Config / geometry / product cards ------------------------------------------ */
+.est-shell .config-card .config-body { padding: 15px 17px; }
+.est-shell .config-row { display: grid; grid-template-columns: 1fr 1fr 1.25fr; gap: 12px; margin-top: 12px; }
+.est-shell .config-row:first-child { margin-top: 0; }
+.est-shell .wall-actions { display: flex; gap: 7px; }
+@media (max-width: 700px) { .est-shell .config-row { grid-template-columns: 1fr; } }
+
+.est-shell .geometry-body { display: grid; grid-template-columns: minmax(280px, .92fr) minmax(280px, 1.08fr); gap: 18px; padding: 17px; }
+.est-shell .fields { display: grid; grid-template-columns: repeat(2, 1fr); gap: 11px; margin: 14px 0; }
+.est-shell .unit-field { position: relative; }
+.est-shell .unit-field .input { padding-right: 34px; }
+.est-shell .unit-field span { position: absolute; right: 12px; top: 11px; color: var(--muted); font-weight: 750; font-size: 12px; }
+.est-shell .preview-hd { display: flex; align-items: center; justify-content: space-between; font-weight: 800; color: var(--navy); margin-bottom: 9px; font-size: 13px; }
+.est-shell .span-note { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; margin-top: 9px; color: var(--muted); font-size: 11px; }
+.est-shell .span-note strong { color: var(--navy); }
+@media (max-width: 900px) { .est-shell .geometry-body { grid-template-columns: 1fr; } }
+
+.est-shell .product-body { display: grid; grid-template-columns: 1.1fr .9fr; gap: 20px; padding: 17px; }
+.est-shell .strategy { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+.est-shell .strategy-card { border: 1px solid var(--line); background: var(--surface); border-radius: 13px; padding: 12px; text-align: left; min-height: 108px; cursor: pointer; }
+.est-shell .strategy-card.active { border-color: color-mix(in srgb, var(--blue) 40%, var(--surface)); background: color-mix(in srgb, var(--blue) 4%, var(--surface)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--blue) 40%, var(--surface)); }
+.est-shell .strategy-card strong, .est-shell .strategy-card span, .est-shell .strategy-card b { display: block; }
+.est-shell .strategy-card strong { color: var(--navy); font-size: 13px; }
+.est-shell .strategy-card span { font-size: 11px; color: var(--muted); margin: 5px 0; }
+.est-shell .strategy-card b { color: var(--blue); font-size: 12px; }
+.est-shell .check-row { display: flex; align-items: center; gap: 8px; margin: 12px 0; color: color-mix(in srgb, var(--navy) 55%, var(--muted) 45%); font-weight: 700; font-size: 13px; }
+.est-shell .custom-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+.est-shell .finish-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin-top: 11px; }
+@media (max-width: 900px) { .est-shell .product-body { grid-template-columns: 1fr; } }
+
+/* -- Results card (Overview / Selected wall / Connections / Order) -------------- */
+.est-shell .results { margin-top: 14px; }
+.est-shell .results-top { padding: 16px 18px; border-bottom: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; gap: 18px; flex-wrap: wrap; }
+.est-shell .results-top h2 { margin: 2px 0; font-size: 18px; color: var(--navy); }
+.est-shell .results-body { padding: 16px 18px; }
+.est-shell .overview-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.est-shell .overview-card { padding: 14px; border-radius: 13px; border: 1px solid var(--line); background: var(--surface2); }
+.est-shell .overview-card span, .est-shell .overview-card strong, .est-shell .overview-card small { display: block; }
+.est-shell .overview-card span, .est-shell .overview-card small { color: var(--muted); }
+.est-shell .overview-card strong { font-size: 24px; color: var(--navy); margin: 4px 0; }
+.est-shell .split-detail { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+.est-shell .split-detail h3 { color: var(--navy); margin-top: 0; font-size: 14px; }
+@media (max-width: 900px) { .est-shell .overview-grid { grid-template-columns: repeat(2, 1fr); } .est-shell .split-detail { grid-template-columns: 1fr; gap: 12px; } }
+
+/* -- Project Order Sheet -------------------------------------------------------- */
+.est-shell .project-order-sheet { margin-top: 14px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); box-shadow: 0 1px 1px rgba(17, 31, 54, .02); overflow: hidden; }
+.est-shell .project-order-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; padding: 18px; border-bottom: 1px solid var(--line); background: var(--surface2); flex-wrap: wrap; }
+.est-shell .project-order-head h2 { margin: 3px 0 4px; color: var(--navy); font-size: 20px; }
+.est-shell .project-order-head p { margin: 0; color: var(--muted); font-size: 12px; }
+.est-shell .project-order-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.est-shell .order-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 9px; padding: 14px 18px; border-bottom: 1px solid var(--line); }
+.est-shell .order-kpi { padding: 12px; border: 1px solid var(--line); border-radius: 13px; background: var(--surface); }
+.est-shell .order-kpi strong { display: block; color: var(--navy); font-size: 20px; line-height: 1.1; letter-spacing: -.03em; }
+.est-shell .order-kpi span { display: block; color: var(--muted); font-size: 10px; font-weight: 750; margin-top: 5px; }
+.est-shell .order-kpi.primary { background: color-mix(in srgb, var(--blue) 8%, var(--surface)); border-color: color-mix(in srgb, var(--blue) 25%, var(--surface)); }
+.est-shell .order-kpi.cyan { background: var(--cyan-soft); border-color: color-mix(in srgb, var(--cyan) 30%, var(--surface)); }
+.est-shell .order-sheet-body { padding: 16px 18px 18px; }
+.est-shell .order-sheet-section + .order-sheet-section { margin-top: 17px; }
+.est-shell .order-sheet-section h3 { margin: 0 0 9px; color: var(--navy); font-size: 14px; }
+.est-shell .order-table-wrap { overflow: auto; border: 1px solid var(--line); border-radius: 13px; }
+.est-shell .order-table { width: 100%; border-collapse: collapse; min-width: 640px; background: var(--surface); }
+.est-shell .order-table th { background: var(--surface2); color: color-mix(in srgb, var(--navy) 55%, var(--muted) 45%); text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: .07em; padding: 10px; border-bottom: 1px solid var(--line); }
+.est-shell .order-table td { padding: 10px; border-bottom: 1px solid color-mix(in srgb, var(--line) 70%, transparent); color: color-mix(in srgb, var(--navy) 45%, var(--muted) 55%); font-size: 11px; vertical-align: top; }
+.est-shell .order-table tbody tr:last-child td { border-bottom: 0; }
+.est-shell .order-table td strong { color: var(--navy); }
+.est-shell .order-table .qty { font-size: 13px; font-weight: 850; color: var(--navy); white-space: nowrap; }
+.est-shell .order-table .category-cell { font-weight: 850; color: var(--blue); background: color-mix(in srgb, var(--blue) 3%, var(--surface)); }
+.est-shell .order-table .by-others { color: var(--red); font-weight: 800; }
+.est-shell .order-table .total-row td { background: var(--surface2); font-weight: 850; color: var(--navy); border-top: 2px solid var(--line); }
+.est-shell .order-sheet-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.est-shell .order-summary-card { border: 1px solid var(--line); border-radius: 13px; padding: 13px; background: var(--surface); }
+.est-shell .order-summary-card h4 { margin: 0 0 8px; color: var(--navy); font-size: 12px; }
+.est-shell .order-summary-card .row { font-size: 11px; }
+.est-shell .order-sheet-note { display: flex; gap: 9px; align-items: flex-start; margin-top: 14px; padding: 11px 12px; border-radius: 12px; background: color-mix(in srgb, var(--blue) 6%, var(--surface)); border: 1px solid color-mix(in srgb, var(--blue) 20%, var(--surface)); color: color-mix(in srgb, var(--navy) 70%, var(--blue) 30%); font-size: 11px; }
+.est-shell .order-sheet-note svg { flex: 0 0 auto; margin-top: 1px; }
+.est-shell .order-sheet-footer { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); color: var(--muted); font-size: 10px; }
+.est-shell .phone-order-list { display: none; }
+.est-shell .order-mobile-row { border: 1px solid var(--line); border-radius: 12px; padding: 11px; background: var(--surface); }
+.est-shell .order-mobile-row + .order-mobile-row { margin-top: 8px; }
+.est-shell .order-mobile-row .top { display: flex; justify-content: space-between; gap: 10px; }
+.est-shell .order-mobile-row strong { color: var(--navy); }
+.est-shell .order-mobile-row .meta { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 8px; color: var(--muted); font-size: 10px; }
+.est-shell .order-mobile-row .meta b { color: color-mix(in srgb, var(--navy) 55%, var(--muted) 45%); }
+@media (max-width: 1100px) { .est-shell .order-kpis { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 700px) {
+  .est-shell .project-order-head { display: block; padding: 14px; }
+  .est-shell .project-order-head h2 { font-size: 17px; }
+  .est-shell .project-order-actions { justify-content: stretch; margin-top: 11px; }
+  .est-shell .project-order-actions .btn { flex: 1; font-size: 11px; padding: 0 9px; }
+  .est-shell .order-sheet-body { padding: 12px 10px 14px; }
+  .est-shell .order-kpis { grid-template-columns: repeat(2, 1fr); padding: 10px; }
+  .est-shell .order-kpi { padding: 10px; }
+  .est-shell .order-kpi strong { font-size: 17px; }
+  .est-shell .desktop-order-table { display: none; }
+  .est-shell .phone-order-list { display: block; }
+  .est-shell .order-sheet-grid { grid-template-columns: 1fr; }
+  .est-shell .order-sheet-footer { display: block; }
+  .est-shell .order-sheet-footer span { display: block; margin-top: 4px; }
+}
+@media print {
+  .est-shell #project-order-sheet .project-order-actions { display: none !important; }
+  .est-shell #project-order-sheet .order-table-wrap { overflow: visible !important; }
+  .est-shell #project-order-sheet .order-table { min-width: 0 !important; }
+}

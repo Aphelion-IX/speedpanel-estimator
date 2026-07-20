@@ -10,6 +10,13 @@ import type { Wall } from "./wallDomain";
 
 export interface ComputeOut {
   empty: boolean; warnings: string[]; notes: string[];
+  // Set only when the compute pipeline threw for this wall's current input --
+  // see useWallResults' try/catch in wallStore.ts. Distinct from `empty`
+  // (which means "not enough input yet", a normal/expected state): `error`
+  // means the input reached the pipeline and it failed, which drives the
+  // spec's "Error" wall status (see ./wallStatus.ts) rather than "Not
+  // Started"/"Incomplete".
+  error?: string;
   orient?: string; area?: number; chosen?: PackResult;
   cLM?: number; cStock?: number; cPieces?: number;
   jLM?: number; jPieces?: number;

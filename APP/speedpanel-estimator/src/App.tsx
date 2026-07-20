@@ -13,6 +13,8 @@ import { EducationHub } from "./education/EducationHub";
 import { SystemSelector } from "./systemSelector/SystemSelector";
 import { ExternalCalculator } from "./externalCalculator/ExternalCalculator";
 import { InternalCalculator } from "./internalCalculator/InternalCalculator";
+import { ProjectOrderSheetPage as InternalProjectOrderSheetPage } from "./internalCalculator/projectOrderSheetPage";
+import { ProjectOrderSheetPage as ExternalProjectOrderSheetPage } from "./externalCalculator/projectOrderSheetPage";
 import { SYSTEMS } from "./appShell/systems";
 import { loadSession, saveSession } from "./appShell/session";
 import { TopNav, type TopNavTab } from "./appShell/topNav";
@@ -22,6 +24,7 @@ import { CompanySwitcher } from "./appShell/CompanySwitcher";
 import { useMyInternalRole } from "./pages/admin/useMyInternalRole";
 import { SystemRows } from "./appShell/systemRows";
 import { useCornerShaftLinking } from "./appShell/useCornerShaftLinking";
+import { wouldLoseData } from "./estimate/validateWall";
 import { useHashRoute } from "./appShell/useHashRoute";
 import { ProjectsRouter } from "./pages/projects/ProjectsRouter";
 import { LandingPage } from "./pages/home/LandingPage";
@@ -99,6 +102,16 @@ export default function SpeedpanelEstimator() {
   const [saveProjectError, setSaveProjectError] = useState<string | null>(null);
   const [confirmReset, setConfirmReset] = useState(false);
   const [pendingCreationError, setPendingCreationError] = useState<string | null>(null);
+  // Spec §13 "Read-only access" -- no edit-vs-view permission concept exists
+  // anywhere in the app yet (ProjectDetailPage.tsx has no such gate today),
+  // so this is a plain constant, not state: there is nothing that can set it
+  // to true yet. The rendering path it drives (ui/readOnlyGate.tsx's
+  // ReadOnlyBanner, InternalCalculator's readOnlyProject prop) is real and
+  // wired now so behaviour only needs to change HERE -- swap this for real
+  // state derived from a confirmed non-edit company-membership role (or an
+  // equivalent signal) -- once that signal exists, not be built from
+  // scratch at that point.
+  const readOnlyProject = false;
 
   // Persist the current view on change (skipped while a saved project is open).
   useEffect(() => {
@@ -133,7 +146,40 @@ export default function SpeedpanelEstimator() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openProject, store.walls, store.activeId, store.nextId, store.projectStock, store.projectLock, store.customLengthInput, store.customActive, system, dimUnit]);
 
+  // Spec §7.27 guardUnsavedChanges: "leaving the Estimator page" via browser
+  // navigation (tab close, refresh, back/forward) is the one trigger this
+  // can guard natively -- the browser's own beforeunload confirmation is the
+  // standard "Stay/Leave" prompt for that case, and only fires while there's
+  // an open saved project with real unsaved edits (a local, unsaved draft is
+  // already autosaved to the device, see wallStore.ts's persistLocally, so
+  // there's nothing to lose there). In-app navigation between tabs (Projects,
+  // Home, etc.) is NOT guarded here -- that would mean intercepting every
+  // navigate() call site across the app, a larger change than this pass
+  // covers; only the browser-level leave is handled.
+  useEffect(() => {
+    if (!openProject || !projectDirty) return;
+    const onBeforeUnload = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ""; };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [openProject, projectDirty]);
+
   const { linkCornerPartner, linkShaftPartner, switchOrient } = useCornerShaftLinking(store);
+
+  // Spec §7.13 changeWallOrientation: "warn before data loss". switchOrient's
+  // own vertical branch already unlinks a Corner/Shaft partner before
+  // applying the patch (see useCornerShaftLinking.ts) -- that cleanup was
+  // already correct, it just happened silently. This wraps the SAME
+  // switchOrient reference used by both the web SystemRows selector
+  // (constructed below, in systemSelector) and each calculator's own phone
+  // SystemConfigSectionPhone, so gating it once here covers both surfaces
+  // without threading a second confirm-flow through InternalCalculator.tsx/
+  // ExternalCalculator.tsx.
+  const [pendingOrientChange, setPendingOrientChange] = useState<{ o: "vertical" | "horizontal"; message: string } | null>(null);
+  const guardedSwitchOrient = (o: "vertical" | "horizontal") => {
+    const message = wouldLoseData(active, { orient: o });
+    if (message) { setPendingOrientChange({ o, message }); return; }
+    switchOrient(o);
+  };
 
   const switchDimUnit = (u: string) => { setDimUnit(u); clearCustomLength(); };
   // Deliberate "start over": reset the shared store + view, and close any
@@ -265,6 +311,22 @@ export default function SpeedpanelEstimator() {
     return <ProformaInvoicePage orderId={route.orderId} onBack={() => navigate({ tab: "estimator" })} />;
   }
 
+  // Same "no app chrome" precedent as proforma above -- the Project Order
+  // Sheet's clean/printable route (see internalCalculator/
+  // projectOrderSheetPage.tsx and its externalCalculator mirror), one branch
+  // per fork-not-share calculator, picked the same way the Estimator tab
+  // itself picks Internal vs External below (isExt).
+  if (route.tab === "estimator" && route.orderSheet) {
+    const OrderSheetPage = isExt ? ExternalProjectOrderSheetPage : InternalProjectOrderSheetPage;
+    return (
+      <OrderSheetPage
+        store={store} dimUnit={dimUnit} layoutMode={layoutMode}
+        projectName={openProject ? openProject.name : (store.draftLabel ?? "")}
+        onBack={() => navigate({ tab: "estimator" })}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 font-sans dark:bg-slate-950" style={{ color: NAVY }}>
       <ConfirmDialog
@@ -277,6 +339,15 @@ export default function SpeedpanelEstimator() {
         onCancel={() => setConfirmReset(false)}
       />
       <ErrorDialog message={pendingCreationError} onDismiss={() => setPendingCreationError(null)} />
+      <ConfirmDialog
+        open={pendingOrientChange !== null}
+        danger
+        title="Change wall orientation?"
+        description={pendingOrientChange?.message ?? ""}
+        confirmLabel="Change orientation"
+        onConfirm={() => { if (pendingOrientChange) switchOrient(pendingOrientChange.o); setPendingOrientChange(null); }}
+        onCancel={() => setPendingOrientChange(null)}
+      />
       {/* Full-width header bar -- pulled out of the padded content column
           below so it spans edge to edge, with the brand gradient line as
           its own bottom edge rather than a separate divider. */}
@@ -349,27 +420,29 @@ export default function SpeedpanelEstimator() {
         {route.tab === "estimator" && (
           isExt ? (
             <ExternalCalculator store={store} orient={orient} dimUnit={dimUnit} setDimUnit={switchDimUnit}
-              systemSelector={<SystemRows orient={orient} switchOrient={switchOrient} isExt={isExt} switchSystem={switchSystem} findSys={findSys} />}
+              systemSelector={<SystemRows orient={orient} switchOrient={guardedSwitchOrient} isExt={isExt} switchSystem={switchSystem} findSys={findSys} />}
               layoutMode={layoutMode}
-              switchOrient={switchOrient} switchToInternal={switchToInternal}
+              switchOrient={guardedSwitchOrient} switchToInternal={switchToInternal}
               openProject={openProject} draftLabel={store.draftLabel} onSetDraftLabel={store.setDraftLabel}
               lastEditedAt={store.lastEditedAt}
               onSaveDraftAsProject={saveDraftAsProject} onSaveOpenProject={saveOpenProject}
               savingProject={savingProject} saveProjectError={saveProjectError} projectDirty={projectDirty}
               onGoToProjects={() => navigate({ tab: "projects" })}
+              readOnlyProject={readOnlyProject}
             />
           ) : (
             <InternalCalculator
               store={store} orient={orient} dimUnit={dimUnit} setDimUnit={switchDimUnit}
-              systemSelector={<SystemRows orient={orient} switchOrient={switchOrient} isExt={isExt} switchSystem={switchSystem} findSys={findSys} />}
+              systemSelector={<SystemRows orient={orient} switchOrient={guardedSwitchOrient} isExt={isExt} switchSystem={switchSystem} findSys={findSys} />}
               layoutMode={layoutMode}
               linkCornerPartner={linkCornerPartner} linkShaftPartner={linkShaftPartner}
-              switchOrient={switchOrient} switchToExternal={switchToExternal}
+              switchOrient={guardedSwitchOrient} switchToExternal={switchToExternal}
               openProject={openProject} draftLabel={store.draftLabel} onSetDraftLabel={store.setDraftLabel}
               lastEditedAt={store.lastEditedAt}
               onSaveDraftAsProject={saveDraftAsProject} onSaveOpenProject={saveOpenProject}
               savingProject={savingProject} saveProjectError={saveProjectError} projectDirty={projectDirty}
               onGoToProjects={() => navigate({ tab: "projects" })}
+              readOnlyProject={readOnlyProject}
             />
           )
         )}

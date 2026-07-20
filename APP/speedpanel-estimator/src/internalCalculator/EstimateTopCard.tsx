@@ -1,36 +1,26 @@
 // =============================================================================
 // Estimate top card (Internal Calculator)
 // =============================================================================
-// Replaces the old ProjectCardPhone -- now rendered on BOTH phone and web
-// layout (previously phone-only, see InternalCalculator.tsx), and absorbs the
-// standalone "Save as Project"/"Editing project" banners App.tsx used to
-// render above it (see the now-unused SaveDraftBanner.tsx). Two states:
-//   - No estimate yet (exactly one wall, no kits, still fully blank/
-//     unconfigured): a "Start a new estimate" hero + wall-type picker tiles.
-//   - Working on an estimate: a status hero (progress/warnings, editable
-//     draft label, Save controls) + a responsive two-column row (wall-type
-//     tiles + an "Estimate summary" panel). Recolors green (unsaved local
-//     draft) -> cyan (openProject set, i.e. an already-saved project is
-//     open), reusing the app's existing tone("ok")/tone("info") tokens
-//     rather than inventing new colours.
-// The two-column row's md:grid-cols split is a deliberate, scoped exception
-// to the app's usual layoutMode-branching convention -- plain Tailwind
-// responsive classes here let one component serve both phone and web without
-// layoutMode ever being threaded into this file.
+// Rendered once the estimator is out of the "No Project" state (see
+// firstWallSetup.tsx, which now owns that empty state). Two regions, ported
+// directly from the v5 mockup's own markup/classes (ui/estimatorTheme.css):
+//   - `.project-bar`/`.project-identity`/`.project-actions` -- the project
+//     identity card (icon, name, save-status pill, wall/kit counts, last
+//     edited, Rename/Duplicate/Save actions).
+//   - `.order-jump-banner` -- live panel/track/box/kit totals + a
+//     scroll-to-order-review action, matching the mockup's own banner
+//     between the project bar and the wall workspace.
 // Deliberately its own copy, not shared with externalCalculator's mirror --
 // same fork-not-share convention as phoneShell.tsx (see its header comment).
 // =============================================================================
 import { useRef, useState } from "react";
 import {
-  Info, ChevronRight, Pencil, Copy, Save, CheckCircle2, FileText, FolderPlus,
+  ChevronRight, Pencil, Copy, Save, FileText, RefreshCw, Boxes, AlertTriangle,
+  Layers, Link2, Clock,
 } from "lucide-react";
-import { cx, tone, BLUE, NAVY } from "../styleTokens";
-import { Button } from "../ui/button";
-import { IconButton } from "../ui/primitives";
 import type { WallResult } from "../estimate/wall.types";
 import type { KitEntry } from "../estimate/synthesizeKits";
 import type { aggregate } from "../estimate/aggregate";
-import { isConfigured, deriveWallStatus } from "./phoneShell";
 
 type ProjAgg = ReturnType<typeof aggregate>;
 
@@ -43,11 +33,6 @@ export interface EstimateTopCardProps {
   openProject: OpenProjectInfo | null;
   draftLabel: string | null;
   onSetDraftLabel: (label: string | null) => void;
-  // "No project active" empty state's Duplicate icon button -- there's no
-  // saved project yet to act on, so this acts on the current local draft
-  // (the one wall the store always seeds), reusing the store's existing
-  // duplicateWall.
-  onDuplicateDraft: () => void;
   lastEditedAt?: number;
   onSaveDraftAsProject: (name: string) => Promise<string | null>;
   onSaveOpenProject: () => Promise<void>;
@@ -58,6 +43,9 @@ export interface EstimateTopCardProps {
   projectDirty: boolean;
   onGoToProjects: () => void;
   onViewDetails: () => void;
+  // Order-jump banner's "View complete order" action -- scrolls to the
+  // Order tab/Final Order Review rather than navigating anywhere new.
+  onViewOrder: () => void;
 }
 
 function formatLastEdited(value?: number | string | null): string {
@@ -73,21 +61,31 @@ function formatLastEdited(value?: number | string | null): string {
   return `${d.toLocaleDateString(undefined, { month: "short", day: "numeric" })}, ${time}`;
 }
 
+// Order-jump banner's live KPI pills: panels ordered, total track/flashing/
+// kit-material LENGTHS (every *Pieces field across the project aggregate --
+// each one is a stock length to order, whether it's C-track, flashing, a
+// shaft's vertical track, a corner post, or a junction), and total fixing/
+// sealant BOXES (every *Boxes field). Summed here rather than adding a new
+// aggregate field, since these are purely a display rollup of numbers
+// aggregate() already computes.
+function orderTotals(projAgg: ProjAgg, kitCount: number) {
+  const lengths = projAgg.cTracks.reduce((a, c) => a + c.pieces, 0)
+    + projAgg.jPieces + projAgg.flashPieces + projAgg.vertTrackPieces
+    + projAgg.stripPieces + projAgg.junctionPieces + projAgg.cornerPostPieces;
+  const boxes = projAgg.boxes30 + projAgg.boxes16 + projAgg.sealantBoxes
+    + projAgg.slabPassSealantBoxes + projAgg.junctionScrewBoxes + projAgg.cornerScrewBoxes;
+  return { panels: projAgg.totalPanels, lengths, boxes, kits: kitCount };
+}
+
 export const EstimateTopCard = ({
   results, kits, projAgg,
-  openProject, draftLabel, onSetDraftLabel, onDuplicateDraft, lastEditedAt,
+  openProject, draftLabel, onSetDraftLabel, lastEditedAt,
   onSaveDraftAsProject, onSaveOpenProject, savingProject, saveProjectError, projectDirty,
-  onGoToProjects, onViewDetails,
+  onGoToProjects, onViewDetails, onViewOrder,
 }: EstimateTopCardProps) => {
   const nameFieldRef = useRef<HTMLInputElement>(null);
   const totalItems = results.length + kits.length;
-  const configuredCount = results.filter(r => isConfigured(deriveWallStatus(r.wall, r.out))).length + kits.length;
   const warningsCount = results.filter(r => r.out.warnings.length > 0).length + kits.filter(k => k.result.warnings.length > 0).length;
-  const pct = totalItems ? Math.round((configuredCount / totalItems) * 100) : 0;
-  // "Nothing started yet" -- the store always seeds one blank wall, so a
-  // literal results.length === 0 gate would never fire. This is the reachable
-  // proxy: exactly one wall, no kits, and that wall is still fully unconfigured.
-  const noEstimate = results.length === 1 && kits.length === 0 && results[0].out.empty;
   const isSaved = openProject !== null;
 
   const [editingLabel, setEditingLabel] = useState(false);
@@ -109,143 +107,112 @@ export const EstimateTopCard = ({
     else setNamingOpen(false);
   };
 
-  if (noEstimate) {
-    return (
-      <div className="mt-3">
-        <div className={cx.section}>
-          <div className="flex items-center gap-2.5">
-            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border-2 bg-blue-50 dark:bg-blue-900/40"
-              style={{ borderColor: BLUE, color: BLUE }}>
-              <FolderPlus size={16} />
-            </span>
-            <div className="text-base font-extrabold" style={{ color: NAVY }}>Create a new project</div>
-          </div>
-          <div className="mt-2 flex items-start gap-1.5 text-sm text-slate-500 dark:text-slate-300">
-            <Info size={13} className="mt-0.5 shrink-0" style={{ color: BLUE }} />
-            <span>You can view your created project in the <button onClick={onGoToProjects} className="font-bold underline decoration-2 underline-offset-2" style={{ color: BLUE }}>Projects page</button>.</span>
-          </div>
-          <div className="mt-4">
-            <label className={cx.lbl}>Project name (optional)</label>
-            <div className="flex items-stretch gap-2">
-              <input
-                ref={nameFieldRef}
-                value={draftLabel ?? ""}
-                onChange={e => onSetDraftLabel(e.target.value || null)}
-                placeholder="e.g. Front Lobby Project"
-                className={cx.input + " min-w-0 flex-1"}
-                style={{ color: NAVY }}
-              />
-              <NameActionButton title="Edit project name" icon={<Pencil size={16} />} onClick={() => nameFieldRef.current?.focus()} />
-              <NameActionButton title="Duplicate project" icon={<Copy size={16} />} onClick={onDuplicateDraft} />
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  const noteCx = isSaved ? cx.infoNoteInfo : cx.infoNoteOk;
-  const heroFill = isSaved
-    ? "bg-gradient-to-br from-cyan-400 to-cyan-600 dark:from-cyan-500 dark:to-cyan-700 shadow-[inset_0_1px_1px_rgba(255,255,255,0.3),0_14px_24px_-12px_rgba(8,145,178,0.5)]"
-    : "bg-gradient-to-br from-emerald-400 to-emerald-600 dark:from-emerald-500 dark:to-emerald-700 shadow-[inset_0_1px_1px_rgba(255,255,255,0.3),0_14px_24px_-12px_rgba(16,185,129,0.5)]";
   // "Project" is only accurate once it's actually a saved Supabase row (in
   // the Projects tab) -- an unsaved local draft is still a "draft" until the
-  // Save to Projects button below turns it into one. Calling it "project"
-  // in both states made that button read as contradictory ("save to
-  // projects" on something already labeled a project).
+  // Save to Projects button below turns it into one.
   const projectWord = isSaved ? "project" : "draft";
-  // Save-status indicator for an already-saved project -- autosave is off
-  // once a project is open (see wallStore.ts's persistLocally), so this
-  // tells the user whether the explicit Save button next to it actually has
-  // anything to do right now. Meaningless while unsaved (isSaved false).
-  const saveStatusLabel = savingProject ? "Saving..." : projectDirty ? "Unsaved changes" : "All changes saved";
-  const saveStatusTone = savingProject ? "info" : projectDirty ? "warn" : "ok";
+  const saveFailed = isSaved && !!saveProjectError;
+  const saveStatusLabel = savingProject ? "Saving..." : saveFailed ? "Save failed" : projectDirty ? "Unsaved changes" : "All changes saved";
+  const saveStatusPillClass = saveFailed ? "pill red" : projectDirty ? "pill" : "pill cyan";
+
+  const kitNoun = kits.length === 1 ? kits[0].kind === "corner" ? "linked corner kit" : "linked shaft junction" : `linked kit${kits.length === 1 ? "" : "s"}`;
+  const totals = orderTotals(projAgg, kits.length);
 
   return (
-    <div className="mt-3">
-      <div className={cx.section}>
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="flex min-w-0 items-start gap-3">
-            <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-full text-white ${heroFill}`}>
-              <FileText size={18} />
-            </span>
-            <div className="min-w-0">
-              <div className="truncate text-base font-extrabold" style={{ color: NAVY }}>
-                {openProject ? openProject.name : `Current ${projectWord}`}
-              </div>
-              {!openProject && (
-                <div className="mt-1.5 flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-300">
-                  {editingLabel ? (
-                    <input autoFocus value={labelInput} onChange={e => setLabelInput(e.target.value)}
-                      onBlur={commitLabel} onKeyDown={e => e.key === "Enter" && commitLabel()}
-                      className={cx.input + " w-40 !py-1 !text-sm"} style={{ color: NAVY }} />
-                  ) : (
-                    <>
-                      <span>{draftLabel ?? "Add a name"}</span>
-                      <button onClick={() => { setLabelInput(draftLabel ?? ""); setEditingLabel(true); }} aria-label="Edit draft label">
-                        <Pencil size={13} className="text-slate-400 hover:text-blue-600 dark:hover:text-blue-400" />
-                      </button>
-                    </>
-                  )}
-                </div>
-              )}
-              <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-400 dark:text-slate-400">
-                <span className="flex items-center gap-1"><CheckCircle2 size={12} />{pct}% configured</span>
-                <span className="flex items-center gap-1"><CheckCircle2 size={12} />{warningsCount} warning{warningsCount === 1 ? "" : "s"}</span>
-                <span>{totalItems} wall item{totalItems === 1 ? "" : "s"}</span>
-                <span>{projAgg.totalArea} m² total area</span>
-                <span>Last edited {formatLastEdited(openProject ? openProject.updatedAt : lastEditedAt)}</span>
-              </div>
-              <button onClick={onViewDetails} className="mt-2 flex items-center gap-1 text-xs font-bold" style={{ color: BLUE }}>
-                View {projectWord} details <ChevronRight size={12} />
-              </button>
+    <div className="est-shell mt-3">
+      <section className="project-bar card">
+        <div className="project-identity">
+          <span className="project-icon"><FileText size={22} /></span>
+          <div className="min-w-0">
+            <span className="eyebrow">{isSaved ? "Active estimate" : "Local draft"}</span>
+            {isSaved || !editingLabel ? (
+              <h1 className="truncate flex items-center gap-1.5">
+                {openProject ? openProject.name : (draftLabel ?? "Add a name")}
+                {!isSaved && (
+                  <button onClick={() => { setLabelInput(draftLabel ?? ""); setEditingLabel(true); }} aria-label="Edit draft label">
+                    <Pencil size={13} className="subtle" />
+                  </button>
+                )}
+              </h1>
+            ) : (
+              <input ref={nameFieldRef} autoFocus value={labelInput} onChange={e => setLabelInput(e.target.value)}
+                onBlur={commitLabel} onKeyDown={e => e.key === "Enter" && commitLabel()}
+                className="input" style={{ maxWidth: 260, marginTop: 2 }} />
+            )}
+            <div className="project-meta">
+              <span className={saveStatusPillClass}>
+                {saveFailed ? <AlertTriangle size={11} /> : <Save size={11} />} {saveStatusLabel}
+              </span>
+              <span className="flex items-center gap-1"><Layers size={11} />{results.length} wall{results.length === 1 ? "" : "s"}</span>
+              {kits.length > 0 && <span className="flex items-center gap-1"><Link2 size={11} />{kits.length} {kitNoun}</span>}
+              {warningsCount > 0 && <span className="pill red">{warningsCount} warning{warningsCount === 1 ? "" : "s"}</span>}
+              <span className="flex items-center gap-1"><Clock size={11} />Edited {formatLastEdited(openProject ? openProject.updatedAt : lastEditedAt)}</span>
             </div>
           </div>
-          <div className="flex shrink-0 items-center gap-2">
-            {isSaved ? (
-              <>
-                {saveProjectError && <span className="text-xs text-red-600 dark:text-red-300">{saveProjectError}</span>}
-                <span className={`${cx.badge} ${tone(saveStatusTone)}`}>{saveStatusLabel}</span>
-                <IconButton onClick={onSaveOpenProject} disabled={savingProject} title="Save" ariaLabel="Save">
-                  <Save size={16} />
-                </IconButton>
-              </>
-            ) : namingOpen ? (
-              <form onSubmit={handleSaveAsProject} className="flex flex-wrap items-center gap-2">
-                <input value={nameInput} onChange={e => setNameInput(e.target.value)} placeholder="Project name" required autoFocus
-                  className={cx.input + " w-40 !py-2"} style={{ color: NAVY }} />
-                {draftSaveError && <span className="text-xs text-red-600 dark:text-red-300">{draftSaveError}</span>}
-                <Button type="submit" disabled={savingDraft || !nameInput.trim()}>{savingDraft ? "Saving..." : "Save"}</Button>
-                <Button type="button" variant="ghost" onClick={() => { setNamingOpen(false); setDraftSaveError(null); }}>Cancel</Button>
-              </form>
-            ) : (
-              <IconButton onClick={() => { setNameInput(draftLabel ?? ""); setNamingOpen(true); }} title="Save to Projects" ariaLabel="Save to Projects">
-                <Save size={16} />
-              </IconButton>
-            )}
-          </div>
         </div>
-      </div>
-      <div className={noteCx}>
-        <Info size={15} className="mt-0.5 shrink-0" />
-        <span>You can view and manage all your projects in the <button onClick={onGoToProjects} className="font-bold underline decoration-2 underline-offset-2">Projects</button> tab.</span>
-      </div>
+        <div className="project-actions">
+          {isSaved ? (
+            <>
+              {saveFailed && (
+                <button className="btn small" onClick={onSaveOpenProject} disabled={savingProject}>
+                  <RefreshCw size={13} />Retry
+                </button>
+              )}
+              <button className="btn icon-only" title="Rename" aria-label="Rename" onClick={() => { setLabelInput(openProject.name); setEditingLabel(true); }}>
+                <Pencil size={15} />
+              </button>
+              <button className="btn primary" onClick={onSaveOpenProject} disabled={savingProject}>
+                <Save size={15} />{savingProject ? "Saving..." : "Save project"}
+              </button>
+            </>
+          ) : namingOpen ? (
+            <form onSubmit={handleSaveAsProject} className="flex flex-wrap items-center gap-2">
+              <input value={nameInput} onChange={e => setNameInput(e.target.value)} placeholder="Project name" required autoFocus className="input" style={{ width: 180 }} />
+              {draftSaveError && <span style={{ color: "var(--red)" }} className="text-xs">{draftSaveError}</span>}
+              <button type="submit" className="btn primary small" disabled={savingDraft || !nameInput.trim()}>{savingDraft ? "Saving..." : "Save"}</button>
+              <button type="button" className="btn small" onClick={() => { setNamingOpen(false); setDraftSaveError(null); }}>Cancel</button>
+            </form>
+          ) : (
+            <>
+              <button className="btn icon-only" title="Duplicate" aria-label="Duplicate" onClick={onGoToProjects}>
+                <Copy size={15} />
+              </button>
+              <button className="btn primary" onClick={() => { setNameInput(draftLabel ?? ""); setNamingOpen(true); }}>
+                <Save size={15} />Save project
+              </button>
+            </>
+          )}
+        </div>
+      </section>
+
+      <p className="note" style={{ marginBottom: 14 }}>
+        You can view and manage all your projects in the <button onClick={onGoToProjects} className="font-bold underline decoration-2 underline-offset-2" style={{ color: "var(--blue)" }}>Projects</button> tab.
+      </p>
+
+      {totalItems > 1 || projAgg.totalPanels > 0 ? (
+        <section className="order-jump-banner">
+          <div className="order-jump-left">
+            <span className="order-jump-icon"><Boxes size={18} /></span>
+            <div className="order-jump-copy">
+              <strong>Complete project order totals</strong>
+              <span>Panels and all accessories are consolidated below in one sendable order sheet.</span>
+            </div>
+          </div>
+          <div className="order-jump-stats">
+            <span className="pill blue">{totals.panels} panels</span>
+            <span className="pill cyan">{totals.lengths} lengths</span>
+            <span className="pill cyan">{totals.boxes} boxes</span>
+            {totals.kits > 0 && <span className="pill blue">{totals.kits} kit{totals.kits === 1 ? "" : "s"}</span>}
+          </div>
+          <button className="btn primary" onClick={onViewOrder}>
+            View complete order <ChevronRight size={14} />
+          </button>
+        </section>
+      ) : (
+        <button onClick={onViewDetails} className="btn ghost small" style={{ marginBottom: 14 }}>
+          View {projectWord} details <ChevronRight size={12} />
+        </button>
+      )}
     </div>
   );
 };
-
-// "No project active" empty state's Edit/Duplicate row -- matches the
-// Project Name input's own rendered height exactly, via an explicit w-11 +
-// self-stretch in a flex items-stretch row. Deliberately NOT aspect-square:
-// aspect-ratio can't reliably derive a flex row child's width from a height
-// that's only resolved via align-items: stretch (the two are computed in
-// separate passes), so it silently produced tall, narrow pill buttons
-// instead of actual squares -- an explicit width sidesteps that entirely.
-const NameActionButton = ({ onClick, title, icon }: {
-  onClick: () => void; title: string; icon: React.ReactNode;
-}) => (
-  <button onClick={onClick} title={title} aria-label={title}
-    className="grid w-11 shrink-0 place-items-center self-stretch rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-400 dark:text-slate-400 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md hover:text-blue-600 dark:hover:text-blue-400 hover:border-blue-300 dark:hover:border-blue-600 active:translate-y-0 active:scale-95">
-    {icon}
-  </button>
-);

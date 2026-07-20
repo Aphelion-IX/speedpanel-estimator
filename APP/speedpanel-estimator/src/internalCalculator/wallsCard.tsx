@@ -33,20 +33,17 @@ export const WALL_SYSTEMS: [WallSystemId, string][] = [
   ["shaft",    "Shaft wall"],
 ];
 
+// The mockup's own `.seg` segmented control (speedpanel-estimator-web-v5.html
+// data-seg="system").
 const WallSystemSelector = ({ value, onChange }: { value: WallSystemId; onChange: (id: WallSystemId) => void }) => (
-  <div className="border-t border-slate-100 dark:border-slate-700 pt-3">
-    <div className={cx.cardHd}>Wall system</div>
-    <div className="grid grid-cols-3 items-end gap-1.5">
-      {WALL_SYSTEMS.map(([id, label]) => {
-        const on = value === id;
-        return (
-          <button key={id} onClick={() => onChange(id)}
-            className={"w-full rounded-xl border-2 py-3.5 px-2 text-sm font-semibold text-center active:scale-95 transition-all " + (on ? "" : `border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 ${selectableOffCx}`)}
-            style={on ? { ...selectedFill, color: "#fff" } : { color: BLUE }}>
-            {label.replace(" wall", "")}
-          </button>
-        );
-      })}
+  <div>
+    <label className="label">Wall system</label>
+    <div className="seg">
+      {WALL_SYSTEMS.map(([id, label]) => (
+        <button key={id} type="button" className={value === id ? "active" : ""} onClick={() => onChange(id)}>
+          {label.replace(" wall", "")}
+        </button>
+      ))}
     </div>
   </div>
 );
@@ -234,14 +231,18 @@ export const PanelTypeSelector = ({ active, update, topBorder, headingLabel = "P
 // WallTabsAndActions so a caller that hides the tab strip (Internal's
 // Estimate Structure nav supersedes it, see WallsCard's hideWallTabs prop)
 // can still keep rename/duplicate/delete available.
-export const WallNameAndActions = ({ walls, active, update, duplicateWall, deleteWall }: {
-  walls: Wall[]; active: Wall; update: (patch: Partial<Wall>) => void;
+// deleteWall is no longer gated on walls.length here -- deleting the sole
+// remaining wall is confirm-gated by the caller instead (see
+// InternalCalculator.tsx's handleDeleteWall/confirmClearLastWall), which
+// clears it back to blank rather than silently no-opping a disabled button.
+export const WallNameAndActions = ({ active, update, duplicateWall, deleteWall }: {
+  active: Wall; update: (patch: Partial<Wall>) => void;
   duplicateWall: () => void; deleteWall: () => void;
 }) => (
   <div className="flex items-center gap-2 mt-2">
     <input value={active.name} onChange={e => update({ name: e.target.value })} maxLength={32} className={cx.wallName} style={{ color: NAVY }} />
     <IconButton onClick={duplicateWall} title="Duplicate"><Copy size={15} /></IconButton>
-    <IconButton onClick={deleteWall} disabled={walls.length === 1} variant="danger" title="Delete"><Trash2 size={15} /></IconButton>
+    <IconButton onClick={deleteWall} variant="danger" title="Delete"><Trash2 size={15} /></IconButton>
   </div>
 );
 
@@ -258,48 +259,55 @@ export interface WallsCardProps {
   onJunctionLink?: (targetId: number | null) => void; // Generic adjoining-wall linking -- any orient/wallSystem
 }
 export const WallsCard = ({ walls, active, update, duplicateWall, deleteWall, showTypes = true, systemSelector, orient, onCornerLink, onShaftLink, onJunctionLink }: WallsCardProps) => (
-  <div className={cx.section}>
-    {/* 1 -- System selector */}
-    {systemSelector && (
-      <div>
-        {systemSelector}
+  <section className="card config-card">
+    <div className="card-hd">
+      <div className="section-title"><span className="dot" /><span>Wall setup</span></div>
+      <div className="wall-actions">
+        <IconButton onClick={duplicateWall} title="Duplicate"><Copy size={15} /></IconButton>
+        <IconButton onClick={deleteWall} variant="danger" title="Delete"><Trash2 size={15} /></IconButton>
       </div>
-    )}
-    {/* 1b -- Horizontal-only wall system dropdown (Standard / Corner / Shaft). */}
-    {showTypes && orient === "horizontal" && (
-      <>
-        <WallSystemSelector
-          value={active.wallSystem}
-          onChange={id => update(id === "shaft" ? { wallSystem: id, type: 78 } : { wallSystem: id })}
-        />
-        {active.wallSystem === "corner" && onCornerLink && (
-          <CornerLinkSelector
-            active={active} walls={walls}
-            onLink={onCornerLink}
-            onSideChange={side => update({ cornerSide: side })}
-          />
-        )}
-        {active.wallSystem === "shaft" && onShaftLink && (
-          <ShaftLinkSelector active={active} walls={walls} onLink={onShaftLink} />
-        )}
-      </>
-    )}
-    {/* 1c -- Generic adjoining-wall junction link. Not gated by showTypes/
-        orient/wallSystem -- available on every wall in the project (see
-        JunctionLinkSelector). */}
-    {onJunctionLink && walls.length > 1 && (
-      <JunctionLinkSelector active={active} walls={walls} onLink={onJunctionLink} />
-    )}
-    {/* 2 -- Panel configuration. Shaft wall is always 78 mm -- hidden rather
-        than shown-but-disabled, since it's not a user choice. */}
-    {showTypes && (
-      <PanelTypeSelector active={active} update={update} topBorder={!!systemSelector} />
-    )}
-    {/* 3 -- Name/duplicate/delete toolbar for whichever wall is active.
-        The Estimate Structure nav is the wall picker + add-wall entry point,
-        so the old tab-strip (once rendered here too) is gone. */}
-    <div className={(showTypes || !!systemSelector) ? "border-t border-slate-100 dark:border-slate-700 pt-3" : ""}>
-      <WallNameAndActions walls={walls} active={active} update={update} duplicateWall={duplicateWall} deleteWall={deleteWall} />
     </div>
-  </div>
+    <div className="config-body">
+      {/* 0 -- Wall name. */}
+      <div className="config-row" style={{ gridTemplateColumns: "1fr" }}>
+        <div><label className="label">Wall name</label><input className="input" value={active.name} onChange={e => update({ name: e.target.value })} maxLength={32} /></div>
+      </div>
+      {/* 1 -- System selector */}
+      {systemSelector && (
+        <div>
+          {systemSelector}
+        </div>
+      )}
+      {/* 1b -- Horizontal-only wall system dropdown (Standard / Corner / Shaft). */}
+      {showTypes && orient === "horizontal" && (
+        <>
+          <WallSystemSelector
+            value={active.wallSystem}
+            onChange={id => update(id === "shaft" ? { wallSystem: id, type: 78 } : { wallSystem: id })}
+          />
+          {active.wallSystem === "corner" && onCornerLink && (
+            <CornerLinkSelector
+              active={active} walls={walls}
+              onLink={onCornerLink}
+              onSideChange={side => update({ cornerSide: side })}
+            />
+          )}
+          {active.wallSystem === "shaft" && onShaftLink && (
+            <ShaftLinkSelector active={active} walls={walls} onLink={onShaftLink} />
+          )}
+        </>
+      )}
+      {/* 1c -- Generic adjoining-wall junction link. Not gated by showTypes/
+          orient/wallSystem -- available on every wall in the project (see
+          JunctionLinkSelector). */}
+      {onJunctionLink && walls.length > 1 && (
+        <JunctionLinkSelector active={active} walls={walls} onLink={onJunctionLink} />
+      )}
+      {/* 2 -- Panel configuration. Shaft wall is always 78 mm -- hidden rather
+          than shown-but-disabled, since it's not a user choice. */}
+      {showTypes && (
+        <PanelTypeSelector active={active} update={update} topBorder={!!systemSelector} />
+      )}
+    </div>
+  </section>
 );

@@ -13,7 +13,7 @@
 // `walls` array.
 // =============================================================================
 import { useState, useEffect, useMemo, useRef } from "react";
-import { Frame, Gauge, Link2, Lock, Settings } from "lucide-react";
+import { Link2 } from "lucide-react";
 import { cx } from "../styleTokens";
 import { useWallResults } from "../wallStore";
 import type { WallStore } from "../wallStore";
@@ -21,26 +21,28 @@ import { compute } from "../estimate/computeWall";
 import { aggregate } from "../estimate/aggregate";
 import { useCombinedEstimateCalc } from "../estimate/useCombinedEstimateCalc";
 import { computeCornerPair, computeShaftPair } from "../estimate/cornerShaftKits";
-import { synthesizeKits, kitLabel } from "../estimate/synthesizeKits";
-import { r1 } from "../estimate/mathUtils";
-import { stockLengthLabel } from "../estimate/computeUtils";
+import { synthesizeKits } from "../estimate/synthesizeKits";
 import type { SelectedNavItem } from "../estimate/navSelection";
 import { HEAD_FLASH_LABEL, HEAD_FLASH_SUBLABEL, STOCK_LENGTHS, INT_CONFIG } from "../data";
 import type { Wall } from "../estimate/wall.types";
 import type { EffectiveLayout } from "../useLayoutMode";
-import {
-  SectionLabel, WarningsList, UnitToggle, CalculatorShell,
-  CollapsibleSection, StatsGrid,
-} from "../ui/primitives";
+import { WarningsList, UnitToggle, CalculatorShell } from "../ui/primitives";
 import { LockedDataInt, LockedDataFooter } from "../ui/lockedData";
 import { PanelLengthSection } from "./lengthExplorer";
 import { WallsCard } from "./wallsCard";
 import { EstimateStructureNav } from "./estimateStructureNav";
+import { EstimateSummarySidebar } from "./estimateSummarySidebar";
 import { KitWorkspace } from "./kitWorkspace";
 import { KitWorkspacePhone } from "./kitWorkspacePhone";
 import { StickyBarTilesPhone } from "./phoneShell";
 import { EstimateTopCard } from "./EstimateTopCard";
 import type { OpenProjectInfo } from "./EstimateTopCard";
+import { FirstWallSetup } from "./firstWallSetup";
+import { isNoEstimate } from "../estimate/estimatorSession";
+import { wouldLoseData } from "../estimate/validateWall";
+import { ConfirmDialog } from "../ui/confirmDialog";
+import { ReadOnlyBanner } from "../ui/readOnlyGate";
+import "../ui/estimatorTheme.css";
 import {
   SheetCardPhone, SheetSectionPhone, SystemConfigSectionPhone, GeometrySectionPhone,
   PanelLengthSectionPhone, TracksFlashingSectionPhone, WarningsListPhone,
@@ -52,16 +54,18 @@ import type { FinishKey, CornersField } from "./wallConfig";
 import { WallPreviewSection } from "../ui/wallPreview";
 import { PanelScheduleCard, PanelScheduleTable } from "../ui/scheduleCards";
 import { EstimateResultsCard } from "./estimateResultsCard";
+import { ProjectOrderSheet } from "./projectOrderSheet";
 import { OrderReviewDrawer } from "./orderReviewDrawer";
 import { buildInternalReportData } from "../export/buildInternalReportData";
 import { exportEstimateToExcel } from "../export/exportEstimateToExcel";
 
 export function InternalCalculator({
   store, orient, dimUnit, setDimUnit, systemSelector, layoutMode,
-  linkCornerPartner, linkShaftPartner,
+  linkCornerPartner: rawLinkCornerPartner, linkShaftPartner: rawLinkShaftPartner,
   switchOrient, switchToExternal,
   openProject, draftLabel, onSetDraftLabel, lastEditedAt,
   onSaveDraftAsProject, onSaveOpenProject, savingProject, saveProjectError, projectDirty, onGoToProjects,
+  readOnlyProject = false,
 }: {
   store: WallStore; orient: "vertical" | "horizontal"; dimUnit: string;
   setDimUnit: (u: string) => void; systemSelector?: React.ReactNode; layoutMode: EffectiveLayout;
@@ -90,6 +94,12 @@ export function InternalCalculator({
   // openProject is set; harmless/ignored otherwise.
   projectDirty: boolean;
   onGoToProjects: () => void;
+  // Spec §13 "Read-only access" -- see App.tsx's own readOnlyProject comment
+  // for why this is always false today. Gates the same mutation choke
+  // points Stage 3's incompatible-change guard already funnels through
+  // (update, handleDeleteWall below), plus add/duplicate/link/save, rather
+  // than threading a `disabled` prop through every individual leaf input.
+  readOnlyProject?: boolean;
 }) {
   const [showTrackFinish, setShowTrackFinish] = useState(false);
   const [orderDrawerOpen, setOrderDrawerOpen] = useState(false);
@@ -101,12 +111,68 @@ export function InternalCalculator({
   const {
     walls, activeId, setActiveId,
     projectStock, projectLock, customLengthInput, customActive,
-    active, update, toDisp, updDim,
-    setProjectLength, addBlankWall, duplicateWall, deleteWall,
-    duplicateWallById, deleteWallById,
+    active, update: rawUpdate, toDisp, updDim,
+    setProjectLength, addBlankWall: rawAddBlankWall, duplicateWall,
+    duplicateWallById: rawDuplicateWallById, deleteWallById, resetWalls,
     commitCustomLength, toggleCustom, clearCustomLength,
-    linkJunctionPartner,
+    linkJunctionPartner: rawLinkJunctionPartner,
+    convertActiveToCornerPair: rawConvertActiveToCornerPair, convertActiveToShaftPair: rawConvertActiveToShaftPair,
   } = store;
+
+  // Spec §13 read-only access: "may not change wall data, links, or save" --
+  // a no-op wrapper for every mutating store action, applied once here
+  // rather than threading a `disabled` prop through each individual leaf
+  // input (see InternalCalculator's own readOnlyProject prop comment and
+  // ui/readOnlyGate.tsx). Always a passthrough today since readOnlyProject
+  // is always false (see App.tsx).
+  function guard<A extends unknown[]>(fn: (...a: A) => void): (...a: A) => void {
+    return readOnlyProject ? () => {} : fn;
+  }
+  const addBlankWall = guard(rawAddBlankWall);
+  const duplicateWallById = guard(rawDuplicateWallById);
+  const linkJunctionPartner = guard(rawLinkJunctionPartner);
+  const linkCornerPartner = guard(rawLinkCornerPartner);
+  const linkShaftPartner = guard(rawLinkShaftPartner);
+  const convertActiveToCornerPair = guard(rawConvertActiveToCornerPair);
+  const convertActiveToShaftPair = guard(rawConvertActiveToShaftPair);
+
+  // Spec §7.12/§7.14 changeWallApplication/changeWallSystem: "require
+  // confirmation when data loss is possible" -- gated once here (rather than
+  // at each of WallsCard's WallSystemSelector/SystemConfigSectionPhone's own
+  // onChange handlers) since `update` is the single choke point every field
+  // change in this component already flows through; wouldLoseData is a
+  // no-op passthrough for any patch that doesn't touch orient/wallSystem, so
+  // every OTHER existing update() call site (dimensions, name, panel type,
+  // profile, etc.) is unaffected. Orientation's own vertical<->horizontal
+  // toggle is gated separately, at the App.tsx level (see guardedSwitchOrient
+  // there) -- it doesn't go through this update() at all for the web
+  // SystemRows selector.
+  const [pendingIncompatibleChange, setPendingIncompatibleChange] = useState<{ message: string; apply: () => void } | null>(null);
+  const update = guard((patch: Partial<Wall>) => {
+    if ("orient" in patch || "wallSystem" in patch) {
+      const message = wouldLoseData(active, patch);
+      if (message) { setPendingIncompatibleChange({ message, apply: () => rawUpdate(patch) }); return; }
+    }
+    rawUpdate(patch);
+  });
+
+  // Same read-only guard as above, for the two save actions (spec §13:
+  // "may not... save").
+  const guardedSaveDraftAsProject = readOnlyProject ? async () => null : onSaveDraftAsProject;
+  const guardedSaveOpenProject = readOnlyProject ? async () => {} : onSaveOpenProject;
+
+  // Spec §7.10 deleteWall: "if it was the last wall, retain a Blank Draft
+  // project" -- deleteWallById already no-ops on the last wall (a project
+  // always keeps at least one wall, see wallStore.ts), so the UI-level
+  // delete action for that case clears the wall back to blank (via the
+  // existing whole-project resetWalls(), which is exactly "one blank wall"
+  // when there's only ever been one) instead of silently doing nothing.
+  const [confirmClearLastWall, setConfirmClearLastWall] = useState(false);
+  const handleDeleteWall = guard((id: number) => {
+    if (walls.length === 1) { setConfirmClearLastWall(true); return; }
+    deleteWallById(id);
+  });
+  const handleDeleteActiveWall = () => handleDeleteWall(activeId);
   const { results, out, warnById } = useWallResults(walls, activeId, compute);
   const kits = useMemo(() => synthesizeKits(walls, INT_CONFIG), [walls]);
   const [selectedNavItem, setSelectedNavItem] = useState<SelectedNavItem>({ type: "wall", wallId: activeId });
@@ -151,28 +217,10 @@ export function InternalCalculator({
   const ScheduleComp = layoutMode === "web" ? PanelScheduleTable : PanelScheduleCard;
 
   // Corner/Shaft kit currently selected in the nav, if any -- resolved once
-  // here since both the workspace title and StatsGrid below need it.
+  // here since the KitWorkspace/WallsCard workspace branch below needs it.
   const selectedKit = selectedNavItem.type === "kit"
     ? kits.find(k => k.wallAId === selectedNavItem.wallAId && k.wallBId === selectedNavItem.wallBId) ?? null
     : null;
-  const workspaceTitle = selectedKit
-    ? kitLabel(selectedKit, kits)
-    : `${active.name} — ${active.orient === "vertical" ? "Vertical" : "Horizontal"} · P${active.type}`;
-  const selectedItemStats = selectedKit
-    ? [
-        { value: selectedKit.kind === "corner" ? "Corner" : "Shaft", label: "Kit type" },
-        { value: `${selectedKit.wallAName} + ${selectedKit.wallBName}`, label: "Linked walls" },
-        { value: `${r1(selectedKit.result.H)} m`, label: "Height" },
-        { value: selectedKit.result.warnings.length, label: "Warnings" },
-      ]
-    : [
-        { value: out.empty ? "--" : `${out.area} m2`, label: "Total area" },
-        { value: out.empty ? "--" : (out.chosen?.panels ?? out.result?.panels ?? "--"), label: "Panels" },
-        { value: `P${active.type}`, label: "Panel type" },
-        { value: active.orient === "vertical" ? "Vertical" : "Horizontal", label: "Config" },
-        { value: out.empty ? "--" : stockLengthLabel(out.chosen?.groups), label: "Length" },
-        { value: out.empty ? "--" : `${r1(out.chosen?.wastePct ?? 0)}%`, label: "Waste" },
-      ];
 
   // Renders as a full-width card carousel on web, a pill strip on phone (see
   // estimateStructureNav.tsx) -- directly under WallsCard/KitWorkspace in
@@ -185,7 +233,7 @@ export function InternalCalculator({
       selected={selectedNavItem} onSelect={handleSelectNavItem}
       warnById={warnById}
       addBlankWall={addBlankWall}
-      duplicateWallById={duplicateWallById} deleteWallById={deleteWallById}
+      duplicateWallById={duplicateWallById} deleteWallById={handleDeleteWall}
       layoutMode={layoutMode}
       dimUnit={dimUnit} toDisp={toDisp}
     />
@@ -203,7 +251,7 @@ export function InternalCalculator({
             <UnitToggle unit={dimUnit} setUnit={switchDimUnit} />
           </div>
         </div>
-        <DimensionInputs active={active} toDisp={toDisp} updDim={updDim} out={out} orient={orient} />
+        <DimensionInputs active={active} toDisp={toDisp} updDim={updDim} out={out} orient={orient} walls={walls} />
         {/* geometryContent only ever renders on web (see its own comment
             above) -- phone has its own separate GeometrySectionPhone
             (phoneSections.tsx), which now also always shows the preview
@@ -245,6 +293,17 @@ export function InternalCalculator({
   const edgeCount = edgesLocked ? 4 : Object.values(active.edges).filter(Boolean).length;
   const edgesBadge = `${edgeCount} edge${edgeCount === 1 ? "" : "s"}`;
 
+  // Hoisted above both workspace nodes so both the Summary sidebar's Export
+  // button AND the Project Order Sheet (spec's Final Order Review) build
+  // from the exact same report snapshot -- previously only handleExport
+  // (defined further down, near mainNode) computed this.
+  const reportData = useMemo(() => buildInternalReportData({
+    orient, dimUnit, toDisp, walls, results, warnById,
+    projChosenAgg, combinedEstimate,
+  }), [orient, dimUnit, toDisp, walls, results, warnById, projChosenAgg, combinedEstimate]);
+  const hasExportData = !!(projChosenAgg && projChosenAgg.totalPanels > 0);
+  const handleExport = () => exportEstimateToExcel(reportData);
+
   // Phone and web have genuinely different visual languages now (segmented
   // pill controls + one continuous "sheet" card on phone vs. the app's
   // generic button-grid cards on web, see phoneSections.tsx's header
@@ -267,7 +326,7 @@ export function InternalCalculator({
         <>
           <SystemConfigSectionPhone
             walls={walls} active={active} update={update}
-            duplicateWall={duplicateWall} deleteWall={deleteWall} orient={orient}
+            duplicateWall={duplicateWall} deleteWall={handleDeleteActiveWall} orient={orient}
             onCornerLink={linkCornerPartner} onShaftLink={linkShaftPartner} onJunctionLink={linkJunctionPartner}
             switchOrient={switchOrient} switchToExternal={switchToExternal}
           />
@@ -299,49 +358,68 @@ export function InternalCalculator({
     </>
   );
 
+  // Ported to the mockup's `.workspace` 3-column grid (ui/estimatorTheme.css)
+  // -- structure nav | main-column (config/geometry/product cards for
+  // whichever wall or kit is selected) | sticky summary sidebar. The old
+  // CollapsibleSection accordion pairing (Wall geometry / Tracks and
+  // flashing) is gone here -- the mockup's own main-column shows every card
+  // always-expanded, not collapsed behind an accordion trigger.
   const webWorkspaceNode = (
-    <>
-      <SectionLabel icon={<Gauge size={13} />}>Selected item metrics</SectionLabel>
-      <StatsGrid stats={selectedItemStats} />
-      <SectionLabel icon={<Settings size={13} />}>{`Calculator workspace — ${workspaceTitle}`}</SectionLabel>
-      {selectedKit ? (
-        <>
+    <div className="workspace">
+      {wallNavNode}
+      <div className="main-column">
+        {selectedKit ? (
           <KitWorkspace kit={selectedKit} onSelect={handleSelectNavItem} />
-          {wallNavNode}
-        </>
-      ) : (
-        <>
-          <WallsCard
-            walls={walls}
-            active={active} update={update}
-            duplicateWall={duplicateWall} deleteWall={deleteWall}
-            showTypes={true} systemSelector={systemSelector} orient={orient}
-            onCornerLink={linkCornerPartner}
-            onShaftLink={linkShaftPartner}
-            onJunctionLink={linkJunctionPartner}
-          />
-          {wallNavNode}
+        ) : (
+          <>
+            <WallsCard
+              walls={walls}
+              active={active} update={update}
+              duplicateWall={duplicateWall} deleteWall={handleDeleteActiveWall}
+              showTypes={true} systemSelector={systemSelector} orient={orient}
+              onCornerLink={linkCornerPartner}
+              onShaftLink={linkShaftPartner}
+              onJunctionLink={linkJunctionPartner}
+            />
 
-          <CollapsibleSection icon={<Frame size={13} />} label="Wall geometry" badge={profileLabel} defaultOpen>
-            {geometryContent}
-            {panelLengthContent}
-          </CollapsibleSection>
+            <section className="card geometry-card">
+              <div className="card-hd">
+                <div className="section-title"><span className="dot" /><span>Wall geometry</span></div>
+                <span className="pill blue">{profileLabel} profile</span>
+              </div>
+              <div className="geometry-body">
+                {geometryContent}
+              </div>
+            </section>
 
-          {/* Tracks and flashing -- defaults open now that this lives in the
-              wider main-column workspace, not the space-constrained sidebar
-              (see Phase B's CollapsibleSection doc comment for that original
-              rationale, which no longer applies here). */}
-          <CollapsibleSection icon={<Lock size={13} />} label="Tracks and flashing" badge={edgesBadge} defaultOpen>
-            {tracksContent}
-          </CollapsibleSection>
+            <section className="card product-card">
+              <div className="card-hd">
+                <div className="section-title"><span className="dot" /><span>Panel length &amp; materials</span></div>
+                <span className="pill cyan">{edgesBadge}</span>
+              </div>
+              <div className="product-body">
+                <div className="stock-col">{panelLengthContent}</div>
+                <div className="materials-col">{tracksContent}</div>
+              </div>
+            </section>
 
-          <WarningsList warnings={!out.empty ? out.warnings : null} />
-        </>
-      )}
-    </>
+            <WarningsList warnings={!out.empty ? out.warnings : null} />
+          </>
+        )}
+      </div>
+      <EstimateSummarySidebar
+        walls={walls} results={results} kits={kits} out={out}
+        projChosenAgg={projChosenAgg}
+        onReviewOrder={() => setOrderDrawerOpen(true)}
+        onExport={handleExport} exportDisabled={!hasExportData}
+      />
+    </div>
   );
 
   const workspaceNode = layoutMode === "phone" ? phoneWorkspaceNode : webWorkspaceNode;
+
+  const orderSheetRef = useRef<HTMLDivElement>(null);
+  const scrollToOrderSheet = () => orderSheetRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
 
   const mainNode = (
     <div ref={resultsRef}>
@@ -355,14 +433,19 @@ export function InternalCalculator({
         active={active} out={out} orient={orient} cornerPair={cornerPair} shaftPair={shaftPair}
         ScheduleComp={ScheduleComp}
       />
+
+      {/* Final Order Review / Project Order Sheet -- anchor target for
+          EstimateTopCard's order-jump banner (onViewOrder) and the Order
+          Review drawer/sticky bar's "Review order" actions alike. */}
+      <div ref={orderSheetRef} className="scroll-mt-4">
+        <ProjectOrderSheet
+          layoutMode={layoutMode} projectName={openProject ? openProject.name : (draftLabel ?? "")}
+          results={results} kits={kits} projChosenAgg={projChosenAgg} combinedEstimate={combinedEstimate}
+          reportData={reportData} onExportExcel={handleExport} exportDisabled={!hasExportData}
+        />
+      </div>
     </div>
   );
-
-  const hasExportData = !!(projChosenAgg && projChosenAgg.totalPanels > 0);
-  const handleExport = () => exportEstimateToExcel(buildInternalReportData({
-    orient, dimUnit, toDisp, walls, results, warnById,
-    projChosenAgg, combinedEstimate,
-  }));
   const footerNode = (
     <LockedDataFooter title="Locked system data" table={<LockedDataInt />} onExport={handleExport} disabled={!hasExportData} />
   );
@@ -370,7 +453,8 @@ export function InternalCalculator({
   const orderDrawerNode = (
     <OrderReviewDrawer
       open={orderDrawerOpen} onClose={() => setOrderDrawerOpen(false)} layoutMode={layoutMode}
-      projChosenAgg={projChosenAgg} combinedEstimate={combinedEstimate} results={results}
+      projChosenAgg={projChosenAgg} combinedEstimate={combinedEstimate} results={results} kits={kits}
+      reportData={reportData} projectName={openProject ? openProject.name : (draftLabel ?? "")}
       onExport={handleExport} exportDisabled={!hasExportData}
     />
   );
@@ -384,25 +468,60 @@ export function InternalCalculator({
   // Unconditional now (used to be phone-only) -- see EstimateTopCard.tsx's
   // header comment for why it now also covers the web layout's top-of-page
   // slot, in place of App.tsx's old standalone save-draft/editing-project
-  // banners.
-  const topCardNode = (
+  // banners. Renders FirstWallSetup instead while the store's single seeded
+  // wall is still fully blank and no saved project is open (spec's "No
+  // Project" state -- see estimatorSession.ts's isNoEstimate/design call).
+  const topCardNode = isNoEstimate(results, kits) ? (
+    <FirstWallSetup
+      active={active} update={update}
+      convertActiveToCornerPair={convertActiveToCornerPair} convertActiveToShaftPair={convertActiveToShaftPair}
+      draftLabel={draftLabel} onSetDraftLabel={onSetDraftLabel}
+      onDuplicateDraft={duplicateWall} onGoToProjects={onGoToProjects}
+    />
+  ) : (
     <EstimateTopCard
       results={results} kits={kits} projAgg={projChosenAgg}
       openProject={openProject} draftLabel={draftLabel} onSetDraftLabel={onSetDraftLabel}
-      onDuplicateDraft={duplicateWall}
       lastEditedAt={lastEditedAt}
-      onSaveDraftAsProject={onSaveDraftAsProject} onSaveOpenProject={onSaveOpenProject}
+      onSaveDraftAsProject={guardedSaveDraftAsProject} onSaveOpenProject={guardedSaveOpenProject}
       savingProject={savingProject} saveProjectError={saveProjectError} projectDirty={projectDirty}
-      onGoToProjects={onGoToProjects} onViewDetails={scrollToResults}
+      onGoToProjects={onGoToProjects} onViewDetails={scrollToResults} onViewOrder={scrollToOrderSheet}
     />
   );
 
-  if (layoutMode === "phone") return <>{topCardNode}{mainNode}{footerNode}{stickyBarNode}{orderDrawerNode}</>;
-  return (
+  const dialogsNode = (
     <>
+      <ConfirmDialog
+        open={pendingIncompatibleChange !== null}
+        danger
+        title="This change will remove a link"
+        description={pendingIncompatibleChange?.message ?? ""}
+        confirmLabel="Continue"
+        onConfirm={() => { pendingIncompatibleChange?.apply(); setPendingIncompatibleChange(null); }}
+        onCancel={() => setPendingIncompatibleChange(null)}
+      />
+      <ConfirmDialog
+        open={confirmClearLastWall}
+        danger
+        title="Delete the last wall"
+        description="A project always keeps at least one wall to configure, so this wall won't be removed entirely -- it will be cleared back to a blank draft instead."
+        confirmLabel="Clear wall"
+        onConfirm={() => { resetWalls(); setConfirmClearLastWall(false); }}
+        onCancel={() => setConfirmClearLastWall(false)}
+      />
+    </>
+  );
+
+  const readOnlyBannerNode = readOnlyProject && <div className="mt-3">{<ReadOnlyBanner />}</div>;
+
+  if (layoutMode === "phone") return <div className="est-shell">{dialogsNode}{readOnlyBannerNode}{topCardNode}{mainNode}{footerNode}{stickyBarNode}{orderDrawerNode}</div>;
+  return (
+    <div className="est-shell">
+      {dialogsNode}
+      {readOnlyBannerNode}
       {topCardNode}
       <CalculatorShell main={mainNode} footer={footerNode} />
       {orderDrawerNode}
-    </>
+    </div>
   );
 }

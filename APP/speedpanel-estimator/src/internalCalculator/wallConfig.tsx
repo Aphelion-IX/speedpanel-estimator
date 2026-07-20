@@ -25,6 +25,7 @@ import type { WallSystemId } from "../App";
 import { Num, ToggleSwitch, ProjectLockNote } from "../ui/primitives";
 import { Table, type TableColumn } from "../ui/table";
 import { makeToM } from "../estimate/computeUtils";
+import { validateWall } from "../estimate/validateWall";
 
 // --- SpanTable ----------------------------------------------------------------
 export const SpanTable = ({ orient, type, wallSystem }: { orient: string; type: number; wallSystem?: WallSystemId }) => {
@@ -140,16 +141,16 @@ export const SpanTable = ({ orient, type, wallSystem }: { orient: string; type: 
 };
 
 // --- ProfileSelector ----------------------------------------------------------
+// The mockup's own `.profile-grid`/`.profile`/`.shape` markup (a small
+// clip-path swatch per profile -- flat rectangle for Standard, a raked
+// polygon for Rake, a gable polygon for Gable).
 const ProfileSelector = ({ value, onChange }: { value: ProfileId; onChange: (id: ProfileId) => void }) => (
-  <div className="grid grid-cols-3 items-end gap-1.5">
-    {([ ["standard","Standard"], ["rake","Raked"], ["gable","Gable"] ] as [ProfileId, string][]).map(([id, lbl]) => {
-      const on = value === id;
-      return (
-        <button key={id} onClick={() => onChange(id)}
-          className={"w-full rounded-xl border-2 py-3.5 px-4 text-sm font-semibold text-center active:scale-95 transition-all " + (on ? "" : `border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 ${selectableOffCx}`)}
-          style={on ? { ...selectedFill, color: "#fff" } : { color: BLUE }}>{lbl}</button>
-      );
-    })}
+  <div className="profile-grid">
+    {([ ["standard","Standard"], ["rake","Raked"], ["gable","Gable"] ] as [ProfileId, string][]).map(([id, lbl]) => (
+      <button key={id} type="button" className={`profile${value === id ? " active" : ""}`} onClick={() => onChange(id)}>
+        <div className={`shape${id !== "standard" ? ` ${id}` : ""}`} />{lbl}
+      </button>
+    ))}
   </div>
 );
 // --- EdgeRestraintSelector ----------------------------------------------------
@@ -428,32 +429,41 @@ export interface DimensionInputsProps {
   active: Wall; toDisp: (m: string) => string;
   updDim: (field: DimField, d: string) => void;
   out: ComputeOut; orient: string;
+  // Full wall list, for validateWall's orphaned-link/partner checks -- only
+  // the active wall's OWN field errors are surfaced here, so passing the
+  // rest of the project through is enough context, no per-wall prop drilling.
+  walls?: Wall[];
 }
-export const DimensionInputs = ({ active, toDisp, updDim, out, orient }: DimensionInputsProps) => {
+export const DimensionInputs = ({ active, toDisp, updDim, out, orient, walls }: DimensionInputsProps) => {
   const isShaft = orient === "horizontal" && active.wallSystem === "shaft";
+  // Only shown once the wall has actually been touched -- an untouched
+  // (Not Started) wall shouldn't greet the user with a wall of red borders
+  // before they've entered anything (see validateWall's own `touched` gate).
+  const issues = validateWall(active, walls ?? [active], out).issues;
+  const issueFor = (field: string) => issues.find(i => i.field === field)?.message;
   return (
     <>
       <div className="grid grid-cols-2 items-end gap-2">
-        <Num label="Width"  value={toDisp(active.width)}  onChange={v => updDim("width", v)} />
-        {active.profile === "standard" && !isShaft && <Num label="Height" value={toDisp(active.height)} onChange={v => updDim("height", v)} />}
+        <Num label="Width"  value={toDisp(active.width)}  onChange={v => updDim("width", v)} error={issueFor("width")} />
+        {active.profile === "standard" && !isShaft && <Num label="Height" value={toDisp(active.height)} onChange={v => updDim("height", v)} error={issueFor("height")} />}
         {active.profile === "standard" && isShaft && (
           <>
-            <Num label="Total shaft height" value={toDisp(active.height)} onChange={v => updDim("height", v)} />
-            <Num label="Floor height (slab to soffit)" value={toDisp(active.floorHeight || "")} onChange={v => updDim("floorHeight", v)} />
+            <Num label="Total shaft height" value={toDisp(active.height)} onChange={v => updDim("height", v)} error={issueFor("height")} />
+            <Num label="Floor height (slab to soffit)" value={toDisp(active.floorHeight || "")} onChange={v => updDim("floorHeight", v)} error={issueFor("floorHeight")} />
           </>
         )}
         {active.profile === "rake" && (
           <>
-            <Num label="Left height"  value={toDisp(active.leftH)}  onChange={v => updDim("leftH", v)} />
-            <Num label="Right height" value={toDisp(active.rightH)} onChange={v => updDim("rightH", v)} />
+            <Num label="Left height"  value={toDisp(active.leftH)}  onChange={v => updDim("leftH", v)} error={issueFor("leftH")} />
+            <Num label="Right height" value={toDisp(active.rightH)} onChange={v => updDim("rightH", v)} error={issueFor("rightH")} />
           </>
         )}
         {active.profile === "gable" && (
           <>
-            <Num label="Left eaves height"  value={toDisp(active.leftH || active.eavesH)}  onChange={v => updDim("leftH", v)} />
-            <Num label="Right eaves height" value={toDisp(active.rightH || active.eavesH)} onChange={v => updDim("rightH", v)} />
-            <Num label="Ridge / apex height" value={toDisp(active.apexH)} onChange={v => updDim("apexH", v)} />
-            <Num label="Ridge from left -- blank = centred" value={toDisp(active.ridgeX)} onChange={v => updDim("ridgeX", v)} />
+            <Num label="Left eaves height"  value={toDisp(active.leftH || active.eavesH)}  onChange={v => updDim("leftH", v)} error={issueFor("leftH")} />
+            <Num label="Right eaves height" value={toDisp(active.rightH || active.eavesH)} onChange={v => updDim("rightH", v)} error={issueFor("rightH")} />
+            <Num label="Ridge / apex height" value={toDisp(active.apexH)} onChange={v => updDim("apexH", v)} error={issueFor("apexH")} />
+            <Num label="Ridge from left -- blank = centred" value={toDisp(active.ridgeX)} onChange={v => updDim("ridgeX", v)} error={issueFor("ridgeX")} />
           </>
         )}
       </div>
