@@ -268,7 +268,7 @@ export const GeometrySectionPhone = ({
       <UnitToggle unit={dimUnit} setUnit={switchDimUnit} />
     </div>
     <div className="mt-2">
-      <DimensionInputs active={active} toDisp={toDisp} updDim={updDim} out={out} orient={orient} />
+      <DimensionInputs active={active} toDisp={toDisp} updDim={updDim} out={out} orient={orient} walls={walls} />
     </div>
 
     <WallPreviewSection active={active} walls={walls} out={out} dimUnit={dimUnit} toDisp={toDisp} />

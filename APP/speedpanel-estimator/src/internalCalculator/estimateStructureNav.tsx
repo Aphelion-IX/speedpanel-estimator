@@ -98,6 +98,9 @@ const WallCard = ({ wall, out, on, warn, onClick, onDuplicate, onDelete, deleteD
       <div className="mt-0.5 truncate text-xs font-medium" style={{ color: MUTED }}>
         {wall.orient === "vertical" ? "Vertical" : "Horizontal"} · P{wall.type} · Internal
       </div>
+      <span className={`mt-2 inline-flex ${statusChipCx(deriveWallStatus(wall, walls, out))}`}>
+        {statusLabel(deriveWallStatus(wall, walls, out))}
+      </span>
     </div>
     <div className="mt-3 flex items-center gap-3 border-t border-slate-100 dark:border-slate-700 pt-2.5">
       <button type="button" onClick={e => { e.stopPropagation(); onDuplicate(); }}
@@ -151,7 +154,7 @@ export const EstimateStructureNav = ({
         label: w.name,
         sublabel: `${w.orient === "vertical" ? "Vert" : "Horiz"} · P${w.type}${r.empty ? "" : ` · ${r.area} m2`}`,
         active: selected.type === "wall" && selected.wallId === w.id,
-        status: deriveWallStatus(w, r),
+        status: deriveWallStatus(w, walls, r),
         thumbnail: <WallPreviewSection active={w} walls={walls} out={r} dimUnit={dimUnit} toDisp={toDisp} size="thumb" />,
         onDuplicate: () => duplicateWallById(w.id),
         onDelete: () => deleteWallById(w.id),

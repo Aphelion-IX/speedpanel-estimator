@@ -60,9 +60,14 @@ export function validateWall(wall: Wall, walls: Wall[], out: ComputeOut): WallVa
     if (!isSet(wall.rightH)) issues.push({ field: "rightH", kind: "required", message: "Rake profile is missing its high-point height." });
   }
   if (wall.profile === "gable") {
-    if (!isSet(wall.eavesH)) issues.push({ field: "eavesH", kind: "required", message: "Gable profile is missing its eaves height." });
+    // Matches resolveGeometry's own fallback (wallGeometry.ts): leftH/rightH
+    // each fall back to the legacy single eavesH value if unset, so only
+    // flag a side as missing when NEITHER it nor eavesH is set. ridgeX is
+    // genuinely optional -- blank centres the ridge (see the "blank =
+    // centred" field label in wallConfig.tsx's DimensionInputs).
+    if (!isSet(wall.leftH) && !isSet(wall.eavesH)) issues.push({ field: "leftH", kind: "required", message: "Gable profile is missing its left eaves height." });
+    if (!isSet(wall.rightH) && !isSet(wall.eavesH)) issues.push({ field: "rightH", kind: "required", message: "Gable profile is missing its right eaves height." });
     if (!isSet(wall.apexH)) issues.push({ field: "apexH", kind: "required", message: "Gable profile is missing its apex height." });
-    if (!isSet(wall.ridgeX)) issues.push({ field: "ridgeX", kind: "required", message: "Gable profile is missing its ridge position." });
   }
 
   // Corner wall always needs its partner ("always 1 corner" -- see

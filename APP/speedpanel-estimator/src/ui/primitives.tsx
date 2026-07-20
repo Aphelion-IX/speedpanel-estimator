@@ -122,12 +122,14 @@ export const CollapsibleSection = ({ icon, label, badge, defaultOpen = true, chi
   );
 };
 
-export const Num = ({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) => (
+export const Num = ({ label, value, onChange, error }: { label: string; value: string; onChange: (v: string) => void; error?: string }) => (
   <div>
     <label className={cx.lbl}>{label}</label>
     <input type="number" inputMode="decimal" value={value}
       onChange={e => onChange(e.target.value)}
-      className={`${cx.input} font-medium`} style={{ color: NAVY }} />
+      className={`${cx.input} font-medium`}
+      style={{ color: NAVY, borderColor: error ? "#dc2626" : undefined }} />
+    {error && <p className="mt-1 text-xs font-medium text-red-600 dark:text-red-300">{error}</p>}
   </div>
 );
 

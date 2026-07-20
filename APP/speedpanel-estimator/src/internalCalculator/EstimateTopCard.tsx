@@ -81,7 +81,8 @@ export const EstimateTopCard = ({
 }: EstimateTopCardProps) => {
   const nameFieldRef = useRef<HTMLInputElement>(null);
   const totalItems = results.length + kits.length;
-  const configuredCount = results.filter(r => isConfigured(deriveWallStatus(r.wall, r.out))).length + kits.length;
+  const allWalls = results.map(r => r.wall);
+  const configuredCount = results.filter(r => isConfigured(deriveWallStatus(r.wall, allWalls, r.out))).length + kits.length;
   const warningsCount = results.filter(r => r.out.warnings.length > 0).length + kits.filter(k => k.result.warnings.length > 0).length;
   const pct = totalItems ? Math.round((configuredCount / totalItems) * 100) : 0;
   // "Nothing started yet" -- the store always seeds one blank wall, so a

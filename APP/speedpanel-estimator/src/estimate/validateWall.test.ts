@@ -43,12 +43,19 @@ describe("validateWall", () => {
     expect(v.issues.some(i => i.field === "rightH")).toBe(true);
   });
 
-  it("flags a gable profile missing eaves/apex/ridge", () => {
+  it("flags a gable profile missing left/right eaves and apex height, but not ridge position (blank = centred)", () => {
     const wall = { ...defaultWall(1), width: "3.2", height: "2.4", profile: "gable" as const };
     const v = validateWall(wall, [wall], emptyOut);
-    expect(v.issues.some(i => i.field === "eavesH")).toBe(true);
+    expect(v.issues.some(i => i.field === "leftH")).toBe(true);
+    expect(v.issues.some(i => i.field === "rightH")).toBe(true);
     expect(v.issues.some(i => i.field === "apexH")).toBe(true);
-    expect(v.issues.some(i => i.field === "ridgeX")).toBe(true);
+    expect(v.issues.some(i => i.field === "ridgeX")).toBe(false);
+  });
+
+  it("does not flag a gable profile whose sides are covered by the legacy single eavesH value", () => {
+    const wall = { ...defaultWall(1), width: "3.2", height: "2.4", profile: "gable" as const, eavesH: "2.4", apexH: "3.0" };
+    const v = validateWall(wall, [wall], emptyOut);
+    expect(v.issues.some(i => i.field === "leftH" || i.field === "rightH")).toBe(false);
   });
 
   it("flags a corner wall with no partner (always required, unlike shaft's optional secondary)", () => {

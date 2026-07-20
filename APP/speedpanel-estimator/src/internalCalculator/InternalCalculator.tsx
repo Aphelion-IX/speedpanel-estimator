@@ -203,7 +203,7 @@ export function InternalCalculator({
             <UnitToggle unit={dimUnit} setUnit={switchDimUnit} />
           </div>
         </div>
-        <DimensionInputs active={active} toDisp={toDisp} updDim={updDim} out={out} orient={orient} />
+        <DimensionInputs active={active} toDisp={toDisp} updDim={updDim} out={out} orient={orient} walls={walls} />
         {/* geometryContent only ever renders on web (see its own comment
             above) -- phone has its own separate GeometrySectionPhone
             (phoneSections.tsx), which now also always shows the preview
