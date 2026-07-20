@@ -232,6 +232,39 @@ export function useWallStore({ dimUnit, onWallAdded, persistLocally = true }: { 
     onWallAdded?.();
   };
 
+  // Converts the CURRENTLY ACTIVE wall into the primary member of a new
+  // linked pair, adding one new partner wall alongside it. Used by First-
+  // Wall Setup (firstWallSetup.tsx): the store always seeds one blank wall
+  // (see defaultWall usage in useWallStore's initial state above), so
+  // choosing Corner/Shaft there should turn THAT wall into "Wall 01" of the
+  // pair, not leave it behind as an orphaned extra blank wall alongside a
+  // brand new createCornerPair()/createShaftPair() pair. Deliberately one
+  // setWalls call (not update() followed by addCornerWall()+
+  // linkCornerPartner()): activeId only updates on the NEXT render, so a
+  // linkCornerPartner() call chained synchronously after addCornerWall()
+  // in the same handler would still close over the OLD activeId and link
+  // the wrong pair.
+  const convertActiveToCornerPair = () => {
+    const partnerId = nextId;
+    setWalls(ws => [
+      ...ws.map(w => w.id === activeId
+        ? { ...w, orient: "horizontal" as const, wallSystem: "corner" as const, cornerPartnerId: partnerId, cornerSide: "right" as const }
+        : w),
+      { ...defaultWall(partnerId, "horizontal"), wallSystem: "corner", forcedStock: projectForcedStock(), cornerPartnerId: activeId, cornerSide: "left" },
+    ]);
+    setNextId(partnerId + 1);
+  };
+  const convertActiveToShaftPair = () => {
+    const partnerId = nextId;
+    setWalls(ws => [
+      ...ws.map(w => w.id === activeId
+        ? { ...w, orient: "horizontal" as const, wallSystem: "shaft" as const, type: 78 as const, shaftPartnerId: partnerId }
+        : w),
+      { ...defaultWall(partnerId, "horizontal"), wallSystem: "shaft", type: 78, forcedStock: projectForcedStock(), shaftPartnerId: activeId },
+    ]);
+    setNextId(partnerId + 1);
+  };
+
   // Id-parameterized variants, needed by the All Walls page's per-row
   // Duplicate/Delete buttons (any row, not just the active wall).
   // duplicateWall/deleteWall stay as the zero-arg wrappers every existing
@@ -360,7 +393,9 @@ export function useWallStore({ dimUnit, onWallAdded, persistLocally = true }: { 
     projectStock, projectLock, customLengthInput, customActive,
     active, update, toDisp, toM, updDim,
     setProjectLength, projectForcedStock,
-    addBlankWall, addCornerWall, addShaftWall, createCornerPair, createShaftPair, duplicateWall, deleteWall, duplicateWallById, deleteWallById,
+    addBlankWall, addCornerWall, addShaftWall, createCornerPair, createShaftPair,
+    convertActiveToCornerPair, convertActiveToShaftPair,
+    duplicateWall, deleteWall, duplicateWallById, deleteWallById,
     commitCustomLength, toggleCustom, resetWalls, clearCustomLength,
     linkJunctionPartner, loadFrom, exportSnapshot,
     lastEditedAt, draftLabel, setDraftLabel,

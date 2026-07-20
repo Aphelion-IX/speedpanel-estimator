@@ -97,4 +97,36 @@ describe("useWallStore's atomic linked-system creation", () => {
     const ids = result.current.walls.map(w => w.id);
     expect(new Set(ids).size).toBe(ids.length);
   });
+
+  it("convertActiveToCornerPair turns the seeded wall into the primary member instead of leaving it as an orphan", () => {
+    const { result } = renderHook(() => useWallStore({ dimUnit: "m", persistLocally: false }));
+    const seededId = result.current.activeId;
+    const before = result.current.walls.length;
+    act(() => result.current.convertActiveToCornerPair());
+
+    // No orphan blank wall left behind -- the seeded wall itself became "Wall 01".
+    expect(result.current.walls.length).toBe(before + 1);
+    const primary = result.current.walls.find(w => w.id === seededId)!;
+    const partner = result.current.walls.find(w => w.id !== seededId)!;
+    expect(primary.wallSystem).toBe("corner");
+    expect(primary.orient).toBe("horizontal");
+    expect(primary.cornerPartnerId).toBe(partner.id);
+    expect(partner.cornerPartnerId).toBe(seededId);
+    expect(primary.cornerSide).not.toBe(partner.cornerSide);
+  });
+
+  it("convertActiveToShaftPair turns the seeded wall into the primary member instead of leaving it as an orphan", () => {
+    const { result } = renderHook(() => useWallStore({ dimUnit: "m", persistLocally: false }));
+    const seededId = result.current.activeId;
+    const before = result.current.walls.length;
+    act(() => result.current.convertActiveToShaftPair());
+
+    expect(result.current.walls.length).toBe(before + 1);
+    const primary = result.current.walls.find(w => w.id === seededId)!;
+    const partner = result.current.walls.find(w => w.id !== seededId)!;
+    expect(primary.wallSystem).toBe("shaft");
+    expect(primary.type).toBe(78);
+    expect(primary.shaftPartnerId).toBe(partner.id);
+    expect(partner.shaftPartnerId).toBe(seededId);
+  });
 });

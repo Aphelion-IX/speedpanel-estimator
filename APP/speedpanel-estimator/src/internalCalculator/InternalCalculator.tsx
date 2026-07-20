@@ -41,6 +41,8 @@ import { KitWorkspacePhone } from "./kitWorkspacePhone";
 import { StickyBarTilesPhone } from "./phoneShell";
 import { EstimateTopCard } from "./EstimateTopCard";
 import type { OpenProjectInfo } from "./EstimateTopCard";
+import { FirstWallSetup } from "./firstWallSetup";
+import { isNoEstimate } from "../estimate/estimatorSession";
 import {
   SheetCardPhone, SheetSectionPhone, SystemConfigSectionPhone, GeometrySectionPhone,
   PanelLengthSectionPhone, TracksFlashingSectionPhone, WarningsListPhone,
@@ -106,6 +108,7 @@ export function InternalCalculator({
     duplicateWallById, deleteWallById,
     commitCustomLength, toggleCustom, clearCustomLength,
     linkJunctionPartner,
+    convertActiveToCornerPair, convertActiveToShaftPair,
   } = store;
   const { results, out, warnById } = useWallResults(walls, activeId, compute);
   const kits = useMemo(() => synthesizeKits(walls, INT_CONFIG), [walls]);
@@ -384,16 +387,24 @@ export function InternalCalculator({
   // Unconditional now (used to be phone-only) -- see EstimateTopCard.tsx's
   // header comment for why it now also covers the web layout's top-of-page
   // slot, in place of App.tsx's old standalone save-draft/editing-project
-  // banners.
-  const topCardNode = (
+  // banners. Renders FirstWallSetup instead while the store's single seeded
+  // wall is still fully blank and no saved project is open (spec's "No
+  // Project" state -- see estimatorSession.ts's isNoEstimate/design call).
+  const topCardNode = isNoEstimate(results, kits) ? (
+    <FirstWallSetup
+      active={active} update={update}
+      convertActiveToCornerPair={convertActiveToCornerPair} convertActiveToShaftPair={convertActiveToShaftPair}
+      draftLabel={draftLabel} onSetDraftLabel={onSetDraftLabel}
+      onDuplicateDraft={duplicateWall} onGoToProjects={onGoToProjects}
+    />
+  ) : (
     <EstimateTopCard
       results={results} kits={kits} projAgg={projChosenAgg}
       openProject={openProject} draftLabel={draftLabel} onSetDraftLabel={onSetDraftLabel}
-      onDuplicateDraft={duplicateWall}
       lastEditedAt={lastEditedAt}
       onSaveDraftAsProject={onSaveDraftAsProject} onSaveOpenProject={onSaveOpenProject}
       savingProject={savingProject} saveProjectError={saveProjectError} projectDirty={projectDirty}
-      onGoToProjects={onGoToProjects} onViewDetails={scrollToResults}
+      onGoToProjects={onGoToProjects} onViewDetails={scrollToResults} onViewOrder={scrollToResults}
     />
   );
 
