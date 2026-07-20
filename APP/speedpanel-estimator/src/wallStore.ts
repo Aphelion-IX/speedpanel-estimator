@@ -201,6 +201,37 @@ export function useWallStore({ dimUnit, onWallAdded, persistLocally = true }: { 
   const addCornerWall = () => addWall({ orient: "horizontal", wallSystem: "corner" });
   const addShaftWall = () => addWall({ orient: "horizontal", wallSystem: "shaft", type: 78 });
 
+  // Atomic linked-system creation (spec §7.6/§7.7): unlike addCornerWall/
+  // addShaftWall above (which each create only ONE pre-configured wall, left
+  // for the user to manually link via CornerLinkSelector/ShaftLinkSelector),
+  // these push BOTH member walls in a single setWalls call, pre-linked to
+  // each other -- matching the mockup's single "Corner start"/"Shaft start"
+  // entry point, which produces "Wall 01 + Wall 02 + kit" as one action.
+  const createCornerPair = () => {
+    const idA = nextId, idB = nextId + 1;
+    const stock = projectForcedStock();
+    setWalls(ws => [
+      ...ws,
+      { ...defaultWall(idA, "horizontal"), wallSystem: "corner", forcedStock: stock, cornerPartnerId: idB, cornerSide: "right" },
+      { ...defaultWall(idB, "horizontal"), wallSystem: "corner", forcedStock: stock, cornerPartnerId: idA, cornerSide: "left" },
+    ]);
+    setNextId(idB + 1);
+    setActiveId(idA);
+    onWallAdded?.();
+  };
+  const createShaftPair = () => {
+    const idA = nextId, idB = nextId + 1;
+    const stock = projectForcedStock();
+    setWalls(ws => [
+      ...ws,
+      { ...defaultWall(idA, "horizontal"), wallSystem: "shaft", type: 78, forcedStock: stock, shaftPartnerId: idB },
+      { ...defaultWall(idB, "horizontal"), wallSystem: "shaft", type: 78, forcedStock: stock, shaftPartnerId: idA },
+    ]);
+    setNextId(idB + 1);
+    setActiveId(idA);
+    onWallAdded?.();
+  };
+
   // Id-parameterized variants, needed by the All Walls page's per-row
   // Duplicate/Delete buttons (any row, not just the active wall).
   // duplicateWall/deleteWall stay as the zero-arg wrappers every existing
@@ -329,7 +360,7 @@ export function useWallStore({ dimUnit, onWallAdded, persistLocally = true }: { 
     projectStock, projectLock, customLengthInput, customActive,
     active, update, toDisp, toM, updDim,
     setProjectLength, projectForcedStock,
-    addBlankWall, addCornerWall, addShaftWall, duplicateWall, deleteWall, duplicateWallById, deleteWallById,
+    addBlankWall, addCornerWall, addShaftWall, createCornerPair, createShaftPair, duplicateWall, deleteWall, duplicateWallById, deleteWallById,
     commitCustomLength, toggleCustom, resetWalls, clearCustomLength,
     linkJunctionPartner, loadFrom, exportSnapshot,
     lastEditedAt, draftLabel, setDraftLabel,
@@ -356,7 +387,17 @@ export function useWallResults(
   // For typical project sizes (<=20 walls) this is fast enough. If wall counts
   // grow, consider a per-wall memo keyed by wall id + a shallow hash of inputs.
   const results = useMemo<WallResult[]>(
-    () => walls.map(w => ({ wall: w, out: computeFn(w) })),
+    () => walls.map(w => {
+      // Preserve user work on a calculation failure (spec §2.5) instead of
+      // letting one bad wall's input crash the whole estimator: the wall's
+      // own data is untouched, it just surfaces as the "Error" status (see
+      // ./estimate/wallStatus.ts) instead of a result.
+      try {
+        return { wall: w, out: computeFn(w) };
+      } catch (e) {
+        return { wall: w, out: { empty: true, warnings: [], notes: [], error: e instanceof Error ? e.message : "Calculation failed for this wall." } };
+      }
+    }),
     [walls]
   );
   const out = useMemo(

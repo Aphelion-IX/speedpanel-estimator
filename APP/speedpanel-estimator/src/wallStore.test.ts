@@ -1,5 +1,7 @@
+/** @vitest-environment jsdom */
 import { describe, it, expect } from "vitest";
-import { backfillOrient, defaultWall, WallSchema, PersistedProjectSchema } from "./wallStore";
+import { renderHook, act } from "@testing-library/react";
+import { backfillOrient, defaultWall, useWallStore, WallSchema, PersistedProjectSchema } from "./wallStore";
 
 describe("backfillOrient", () => {
   it("leaves an already-set orient untouched", () => {
@@ -50,5 +52,49 @@ describe("PersistedProjectSchema / WallSchema", () => {
   it("rejects a project missing a top-level required field", () => {
     const { activeId: _activeId, ...broken } = validProject();
     expect(PersistedProjectSchema.safeParse(broken).success).toBe(false);
+  });
+});
+
+describe("useWallStore's atomic linked-system creation", () => {
+  // useWallStore always starts with one seeded blank wall (see defaultWall
+  // usage in useWallStore itself), so each pair-creation call adds two MORE
+  // walls to whatever's already there -- these tests look up the new pair by
+  // wallSystem rather than assuming an exact final wall count.
+  it("createCornerPair creates two walls, cross-linked, in one action", () => {
+    const { result } = renderHook(() => useWallStore({ dimUnit: "m", persistLocally: false }));
+    const before = result.current.walls.length;
+    act(() => result.current.createCornerPair());
+
+    expect(result.current.walls.length).toBe(before + 2);
+    const [a, b] = result.current.walls.filter(w => w.wallSystem === "corner");
+    expect(a.orient).toBe("horizontal");
+    expect(b.orient).toBe("horizontal");
+    expect(a.cornerPartnerId).toBe(b.id);
+    expect(b.cornerPartnerId).toBe(a.id);
+    expect(a.cornerSide).not.toBe(b.cornerSide);
+    // The first member of the pair becomes the active wall.
+    expect(result.current.activeId).toBe(a.id);
+  });
+
+  it("createShaftPair creates two P78 walls, cross-linked, in one action", () => {
+    const { result } = renderHook(() => useWallStore({ dimUnit: "m", persistLocally: false }));
+    const before = result.current.walls.length;
+    act(() => result.current.createShaftPair());
+
+    expect(result.current.walls.length).toBe(before + 2);
+    const [a, b] = result.current.walls.filter(w => w.wallSystem === "shaft");
+    expect(a.type).toBe(78);
+    expect(b.type).toBe(78);
+    expect(a.shaftPartnerId).toBe(b.id);
+    expect(b.shaftPartnerId).toBe(a.id);
+  });
+
+  it("does not collide ids across two consecutive pair creations", () => {
+    const { result } = renderHook(() => useWallStore({ dimUnit: "m", persistLocally: false }));
+    act(() => result.current.createCornerPair());
+    act(() => result.current.createShaftPair());
+
+    const ids = result.current.walls.map(w => w.id);
+    expect(new Set(ids).size).toBe(ids.length);
   });
 });
