@@ -133,14 +133,36 @@ on top of the structural merge, not blocking it.
 - Update CLAUDE.md's "Estimator UI architecture" section to describe the merged model,
   replacing the fork-not-share paragraph. **DONE.**
 
-### Phase 6 — Full verification — typecheck/test/build/depcruise DONE; visual pass NOT DONE
+### Phase 6 — Full verification — DONE
 `npm run typecheck && npm test && npm run build && npm run depcruise` all clean (187 tests passing,
-0 depcruise errors). A headless-Chromium smoke check confirmed the app still boots and renders the
-sign-in landing page with no console errors. **What's NOT done**: an authenticated visual pass
-against the real running app (mixed Internal+External project end to end, Wall Setup/Panel length
-cards matching the mockup) — this session didn't set up local Supabase (see "Verifying against the
-real running app" below for the recipe); next session should do this pass before considering Phase
-6 fully closed, especially for the phone layout and the new First-Wall Setup "Wall type" step.
+0 depcruise errors). Followed "Verifying against the real running app" below (with one addition —
+see there) to sign in against a local Supabase instance and drive the live app with Playwright:
+
+- **First-Wall Setup**: confirmed the new "1. Wall type" (Internal/External) step renders, the step
+  numbers around it shift correctly (Internal shows "2. Orientation"/"3. Panel type"; External shows
+  "2. Orientation" then the colour picker, no numbered Panel type step), and choosing each side
+  produces the expected wall.
+- **Internal wall, web**: Wall setup shows the Panel type selector; Wall geometry/Panel length &
+  materials cards render normally; Project Order Sheet's material section is correctly labeled
+  "PANELS (INTERNAL)" / "FIXING AND SEALANT -- INTERNAL"; footer reads "Locked system data".
+- **External wall, web**: confirmed the exact regression this session's own code review caught before
+  ever running the app — Wall geometry's span table shows the generic width/height-driven lookup
+  ("SPAN TABLE - P78"), not Internal Standard's fixed single-row section, i.e. `SpanTable`'s
+  `wallSystem` really is only passed for Internal walls. Also confirmed: Wall setup has no Panel
+  type/Wall system controls (`showTypes` dispatch correct), the product card reads "Panel colour &
+  materials" with an "Off White" pill and the colour swatch grid, no "Advanced track selection"
+  block, entering 3m×3m dimensions computes real quantities, and the Order Sheet's material section
+  reads "PANELS (EXTERNAL)" / "FIXING AND SEALANT -- EXTERNAL" with correct C-track/J-track/
+  Z-flashing/head-flashing line items; footer reads "Locked external system data".
+- **Phone layout, Internal wall**: `SystemConfigSectionPhone` shows Panel orientation/Panel type with
+  no "Wall type" segment (confirming the toggle removal from phoneSections.tsx), the wall pill strip,
+  geometry/panel-length/tracks-with-"Advanced track selection" sections, and the same
+  "PANELS (INTERNAL)"/"FIXING AND SEALANT -- INTERNAL" Order Sheet cards as web.
+- No console/page errors in any of the above.
+- **Not exercised**: a genuinely mixed Internal+External project — expected and consistent with the
+  documented gap above (no UI path yet creates one), so there was nothing to click through; the mixed
+  path is instead covered at the unit level by `reportData.test.ts`'s and
+  `computeProjectReportData.test.ts`'s new mixed-application tests (Phase 4 commit).
 
 ## Execution discipline
 
@@ -161,7 +183,7 @@ than pushing through into an unverified state.
 184 tests passing, typecheck/build/depcruise clean at every commit. All backward-compatible —
 no existing saved project or user-visible behavior changed by these three phases.
 
-**Phase 4 done, Phase 5 mostly done, Phase 6 partly done — tested, committed, pushed to
+**Phase 4 done, Phase 5 mostly done, Phase 6 done — tested, committed, pushed to
 `claude/pr122-phase-4-7opvpy`:**
 
 Picked up from the warm-up-only state (wallsCard.tsx/wallConfig.tsx/kitCards.tsx/kitWorkspace*.tsx/
@@ -214,13 +236,13 @@ allowance for one atomic commit when a phase can't be safely split:
 - 187 tests passing (184 existing + 3 new covering the mixed-application path specifically:
   `reportData.test.ts`'s "mixes Internal and External walls" case,
   `computeProjectReportData.test.ts`'s mixed-project and backfill cases), typecheck/build/depcruise
-  (0 errors) clean. A headless-Chromium check confirmed the app still boots and renders the sign-in
-  landing page with no console errors — **not** an authenticated visual pass of the estimator itself
-  (see Phase 6 above and "Verifying against the real running app" below).
+  (0 errors) clean. Followed up with an authenticated visual pass against a local Supabase instance
+  (signed in, drove First-Wall Setup, an Internal wall, an External wall, and the phone layout with
+  Playwright) — see Phase 6 above for exactly what was checked. No console/page errors in any of it.
 
 **Not done**: the mockup's separate "+ Internal wall"/"+ External wall" creation buttons (see gap
 above); the Panel length & materials card's mockup-matching visual rebuild (always noted as a
-follow-up, not blocking the structural merge); an authenticated visual pass.
+follow-up, not blocking the structural merge).
 
 ### What Phase 4 actually required (historical — kept for context; Phase 4 is now done, see above)
 
@@ -289,21 +311,34 @@ What worked this session:
    `npx supabase start -x edge-runtime -x vector -x imgproxy` (excluding `edge-runtime` avoids a
    `setrlimit`/nested-container permission failure seen in this sandbox; those services aren't
    needed to view the estimator UI).
-2. Apply schema by hand: `psql -h 127.0.0.1 -p 54322 -U postgres -d postgres -f supabase/schema.sql`
-   (the local `supabase db reset` path chokes on this repo's schema.sql assuming an admin profile
-   already exists — apply schema, then manually insert the missing default `price_lists` row it
-   expects, then run seed).
-3. Seed with a self-chosen password: `sed "s/:'seed_password'/'<password>'/" supabase/seed.sql`
+2. Before starting Supabase, set `enabled = false` under `[db.seed]` in `supabase/config.toml` --
+   otherwise `supabase start`'s own automatic seed attempt runs before schema.sql exists and fails
+   outright (`relation "profiles" does not exist`), tearing the containers back down.
+3. Apply schema by hand: `PGPASSWORD=postgres psql -h 127.0.0.1 -p 54322 -U postgres -d postgres -f
+   supabase/schema.sql`. This is where `schema.sql` sets `companies.price_list_id` `NOT NULL` (its
+   one-time backfill UPDATE for that column is a no-op on a fresh DB, since `price_lists` is still
+   empty at that point) -- seed.sql's own `insert into companies (...)` never sets this column, so
+   seeding will fail on it no matter when you insert a default price list afterward. Work around it:
+   ```
+   psql ... -c "insert into price_lists (name, is_default, created_by) values ('Default price list', true, '<any auth.users id -- run seed's user-creation DO block first, or use any id you already know>');"
+   psql ... -c "alter table companies alter column price_list_id set default '<the price_lists id just inserted>';"
+   ```
+   (temporary -- only needed to get seed.sql's raw INSERT to succeed; drop the default afterward if
+   you want the schema byte-identical to what `schema.sql` alone produces, not required just to view
+   the UI).
+4. Seed with a self-chosen password: `sed "s/:'seed_password'/'<password>'/" supabase/seed.sql`
    run through `psql` (the `\set ... printf` mechanism the file uses doesn't substitute correctly
    inside a `DO $$` block via this psql version).
-4. Grant table privileges manually — a raw `psql` schema apply doesn't run Supabase's own
+5. Grant table privileges manually — a raw `psql` schema apply doesn't run Supabase's own
    default-privilege setup: `grant all on all tables in schema public to anon, authenticated,
    service_role;` (plus sequences/functions) after seeding.
-5. Point the dev server at it via `.env` (`VITE_SUPABASE_URL=http://127.0.0.1:54321`,
+6. Point the dev server at it via `.env` (`VITE_SUPABASE_URL=http://127.0.0.1:54321`,
    `VITE_SUPABASE_PUBLISHABLE_KEY=<the demo anon key printed by `supabase start`>`), sign in as
-   one of the seeded `@e2e.test` personas with the password chosen in step 3.
-6. Clean up afterward: revert `supabase/config.toml` if you toggled `db.seed.enabled`, delete the
-   `.env` you created, `npx supabase stop`.
+   one of the seeded `@e2e.test` personas with the password chosen in step 4. Playwright (project
+   dependency, `@playwright/test`) with `executablePath: '/opt/pw-browsers/chromium'` works well for
+   driving it headlessly and screenshotting -- see CLAUDE.md's own Playwright note.
+7. Clean up afterward: revert `supabase/config.toml` (the `db.seed.enabled` toggle from step 2),
+   delete the `.env` you created and any one-off check scripts, `npx supabase stop`.
 
 ### Known good reference material while doing this
 - `speedpanel-estimator-web-v5.html`/`-ipad-v5.html`/`-phone-v5.html` (design package, not stored
