@@ -59,16 +59,41 @@ whole `src/` tree or a scoped subfolder, e.g.
   (separate `internalCalculator/`/`externalCalculator/` trees, project-level
   Internal-vs-External switch) — see
   `docs/unified-estimator-merge-plan.md` for the full history/rationale if
-  you need it. A wall's application is chosen once, at First-Wall Setup
-  (`firstWallSetup.tsx`); there's currently no UI to change an existing
-  wall's application afterward, or to add a wall of the other application to
-  a project that already has one — every subsequent "+ Add wall" inherits
-  the active wall's own application.
+  you need it. A wall's application is chosen at First-Wall Setup
+  (`firstWallSetup.tsx`) for a project's first wall, but isn't fixed after
+  that: `wallsCard.tsx`'s `WallTypeSelector` lets any existing wall's own
+  `application` be switched afterward (gated by the same `wouldLoseData()`
+  confirmation as an incompatible orientation/wall-system change, since
+  switching a Corner/Shaft-linked wall away from Internal breaks that link),
+  and `estimateStructureNav.tsx`'s "+ Internal wall"/"+ External wall"
+  buttons (`wallStore.ts`'s `addWallWithApplication`) add a wall of a
+  specific application regardless of what's currently active — the plain
+  "+ Add wall" icon button still just inherits the active wall's own
+  application. A project can genuinely mix Internal and External walls.
 - **Single mode**: the estimator always runs as the combined "project" view
   (wall carousel + `EstimateResultsCard`'s Overview/Selected Wall/
   Connections/Order tabs), regardless of wall count. A "single-wall mode"
   toggle (`EstimateModeSelector`) existed earlier and was deliberately
   retired — don't reintroduce a mode switch here without asking first.
+- **Mockup fidelity**: the v5 mockup files
+  (`speedpanel-estimator-web-v5.html`/`-ipad-v5.html`/`-phone-v5.html`, plus
+  a states/QA variant of each and a standalone order-sheet mockup) are the
+  source of truth for this UI's layout, not stored in this repo (see
+  `docs/unified-estimator-merge-plan.md`'s header note) — ask for them
+  again if a layout question comes up rather than guessing. Two audit
+  passes against them are already recorded in that doc's Handoff status:
+  don't re-litigate a decision documented there (e.g. keeping
+  `CornerLinkSelector`/`ShaftLinkSelector`/`JunctionLinkSelector`/
+  `PanelColourSection`'s swatch grid as their own richer blocks instead of
+  collapsing into the mockup's plain static `<select>`s) without a reason
+  the doc doesn't already cover. Phone-specific: `phoneSections.tsx`'s
+  `SheetCardPhone`/`SheetSectionPhone` implement the mockup's single
+  `.sheet` card wrapping multiple divider-separated `.sheet-section`s (see
+  Panel length/Tracks & flashing/Warnings sharing one card) — a new
+  phone section that mirrors a mockup section sharing a card with a
+  neighbour should join that same `SheetCardPhone`, not get its own; each
+  section's mockup-matching right-aligned header status pill is
+  `SheetSectionPhone`'s `badge` prop.
 - **Design tokens**: `src/styleTokens.ts` — `NAVY`/`BLUE`/`GOLD`/`WHITE`/
   `MUTED` (all `var(--...)` CSS custom properties) plus the `cx` object of
   reusable Tailwind class strings. Use `color-mix(in srgb, ${VAR} X%,
