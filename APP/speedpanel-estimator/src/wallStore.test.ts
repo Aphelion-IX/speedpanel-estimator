@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 import { describe, it, expect } from "vitest";
 import { renderHook, act } from "@testing-library/react";
-import { backfillOrient, backfillApplication, defaultWall, useWallStore, WallSchema, PersistedProjectSchema } from "./wallStore";
+import { backfillOrient, backfillApplication, defaultWall, useWallStore, useWallResults, WallSchema, PersistedProjectSchema } from "./wallStore";
 
 describe("backfillOrient", () => {
   it("leaves an already-set orient untouched", () => {
@@ -46,6 +46,23 @@ describe("backfillApplication", () => {
     const [result] = backfillApplication([wall]);
     expect(result).not.toBe(wall);
     expect(wall.application).toBe("external");
+  });
+});
+
+describe("useWallResults", () => {
+  it("dispatches each wall to compute() or computeExternal() based on its OWN application field", () => {
+    const internalWall = { ...defaultWall(1, "vertical", "internal"), width: "3", height: "3" };
+    const externalWall = { ...defaultWall(2, "vertical", "external"), width: "3", height: "3" };
+    const { result } = renderHook(() => useWallResults([internalWall, externalWall], 1));
+
+    const [internalResult, externalResult] = result.current.results;
+    // computeWall.ts: cfg.hasZFlash picks `chosen` (Internal) vs `result`
+    // (External) -- a wall dispatched through the wrong engine would have
+    // the wrong one of these populated.
+    expect(internalResult.out.chosen).toBeTruthy();
+    expect(internalResult.out.result).toBeFalsy();
+    expect(externalResult.out.result).toBeTruthy();
+    expect(externalResult.out.chosen).toBeFalsy();
   });
 });
 

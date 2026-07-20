@@ -19,7 +19,6 @@ import { ArrowLeft } from "lucide-react";
 import { NAVY, BLUE, MUTED } from "../styleTokens";
 import { useWallResults } from "../wallStore";
 import type { WallStore } from "../wallStore";
-import { compute } from "../estimate/computeWall";
 import { aggregate } from "../estimate/aggregate";
 import { useCombinedEstimateCalc } from "../estimate/useCombinedEstimateCalc";
 import { synthesizeKits } from "../estimate/synthesizeKits";
@@ -40,7 +39,7 @@ export interface ProjectOrderSheetPageProps {
 
 export const ProjectOrderSheetPage = ({ store, dimUnit, layoutMode, projectName, onBack }: ProjectOrderSheetPageProps) => {
   const { walls, activeId, active, toDisp } = store;
-  const { results, warnById } = useWallResults(walls, activeId, compute);
+  const { results, warnById } = useWallResults(walls, activeId);
   const kits = useMemo(() => synthesizeKits(walls, INT_CONFIG), [walls]);
   const projChosenAgg = useMemo(() => aggregate(results), [results]);
   const combinedEstimate = useCombinedEstimateCalc(walls);

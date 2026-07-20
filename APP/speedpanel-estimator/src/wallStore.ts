@@ -11,7 +11,8 @@
 import { useState, useEffect, useMemo } from "react";
 import { z } from "zod";
 import { makeToDisp, makeToM } from "./estimate/computeUtils";
-import type { Wall, WallInput, ComputeOut, WallResult, DimField } from "./estimate/wall.types";
+import { compute, computeExternal } from "./estimate/computeWall";
+import type { Wall, WallResult, DimField } from "./estimate/wall.types";
 
 // Mirrors src/estimate/wallDomain.ts's Wall interface field-for-field. This is
 // the schema behind PersistedProjectSchema below -- the actual highest-value
@@ -430,16 +431,12 @@ export function useWallStore({ dimUnit, onWallAdded, persistLocally = true }: { 
 export type WallStore = ReturnType<typeof useWallStore>;
 
 // --- useWallResults -----------------------------------------------------------
-// Derives the per-mode compute results from the shared wall list. Called once
-// per active calculator with that mode's compute function (compute vs
-// computeExternal), so the same walls produce Internal or External estimates
-// without touching the stored data. Each wall carries its own `orient`, so a
-// combined/project estimate can freely mix vertical and horizontal walls --
-// this must NOT be overridden with a single shared orientation here.
-export function useWallResults(
-  walls: Wall[], activeId: number,
-  computeFn: (inp: WallInput) => ComputeOut,
-) {
+// Derives compute results from the shared wall list, dispatching each wall to
+// compute() or computeExternal() based on ITS OWN application field (see
+// wallDomain.ts's Wall.application) -- so one project/combined estimate can
+// freely mix Internal and External walls, the same way each wall already
+// carries its own `orient` rather than one shared project-wide orientation.
+export function useWallResults(walls: Wall[], activeId: number) {
   // PERF NOTE: walls array reference changes on every keystroke (setWalls creates
   // a new array), so this memo re-runs all wall computations on each input event.
   // For typical project sizes (<=20 walls) this is fast enough. If wall counts
@@ -451,6 +448,7 @@ export function useWallResults(
       // own data is untouched, it just surfaces as the "Error" status (see
       // ./estimate/wallStatus.ts) instead of a result.
       try {
+        const computeFn = w.application === "external" ? computeExternal : compute;
         return { wall: w, out: computeFn(w) };
       } catch (e) {
         return { wall: w, out: { empty: true, warnings: [], notes: [], error: e instanceof Error ? e.message : "Calculation failed for this wall." } };

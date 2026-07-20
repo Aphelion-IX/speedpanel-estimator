@@ -64,6 +64,12 @@ describe("validateWall", () => {
     expect(v.issues.some(i => i.kind === "compatibility" && /partner/.test(i.message))).toBe(true);
   });
 
+  it("does not require a corner partner on an External wall (wallSystem is Internal-only)", () => {
+    const wall = { ...defaultWall(1, "horizontal", "external"), width: "3.2", height: "2.4", wallSystem: "corner" as const, cornerPartnerId: null };
+    const v = validateWall(wall, [wall], emptyOut);
+    expect(v.issues.some(i => i.kind === "compatibility" && /partner/.test(i.message))).toBe(false);
+  });
+
   it("does not require a shaft wall to have a partner, only a floor height", () => {
     const wall = { ...defaultWall(1, "horizontal"), width: "3.2", height: "9", wallSystem: "shaft" as const, shaftPartnerId: null, floorHeight: "3" };
     const v = validateWall(wall, [wall], readyOut);
@@ -82,10 +88,16 @@ describe("validateWall", () => {
     expect(v.issues.some(i => /no longer exists/.test(i.message))).toBe(true);
   });
 
-  it("flags a special colour with no colour name", () => {
-    const wall = { ...defaultWall(1), width: "3.2", height: "2.4", colourType: "special" as const, colour: "" };
+  it("flags a special colour with no colour name (External wall)", () => {
+    const wall = { ...defaultWall(1, "vertical", "external"), width: "3.2", height: "2.4", colourType: "special" as const, colour: "" };
     const v = validateWall(wall, [wall], emptyOut);
     expect(v.issues.some(i => i.field === "colour")).toBe(true);
+  });
+
+  it("does not flag a special colour with no colour name on an Internal wall (colour is External-only)", () => {
+    const wall = { ...defaultWall(1), width: "3.2", height: "2.4", colourType: "special" as const, colour: "" };
+    const v = validateWall(wall, [wall], emptyOut);
+    expect(v.issues.some(i => i.field === "colour")).toBe(false);
   });
 });
 

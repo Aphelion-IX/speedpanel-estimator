@@ -7,17 +7,18 @@
 // switching between Internal/External and orientation. Always renders the
 // combined project view (single-wall-only mode was retired -- see git
 // history for the old EstimateModeSelector toggle) -- showTrackFinish/
-// showData are local UI-only state, and results/aggregate/corner-shaft-pair/
-// combined estimate are computed independently here, mirroring
-// ExternalCalculator's own independent compute calls on the same shared
-// `walls` array.
+// showData are local UI-only state. useWallResults (wallStore.ts) now
+// dispatches each wall to compute()/computeExternal() based on its OWN
+// application field rather than one fixed function for the whole array;
+// aggregate() (aggregateInternal.ts) still assumes every wall in `results`
+// is Internal, since there's no UI path yet to mix applications within one
+// project.
 // =============================================================================
 import { useState, useEffect, useMemo, useRef } from "react";
 import { Link2 } from "lucide-react";
 import { cx } from "../styleTokens";
 import { useWallResults } from "../wallStore";
 import type { WallStore } from "../wallStore";
-import { compute } from "../estimate/computeWall";
 import { aggregate } from "../estimate/aggregate";
 import { useCombinedEstimateCalc } from "../estimate/useCombinedEstimateCalc";
 import { computeCornerPair, computeShaftPair } from "../estimate/cornerShaftKits";
@@ -184,7 +185,7 @@ export function InternalCalculator({
     deleteWallById(id);
   });
   const handleDeleteActiveWall = () => handleDeleteWall(activeId);
-  const { results, out, warnById } = useWallResults(walls, activeId, compute);
+  const { results, out, warnById } = useWallResults(walls, activeId);
   const kits = useMemo(() => synthesizeKits(walls, INT_CONFIG), [walls]);
   const [selectedNavItem, setSelectedNavItem] = useState<SelectedNavItem>({ type: "wall", wallId: activeId });
   useEffect(() => {

@@ -22,7 +22,6 @@ import { useState, useMemo, useRef } from "react";
 import { cx } from "../styleTokens";
 import { useWallResults } from "../wallStore";
 import type { WallStore } from "../wallStore";
-import { computeExternal } from "../estimate/computeWall";
 import { buildExtProjAgg } from "../estimate/aggregate";
 import { useCombinedEstimateCalc } from "../estimate/useCombinedEstimateCalc";
 import { HEAD_FLASH_LABEL, HEAD_FLASH_SUBLABEL, EXT_STOCK, EXT_STOCKED_COLOURS } from "../data";
@@ -121,7 +120,7 @@ export function ExternalCalculator({
     commitCustomLength, toggleCustom, clearCustomLength,
     linkJunctionPartner: rawLinkJunctionPartner,
   } = store;
-  const { results, out, warnById } = useWallResults(walls, activeId, computeExternal);
+  const { results, out, warnById } = useWallResults(walls, activeId);
 
   // Spec §13 read-only access: "may not change wall data, links, or save" --
   // a no-op wrapper for every mutating store action, applied once here
