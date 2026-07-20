@@ -9,8 +9,7 @@
 // walls survive orientation changes and never get discarded switching
 // between applications. Always renders the combined project view
 // (single-wall-only mode was retired -- see git history for the old
-// EstimateModeSelector toggle) -- showTrackFinish/showData are local UI-only
-// state.
+// EstimateModeSelector toggle).
 //
 // Per-wall dispatch on `active.application` happens at several leaf call
 // sites below (WallsCard's showTypes, the product card's colour section vs.
@@ -124,7 +123,6 @@ export function Calculator({
   // stay unaffected either way).
   offline?: boolean;
 }) {
-  const [showTrackFinish, setShowTrackFinish] = useState(false);
   const [orderDrawerOpen, setOrderDrawerOpen] = useState(false);
   // EstimateTopCard's "View estimate details" link scrolls here rather than
   // navigating anywhere new -- no separate estimate-detail route exists.
@@ -315,8 +313,6 @@ export function Calculator({
       options={[{ key: "headFlash", label: HEAD_FLASH_LABEL, sublabel: HEAD_FLASH_SUBLABEL, value: active.headFlash, onToggle: () => update({ headFlash: !active.headFlash }) }]}
       orient={orient}
       locked={edgesLocked}
-      showTrackFinish={showTrackFinish}
-      setShowTrackFinish={setShowTrackFinish}
       activeFinishes={{ headFinish: active.headFinish, bottomFinish: active.bottomFinish, leftFinish: active.leftFinish, rightFinish: active.rightFinish }}
       onFinishChange={(field, val) => update({ [field]: val } as Pick<Wall, FinishKey>)}
       corners={{ intCorners: active.intCorners, extCorners: active.extCorners, onChange: (f: CornersField, v: string) => update({ [f]: v } as Pick<Wall, CornersField>) }}

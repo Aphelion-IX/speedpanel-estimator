@@ -168,8 +168,6 @@ export interface EdgeRestraintProps {
   onEdgeToggle: (k: keyof EdgeState) => void;
   options?: EdgeOption[];
   orient: string;
-  showTrackFinish?: boolean;
-  setShowTrackFinish?: (fn: (v: boolean) => boolean) => void;
   activeFinishes?: ActiveFinishes;
   onFinishChange?: (field: FinishKey, val: string) => void;
   corners?: CornersValue;
@@ -177,34 +175,26 @@ export interface EdgeRestraintProps {
 }
 
 // --- RestrainedEdgesBlock ------------------------------------------------------
-const EdgeBtn = ({ edgeKey, label, edges, locked, onEdgeToggle }: {
-  edgeKey: keyof EdgeState; label: string; edges: EdgeState; locked: boolean; onEdgeToggle: (k: keyof EdgeState) => void;
-}) => {
-  const on = locked || edges[edgeKey];
-  return (
-    <button onClick={locked ? undefined : () => onEdgeToggle(edgeKey)} disabled={locked}
-      className={"w-full rounded-xl border-2 py-3.5 px-4 text-sm font-semibold text-center transition-all " + (locked ? "cursor-default" : "active:scale-95 hover:-translate-y-0.5") + (on ? "" : " border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 shadow-[0_1px_2px_rgba(15,23,42,0.05)] hover:border-blue-200 dark:hover:border-blue-700")}
-      style={on
-        ? { borderColor: BLUE, background: BLUE, color: "#fff", opacity: locked ? 0.85 : 1, boxShadow: locked ? undefined : `0 10px 20px -10px color-mix(in srgb, ${BLUE} 55%, transparent), inset 0 1px 1px rgba(255,255,255,0.25)` }
-        : { color: MUTED }}>
-      {on ? "✓ " : ""}{label}
-    </button>
-  );
-};
-
+// Mockup's own `.edge-grid`/`.edge` markup (speedpanel-estimator-web-v5.html),
+// ported into ui/estimatorTheme.css.
 const RestrainedEdgesBlock = ({ edges, onEdgeToggle, locked }: {
   edges: EdgeState; onEdgeToggle: (k: keyof EdgeState) => void; locked: boolean;
 }) => (
   <div>
-    <div className={cx.cardHd}>Restrained edges</div>
-    <div className="grid grid-cols-2 items-end gap-2">
-      <EdgeBtn edgeKey="top" label="Head" edges={edges} locked={locked} onEdgeToggle={onEdgeToggle} />
-      <EdgeBtn edgeKey="bottom" label="Base" edges={edges} locked={locked} onEdgeToggle={onEdgeToggle} />
-      <EdgeBtn edgeKey="left" label="Left" edges={edges} locked={locked} onEdgeToggle={onEdgeToggle} />
-      <EdgeBtn edgeKey="right" label="Right" edges={edges} locked={locked} onEdgeToggle={onEdgeToggle} />
+    <div className="label">Restrained edges</div>
+    <div className="edge-grid">
+      {([["top", "Head"], ["bottom", "Base"], ["left", "Left"], ["right", "Right"]] as [keyof EdgeState, string][]).map(([key, label]) => {
+        const on = locked || edges[key];
+        return (
+          <button key={key} type="button" className={`edge${on ? " active" : ""}`} disabled={locked}
+            onClick={locked ? undefined : () => onEdgeToggle(key)}>
+            {label}
+          </button>
+        );
+      })}
     </div>
     {locked && (
-      <p className="mt-2 text-xs leading-relaxed text-slate-400 dark:text-slate-400">
+      <p className="mt-2 text-xs leading-relaxed" style={{ color: MUTED }}>
         Standard wall assumes all four edges restrained (slab, soffit, and structure both sides).
       </p>
     )}
@@ -212,76 +202,45 @@ const RestrainedEdgesBlock = ({ edges, onEdgeToggle, locked }: {
 );
 
 // --- TrackFinishBlock -----------------------------------------------------------
-const TrackSwitch = ({ field, label, activeFinishes, onFinishChange }: {
-  field: FinishKey; label: string; activeFinishes?: ActiveFinishes; onFinishChange?: (field: FinishKey, val: string) => void;
+// Mockup's own always-visible `.finish-grid` of C-track/J-track <select>s --
+// no accordion (this used to be gated behind an "Advanced track selection"
+// toggle; the mockup shows it unconditionally alongside the edge grid).
+export const TrackFinishBlock = ({ edges, orient, activeFinishes, onFinishChange }: {
+  edges: EdgeState; orient: string; activeFinishes?: ActiveFinishes; onFinishChange?: (field: FinishKey, val: string) => void;
 }) => {
-  const isJ = activeFinishes ? activeFinishes[field] === "J" : false;
+  const fields = ([
+    edges.top    ? { field: "headFinish"   as FinishKey, label: "Head" }   : null,
+    edges.bottom ? { field: "bottomFinish" as FinishKey, label: "Base" }   : null,
+    edges.left   && orient === "vertical" ? { field: "leftFinish"  as FinishKey, label: "Left" }  : null,
+    edges.right  && orient === "vertical" ? { field: "rightFinish" as FinishKey, label: "Right" } : null,
+  ]).filter((x): x is { field: FinishKey; label: string } => x !== null);
+
+  if (fields.length === 0) return null;
+
   return (
-    <div className="flex items-center justify-between gap-3 py-3 border-b border-slate-100 dark:border-slate-700 last:border-0">
-      <span className="text-sm font-semibold text-slate-600 dark:text-slate-300">{label}</span>
-      <div className="flex items-center gap-3 shrink-0">
-        <span className="text-sm font-bold text-slate-500 dark:text-slate-300">{isJ ? "J-track" : "C-track"}</span>
-        <button onClick={() => onFinishChange && onFinishChange(field, isJ ? "C" : "J")}
-          style={{
-            background: isJ ? BLUE : MUTED, width: 44, height: 24, borderRadius: 12, position: "relative", border: "none", cursor: "pointer",
-            boxShadow: isJ ? `0 0 0 4px color-mix(in srgb, ${BLUE} 14%, transparent), inset 0 1px 1px rgba(255,255,255,0.25)` : "inset 0 1px 2px rgba(12,35,64,0.15)",
-            transition: "background 0.2s, box-shadow 0.2s", flexShrink: 0,
-          }}>
-          <span style={{ position: "absolute", top: 2, left: isJ ? 22 : 2, width: 20, height: 20, borderRadius: "50%", background: "#fff", boxShadow: "0 1px 3px rgba(0,0,0,0.25)", transition: "left 0.2s", display: "block" }} />
-        </button>
-      </div>
+    <div className="finish-grid">
+      {fields.map(({ field, label }) => (
+        <div key={field}>
+          <label className="label">{label}</label>
+          <select className="select" value={activeFinishes ? activeFinishes[field] : "C"}
+            onChange={e => onFinishChange && onFinishChange(field, e.target.value)}>
+            <option value="C">C Track</option>
+            <option value="J">J Track</option>
+          </select>
+        </div>
+      ))}
     </div>
   );
 };
 
-export const TrackFinishBlock = ({ edges, orient, activeFinishes, onFinishChange, showTrackFinish, setShowTrackFinish }: {
-  edges: EdgeState; orient: string; activeFinishes?: ActiveFinishes; onFinishChange?: (field: FinishKey, val: string) => void;
-  showTrackFinish: boolean; setShowTrackFinish: (fn: (v: boolean) => boolean) => void;
-}) => (
-  <div>
-    <button onClick={() => setShowTrackFinish(v => !v)}
-      className={`${cx.accordionInner} active:scale-95`}>
-      <span>Advanced track selection</span>
-      <ChevronDown size={13} className={`text-slate-400 dark:text-slate-400 transition-transform ${showTrackFinish ? "rotate-180" : ""}`} />
-    </button>
-    {showTrackFinish && (
-      <div className="mt-2 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-3">
-        {(([
-          edges.top    ? { field: "headFinish"   as FinishKey, label: "Head" }   : null,
-          edges.bottom ? { field: "bottomFinish" as FinishKey, label: "Base" }   : null,
-          edges.left   && orient === "vertical" ? { field: "leftFinish"  as FinishKey, label: "Left" }  : null,
-          edges.right  && orient === "vertical" ? { field: "rightFinish" as FinishKey, label: "Right" } : null,
-        ]).filter((x): x is { field: FinishKey; label: string } => x !== null)).map(({ field, label }) => (
-          <TrackSwitch key={label} field={field} label={label} activeFinishes={activeFinishes} onFinishChange={onFinishChange} />
-        ))}
-        {!edges.top && !edges.bottom && !edges.left && !edges.right && (
-          <p className="py-3 text-center text-sm text-slate-400 dark:text-slate-400">No restrained edges selected</p>
-        )}
-        <p className="py-2.5 text-sm text-slate-400 dark:text-slate-400">J-track available on P78 panels only</p>
-      </div>
-    )}
-  </div>
-);
-
 // --- HeadFlashingToggle -----------------------------------------------------------
+// Mockup's own `.check-row` checkbox (speedpanel-estimator-web-v5.html) --
+// used to be a toggle switch.
 export const HeadFlashingToggle = ({ flashOption }: { flashOption: EdgeOption }) => (
-  <div className="flex w-full items-center justify-between rounded-xl border border-blue-100 dark:border-blue-800/80 bg-blue-50/60 dark:bg-blue-900/55 px-4 py-2">
-    <span className={cx.cardHd} style={{marginBottom:0,display:"inline"}}>Head track flashing</span>
-    <button onClick={flashOption.onToggle}
-      style={{
-        background: flashOption.value ? BLUE : MUTED,
-        width: 44, height: 24, borderRadius: 12, position: "relative",
-        border: "none", cursor: "pointer",
-        boxShadow: flashOption.value ? `0 0 0 4px color-mix(in srgb, ${BLUE} 14%, transparent), inset 0 1px 1px rgba(255,255,255,0.25)` : "inset 0 1px 2px rgba(12,35,64,0.15)",
-        transition: "background 0.2s, box-shadow 0.2s", flexShrink: 0,
-      }}>
-      <span style={{
-        position: "absolute", top: 2, left: flashOption.value ? 22 : 2,
-        width: 20, height: 20, borderRadius: "50%", background: "#fff",
-        boxShadow: "0 1px 3px rgba(0,0,0,0.25)", transition: "left 0.2s", display: "block",
-      }} />
-    </button>
-  </div>
+  <label className="check-row">
+    <input type="checkbox" checked={flashOption.value} onChange={flashOption.onToggle} />
+    Include head flashing
+  </label>
 );
 
 // --- OtherOptionsBlock -----------------------------------------------------------
@@ -323,28 +282,27 @@ export const CornerAnglesBlock = ({ corners }: { corners: CornersValue }) => (
 
 export const EdgeRestraintSelector = ({
   edges, onEdgeToggle, options = [], orient,
-  showTrackFinish, setShowTrackFinish, activeFinishes, onFinishChange,
+  activeFinishes, onFinishChange,
   corners = { intCorners: "", extCorners: "", onChange: () => {} },
   locked = false,
 }: EdgeRestraintProps) => {
   const flashOption = options.find(o => o.key === "headFlash");
   const otherOptions = options.filter(o => o.key !== "headFlash");
 
-  // No wrapping cx.section here -- the sole caller (InternalCalculator's
+  // No wrapping cx.section here -- the sole caller (Calculator.tsx's
   // tracksContent) always renders this inside a CollapsibleSection, whose
   // own body wrapper now supplies that padding/spacing/card shell.
   return (
     <>
       <RestrainedEdgesBlock edges={edges} onEdgeToggle={onEdgeToggle} locked={locked} />
 
-      {showTrackFinish !== undefined && setShowTrackFinish && (
-        <TrackFinishBlock
-          edges={edges} orient={orient} activeFinishes={activeFinishes} onFinishChange={onFinishChange}
-          showTrackFinish={showTrackFinish} setShowTrackFinish={setShowTrackFinish}
-        />
+      {activeFinishes && onFinishChange && (
+        <div className="mt-3">
+          <TrackFinishBlock edges={edges} orient={orient} activeFinishes={activeFinishes} onFinishChange={onFinishChange} />
+        </div>
       )}
 
-      {flashOption && <HeadFlashingToggle flashOption={flashOption} />}
+      {flashOption && <div className="mt-3"><HeadFlashingToggle flashOption={flashOption} /></div>}
 
       {otherOptions.length > 0 && <OtherOptionsBlock options={otherOptions} />}
 

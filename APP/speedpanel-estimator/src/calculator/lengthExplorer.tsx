@@ -1,126 +1,118 @@
 // =============================================================================
-// Length Explorer (Internal Calculator only)
+// Panel length & materials -- strategy picker (shared -- src/calculator/)
 // =============================================================================
-// Forked from what used to be a single file shared with ExternalCalculator
-// (see externalCalculator/lengthExplorer.tsx for its own, independent copy)
-// -- identical logic, just no longer a shared file to check for leakage
-// against every time either calculator's panel-length UI changes.
+// Mockup-matching rebuild (speedpanel-estimator-web-v5.html's `.strategy`/
+// `.strategy-card`/`.check-row`/`.custom-row` markup, ported into
+// ui/estimatorTheme.css but unused until now) of what used to be an
+// accordion-style dropdown (LengthExplorer) listing every candidate stock
+// length one at a time. Two named strategies replace it, both reusing the
+// exact same packPanels()/buildOption() computation as before -- no new
+// business logic, just a different presentation of it:
+//   - "Cutting optimiser" is the pre-existing "Automatic" option: packs
+//     pieces across whichever stock length(s) minimise waste (buildOption's
+//     `cut` flag may be true -- some panels split from a longer stock bar).
+//   - "Reduced cutting" is the pre-existing "pick one explicit stock length"
+//     mode, now defaulted to the smallest stock where buildOption's own
+//     `cut` flag is false (every piece gets its own full-length panel, zero
+//     splitting) -- "the nearest stocked length with no panel cuts", per the
+//     mockup's own strategy-card copy. Falls back to the smallest valid
+//     option if no cut-free stock exists for these pieces.
+// The custom-length input keeps its own always-visible section below
+// (CustomLengthSection) rather than folding into the strategy select's
+// options the way the mockup's static markup shows -- that section already
+// has its own real validation (max length, project-lock interaction), so
+// conflating the two state mechanisms would risk double-encoding "which
+// length is active."
 // =============================================================================
-import { useState, useMemo } from "react";
-import { ChevronDown } from "lucide-react";
+import { useEffect, useState } from "react";
 import { r1 } from "../estimate/mathUtils";
 import { packPanels, buildOption } from "../estimate/packPanels";
-import { cx, NAVY, BLUE, MUTED } from "../styleTokens";
+import { NAVY } from "../styleTokens";
 import type { ComputeOut, Wall } from "../estimate/wall.types";
-import { ToggleSwitch, ProjectLockNote } from "../ui/primitives";
-import { CustomLengthSection } from "../calculator/wallConfig";
+import { ProjectLockNote } from "../ui/primitives";
+import { CustomLengthSection } from "./wallConfig";
 
-// --- LengthExplorer -----------------------------------------------------------
-// Shows every candidate stock length with a waste bar so the user can
-// instantly compare waste across all options.
-export const LengthExplorer = ({
-  pieces, stocks, packType, currentStock, onSelect
+interface StockOption {
+  stock: number; label: string;
+  panels: number; packs: number; ordered: number;
+  offcutPct: number; cut: boolean; isSelected: boolean;
+}
+
+function computeStockOptions(pieces: number[], stocks: number[], packType: number, currentStock: string): StockOption[] {
+  if (!pieces.length) return [];
+  return stocks.flatMap(s => {
+    const raw = packPanels([...pieces], s, stocks, false);
+    if (raw.exceeds || raw.tooShort) return [];
+    const result = buildOption(raw, packType);
+    const panels = result.panels ?? 1;
+    const offcutPerPanel = panels > 0 ? (result.offcut ?? 0) / panels : 0;
+    // % of the stock length that is cut off each panel
+    const offcutPct = s > 0 ? Math.round((offcutPerPanel / s) * 1000) / 10 : 0;
+    return [{
+      stock: s, label: `${r1(s)} m`,
+      panels: result.panels, packs: result.packs, ordered: result.orderedInPacks,
+      offcutPct, cut: result.cut, isSelected: currentStock === String(s),
+    }];
+  });
+}
+
+// --- PanelLengthStrategy ------------------------------------------------------
+// The two `.strategy-card`s plus, once "Reduced cutting" is active, the
+// select+Apply row for choosing which stock length within that strategy.
+const PanelLengthStrategy = ({
+  pieces, stocks, packType, currentStock, onSelect,
 }: {
   pieces: number[]; stocks: number[]; packType: number;
   currentStock: string; onSelect: (v: string) => void;
 }) => {
-  const [open, setOpen] = useState(false);
+  const options = computeStockOptions(pieces, stocks, packType, currentStock);
+  const noCutOptions = options.filter(o => !o.cut).sort((a, b) => a.stock - b.stock);
+  const nearestNoCutStock = noCutOptions[0]?.stock ?? options[0]?.stock;
 
-  const options = useMemo(() => {
-    if (!pieces || !pieces.length) return [];
-    return stocks.map(s => {
-      const raw = packPanels([...pieces], s, stocks, false);
-      if (raw.exceeds || raw.tooShort) return null;
-      const result = buildOption(raw, packType);
-      const panels = result.panels ?? 1;
-      const offcutPerPanel = panels > 0 ? (result.offcut ?? 0) / panels : 0;
-      // % of the stock length that is cut off each panel
-      const offcutPct = s > 0 ? Math.round((offcutPerPanel / s) * 1000) / 10 : 0;
-      return {
-        stock: s,
-        label: `${r1(s)} m`,
-        panels: result.panels,
-        packs: result.packs,
-        ordered: result.orderedInPacks,
-        offcutPct,
-        isSelected: currentStock === String(s),
-      };
-    }).filter(Boolean);
-  }, [pieces, stocks, packType, currentStock]);
+  const autoOption = pieces.length ? buildOption(packPanels([...pieces], null, stocks, false), packType) : null;
+  const optimiserLabel = autoOption && autoOption.groups.length > 0
+    ? autoOption.groups.map(g => `${r1(g.stock)} m`).join(" + ")
+    : "--";
 
-  const autoRaw = useMemo(() => {
-    if (!pieces || !pieces.length) return null;
-    const raw = packPanels([...pieces], null, stocks, false);
-    if (raw.exceeds || !raw.groups || !raw.groups.length) return null;
-    return buildOption(raw, packType);
-  }, [pieces, stocks, packType]);
+  const isReduced = !!currentStock;
+  const reducedStock = currentStock ? Number(currentStock) : nearestNoCutStock;
+  const reducedLabel = reducedStock ? `${r1(reducedStock)} m stock` : "--";
 
-  const selectedOption = options.find(o => o && o.isSelected);
-  const autoSelected = !currentStock;
-
-  const headerLabel = autoSelected
-    ? "Length: automatic"
-    : selectedOption
-      ? `Length: ${selectedOption.label}`
-      : "Length: automatic";
+  const [pendingStock, setPendingStock] = useState(currentStock || String(nearestNoCutStock ?? ""));
+  useEffect(() => {
+    setPendingStock(currentStock || String(nearestNoCutStock ?? ""));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentStock]);
 
   return (
-    <div className="mt-3 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 overflow-hidden shadow-sm">
-      <button
-        onClick={() => setOpen(v => !v)}
-        className="flex w-full items-center justify-between px-4 py-3.5 text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-300 bg-blue-50/60 dark:bg-blue-900/55 transition-colors hover:bg-blue-100/70 dark:hover:bg-blue-900/40"
-      >
-        <span style={{ color: autoSelected ? MUTED : NAVY }}>{headerLabel}</span>
-        <ChevronDown size={14} className={`text-slate-400 dark:text-slate-400 transition-transform ${open ? "rotate-180" : ""}`} />
-      </button>
+    <div>
+      <label className="label">Panel length strategy</label>
+      <div className="strategy">
+        <button type="button" className={`strategy-card${isReduced ? " active" : ""}`}
+          onClick={() => nearestNoCutStock != null && onSelect(String(currentStock || nearestNoCutStock))}
+          disabled={nearestNoCutStock == null}>
+          <strong>Reduced cutting</strong>
+          <span>Choose the nearest stocked length with no panel cuts.</span>
+          <b>{reducedLabel}</b>
+        </button>
+        <button type="button" className={`strategy-card${!isReduced ? " active" : ""}`}
+          onClick={() => onSelect("")}>
+          <strong>Cutting optimiser</strong>
+          <span>Pack pieces into stocked lengths to reduce waste.</span>
+          <b>{optimiserLabel}</b>
+        </button>
+      </div>
 
-      {open && (
-        <div className="divide-y divide-slate-100">
-          {/* Auto option */}
-          <button
-            onClick={() => { onSelect(""); setOpen(false); }}
-            className={`w-full flex items-center justify-between px-4 py-3 text-left transition-colors ${autoSelected ? "bg-blue-50 dark:bg-blue-900/55" : "hover:bg-slate-50 dark:hover:bg-slate-800"}`}
-          >
-            <div>
-              <div className="text-sm font-semibold" style={{ color: autoSelected ? BLUE : NAVY }}>
-                {autoSelected && "✓ "}Automatic
-              </div>
-              <div className="text-xs text-slate-400 dark:text-slate-400 mt-0.5">
-                {autoRaw ? `Best fit — ${autoRaw.panels} panels, ${Math.round(((autoRaw.offcut ?? 0) / (autoRaw.panels || 1) / ((autoRaw.groups?.[0]?.stock) || 1)) * 1000) / 10}% cut/panel` : "Let the estimator choose"}
-              </div>
-            </div>
-            {autoSelected && <div className="text-xs font-bold uppercase tracking-widest" style={{ color: BLUE }}>Selected</div>}
-          </button>
-
-          {/* Per-length options */}
-          {options.map(opt => {
-            if (!opt) return null;
-            const isSelected = opt.isSelected;
-            return (
-              <button
-                key={opt.stock}
-                onClick={() => { onSelect(String(opt.stock)); setOpen(false); }}
-                className={`w-full px-4 py-3 text-left transition-colors ${isSelected ? "bg-blue-50 dark:bg-blue-900/55" : "hover:bg-slate-50 dark:hover:bg-slate-800"}`}
-              >
-                <div className="flex items-center justify-between gap-3 mb-2">
-                  <span className="text-sm font-bold" style={{ color: isSelected ? BLUE : NAVY }}>
-                    {isSelected && "✓ "}{opt.label}
-                  </span>
-                  <span className="text-sm font-bold text-slate-500 dark:text-slate-300">{opt.offcutPct}% cut</span>
-                </div>
-                {/* Waste bar — wider = more cut off, scaled to 50% max */}
-                <div className="h-2 w-full rounded-full bg-slate-100 dark:bg-slate-900 overflow-hidden">
-                  <div
-                    className="h-full rounded-full transition-all"
-                    style={{ width: `${Math.min(100, opt.offcutPct * 2)}%`, background: BLUE, opacity: 0.35 }}
-                  />
-                </div>
-                <div className="mt-1.5 text-xs text-slate-400 dark:text-slate-400">
-                  {opt.panels} panels · {opt.packs} pack{opt.packs !== 1 ? "s" : ""} · {opt.ordered} ordered
-                </div>
-              </button>
-            );
-          })}
+      {isReduced && options.length > 0 && (
+        <div className="custom-row mt-3">
+          <select className="select" value={pendingStock} onChange={e => setPendingStock(e.target.value)} style={{ color: NAVY }}>
+            {options.map(o => (
+              <option key={o.stock} value={String(o.stock)}>
+                {o.label} stocked panel{o.cut ? "" : " -- no cuts"}
+              </option>
+            ))}
+          </select>
+          <button type="button" className="btn" onClick={() => onSelect(pendingStock)}>Apply</button>
         </div>
       )}
     </div>
@@ -128,8 +120,8 @@ export const LengthExplorer = ({
 };
 
 // --- PanelLengthSection ---------------------------------------------------
-// "Panel length" sidebar block: project-lock toggle, this LengthExplorer
-// dropdown, the custom-length input, and the project-lock confirmation note.
+// "Panel length" sidebar block: the strategy picker above, the project-lock
+// checkbox, the custom-length input, and the project-lock confirmation note.
 export interface PanelLengthSectionProps {
   dimUnit: string;
   out: ComputeOut;
@@ -152,19 +144,7 @@ export const PanelLengthSection = ({
   stocks, packType, update, setProjectLength, commitCustomLength, toggleCustom, clearCustomLength,
 }: PanelLengthSectionProps) => (
   <div className="border-t border-slate-100 dark:border-slate-700 pt-3">
-    <div className="mb-1.5 flex items-center justify-between">
-      <span className={cx.cardHd} style={{marginBottom:0,display:"inline"}}>Panel length</span>
-      <ToggleSwitch
-        active={projectLock}
-        label={projectLock ? "Project locked" : "Lock to project"}
-        onToggle={() => {
-          const currentStock = projectLock ? projectStock : (active.forcedStock || "");
-          setProjectLength(customActive ? "" : currentStock, !projectLock);
-          if (projectLock) { clearCustomLength(); }
-        }}
-      />
-    </div>
-    <LengthExplorer
+    <PanelLengthStrategy
       pieces={"pieces" in out && out.pieces ? out.pieces : []}
       stocks={stocks}
       packType={packType}
@@ -175,6 +155,15 @@ export const PanelLengthSection = ({
         else { update({ forcedStock: val }); }
       }}
     />
+
+    <label className="check-row">
+      <input type="checkbox" checked={projectLock} onChange={() => {
+        const currentStock = projectLock ? projectStock : (active.forcedStock || "");
+        setProjectLength(customActive ? "" : currentStock, !projectLock);
+        if (projectLock) { clearCustomLength(); }
+      }} />
+      Lock panel length across the project
+    </label>
 
     {/* Custom length -- same visual treatment as the panel length selector above */}
     <CustomLengthSection

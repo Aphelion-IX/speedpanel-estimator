@@ -113,7 +113,7 @@ internals — no logic changes needed there.
 
 Panel length & materials card gets its mockup-matching visual rebuild (card-based
 Reduced-cutting/Cutting-optimiser strategy picker, always-visible track toggles) as a follow-up
-on top of the structural merge, not blocking it.
+on top of the structural merge, not blocking it. **DONE** — see Handoff status.
 
 ### Phase 5 — Routing, System Selector, cleanup — MOSTLY DONE (see Handoff status)
 - `App.tsx`: remove the `isExt` branch, render one `<Calculator>` always. **DONE.**
@@ -241,8 +241,53 @@ allowance for one atomic commit when a phase can't be safely split:
   Playwright) — see Phase 6 above for exactly what was checked. No console/page errors in any of it.
 
 **Not done**: the mockup's separate "+ Internal wall"/"+ External wall" creation buttons (see gap
-above); the Panel length & materials card's mockup-matching visual rebuild (always noted as a
-follow-up, not blocking the structural merge).
+above).
+
+**Panel length & materials card's mockup-matching visual rebuild — DONE** (follow-up session, once
+the actual mockup files were supplied — they aren't stored in this repo, see the header note on
+this doc). Rebuilt against the real `speedpanel-estimator-web-v5.html`/`-phone-v5.html` markup
+rather than guessing:
+- `lengthExplorer.tsx`'s accordion-dropdown (`LengthExplorer`, one candidate stock length at a
+  time) is replaced by the mockup's `.strategy`/`.strategy-card` two-card picker -- "Reduced
+  cutting" and "Cutting optimiser" are **not new business logic**, just the two modes that already
+  existed relabeled: "Cutting optimiser" is the old "Automatic" option (`packPanels(pieces, null,
+  ...)`, packs across whichever stock length(s) minimise waste); "Reduced cutting" is the old
+  "pick one explicit stock length" mode, now defaulted to the smallest stock where
+  `buildOption()`'s own `cut` flag is false (every piece gets its own full-length panel, no
+  splitting) -- confirmed live that stock options needing a cut are correctly distinguishable from
+  ones that don't in the picker (`" -- no cuts"` suffix). A `.custom-row` select+Apply lets you
+  pick a *different* stock length within "Reduced cutting" once active. The always-visible
+  CustomLengthSection (its own real validation/max-length/project-lock interaction) stays a
+  separate section below rather than folding into that select the way the mockup's static markup
+  shows it -- a deliberate divergence to avoid encoding "which length is active" two different
+  ways at once (documented inline in the file).
+- `wallConfig.tsx`'s `EdgeRestraintSelector`: `RestrainedEdgesBlock` now uses the mockup's
+  `.edge-grid`/`.edge` classes instead of hand-rolled Tailwind buttons; `TrackFinishBlock` drops
+  the "Advanced track selection" accordion entirely and always renders the mockup's `.finish-grid`
+  (plain `<select>` C-track/J-track pickers, replacing the old toggle-switch `TrackSwitch`);
+  `HeadFlashingToggle` is now a `.check-row` checkbox instead of a toggle switch. `CornerAnglesBlock`
+  is untouched (not part of this mockup at all -- absent, not contradicted, from the captured
+  markup, so left as-is).
+- All of the CSS classes used above (`.strategy`, `.strategy-card`, `.check-row`, `.custom-row`,
+  `.edge-grid`, `.edge`, `.finish-grid`) already existed in `ui/estimatorTheme.css`, ported ahead of
+  this rebuild by an earlier session but never actually consumed by any component until now --
+  confirmed via grep before writing a line of new CSS.
+- `Calculator.tsx`'s now-dead `showTrackFinish` state (and the matching now-removed
+  `showTrackFinish`/`setShowTrackFinish` props on `EdgeRestraintSelector`/`TrackFinishBlock`) is
+  gone; `phoneSections.tsx`'s `TracksFlashingSectionPhone` (which also called `TrackFinishBlock`)
+  updated to match the new always-visible-only signature -- phone's own mockup
+  (`speedpanel-estimator-phone-v5.html`) actually omits the track-finish picker from its Tracks &
+  flashing section entirely, but removing a real, working feature from phone wasn't part of what
+  was asked, so it stays there, just no longer collapsible (a forced, minimal consequence of
+  `TrackFinishBlock` itself no longer supporting an accordion mode, not a deliberate scope
+  expansion).
+- Verified live (typecheck/test/build/depcruise all clean throughout, 0 new test failures): entered
+  real dimensions, confirmed the "Reduced cutting"/"Cutting optimiser" cards show live computed
+  values (not placeholders), switched between them, picked a non-default stock length from the
+  select and clicked Apply (confirmed the strategy card's own value updated and downstream panel
+  counts/materials recomputed correctly), toggled the project-lock checkbox and a C/J track finish
+  select (both took effect with no console errors), and confirmed the same rebuild renders
+  correctly on the phone layout (which reuses `PanelLengthSection` directly).
 
 ### What Phase 4 actually required (historical — kept for context; Phase 4 is now done, see above)
 

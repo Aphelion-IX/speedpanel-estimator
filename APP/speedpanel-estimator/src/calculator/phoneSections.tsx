@@ -35,7 +35,6 @@
 // when omitted) between the two, so this file keeps one copy of each rather
 // than two.
 // =============================================================================
-import { useState } from "react";
 import { Frame, Lock, Ruler, Settings } from "lucide-react";
 import { cx, tone, BLUE, NAVY, MUTED } from "../styleTokens";
 import { RAKE_NOTE } from "../data";
@@ -296,13 +295,13 @@ export const PanelLengthSectionPhone = (props: PanelLengthSectionProps) => (
 
 // --- Tracks, flashing & restraint ---------------------------------------------
 // Dispatches on `active.application`: Internal gets TrackFinishBlock
-// ("Advanced track selection") and locks all 4 edges for a Standard wall;
-// External has neither (its own EdgeRestraintSelector call never used
-// TrackFinishBlock and always left every edge freely toggleable).
+// (always-visible C/J-track pickers, no accordion -- see wallConfig.tsx's
+// header comment) and locks all 4 edges for a Standard wall; External has
+// neither (its own EdgeRestraintSelector call never used TrackFinishBlock
+// and always left every edge freely toggleable).
 export const TracksFlashingSectionPhone = ({ active, update, orient }: {
   active: Wall; update: (patch: Partial<Wall>) => void; orient: "vertical" | "horizontal";
 }) => {
-  const [showTrackFinish, setShowTrackFinish] = useState(false);
   // Internal's real call site only ever passes one EdgeOption (headFlash) --
   // OtherOptionsBlock (extra toggle-button options) has nothing to render
   // for either application today, so it's not reused here either (no
@@ -328,7 +327,6 @@ export const TracksFlashingSectionPhone = ({ active, update, orient }: {
             edges={active.edges} orient={orient}
             activeFinishes={{ headFinish: active.headFinish, bottomFinish: active.bottomFinish, leftFinish: active.leftFinish, rightFinish: active.rightFinish }}
             onFinishChange={(field, val) => update({ [field]: val } as Pick<Wall, FinishKey>)}
-            showTrackFinish={showTrackFinish} setShowTrackFinish={setShowTrackFinish}
           />
         </div>
       )}
