@@ -2,7 +2,7 @@
 // Phone sections (shared -- src/calculator/)
 // =============================================================================
 // Phone-only rebuild of the "System configuration" / "Wall geometry" /
-// "Panel length & optimisation" / "Tracks, flashing & restraint" sections,
+// "Panel length" / "Tracks, flashing & restraint" sections,
 // matching the approved mockup's actual visual language instead of reusing
 // the app's generic desktop button-grid style:
 //   - .seg  (grey track, WHITE-pill + blue text when selected)   -> SegPhone
@@ -52,6 +52,10 @@ import {
 import { WallPreviewSection } from "../ui/wallPreview";
 import { PanelLengthSection, type PanelLengthSectionProps } from "./lengthExplorer";
 import { PanelColourSection } from "./panelColourSection";
+
+// Profile id -> the same display label GeometrySectionPhone's own SegPhone
+// options already use, reused for its header badge.
+const PROFILE_LABEL: Record<ProfileId, string> = { standard: "Standard", rake: "Raked", gable: "Gable" };
 
 // --- SegPhone -------------------------------------------------------------
 // The mockup's ".seg" pattern: grey track, unselected = transparent/navy
@@ -166,17 +170,24 @@ export const SheetCardPhone = ({ children }: { children: React.ReactNode }) => (
   </div>
 );
 
-export const SheetSectionPhone = ({ icon, label, noDivider, children }: {
-  icon?: React.ReactNode; label?: string; noDivider?: boolean; children: React.ReactNode;
+export const SheetSectionPhone = ({ icon, label, badge, noDivider, children }: {
+  icon?: React.ReactNode; label?: string;
+  // Mockup's own `.sheet-hd` right-aligned status pill (Wall 01/Standard/
+  // Project locked/4 edges/1 project -- speedpanel-estimator-phone-v5.html),
+  // absent from every section here until now.
+  badge?: React.ReactNode; noDivider?: boolean; children: React.ReactNode;
 }) => (
   <div className={noDivider ? "px-4 py-4" : "border-b border-slate-100 dark:border-slate-700 px-4 py-4"}>
     {label && (
-      <div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-widest" style={{ color: MUTED }}>
-        {icon && (
-          <span className="grid h-6 w-6 shrink-0 place-items-center rounded-lg bg-blue-50/60 dark:bg-blue-900/55" style={{ color: BLUE }}>
-            {icon}
-          </span>
-        )}{label}
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest" style={{ color: MUTED }}>
+          {icon && (
+            <span className="grid h-6 w-6 shrink-0 place-items-center rounded-lg bg-blue-50/60 dark:bg-blue-900/55" style={{ color: BLUE }}>
+              {icon}
+            </span>
+          )}{label}
+        </div>
+        {badge}
       </div>
     )}
     {children}
@@ -201,7 +212,8 @@ export const SystemConfigSectionPhone = ({
   switchOrient: (o: "vertical" | "horizontal") => void;
 }) => (
   <SheetCardPhone>
-  <SheetSectionPhone icon={<Settings size={13} />} label="System configuration" noDivider>
+  <SheetSectionPhone icon={<Settings size={13} />} label="System configuration" noDivider
+    badge={<span className={`${cx.badge} ${tone("info")}`}>{active.name}</span>}>
     <div className={cx.cardHd}>Wall type</div>
     <SegPhone
       options={[{ id: "internal" as const, label: "Internal" }, { id: "external" as const, label: "External" }]}
@@ -269,7 +281,8 @@ export const GeometrySectionPhone = ({
   dimUnit: string; switchDimUnit: (u: string) => void;
 }) => (
   <SheetCardPhone>
-  <SheetSectionPhone icon={<Frame size={13} />} label="Wall geometry" noDivider>
+  <SheetSectionPhone icon={<Frame size={13} />} label="Wall geometry" noDivider
+    badge={<span className={`${cx.badge} ${tone("neutral")}`}>{PROFILE_LABEL[active.profile]}</span>}>
     <div className={cx.cardHd}>Profile</div>
     <SegPhone
       columns={3}
@@ -295,13 +308,17 @@ export const GeometrySectionPhone = ({
   </SheetCardPhone>
 );
 
-// --- Panel length & optimisation ---------------------------------------------
+// --- Panel length ---------------------------------------------
+// No own SheetCardPhone here -- this shares one continuous card with
+// TracksFlashingSectionPhone and the project Warnings section below it
+// (see Calculator.tsx's phoneWorkspaceNode), matching the mockup's single
+// `.sheet` wrapping all three as divider-separated `.sheet-section`s
+// (speedpanel-estimator-phone-v5.html).
 export const PanelLengthSectionPhone = (props: PanelLengthSectionProps) => (
-  <SheetCardPhone>
-  <SheetSectionPhone icon={<Ruler size={13} />} label="Panel length & optimisation" noDivider>
+  <SheetSectionPhone icon={<Ruler size={13} />} label="Panel length"
+    badge={<span className={`${cx.badge} ${tone("info")}`}>Project {props.projectLock ? "locked" : "unlocked"}</span>}>
     <PanelLengthSection {...props} />
   </SheetSectionPhone>
-  </SheetCardPhone>
 );
 
 // --- Tracks, flashing & restraint ---------------------------------------------
@@ -324,9 +341,10 @@ export const TracksFlashingSectionPhone = ({ active, update, orient }: {
     onToggle: () => update({ headFlash: !active.headFlash }),
   };
   const isInternal = active.application === "internal";
+  const edgeCount = Object.values(active.edges).filter(Boolean).length;
   return (
-    <SheetCardPhone>
-    <SheetSectionPhone icon={<Lock size={13} />} label="Tracks, flashing & restraint" noDivider>
+    <SheetSectionPhone icon={<Lock size={13} />} label="Tracks, flashing & restraint"
+      badge={<span className={`${cx.badge} ${tone("info")}`}>{edgeCount} edge{edgeCount === 1 ? "" : "s"}</span>}>
       <EdgeGridPhone
         edges={active.edges}
         onEdgeToggle={k => update({ edges: { ...active.edges, [k]: !active.edges[k] } })}
@@ -349,6 +367,5 @@ export const TracksFlashingSectionPhone = ({ active, update, orient }: {
         }} />
       </div>
     </SheetSectionPhone>
-    </SheetCardPhone>
   );
 };

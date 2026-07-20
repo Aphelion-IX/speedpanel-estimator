@@ -28,7 +28,7 @@
 // =============================================================================
 import { useState, useEffect, useMemo, useRef } from "react";
 import { Link2 } from "lucide-react";
-import { cx } from "../styleTokens";
+import { cx, tone } from "../styleTokens";
 import { useWallResults } from "../wallStore";
 import type { WallStore } from "../wallStore";
 import { aggregateProject } from "../estimate/aggregate";
@@ -380,21 +380,26 @@ export function Calculator({
             active={active} update={update} toDisp={toDisp} updDim={updDim} out={out} orient={orient}
             walls={walls} dimUnit={dimUnit} switchDimUnit={switchDimUnit}
           />
-          <PanelLengthSectionPhone
-            dimUnit={dimUnit} out={out} active={active} walls={walls}
-            projectLock={projectLock} projectStock={projectStock}
-            customLengthInput={customLengthInput} customActive={customActive}
-            stocks={isInternal ? STOCK_LENGTHS : EXT_STOCK} packType={isInternal ? active.type : 78}
-            update={update} setProjectLength={setProjectLength}
-            commitCustomLength={commitCustomLength} toggleCustom={toggleCustom} clearCustomLength={clearCustomLength}
-          />
-          <TracksFlashingSectionPhone active={active} update={update} orient={orient} />
-
-          {/* Per-wall Schedule/Connections/Warnings live in EstimateResultsCard's
-              own Selected Wall/Connections/Order tabs below (in mainNode) --
-              this is just the project-level warnings list. */}
+          {/* One continuous card for these three -- matches the mockup's
+              single `.sheet` wrapping Panel length/Tracks & flashing/
+              Warnings as divider-separated `.sheet-section`s
+              (speedpanel-estimator-phone-v5.html), rather than each getting
+              its own separate floating card. Per-wall Schedule/Connections
+              live in EstimateResultsCard's own Selected Wall/Connections/
+              Order tabs below (in mainNode) -- Warnings here is just the
+              project-level warnings list. */}
           <SheetCardPhone>
-            <SheetSectionPhone label="Warnings" noDivider>
+            <PanelLengthSectionPhone
+              dimUnit={dimUnit} out={out} active={active} walls={walls}
+              projectLock={projectLock} projectStock={projectStock}
+              customLengthInput={customLengthInput} customActive={customActive}
+              stocks={isInternal ? STOCK_LENGTHS : EXT_STOCK} packType={isInternal ? active.type : 78}
+              update={update} setProjectLength={setProjectLength}
+              commitCustomLength={commitCustomLength} toggleCustom={toggleCustom} clearCustomLength={clearCustomLength}
+            />
+            <TracksFlashingSectionPhone active={active} update={update} orient={orient} />
+            <SheetSectionPhone label="Warnings" noDivider
+              badge={<span className={`${cx.badge} ${tone(out.empty || out.warnings.length === 0 ? "neutral" : "danger")}`}>{out.empty ? 0 : out.warnings.length}</span>}>
               <WarningsListPhone warnings={!out.empty ? out.warnings : null} />
             </SheetSectionPhone>
           </SheetCardPhone>

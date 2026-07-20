@@ -366,6 +366,43 @@ per-wall Wall-type toggle and separate add-wall buttons were always intended, no
   render the new row layout correctly with no console/page errors at any step.
 - 187 tests passing, typecheck/build clean.
 
+**Phone-layout screenshot audit (web/iPad/phone against the mockups) — DONE** (follow-up session).
+Screenshotted the live app at web (1440px), iPad (820px) and phone (390px) viewports in Internal
+and External states and compared each against `speedpanel-estimator-web-v5.html`/`-ipad-v5.html`/
+`-phone-v5.html` section by section. Web and iPad already matched (iPad just being web's own
+responsive breakpoints at a narrower width, confirmed again). Phone had two real, confirmed
+gaps, both in `phoneSections.tsx`/`Calculator.tsx`:
+- **Card grouping**: `SheetCardPhone`/`SheetSectionPhone`'s own header comment already described
+  the intended pattern — "one continuous card with flush, divider-separated sections inside it,
+  matching the mockup's single `.sheet`" — but no call site actually used it that way.
+  `PanelLengthSectionPhone` and `TracksFlashingSectionPhone` each wrapped themselves in their own
+  separate `SheetCardPhone`, and the project Warnings block got a third, so the mockup's one
+  `.sheet` (Panel length + Tracks & flashing + Warnings as three divider-separated
+  `.sheet-section`s) rendered as three separate floating cards instead. Fixed by having both
+  components return a bare `SheetSectionPhone` (no own card) and wrapping all three inside one
+  shared `SheetCardPhone` at the `Calculator.tsx` call site — `SystemConfigSectionPhone`/
+  `GeometrySectionPhone` stay in their own separate cards, matching the mockup's own two separate
+  `.sheet` sections ahead of this combined one.
+- **Missing header badges**: every mockup `.sheet-hd` has a small status pill on the right
+  (`Wall 01`, a profile name, `Project locked`, an edge count, a warning count) — `SheetSectionPhone`
+  had no slot for one at all. Added an optional `badge` prop, wired to: the active wall's name
+  (System configuration), the selected profile label (Wall geometry, reusing the same label map its
+  own `SegPhone` options use), `Project locked`/`Project unlocked` (Panel length — shortened from an
+  initial "Project stock enabled/disabled" copy-paste of the web product-card's own badge text,
+  which was long enough next to the equally long "Panel length & optimisation" heading to force an
+  awkward 3-line wrap on a 390px viewport; also renamed that heading to the mockup's own plain
+  "Panel length", which was more accurate anyway and helped the wrap), a restrained-edge count
+  (Tracks, flashing & restraint), and the project warning count (Warnings, red when >0).
+- Re-verified with typecheck/test/build/depcruise (all clean, 187 tests) and a fresh Playwright
+  pass at all three viewports (Internal and External states) confirming the merged card and every
+  badge render correctly with no console/page errors.
+- Also noted, but explicitly out of scope for this pass: the site's real `TopNav` (Home/Orders/
+  Projects/System Selector/Project Estimator/Education Hub) overflows unusably at iPad width
+  (~820px) — items get clipped mid-word with no overflow menu. This isn't a mockup-parity issue
+  (the mockup's own topbar is decorative placeholder chrome with a different, shorter item set,
+  never meant to be copied verbatim onto the real multi-page site nav) and sits well outside
+  `src/calculator/`, so it wasn't touched here — flagged for a separate pass if wanted.
+
 ### What Phase 4 actually required (historical — kept for context; Phase 4 is now done, see above)
 
 Two files need **zero changes** — confirmed by full diff, not just line-count comparison:
