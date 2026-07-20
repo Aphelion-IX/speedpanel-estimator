@@ -6,6 +6,7 @@ import {
   type OrderHoldType,
 } from "../../projects/orders/orderOperationsTypes";
 import { useOrderHolds } from "../../projects/orders/orderOperationsStore";
+import { LoadingState } from "../../../ui/states";
 
 const TYPE_OPTIONS = ORDER_HOLD_TYPES.map(value => ({
   value,
@@ -37,7 +38,7 @@ export const AdminOrderHoldsCard = ({
   const [actionError, setActionError] =
     useState<string | null>(null);
 
-  if (loading) return null;
+  if (loading) return <LoadingState label="Loading holds" />;
 
   const openHolds = holds.filter(
     hold => hold.status === "open",
