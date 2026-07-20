@@ -100,7 +100,7 @@ export const PANELS: PanelSpec[] = [
     type: 78, label: "P78", depth: "78 mm", frl: "-/120/120",
     pack: 14, ctrackStock: 6.0, ctrackDim: "55 x 82 x 55", jtrackDim: "55 x 82 x 90",
     maxHVert: MATH.P78_MAX_H_VERT, maxHHoriz: 6.0,
-    spanVert: { maxW: "Unlimited", maxH: "6.0 m" },
+    spanVert: { maxW: "Unlimited", maxH: `${MATH.P78_MAX_H_VERT.toFixed(1)} m` },
     spanHoriz: [
       { maxW: "3.0 m", maxH: "3.0 m", cTrack: "90 x 82 x 1.15", fix: "1/face" },
       { maxW: "4.5 m", maxH: "3.0 m", cTrack: "90 x 83 x 1.50", fix: "1/face" },
@@ -279,7 +279,7 @@ export const INT_LOCKED = [
   ["J-track (P78)","55x82x90 - 1.15BMT - 3.0/3.6/6.0m"],
   ["Head track flashing 0.7 mm BMT x 130 mm GAL","3.0m"],
   ["Fixings/box","1000 (10g-30 and 10g-16)"],["Sealant","Hilti CP606 - 4m2/sausage - 20/box"],
-  ["Vert max H","P51/P64=5.0m - P78=6.0m"],["Horiz max W","P51/P64=4.5m assessed; P78=4.5m general / 5.0m shaft-scissor only"],
+  ["Vert max H", `P51/P64=5.0m - P78=${MATH.P78_MAX_H_VERT.toFixed(1)}m`],["Horiz max W","P51/P64=4.5m assessed; P78=4.5m general / 5.0m shaft-scissor only"],
   ["Horiz max H","P51/P64=5.0m - P78=6.0m std"],
 ];
 export const EXT_LOCKED = [
@@ -287,5 +287,5 @@ export const EXT_LOCKED = [
   ["Pack size","14 panels/pack"],["C-track","55x82x55 - 1.15BMT"],
   ["Base J-track","1.15BMT - weep holes@250mm"],["Z-Flashing","78mm - 0.7mm BMT - Coloured - 3.0m"],
   ["Sealant","Sikaflex 400 Fire PU - 1 sausage/2m2 - 20/box"],
-  ["Max H (vert)","6.0m"],["Max W (horiz)","4.5m std - 5.0m stacked/shaft"],
+  ["Max H (vert)", `${MATH.EXT_MAX_H_VERT.toFixed(1)}m`],["Max W (horiz)","4.5m std - 5.0m stacked/shaft"],
 ];
