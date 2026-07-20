@@ -19,7 +19,7 @@
 // =============================================================================
 import { z } from "zod";
 import { tone } from "../../styleTokens";
-import { PersistedProjectSchema } from "../../wallStore";
+import { PersistedProjectSchema, backfillOrient } from "../../wallStore";
 
 export const STAGES = ["draft", "install_review", "technical_review", "approved"] as const;
 export type Stage = typeof STAGES[number];
@@ -69,6 +69,34 @@ export const ProjectRowSchema = z.object({
   updated_at: z.string(),
 });
 export type ProjectRow = z.infer<typeof ProjectRowSchema>;
+
+// Patches a raw (pre-validation) Supabase project row's data.walls the same
+// way wallStore.ts's loadProject() already does for device-local saves --
+// WallSchema.orient has no default, so a project saved before per-wall
+// orientation existed fails ProjectRowSchema validation outright otherwise.
+// Every network read of a projects row (list and single-row fetches alike,
+// across projectsStore.ts/projectDetailStore.ts/adminProjectsStore.ts) needs
+// this, or a single legacy row in the result set takes the whole fetch down
+// with "Unexpected data shape from the server" -- .array().safeParse() fails
+// wholesale on one bad element, not just that element.
+function patchLegacyProjectRow(raw: unknown): unknown {
+  if (!raw || typeof raw !== "object") return raw;
+  const row = raw as { data?: unknown };
+  if (!row.data || typeof row.data !== "object") return raw;
+  const data = row.data as { walls?: unknown };
+  if (!Array.isArray(data.walls)) return raw;
+  return { ...row, data: { ...data, walls: backfillOrient(data.walls) } };
+}
+
+export function parseProjectRow(raw: unknown): ProjectRow | null {
+  const parsed = ProjectRowSchema.safeParse(patchLegacyProjectRow(raw));
+  return parsed.success ? parsed.data : null;
+}
+
+export function parseProjectRows(raw: unknown[]): ProjectRow[] | null {
+  const parsed = ProjectRowSchema.array().safeParse(raw.map(patchLegacyProjectRow));
+  return parsed.success ? parsed.data : null;
+}
 
 export const STAGE_LABELS: Record<Stage, string> = {
   draft: "Draft",
