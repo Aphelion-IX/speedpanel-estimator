@@ -428,7 +428,7 @@ export default function SpeedpanelEstimator() {
 
         {route.tab === "accounts" && (
           <Suspense fallback={<LoadingState className="mt-6" />}>
-            <AccountsRoot route={route} navigate={navigate} auth={auth} />
+            <AccountsRoot route={route} navigate={navigate} auth={auth} layoutMode={layoutMode} />
           </Suspense>
         )}
 

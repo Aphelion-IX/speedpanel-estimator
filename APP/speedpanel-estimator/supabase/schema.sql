@@ -3956,6 +3956,93 @@ revoke execute on function public.admin_list_price_lists() from public, anon;
 grant execute on function public.admin_list_price_lists() to authenticated;
 
 -- =============================================================================
+-- Pricing: Price Lists library + draft editor (Company Accounts & Pricing,
+-- Phase 7) -- read-only RPCs backing the new src/pages/accounts/priceLists/
+-- module. Both reuse the existing price_lists.read permission key rather
+-- than minting new ones -- everything they return is metadata/diff
+-- information staff with read access to the price-list catalog already see
+-- elsewhere (AdminPriceListsPage.tsx, admin_list_price_lists()).
+-- =============================================================================
+
+-- p_price_list_id null returns every version across every list (the
+-- library's Draft Versions/Scheduled/Archived tabs, which are cross-list);
+-- given a specific id it scopes to that one list's own version history
+-- (the draft editor's own use). created_by_name/published_by_name mirror
+-- admin_list_companies()'s own display_name-or-email lateral join pattern.
+create or replace function public.admin_list_price_list_versions(p_price_list_id uuid default null)
+returns table (
+  id uuid, price_list_id uuid, price_list_name text, version_number int, status text,
+  effective_date date, notes text, created_by uuid, created_by_name text, created_at timestamptz,
+  published_at timestamptz, published_by uuid, published_by_name text, price_count bigint
+)
+language sql security definer stable
+set search_path = public
+as $$
+  select
+    plv.id, plv.price_list_id, pl.name, plv.version_number, plv.status,
+    plv.effective_date, plv.notes, plv.created_by, creator.display_name_or_email, plv.created_at,
+    plv.published_at, plv.published_by, publisher.display_name_or_email,
+    (select count(*) from price_list_prices plp where plp.price_list_version_id = plv.id)
+  from price_list_versions plv
+  join price_lists pl on pl.id = plv.price_list_id
+  left join lateral (
+    select coalesce(p.display_name, u.email) as display_name_or_email
+    from profiles p join auth.users u on u.id = p.id where p.id = plv.created_by
+  ) creator on true
+  left join lateral (
+    select coalesce(p.display_name, u.email) as display_name_or_email
+    from profiles p join auth.users u on u.id = p.id where p.id = plv.published_by
+  ) publisher on true
+  where public.has_permission('price_lists.read')
+    and (p_price_list_id is null or plv.price_list_id = p_price_list_id)
+  order by pl.name, plv.version_number desc;
+$$;
+revoke execute on function public.admin_list_price_list_versions(uuid) from public, anon;
+grant execute on function public.admin_list_price_list_versions(uuid) to authenticated;
+
+-- Per-product old/new price + change type between two versions (typically
+-- the current active version and a draft) -- built once here, reused as-is
+-- by Phase 8's Compare & Publish screen per the plan. A full outer join on
+-- (category, the one non-null panel/track/fixing/sealant id) rather than a
+-- plain id join, since the same product's row has a different id in every
+-- version (price_list_prices.id isn't stable across versions -- each
+-- version's rows are its own copy, see admin_create_draft_version()).
+-- Labels aren't resolved here -- the frontend already holds the full
+-- product catalog client-side (useProductStore()) and can look up
+-- category+product_id against it directly (see itemTitle() in
+-- productCategoryViews.tsx), so this stays a thin numeric diff.
+create or replace function public.admin_diff_price_list_versions(p_from_version_id uuid, p_to_version_id uuid)
+returns table (
+  category text, panel_id uuid, track_id uuid, fixing_id uuid, sealant_id uuid,
+  old_price numeric, new_price numeric, change_type text
+)
+language sql security definer stable
+set search_path = public
+as $$
+  select
+    coalesce(new_v.category, old_v.category),
+    coalesce(new_v.panel_id, old_v.panel_id), coalesce(new_v.track_id, old_v.track_id),
+    coalesce(new_v.fixing_id, old_v.fixing_id), coalesce(new_v.sealant_id, old_v.sealant_id),
+    old_v.price, new_v.price,
+    case
+      when old_v.price is null then 'added'
+      when new_v.price is null then 'removed'
+      when old_v.price is distinct from new_v.price then 'changed'
+      else 'unchanged'
+    end
+  from
+    (select * from price_list_prices where price_list_version_id = p_to_version_id) new_v
+    full outer join
+    (select * from price_list_prices where price_list_version_id = p_from_version_id) old_v
+    on new_v.category = old_v.category
+    and coalesce(new_v.panel_id, new_v.track_id, new_v.fixing_id, new_v.sealant_id)
+      = coalesce(old_v.panel_id, old_v.track_id, old_v.fixing_id, old_v.sealant_id)
+  where public.has_permission('price_lists.read');
+$$;
+revoke execute on function public.admin_diff_price_list_versions(uuid, uuid) from public, anon;
+grant execute on function public.admin_diff_price_list_versions(uuid, uuid) to authenticated;
+
+-- =============================================================================
 -- Delivery request/approval workflow
 -- =============================================================================
 -- Replaces order_deliveries' original "committed on insert, draft-only"
