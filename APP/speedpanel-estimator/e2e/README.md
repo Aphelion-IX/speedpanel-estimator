@@ -111,7 +111,7 @@ npm run build
 npm run test:e2e       # Playwright, against the local stack
 ```
 
-### Path B -- against a live project (what was actually used to verify Part C in this session)
+### Path B -- against a live project (manual; the CI `e2e` job no longer uses this)
 ```
 # .env.test already points VITE_SUPABASE_URL/VITE_SUPABASE_PUBLISHABLE_KEY
 # at the target project; seed.sql/teardown-e2e.sql are applied via the
@@ -134,32 +134,38 @@ Runs on every `pull_request`/`push` to `main`, and on demand via
   `psql -f supabase/seed.sql` (reusing the `E2E_PASSWORD` secret as
   `E2E_SEED_PASSWORD`, since seed.sql needs real psql for its `\set`), then
   `npm run test:rls` against it. Blocking.
-- **`e2e`** -- builds the app, starts the preview server, runs the full
-  Playwright suite against the live project below, and uploads the
-  Playwright HTML report + traces/screenshots/videos as build artifacts
-  (`if: always()`, 14-day retention) so a failure is debuggable without
-  rerunning anything locally. Non-blocking (see below).
+- **`e2e`** -- spins up the same self-contained local Supabase stack the
+  `pgtap` job does (`supabase start` + `db reset` + `psql -f seed.sql`),
+  points the build at it (`VITE_SUPABASE_URL`/`VITE_SUPABASE_PUBLISHABLE_KEY`
+  are read from the running stack, not secrets -- Vite bakes them in at build
+  time), builds the app, starts the preview server, runs the full Playwright
+  suite against that local stack, and uploads the Playwright HTML report +
+  traces/screenshots/videos as build artifacts (`if: always()`, 14-day
+  retention) so a failure is debuggable without rerunning anything locally.
+  Blocking. This is why the whole suite finally runs green in CI -- it no
+  longer depends on a live project being seeded out-of-band (the old setup,
+  where every auth/RLS spec failed because the personas simply weren't there
+  to sign in as). The invite-flow spec (`admin-invite-flow.spec.ts`) calls
+  the `admin-invite-user` Edge Function through the real UI; `supabase start`
+  serves it locally from `supabase/functions/` (`[edge_runtime] enabled` in
+  config.toml), no deploy needed.
 
-`pgtap` needs the `E2E_PASSWORD` secret too (to seed its own local stack,
-as `E2E_SEED_PASSWORD`) but never touches the live project -- only `e2e`
-needs the live project described next. `checks` needs neither.
+Both `pgtap` and `e2e` need only the `E2E_PASSWORD` secret (to seed their own
+disposable local stacks, as `E2E_SEED_PASSWORD`); neither touches any live
+project. `checks` needs no secret at all.
 
-Requires these repository secrets (Settings -> Secrets and variables ->
+Requires this repository secret (Settings -> Secrets and variables ->
 Actions) to be set **once**, manually -- never committed to git:
 
 | Secret | Required? | Notes |
 |---|---|---|
-| `E2E_PASSWORD` | **Yes** | The one shared password for all 10 seeded `@e2e.test` personas (see `supabase/seed.sql`). Used by both `e2e` (sign-in) and `pgtap` (as `E2E_SEED_PASSWORD`, to seed its own ephemeral local stack). Without this, sign-in fails for every persona-based test, and `pgtap` fails outright. |
-| `VITE_SUPABASE_URL` | Optional | `src/lib/supabaseClient.ts` falls back to this project's own URL if unset. Only needed to point the workflow at a *different* project. |
-| `VITE_SUPABASE_PUBLISHABLE_KEY` | Optional | Same fallback as above, for the anon/publishable key. |
+| `E2E_PASSWORD` | **Yes** | The one shared password for all 10 seeded `@e2e.test` personas (see `supabase/seed.sql`). Both `pgtap` and `e2e` pass it as `E2E_SEED_PASSWORD` to seed their local stacks, and `e2e` also types it at the sign-in form -- the two must be the same value, which is why it's one secret used for both. Without it, seeding fails and every persona sign-in fails. |
 
-Nothing here is a service-role key. The `e2e` job never seeds the live
-project itself -- `seed.sql`/`teardown-e2e.sql` are applied out-of-band by
-whoever administers it, same as Path B above. The invite-flow spec
-(`admin-invite-flow.spec.ts`) calls the already-deployed `admin-invite-user`
-Edge Function through the real UI; it does not redeploy it. The `pgtap` job
-is different -- it does seed data, but only into its own disposable local
-stack that's torn down at the end of the job, never the live project.
+No service-role key anywhere, and no live project involved. Each of `pgtap`
+and `e2e` seeds only its own local stack, torn down at the end of the job.
+(`VITE_SUPABASE_URL`/`VITE_SUPABASE_PUBLISHABLE_KEY` repo secrets, if you
+still have them set from the old live-project setup, are now unused by this
+workflow -- safe to leave or remove.)
 
 ## Spec files
 
@@ -220,7 +226,12 @@ stack that's torn down at the end of the job, never the live project.
   to close.
 - ✅ **Playwright, run in GitHub Actions**: this is the genuine end-to-end
   signal -- see the workflow run linked in the PR/commit this change ships
-  with, not a claim made from this sandbox.
+  with, not a claim made from this sandbox. The `e2e` job now runs against
+  its own local Supabase stack (seeded the same way `pgtap`'s is), not a
+  live project -- so the whole suite exercises real sign-in + RLS against a
+  known-seeded database on every PR/push, instead of the old setup where
+  every persona sign-in failed because the live project wasn't seeded with
+  the `@e2e.test` accounts.
 - ⬜ **Local Docker path (Path A)**: `supabase/config.toml` was generated by
   the real Supabase CLI (`supabase init`), and now correctly reflects how
   schema and seed data actually get applied (see the three fixes above),
