@@ -33,6 +33,9 @@ import { useMyInternalRole } from "../admin/useMyInternalRole";
 import { PlaceholderPage } from "../PlaceholderPage";
 import "./accountsTheme.css";
 import { ControlRoomPage } from "./ControlRoomPage";
+import { CompaniesListPage } from "./companies/CompaniesListPage";
+import { CompanyWizard } from "./companies/CompanyWizard";
+import { CompanyOverviewPage } from "./companies/CompanyOverviewPage";
 
 const NAV: { id: AccountsSubPage; label: string; icon: React.ReactNode; group: string }[] = [
   { id: "controlRoom", label: "Control Room", icon: <LayoutDashboard size={15} />, group: "Workspace" },
@@ -49,7 +52,6 @@ const NAV: { id: AccountsSubPage; label: string; icon: React.ReactNode; group: s
 // same "swap out page-by-page" convention PlaceholderPage.tsx already
 // documents for the Admin section.
 const COMING_SOON: Partial<Record<AccountsSubPage, { title: string; description: string }>> = {
-  companies: { title: "Companies", description: "Company list, wizard, and multi-tab overview -- coming in a later phase." },
   companyUsers: { title: "Company Users", description: "Cross-company external-user roster -- coming in a later phase." },
   invitations: { title: "Invitations", description: "Cross-company invitation queue, including delivery-failure handling -- coming in a later phase." },
   companyPricing: { title: "Company Pricing", description: "Per-company item price overrides and pricing preview -- coming in a later phase." },
@@ -91,6 +93,11 @@ export const AccountsRoot = ({ route, navigate, auth }: {
 
           <div className="cap-page">
             {route.sub === "controlRoom" && <ControlRoomPage navigate={navigate} />}
+            {route.sub === "companies" && route.newCompany && <CompanyWizard navigate={navigate} />}
+            {route.sub === "companies" && !route.newCompany && route.companyId && (
+              <CompanyOverviewPage companyId={route.companyId} navigate={navigate} />
+            )}
+            {route.sub === "companies" && !route.newCompany && !route.companyId && <CompaniesListPage navigate={navigate} />}
             {COMING_SOON[route.sub] && (
               <PlaceholderPage title={COMING_SOON[route.sub]!.title} description={COMING_SOON[route.sub]!.description} />
             )}

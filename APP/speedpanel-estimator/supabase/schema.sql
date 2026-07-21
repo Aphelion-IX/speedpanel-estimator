@@ -2239,6 +2239,32 @@ end;
 $$;
 
 -- =============================================================================
+-- Company Accounts & Pricing -- Phase 2 schema catch-up
+-- =============================================================================
+-- Expands companies.status from the original 3-value placeholder set
+-- ('active'/'suspended'/'closed', never actually surfaced in any admin UI
+-- before now) to the 5-state model the backend spec describes
+-- (Pending/Active/On Hold/Suspended/Archived). 'closed' never had a code
+-- path that set it (grep confirms), so it maps onto 'archived' rather than
+-- needing its own case. New companies now start 'pending' -- admin_create_company
+-- below is the only insert path into this table (see "Company-creation
+-- cutover" a few lines down), so the column default doubles as that call
+-- site's default. This is enum/default catch-up ONLY -- nothing yet reads
+-- these new states to block anything (see the phased plan's Phase 11 for
+-- actual On-Hold/Suspended order-blocking enforcement).
+update companies set status = 'archived' where status = 'closed';
+alter table companies drop constraint companies_status_check;
+alter table companies add constraint companies_status_check
+  check (status in ('pending', 'active', 'on_hold', 'suspended', 'archived'));
+alter table companies alter column status set default 'pending';
+
+-- "Payment or account terms" / "Internal notes" -- two of the Account-step
+-- fields the backend spec's company field list (section 1) names that had
+-- no column yet.
+alter table companies add column payment_terms text;
+alter table companies add column internal_notes text;
+
+-- =============================================================================
 -- Self-service company creation, membership, and invitations
 -- =============================================================================
 
@@ -2255,10 +2281,20 @@ drop function if exists public.create_company(text, text, text, text, text, text
 -- being a member. The company's actual first Owner is added afterward via
 -- the normal invite path (company-invite-member / admin-invite-user with
 -- companyId+companyRole), same as any other member.
+--
+-- p_payment_terms/p_internal_notes (Phase 2) are appended, not inserted
+-- among the existing params -- old callers (the pre-Phase-2 3-step wizard)
+-- that never pass them still work unchanged via the defaults. Dropped and
+-- recreated (not a bare `create or replace`) because appending params
+-- changes the function's argument-type signature, same convention already
+-- used by admin_list_staff_candidates()/admin_list_companies() below.
+drop function if exists public.admin_create_company(text, text, text, text, text, text, text);
+
 create or replace function public.admin_create_company(
   p_legal_name text, p_trading_name text default null, p_abn text default null,
   p_customer_account_number text default null, p_billing_email text default null,
-  p_phone text default null, p_address text default null
+  p_phone text default null, p_address text default null,
+  p_payment_terms text default null, p_internal_notes text default null
 ) returns uuid
 language plpgsql security definer
 set search_path = public
@@ -2273,17 +2309,69 @@ begin
   -- backfill) but this function predates that column and was never updated
   -- when it was added -- every new company defaults to PL1 - Standard, same
   -- as every pre-existing company was backfilled to, until an admin assigns
-  -- a different list via admin_set_company_price_list().
-  insert into companies (legal_name, trading_name, abn, customer_account_number, billing_email, phone, address, created_by, price_list_id)
-    values (p_legal_name, p_trading_name, p_abn, p_customer_account_number, p_billing_email, p_phone, p_address, auth.uid(),
+  -- a different list via admin_set_company_price_list(). status is left to
+  -- the column default ('pending', see the Phase 2 schema catch-up above).
+  insert into companies (legal_name, trading_name, abn, customer_account_number, billing_email, phone, address, payment_terms, internal_notes, created_by, price_list_id)
+    values (p_legal_name, p_trading_name, p_abn, p_customer_account_number, p_billing_email, p_phone, p_address, p_payment_terms, p_internal_notes, auth.uid(),
       (select id from price_lists where is_default))
     returning id into v_company_id;
   perform public.log_audit(v_company_id, auth.uid(), 'company_created');
   return v_company_id;
 end;
 $$;
-revoke execute on function public.admin_create_company(text, text, text, text, text, text, text) from public, anon;
-grant execute on function public.admin_create_company(text, text, text, text, text, text, text) to authenticated;
+revoke execute on function public.admin_create_company(text, text, text, text, text, text, text, text, text) from public, anon;
+grant execute on function public.admin_create_company(text, text, text, text, text, text, text, text, text) to authenticated;
+
+-- Phase 2's company-status editor -- has_permission('companies.set_status')-gated
+-- (new permission key, see the block below), records the transition on
+-- audit_logs via log_audit() the same way every other company-workspace
+-- mutation does. p_status is validated against the same 5-state list as the
+-- table's own check constraint (defence in depth -- a bad value should fail
+-- with a clear message here, not a raw constraint-violation error).
+create or replace function public.admin_set_company_status(p_company_id uuid, p_status text, p_reason text default null) returns void
+language plpgsql security definer
+set search_path = public
+as $$
+declare
+  v_old_status text;
+begin
+  if not public.has_permission('companies.set_status') then raise exception 'Not authorized'; end if;
+  if p_status not in ('pending', 'active', 'on_hold', 'suspended', 'archived') then raise exception 'Invalid status'; end if;
+
+  select status into v_old_status from companies where id = p_company_id;
+  if not found then raise exception 'Company not found'; end if;
+
+  update companies set status = p_status, updated_at = now() where id = p_company_id;
+  perform public.log_audit(p_company_id, auth.uid(), 'company_status_changed', null, null,
+    jsonb_build_object('from', v_old_status, 'to', p_status, 'reason', p_reason));
+end;
+$$;
+revoke execute on function public.admin_set_company_status(uuid, text, text) from public, anon;
+grant execute on function public.admin_set_company_status(uuid, text, text) to authenticated;
+
+insert into public.permissions (key, description, category) values
+  ('companies.set_status', 'Change a company''s account status (Pending/Active/On Hold/Suspended/Archived)', 'companies')
+on conflict (key) do nothing;
+
+-- Single-company activity counts for CompanyOverviewPage.tsx's KPI tiles --
+-- kept as its own tiny RPC (parameterized to one company_id, cheap even as
+-- a correlated-subquery pair) rather than folded into admin_list_companies()
+-- below, since the list view never needs per-row project/order counts and
+-- admin_list_companies() already runs across every company. orders has no
+-- company_id column of its own (see the phased plan's corrected-understanding
+-- notes) -- reached via its project_id -> projects.company_id join instead.
+create or replace function public.admin_company_activity_counts(p_company_id uuid)
+returns table (project_count bigint, order_count bigint)
+language sql security definer stable
+set search_path = public
+as $$
+  select
+    (select count(*) from projects where company_id = p_company_id and deleted_at is null),
+    (select count(*) from orders o join projects p on p.id = o.project_id where p.company_id = p_company_id)
+  where public.has_permission('companies.list');
+$$;
+revoke execute on function public.admin_company_activity_counts(uuid) from public, anon;
+grant execute on function public.admin_company_activity_counts(uuid) to authenticated;
 
 -- handle_new_user() extended (redefined here, after invitations/
 -- company_memberships/project_memberships/log_audit all exist) to
@@ -2696,20 +2784,11 @@ grant execute on function public.remove_project_member(uuid, uuid) to authentica
 -- admin-gated read view + the one write action needed to bootstrap a
 -- company's first Owner from the existing Admin > Users roster.
 
-create or replace function public.admin_list_companies()
-returns table (id uuid, name text, member_count bigint, created_at timestamptz)
-language sql security definer stable
-set search_path = public
-as $$
-  select c.id, coalesce(c.trading_name, c.legal_name), count(cm.id) filter (where cm.status = 'active'), c.created_at
-  from companies c
-  left join company_memberships cm on cm.company_id = c.id
-  where public.has_permission('companies.list')
-  group by c.id, c.trading_name, c.legal_name, c.created_at
-  order by c.created_at desc;
-$$;
-revoke execute on function public.admin_list_companies() from public, anon;
-grant execute on function public.admin_list_companies() to authenticated;
+-- admin_list_companies() itself lives further down (Phase 2's version reads
+-- price_lists.name, so it's defined after the Pricing: Price List RPCs
+-- section instead of here -- language sql function bodies are checked
+-- against referenced-object existence at CREATE time, unlike plpgsql, so it
+-- can't reference a table that doesn't exist yet this early in the script).
 
 -- Assigns/detaches an EXISTING user to/from a company. p_company_id = null
 -- detaches (soft, mirrors company_remove_member's effect) -- also doubles as
@@ -3210,6 +3289,65 @@ end;
 $$;
 revoke execute on function public.admin_set_company_price_list(uuid, uuid) from public, anon;
 grant execute on function public.admin_set_company_price_list(uuid, uuid) to authenticated;
+
+-- Phase 2 (Company Accounts & Pricing): extended from the original 4-column
+-- row (id/name/member_count/created_at, see "Admin (Speedpanel staff)
+-- visibility into companies" above) to also carry every field
+-- CompaniesListPage.tsx's table and CompanyOverviewPage.tsx's detail cards
+-- need -- one shared row shape for both screens rather than a second
+-- per-company RPC, since the company count here is small enough (internal
+-- B2B customer list, not end-user scale) that returning the full row for
+-- every company is cheap. Dropped and recreated (not `create or replace`)
+-- since the return column list is growing, which `create or replace
+-- function` can't do in place. Defined here (after price_lists exists)
+-- rather than back at its original spot, since it reads price_lists.name --
+-- language sql function bodies are checked against referenced-object
+-- existence at CREATE time, unlike plpgsql.
+drop function if exists public.admin_list_companies();
+
+create or replace function public.admin_list_companies()
+returns table (
+  id uuid, name text, member_count bigint, created_at timestamptz,
+  legal_name text, trading_name text, abn text, account_code text,
+  billing_email text, phone text, address text, status text,
+  payment_terms text, internal_notes text,
+  price_list_id uuid, price_list_name text,
+  primary_user_name text, primary_user_email text, internal_owner_name text
+)
+language sql security definer stable
+set search_path = public
+as $$
+  select
+    c.id, coalesce(c.trading_name, c.legal_name), count(cm.id) filter (where cm.status = 'active'), c.created_at,
+    c.legal_name, c.trading_name, c.abn, c.customer_account_number,
+    c.billing_email, c.phone, c.address, c.status,
+    c.payment_terms, c.internal_notes,
+    c.price_list_id, pl.name,
+    owner.display_name_or_email, owner.email, creator.display_name_or_email
+  from companies c
+  left join company_memberships cm on cm.company_id = c.id
+  left join price_lists pl on pl.id = c.price_list_id
+  left join lateral (
+    select coalesce(p.display_name, u.email) as display_name_or_email, u.email
+    from company_memberships owner_cm
+    join profiles p on p.id = owner_cm.user_id
+    join auth.users u on u.id = owner_cm.user_id
+    where owner_cm.company_id = c.id and owner_cm.role = 'owner' and owner_cm.status = 'active'
+    limit 1
+  ) owner on true
+  left join lateral (
+    select coalesce(p.display_name, u.email) as display_name_or_email
+    from profiles p join auth.users u on u.id = p.id
+    where p.id = c.created_by
+  ) creator on true
+  where public.has_permission('companies.list')
+  group by c.id, c.trading_name, c.legal_name, c.created_at, c.abn, c.customer_account_number,
+    c.billing_email, c.phone, c.address, c.status, c.payment_terms, c.internal_notes,
+    c.price_list_id, pl.name, owner.display_name_or_email, owner.email, creator.display_name_or_email
+  order by c.created_at desc;
+$$;
+revoke execute on function public.admin_list_companies() from public, anon;
+grant execute on function public.admin_list_companies() to authenticated;
 
 -- =============================================================================
 -- Foreign key indexes -- pricing tables

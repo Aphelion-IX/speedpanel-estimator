@@ -50,7 +50,11 @@ export type Route =
   // have no saved project to attach to, see ProjectsRouter.tsx.
   | { tab: "projects"; id?: string; orderId?: string; newOrder?: boolean; quickOrder?: boolean; request?: boolean }
   | { tab: "admin"; sub: AdminSubPage }
-  | { tab: "accounts"; sub: AccountsSubPage }
+  // companyId/newCompany only apply when sub is "companies" -- drilling into
+  // one company's CompanyOverviewPage.tsx or CompanyWizard.tsx respectively
+  // (Phase 2), same "extra fields only meaningful for one particular value"
+  // pattern as "projects"'s id/orderId below.
+  | { tab: "accounts"; sub: AccountsSubPage; companyId?: string; newCompany?: boolean }
   // Top-level (not nested under "projects") since it's about the signed-in
   // user's account/company membership, not any one project -- same reasoning
   // "admin" is its own top-level tab rather than nested somewhere else.
@@ -84,6 +88,8 @@ function parseHash(hash: string): Route {
   }
   if (first === "accounts") {
     const sub = ACCOUNTS_SUBPAGES.find(s => s === second) ?? "controlRoom";
+    if (sub === "companies" && third === "create") return { tab: "accounts", sub, newCompany: true };
+    if (sub === "companies" && third) return { tab: "accounts", sub, companyId: third };
     return { tab: "accounts", sub };
   }
   if (first === "myRequests") return { tab: "myRequests" };
@@ -111,7 +117,11 @@ function parseHash(hash: string): Route {
 
 function routeToHash(route: Route): string {
   if (route.tab === "admin") return route.sub === "dashboard" ? "#/admin" : `#/admin/${route.sub}`;
-  if (route.tab === "accounts") return route.sub === "controlRoom" ? "#/accounts" : `#/accounts/${route.sub}`;
+  if (route.tab === "accounts") {
+    if (route.sub === "companies" && route.newCompany) return "#/accounts/companies/create";
+    if (route.sub === "companies" && route.companyId) return `#/accounts/companies/${route.companyId}`;
+    return route.sub === "controlRoom" ? "#/accounts" : `#/accounts/${route.sub}`;
+  }
   if (route.tab === "company") return `#/company/${route.sub}`;
   if (route.tab === "home") return "#/";
   if (route.tab === "projects") {

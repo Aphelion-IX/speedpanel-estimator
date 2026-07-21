@@ -20,8 +20,27 @@ import { z } from "zod";
 const NOT_CONFIGURED = "Companies aren't configured for this environment.";
 const BAD_SHAPE = "Unexpected data shape from the server.";
 
+export const COMPANY_STATUSES = ["pending", "active", "on_hold", "suspended", "archived"] as const;
+export type CompanyStatus = typeof COMPANY_STATUSES[number];
+
+export const COMPANY_STATUS_LABELS: Record<CompanyStatus, string> = {
+  pending: "Pending", active: "Active", on_hold: "On Hold", suspended: "Suspended", archived: "Archived",
+};
+
+// Phase 2 (Company Accounts & Pricing): admin_list_companies() grew from a
+// 4-column row to also carry every field CompaniesListPage.tsx's table and
+// CompanyOverviewPage.tsx's detail cards need -- see that RPC's own comment
+// in supabase/schema.sql for why one shared row shape beats a second
+// per-company RPC here.
 const AdminCompanyRowSchema = z.object({
   id: z.string(), name: z.string(), member_count: z.number(), created_at: z.string(),
+  legal_name: z.string(), trading_name: z.string().nullable(), abn: z.string().nullable(),
+  account_code: z.string().nullable(), billing_email: z.string().nullable(), phone: z.string().nullable(),
+  address: z.string().nullable(), status: z.enum(COMPANY_STATUSES),
+  payment_terms: z.string().nullable(), internal_notes: z.string().nullable(),
+  price_list_id: z.string().nullable(), price_list_name: z.string().nullable(),
+  primary_user_name: z.string().nullable(), primary_user_email: z.string().nullable(),
+  internal_owner_name: z.string().nullable(),
 });
 export type AdminCompanyRow = z.infer<typeof AdminCompanyRowSchema>;
 
@@ -55,6 +74,7 @@ export function useAdminCreateCompany() {
   const createCompany = async (input: {
     legalName: string; tradingName?: string; abn?: string; customerAccountNumber?: string;
     billingEmail?: string; phone?: string; address?: string;
+    paymentTerms?: string; internalNotes?: string;
   }): Promise<{ id: string | null; error: string | null }> => {
     if (!supabase) return { id: null, error: NOT_CONFIGURED };
     setSubmitting(true);
@@ -66,6 +86,8 @@ export function useAdminCreateCompany() {
       p_billing_email: input.billingEmail || null,
       p_phone: input.phone || null,
       p_address: input.address || null,
+      p_payment_terms: input.paymentTerms || null,
+      p_internal_notes: input.internalNotes || null,
     });
     setSubmitting(false);
     if (error) return { id: null, error: error.message };
@@ -73,6 +95,43 @@ export function useAdminCreateCompany() {
   };
 
   return { submitting, createCompany };
+}
+
+// admin_set_company_status() -- Phase 2's status editor, used by
+// CompanyOverviewPage.tsx's status badge/action.
+export async function adminSetCompanyStatus(companyId: string, status: CompanyStatus, reason?: string): Promise<string | null> {
+  if (!supabase) return NOT_CONFIGURED;
+  const { error } = await supabase.rpc("admin_set_company_status", {
+    p_company_id: companyId, p_status: status, p_reason: reason || null,
+  });
+  return error ? error.message : null;
+}
+
+const ActivityCountsSchema = z.object({ project_count: z.number(), order_count: z.number() });
+export type CompanyActivityCounts = z.infer<typeof ActivityCountsSchema>;
+
+// admin_company_activity_counts() -- CompanyOverviewPage.tsx's two extra
+// KPI tiles (Open projects / Orders), kept separate from
+// useAdminCompanies() since it's the only screen that needs them.
+export function useCompanyActivityCounts(companyId: string | null) {
+  const [counts, setCounts] = useState<CompanyActivityCounts | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!supabase || !companyId) { setLoading(false); setError(companyId ? NOT_CONFIGURED : null); return; }
+    setLoading(true);
+    supabase.rpc("admin_company_activity_counts", { p_company_id: companyId }).then(({ data, error: err }) => {
+      if (err) { setError(err.message); setLoading(false); return; }
+      const row = Array.isArray(data) ? data[0] : data;
+      const parsed = ActivityCountsSchema.safeParse(row);
+      if (!parsed.success) { setError(BAD_SHAPE); setLoading(false); return; }
+      setCounts(parsed.data);
+      setLoading(false);
+    });
+  }, [companyId]);
+
+  return { counts, loading, error };
 }
 
 // For a brand-new external/customer account -- unlike useCompanyMembers'

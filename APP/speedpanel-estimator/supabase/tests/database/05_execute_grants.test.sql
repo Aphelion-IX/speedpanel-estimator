@@ -24,7 +24,7 @@
 -- and add the corresponding `ok(...)` line below (bump plan() to match).
 -- =============================================================================
 begin;
-select plan(68);
+select plan(70);
 
 select ok(has_function_privilege('authenticated', 'public.is_admin()'::regprocedure, 'EXECUTE'), 'is_admin(): authenticated has EXECUTE');
 select ok(has_function_privilege('authenticated', 'public.has_staff_role(text[])'::regprocedure, 'EXECUTE'), 'has_staff_role(text[]): authenticated has EXECUTE');
@@ -54,7 +54,9 @@ select ok(has_function_privilege('authenticated', 'public.can_view_project(uuid,
 select ok(has_function_privilege('authenticated', 'public.can_edit_project(uuid, uuid, uuid)'::regprocedure, 'EXECUTE'), 'can_edit_project(uuid, uuid, uuid): authenticated has EXECUTE');
 select ok(has_function_privilege('authenticated', 'public.can_submit_orders(uuid, uuid, uuid)'::regprocedure, 'EXECUTE'), 'can_submit_orders(uuid, uuid, uuid): authenticated has EXECUTE');
 select ok(has_function_privilege('authenticated', 'public.log_audit(uuid, uuid, text, uuid, uuid, jsonb)'::regprocedure, 'EXECUTE'), 'log_audit(uuid, uuid, text, uuid, uuid, jsonb): authenticated has EXECUTE');
-select ok(has_function_privilege('authenticated', 'public.admin_create_company(text, text, text, text, text, text, text)'::regprocedure, 'EXECUTE'), 'admin_create_company(text, text, text, text, text, text, text): authenticated has EXECUTE');
+select ok(has_function_privilege('authenticated', 'public.admin_create_company(text, text, text, text, text, text, text, text, text)'::regprocedure, 'EXECUTE'), 'admin_create_company(text, text, text, text, text, text, text, text, text): authenticated has EXECUTE');
+select ok(has_function_privilege('authenticated', 'public.admin_set_company_status(uuid, text, text)'::regprocedure, 'EXECUTE'), 'admin_set_company_status(uuid, text, text): authenticated has EXECUTE');
+select ok(has_function_privilege('authenticated', 'public.admin_company_activity_counts(uuid)'::regprocedure, 'EXECUTE'), 'admin_company_activity_counts(uuid): authenticated has EXECUTE');
 select ok(has_function_privilege('authenticated', 'public.resend_company_invitation(uuid)'::regprocedure, 'EXECUTE'), 'resend_company_invitation(uuid): authenticated has EXECUTE');
 select ok(has_function_privilege('authenticated', 'public.cancel_company_invitation(uuid)'::regprocedure, 'EXECUTE'), 'cancel_company_invitation(uuid): authenticated has EXECUTE');
 select ok(has_function_privilege('authenticated', 'public.accept_company_invitation(uuid)'::regprocedure, 'EXECUTE'), 'accept_company_invitation(uuid): authenticated has EXECUTE');
