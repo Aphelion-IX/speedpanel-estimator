@@ -179,13 +179,34 @@
    past the viewport (confirmed live: 1280px overflowed by exactly the
    amount this old 1180px threshold was short by). Collapsing to 2 columns
    only 146px later than the grid actually needs to is what caused it. */
+/* This 2-column tier (structure sidebar | main-column above summary,
+   stacked) is real iPad-landscape territory (1024-1194px) that no mockup
+   screenshot audit ever actually exercised -- the "iPad" viewport those
+   audits checked was 820px portrait, comfortably inside the single-column
+   tier below. Left as plain `grid-template-columns` + a lone `grid-column`
+   override on `.summary`, CSS Grid's row-auto-placement packs `.structure`
+   into row 1/col 1 and `.main-column` into row 1/col 2 (both un-positioned,
+   first-fit in DOM order), which pushes `.summary` (forced to col 2) down
+   into row 2/col 2 -- leaving row 2/col 1 entirely empty and capping
+   `.structure`'s sticky containing block at the bottom of row 1, so the
+   structure nav visually detaches partway down the page instead of
+   tracking the full scroll, and column 1 shows a large empty gap below it
+   for the rest of the page (confirmed live at 1024x1400: `.structure`'s
+   box ended at y=1237 while the workspace continued to y=2773). Named grid
+   areas make `.structure` explicitly span both rows instead of leaving it
+   to accidental auto-placement, which is what row-auto-placement was
+   presumably trying to achieve. */
 @media (max-width: 1340px) {
-  .est-shell .workspace { grid-template-columns: 240px 1fr; }
-  .est-shell .summary { grid-column: 2; position: static; }
+  .est-shell .workspace {
+    grid-template-columns: 240px 1fr;
+    grid-template-areas: "structure main" "structure summary";
+  }
+  .est-shell .structure { grid-area: structure; }
+  .est-shell .main-column { grid-area: main; }
+  .est-shell .summary { grid-area: summary; position: static; }
 }
 @media (max-width: 900px) {
-  .est-shell .workspace { grid-template-columns: 1fr; }
-  .est-shell .summary { grid-column: 1; }
+  .est-shell .workspace { grid-template-columns: 1fr; grid-template-areas: "structure" "main" "summary"; }
 }
 
 /* -- Wall / kit list cards (structure nav) -------------------------------------- */
