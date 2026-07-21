@@ -15,6 +15,15 @@ export type AdminSubPage = "dashboard" | "products" | "priceLists" | "systems" |
 // Admin > Companies wizard.
 export type CompanySubPage = "team" | "activity";
 
+// "Company Accounts & Pricing" -- a new top-level internal-staff workspace
+// (see AccountsRoot.tsx), separate from "admin" the same way "admin" itself
+// is its own top-level tab rather than nested under "projects": both are
+// reached via AuthStatus.tsx's account dropdown, never a TOP_NAV_ITEMS entry
+// (see topNav.tsx's header comment for why "admin" is excluded from that
+// list -- same reasoning applies here). "controlRoom" is the landing/
+// dashboard sub-page, same role "dashboard" plays for AdminSubPage above.
+export type AccountsSubPage = "controlRoom" | "companies" | "companyUsers" | "invitations" | "companyPricing" | "priceLists" | "permissions" | "auditHistory";
+
 export type Route =
   // Signed-out front door (sign-in) or signed-in overview dashboard --
   // see src/pages/home/. The default/fallback route (parseHash below),
@@ -41,6 +50,7 @@ export type Route =
   // have no saved project to attach to, see ProjectsRouter.tsx.
   | { tab: "projects"; id?: string; orderId?: string; newOrder?: boolean; quickOrder?: boolean; request?: boolean }
   | { tab: "admin"; sub: AdminSubPage }
+  | { tab: "accounts"; sub: AccountsSubPage }
   // Top-level (not nested under "projects") since it's about the signed-in
   // user's account/company membership, not any one project -- same reasoning
   // "admin" is its own top-level tab rather than nested somewhere else.
@@ -59,6 +69,7 @@ export type Route =
 
 const ADMIN_SUBPAGES: AdminSubPage[] = ["products", "priceLists", "systems", "maths", "documents", "requests", "projectReviews", "projectsAdmin", "users", "analytics", "auditLog", "orders", "manufacturing", "companies", "permissions", "deliveryRequests", "serviceRequests"];
 const COMPANY_SUBPAGES: CompanySubPage[] = ["team", "activity"];
+const ACCOUNTS_SUBPAGES: AccountsSubPage[] = ["controlRoom", "companies", "companyUsers", "invitations", "companyPricing", "priceLists", "permissions", "auditHistory"];
 
 function parseHash(hash: string): Route {
   const segments = hash.replace(/^#\/?/, "").split("/").filter(Boolean);
@@ -70,6 +81,10 @@ function parseHash(hash: string): Route {
   if (first === "company") {
     const sub = COMPANY_SUBPAGES.find(s => s === second) ?? "team";
     return { tab: "company", sub };
+  }
+  if (first === "accounts") {
+    const sub = ACCOUNTS_SUBPAGES.find(s => s === second) ?? "controlRoom";
+    return { tab: "accounts", sub };
   }
   if (first === "myRequests") return { tab: "myRequests" };
   if (first === "order") return { tab: "order" };
@@ -96,6 +111,7 @@ function parseHash(hash: string): Route {
 
 function routeToHash(route: Route): string {
   if (route.tab === "admin") return route.sub === "dashboard" ? "#/admin" : `#/admin/${route.sub}`;
+  if (route.tab === "accounts") return route.sub === "controlRoom" ? "#/accounts" : `#/accounts/${route.sub}`;
   if (route.tab === "company") return `#/company/${route.sub}`;
   if (route.tab === "home") return "#/";
   if (route.tab === "projects") {

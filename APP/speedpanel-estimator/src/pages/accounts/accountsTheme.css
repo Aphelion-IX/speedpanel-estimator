@@ -1,0 +1,126 @@
+/* =============================================================================
+   Company Accounts & Pricing -- scoped theme
+   =============================================================================
+   Unlike the other ported admin themes (estimatorTheme.css/projectsAdminTheme.css/
+   projectsTheme.css/ordersTheme.css, each sourced from a SEPARATE UI-DESIGNS
+   mockup bundle with its own literal, genuinely different hex palette), this
+   module's design reference is screenshots of the app's OWN real UI ("uses the
+   supplied desktop open-project page as the visual reference") -- so this file
+   deliberately does NOT shadow --navy/--blue/etc with a separate palette the
+   way .pa-shell/.est-shell do. It reads the app's real site-wide tokens
+   (styleTokens.ts's NAVY/BLUE/MUTED, ultimately index.css's --navy/--blue)
+   directly, and only adds new component classes for shapes that don't already
+   exist elsewhere in the app: a persistent dark sidebar rail (.cap-side/
+   .cap-nav, closely mirroring projectsAdminTheme.css's .pa-side/.pa-nav, which
+   IS the same shape) and a KPI-tile/action-queue-item grid (.cap-kpi/.cap-queue).
+   Everything here is scoped under .cap-shell so nothing outside this module is
+   touched. Built incrementally, phase by phase -- only what Phase 1's Control
+   Room actually needs exists so far; don't add speculative classes for later
+   phases' screens ahead of building them.
+   ============================================================================= */
+@import "../../ui/scopedThemeTokens.css";
+
+.cap-shell {
+  --cap-nav-bg: var(--sp-nav);
+  --cap-nav-text: #c7d3db;
+  --cap-nav-active-bg: rgba(255, 255, 255, .08);
+}
+
+.cap-layout { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 20px; align-items: start; }
+
+.cap-side {
+  background: var(--cap-nav-bg);
+  border-radius: 16px;
+  padding: 18px 12px;
+  position: sticky;
+  top: 12px;
+}
+.cap-nav-group + .cap-nav-group { margin-top: 18px; }
+.cap-nav-title {
+  padding: 0 12px 8px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, .35);
+}
+.cap-nav { display: flex; flex-direction: column; gap: 4px; }
+.cap-nav button, .cap-nav a {
+  all: unset;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--cap-nav-text);
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 650;
+  box-sizing: border-box;
+  width: 100%;
+}
+.cap-nav button.active { background: var(--cap-nav-active-bg); color: #fff; box-shadow: inset 3px 0 0 color-mix(in srgb, var(--blue) 80%, white 20%); }
+.cap-nav button:hover:not(.active) { background: rgba(255, 255, 255, .05); }
+.cap-nav .cap-nav-count {
+  margin-left: auto;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .12);
+  color: rgba(255, 255, 255, .75);
+}
+
+.cap-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
+.cap-kpi { border: 1px solid var(--sp-line); background: var(--sp-surface); border-radius: 13px; padding: 13px 15px; }
+.cap-kpi-label { display: block; font-size: 9px; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; color: var(--sp-muted2, var(--sp-muted)); }
+.cap-kpi-value { display: block; font-size: 26px; font-weight: 800; margin-top: 5px; color: var(--navy); letter-spacing: -.02em; }
+
+.cap-queue-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 13px 14px;
+  border: 1px solid var(--sp-line);
+  border-radius: 13px;
+  background: var(--sp-surface);
+}
+.cap-queue-item + .cap-queue-item { margin-top: 9px; }
+.cap-queue-icon {
+  width: 32px; height: 32px; border-radius: 10px; flex: 0 0 auto;
+  display: grid; place-items: center;
+  background: color-mix(in srgb, var(--blue) 10%, var(--sp-surface));
+  color: var(--blue);
+}
+.cap-queue-icon.warn { background: color-mix(in srgb, var(--sp-red) 12%, var(--sp-surface)); color: var(--sp-red); }
+.cap-queue-copy { min-width: 0; flex: 1; }
+.cap-queue-copy strong { display: block; font-size: 13px; color: var(--navy); }
+.cap-queue-copy span { display: block; font-size: 11px; color: var(--sp-muted); margin-top: 2px; }
+
+.cap-allocation-item {
+  border: 1px solid var(--sp-line);
+  border-radius: 13px;
+  padding: 12px 14px;
+  background: var(--sp-surface);
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+.cap-allocation-item + .cap-allocation-item { margin-top: 9px; }
+.cap-allocation-item strong { display: block; font-size: 13px; color: var(--navy); }
+.cap-allocation-item span { display: block; font-size: 11px; color: var(--sp-muted); margin-top: 2px; }
+.cap-allocation-count {
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--navy);
+  background: var(--sp-bg);
+  border-radius: 999px;
+  padding: 3px 10px;
+  flex: 0 0 auto;
+}
+
+@media (max-width: 900px) {
+  .cap-layout { grid-template-columns: 1fr; }
+  .cap-side { position: static; }
+}

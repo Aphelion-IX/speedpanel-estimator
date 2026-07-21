@@ -43,6 +43,9 @@ import type { WallSystemOption } from "./systemSelector/systemOptions";
 // so the entire Admin section (ten sub-pages' worth of code) is only
 // fetched once someone actually navigates there. See AdminRoot.tsx.
 const AdminRoot = lazy(() => import("./pages/admin/AdminRoot").then(m => ({ default: m.AdminRoot })));
+// Same reasoning as AdminRoot above -- the Company Accounts & Pricing
+// workspace is a separate top-level, staff-only area (see AccountsRoot.tsx).
+const AccountsRoot = lazy(() => import("./pages/accounts/AccountsRoot").then(m => ({ default: m.AccountsRoot })));
 
 export type WallSystemId = "standard" | "corner" | "shaft";
 
@@ -72,6 +75,7 @@ export default function SpeedpanelEstimator() {
   const { route, navigate } = useHashRoute();
   const switchTab = (tab: TopNavTab) =>
     tab === "admin" ? navigate({ tab: "admin", sub: "dashboard" })
+    : tab === "accounts" ? navigate({ tab: "accounts", sub: "controlRoom" })
     : tab === "company" ? navigate({ tab: "company", sub: "team" })
     : navigate({ tab });
   const { effective: layoutMode, toggleLayout } = useLayoutMode();
@@ -419,6 +423,12 @@ export default function SpeedpanelEstimator() {
         {route.tab === "admin" && (
           <Suspense fallback={<LoadingState className="mt-6" />}>
             <AdminRoot route={route} navigate={navigate} layoutMode={layoutMode} auth={auth} />
+          </Suspense>
+        )}
+
+        {route.tab === "accounts" && (
+          <Suspense fallback={<LoadingState className="mt-6" />}>
+            <AccountsRoot route={route} navigate={navigate} auth={auth} />
           </Suspense>
         )}
 
