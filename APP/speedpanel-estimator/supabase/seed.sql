@@ -32,6 +32,12 @@
 -- See supabase/teardown-e2e.sql to remove everything this file creates.
 -- =============================================================================
 \set seed_password `printf '%s' "${E2E_SEED_PASSWORD:?Set E2E_SEED_PASSWORD before running seed.sql -- see e2e/README.md}"`
+-- psql's :'var' substitution never reaches inside a `do $$ ... $$` body --
+-- dollar-quoting is opaque to it by design (that's the whole point of
+-- dollar-quoting: protecting code from further client-side munging) -- so
+-- bridge it through a session-scoped GUC instead of referencing
+-- :'seed_password' directly inside the block below.
+select set_config('app.seed_password', :'seed_password', false);
 
 -- ---------------------------------------------------------------------------
 -- 1. Auth users + identities (triggers handle_new_user(), which creates the
@@ -40,7 +46,7 @@
 -- ---------------------------------------------------------------------------
 do $$
 declare
-  v_password text := :'seed_password';
+  v_password text := current_setting('app.seed_password');
   v_users jsonb := '[
     {"id": "eeeeeeee-0000-0000-0000-000000000001", "email": "admin@e2e.test"},
     {"id": "eeeeeeee-0000-0000-0000-000000000002", "email": "project-manager@e2e.test"},
