@@ -5291,6 +5291,270 @@ revoke execute on function public.create_order(uuid, jsonb, text) from public, a
 grant execute on function public.create_order(uuid, jsonb, text) to authenticated;
 
 -- =============================================================================
+-- Company Accounts & Pricing Phase 11 -- companies.status enforcement
+-- =============================================================================
+-- Makes companies.status (expanded to its 5-state model back in Phase 2)
+-- actually gate something for the first time -- until now every one of
+-- these states was purely informational. On Hold and Suspended are
+-- functionally identical for order-blocking purposes (per the plan's own
+-- resolved decision); On Hold additionally gets the reason/review-date/
+-- hold-details tracking the mockup shows, Suspended does not.
+alter table companies add column if not exists hold_reason text;
+alter table companies add column if not exists hold_applied_by uuid references auth.users (id);
+alter table companies add column if not exists hold_placed_at timestamptz;
+alter table companies add column if not exists hold_review_date date;
+
+-- p_hold_review_date is appended, not inserted among the existing params --
+-- dropped and recreated (not a bare `create or replace`) since appending an
+-- IN parameter changes the function's argument-type signature, same
+-- convention admin_create_company()/admin_list_staff_candidates() already
+-- follow elsewhere in this file. Setting status to 'on_hold' now populates
+-- hold_reason/hold_applied_by/hold_placed_at/hold_review_date; setting it
+-- to anything else clears all four, so a company that cycles on_hold ->
+-- active -> on_hold again always shows only the CURRENT hold's own details,
+-- never a stale one from a previous hold.
+drop function if exists public.admin_set_company_status(uuid, text, text);
+
+create or replace function public.admin_set_company_status(
+  p_company_id uuid, p_status text, p_reason text default null, p_hold_review_date date default null
+) returns void
+language plpgsql security definer
+set search_path = public
+as $$
+declare
+  v_old_status text;
+begin
+  if not public.has_permission('companies.set_status') then raise exception 'Not authorized'; end if;
+  if p_status not in ('pending', 'active', 'on_hold', 'suspended', 'archived') then raise exception 'Invalid status'; end if;
+
+  select status into v_old_status from companies where id = p_company_id;
+  if not found then raise exception 'Company not found'; end if;
+
+  update companies set
+    status = p_status,
+    hold_reason = case when p_status = 'on_hold' then p_reason else null end,
+    hold_applied_by = case when p_status = 'on_hold' then auth.uid() else null end,
+    hold_placed_at = case when p_status = 'on_hold' then now() else null end,
+    hold_review_date = case when p_status = 'on_hold' then p_hold_review_date else null end,
+    updated_at = now()
+  where id = p_company_id;
+  perform public.log_audit(p_company_id, auth.uid(), 'company_status_changed', null, null,
+    jsonb_build_object('from', v_old_status, 'to', p_status, 'reason', p_reason));
+end;
+$$;
+revoke execute on function public.admin_set_company_status(uuid, text, text, date) from public, anon;
+grant execute on function public.admin_set_company_status(uuid, text, text, date) to authenticated;
+
+-- Redefines can_submit_orders() (originally further up this file) with an
+-- early-exit: On Hold/Suspended blocks submission regardless of the
+-- existing owner/admin/company-role checks, UNLESS the caller is Speedpanel
+-- staff (is_admin() bypasses -- staff routinely need to act on a held
+-- company's behalf to help resolve whatever the hold is for, same
+-- "is_admin() overrides company-level restrictions" precedent every other
+-- company-scoped check in this file already follows). p_company_id null
+-- (a solo, company-less project) is never blocked -- there's no company
+-- status to check.
+create or replace function public.can_submit_orders(p_owner_id uuid, p_company_id uuid, p_project_id uuid) returns boolean
+language sql security definer stable
+set search_path = public
+as $$
+  select
+    public.is_admin()
+    or (
+      not exists (select 1 from companies c where c.id = p_company_id and c.status in ('on_hold', 'suspended'))
+      and (
+        auth.uid() = p_owner_id
+        or (p_company_id is not null and exists (
+          select 1 from company_memberships cm
+          where cm.company_id = p_company_id and cm.user_id = auth.uid() and cm.status = 'active'
+            and cm.role in ('owner', 'admin', 'project_manager')
+        ))
+      )
+    );
+$$;
+revoke execute on function public.can_submit_orders(uuid, uuid, uuid) from public, anon;
+grant execute on function public.can_submit_orders(uuid, uuid, uuid) to authenticated;
+
+-- Redefines create_order() (Phase 10, further up this file) with the same
+-- On Hold/Suspended block, checked right after resolving the project's
+-- owner/company -- "block new quote/order creation" from the plan's own
+-- Phase 11 scope note, closing the one order-creation path Phase 10 built
+-- that didn't exist yet when that note was first written. Everything else
+-- is unchanged from the Phase 10 definition.
+create or replace function public.create_order(p_project_id uuid, p_line_items jsonb, p_customer_note text default null)
+returns orders
+language plpgsql security definer
+set search_path = public
+as $$
+declare
+  v_owner_id uuid;
+  v_company_id uuid;
+  v_company_status text;
+  v_order_plv_id uuid;
+  v_resolved jsonb;
+  v_subtotal numeric;
+  v_gst numeric;
+  v_total numeric;
+  v_unpriced int;
+  v_row orders%rowtype;
+begin
+  if jsonb_typeof(p_line_items) is distinct from 'array' or jsonb_array_length(p_line_items) = 0 then
+    raise exception 'Order must have at least one line item';
+  end if;
+
+  select p.owner_id, p.company_id into v_owner_id, v_company_id from projects p where p.id = p_project_id;
+  if v_owner_id is null then raise exception 'Project not found'; end if;
+  if not public.can_edit_project(v_owner_id, v_company_id, p_project_id) then raise exception 'Not authorized'; end if;
+
+  if v_company_id is not null and not public.is_admin() then
+    select status into v_company_status from companies where id = v_company_id;
+    if v_company_status in ('on_hold', 'suspended') then
+      raise exception 'This company''s account is currently % -- new orders can''t be created until it''s reactivated', v_company_status;
+    end if;
+  end if;
+
+  if exists (
+    select 1 from jsonb_array_elements(p_line_items) li
+    where coalesce(li->>'id', '') = ''
+       or (li->>'category') not in ('panel', 'custom_panel', 'track', 'fixing', 'sealant')
+       or coalesce((li->>'qty')::numeric, 0) <= 0
+  ) then
+    raise exception 'Every line item needs an id and a recognized category, and quantity must be positive';
+  end if;
+
+  select public.current_price_list_version_id(price_list_id) into v_order_plv_id
+    from companies where id = v_company_id;
+
+  select
+    jsonb_agg(jsonb_build_object(
+      'id', li->>'id',
+      'category', li->>'category',
+      'label', li->>'label',
+      'qty', (li->>'qty')::numeric,
+      'unit', li->>'unit',
+      'productId', li->>'productId',
+      'unitPriceExGst', r.price,
+      'lineTotalExGst', case when r.price is not null then round(r.price * (li->>'qty')::numeric, 2) else 0 end,
+      'matched', r.price is not null,
+      'priceSource', r.source,
+      'priceListVersionId', r.price_list_version_id,
+      'overrideId', r.override_id
+    )),
+    coalesce(round(sum(case when r.price is not null then r.price * (li->>'qty')::numeric else 0 end), 2), 0),
+    coalesce(count(*) filter (where r.price is null), 0)
+    into v_resolved, v_subtotal, v_unpriced
+  from jsonb_array_elements(p_line_items) li
+  left join lateral public.resolve_effective_price(
+    v_company_id, li->>'category', nullif(li->>'productId', '')::uuid
+  ) r on true;
+
+  v_gst := round(v_subtotal * 0.10, 2);
+  v_total := v_subtotal + v_gst;
+
+  insert into orders (
+    project_id, owner_id, line_items, subtotal_ex_gst, gst_rate, gst_amount, total_inc_gst,
+    unpriced_item_count, customer_note, price_list_version_id
+  ) values (
+    p_project_id, auth.uid(), v_resolved, v_subtotal, 0.10, v_gst, v_total,
+    v_unpriced, nullif(trim(p_customer_note), ''), v_order_plv_id
+  ) returning * into v_row;
+
+  return v_row;
+end;
+$$;
+revoke execute on function public.create_order(uuid, jsonb, text) from public, anon;
+grant execute on function public.create_order(uuid, jsonb, text) to authenticated;
+
+-- Pending Setup checklist (CompanyOverviewPage.tsx, staff-only module) --
+-- a computed function rather than a stored/maintained percentage, so it can
+-- never drift out of sync with the data it's checking. "Pricing set up" is
+-- read as "assigned a price list OTHER than the automatic PL1 default, OR
+-- has at least one item override" -- companies.price_list_id has been NOT
+-- NULL (every company defaults to PL1) since Phase 6, so "has a price
+-- list" alone would trivially always be true and never signal real
+-- completion; this is the from-scratch call needed to make it a genuine
+-- checklist item, not a spec violation (the plan's own text just says "has
+-- a price list or >=1 override").
+create or replace function public.company_onboarding_progress(p_company_id uuid)
+returns table (has_legal_details boolean, has_owner boolean, has_default_address boolean, has_pricing_setup boolean)
+language sql security definer stable
+set search_path = public
+as $$
+  select
+    coalesce(nullif(trim(c.legal_name), ''), null) is not null and coalesce(nullif(trim(c.abn), ''), null) is not null,
+    exists (select 1 from company_memberships cm where cm.company_id = c.id and cm.role = 'owner' and cm.status = 'active'),
+    exists (select 1 from company_addresses a where a.company_id = c.id and a.is_default),
+    (c.price_list_id is not null and c.price_list_id <> (select id from price_lists where is_default))
+      or exists (select 1 from company_price_overrides o where o.company_id = c.id)
+  from companies c
+  where c.id = p_company_id and public.has_permission('companies.list');
+$$;
+revoke execute on function public.company_onboarding_progress(uuid) from public, anon;
+grant execute on function public.company_onboarding_progress(uuid) to authenticated;
+
+-- Redefines admin_list_companies() (originally further up this file) to
+-- also carry the 4 new hold_* columns plus a resolved display name for
+-- hold_applied_by. Unlike every prior SELECT-list-only change to this
+-- function, widening a `returns table(...)` function's OUTPUT COLUMNS is
+-- NOT a compatible `create or replace` -- Postgres rejects it ("cannot
+-- change return type of existing function") since the row type itself
+-- changes, not just the query body. Drop-and-recreate, same as any other
+-- signature-changing redefinition in this file.
+drop function if exists public.admin_list_companies();
+
+create or replace function public.admin_list_companies()
+returns table (
+  id uuid, name text, member_count bigint, created_at timestamptz,
+  legal_name text, trading_name text, abn text, account_code text,
+  billing_email text, phone text, address text, status text,
+  payment_terms text, internal_notes text,
+  price_list_id uuid, price_list_name text,
+  primary_user_name text, primary_user_email text, internal_owner_name text,
+  hold_reason text, hold_applied_by_name text, hold_placed_at timestamptz, hold_review_date date
+)
+language sql security definer stable
+set search_path = public
+as $$
+  select
+    c.id, coalesce(c.trading_name, c.legal_name), count(cm.id) filter (where cm.status = 'active'), c.created_at,
+    c.legal_name, c.trading_name, c.abn, c.customer_account_number,
+    c.billing_email, c.phone, c.address, c.status,
+    c.payment_terms, c.internal_notes,
+    c.price_list_id, pl.name,
+    owner.display_name_or_email, owner.email, creator.display_name_or_email,
+    c.hold_reason, holder.display_name_or_email, c.hold_placed_at, c.hold_review_date
+  from companies c
+  left join company_memberships cm on cm.company_id = c.id
+  left join price_lists pl on pl.id = c.price_list_id
+  left join lateral (
+    select coalesce(p.display_name, u.email) as display_name_or_email, u.email
+    from company_memberships owner_cm
+    join profiles p on p.id = owner_cm.user_id
+    join auth.users u on u.id = owner_cm.user_id
+    where owner_cm.company_id = c.id and owner_cm.role = 'owner' and owner_cm.status = 'active'
+    limit 1
+  ) owner on true
+  left join lateral (
+    select coalesce(p.display_name, u.email) as display_name_or_email
+    from profiles p join auth.users u on u.id = p.id
+    where p.id = c.created_by
+  ) creator on true
+  left join lateral (
+    select coalesce(p.display_name, u.email) as display_name_or_email
+    from profiles p join auth.users u on u.id = p.id
+    where p.id = c.hold_applied_by
+  ) holder on true
+  where public.has_permission('companies.list')
+  group by c.id, c.trading_name, c.legal_name, c.created_at, c.abn, c.customer_account_number,
+    c.billing_email, c.phone, c.address, c.status, c.payment_terms, c.internal_notes,
+    c.price_list_id, pl.name, owner.display_name_or_email, owner.email, creator.display_name_or_email,
+    c.hold_reason, holder.display_name_or_email, c.hold_placed_at, c.hold_review_date
+  order by c.created_at desc;
+$$;
+revoke execute on function public.admin_list_companies() from public, anon;
+grant execute on function public.admin_list_companies() to authenticated;
+
+-- =============================================================================
 -- Support & Services -- service_requests (minimal: table + read policies)
 -- =============================================================================
 -- The customer/admin Support & Services UI (ProjectServicesCard.tsx,

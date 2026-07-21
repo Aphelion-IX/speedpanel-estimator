@@ -247,3 +247,30 @@ export function useCompanyProjects(companyId: string | null) {
 
   return projects;
 }
+
+// Company Accounts & Pricing Phase 11: does THIS company's own status
+// currently block new order/quote creation? A plain select against
+// companies.status (readable by any active member via "Company members can
+// read their own company", the same RLS row create_order()/
+// can_submit_orders() enforce server-side too -- this hook is purely the
+// customer-facing "why is Create order disabled" explanation, not the
+// actual gate) -- companyId null (a solo, company-less project) never
+// blocks, same as server-side.
+export function useCompanyOrderRestriction(companyId: string | null) {
+  const [blocked, setBlocked] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!supabase || !companyId) { setBlocked(false); setLoading(false); return; }
+    let cancelled = false;
+    setLoading(true);
+    supabase.from("companies").select("status").eq("id", companyId).maybeSingle().then(({ data }) => {
+      if (cancelled) return;
+      setBlocked(data?.status === "on_hold" || data?.status === "suspended");
+      setLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [companyId]);
+
+  return { blocked, loading };
+}

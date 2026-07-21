@@ -24,7 +24,7 @@
 -- and add the corresponding `ok(...)` line below (bump plan() to match).
 -- =============================================================================
 begin;
-select plan(87);
+select plan(88);
 
 select ok(has_function_privilege('authenticated', 'public.is_admin()'::regprocedure, 'EXECUTE'), 'is_admin(): authenticated has EXECUTE');
 select ok(has_function_privilege('authenticated', 'public.has_staff_role(text[])'::regprocedure, 'EXECUTE'), 'has_staff_role(text[]): authenticated has EXECUTE');
@@ -55,7 +55,10 @@ select ok(has_function_privilege('authenticated', 'public.can_edit_project(uuid,
 select ok(has_function_privilege('authenticated', 'public.can_submit_orders(uuid, uuid, uuid)'::regprocedure, 'EXECUTE'), 'can_submit_orders(uuid, uuid, uuid): authenticated has EXECUTE');
 select ok(has_function_privilege('authenticated', 'public.log_audit(uuid, uuid, text, uuid, uuid, jsonb)'::regprocedure, 'EXECUTE'), 'log_audit(uuid, uuid, text, uuid, uuid, jsonb): authenticated has EXECUTE');
 select ok(has_function_privilege('authenticated', 'public.admin_create_company(text, text, text, text, text, text, text, text, text)'::regprocedure, 'EXECUTE'), 'admin_create_company(text, text, text, text, text, text, text, text, text): authenticated has EXECUTE');
-select ok(has_function_privilege('authenticated', 'public.admin_set_company_status(uuid, text, text)'::regprocedure, 'EXECUTE'), 'admin_set_company_status(uuid, text, text): authenticated has EXECUTE');
+-- Phase 11 (Company Accounts & Pricing) redefines this with an appended
+-- p_hold_review_date param -- the original 3-arg overload is dropped
+-- outright (see supabase/schema.sql), so this asserts the 4-arg signature.
+select ok(has_function_privilege('authenticated', 'public.admin_set_company_status(uuid, text, text, date)'::regprocedure, 'EXECUTE'), 'admin_set_company_status(uuid, text, text, date): authenticated has EXECUTE');
 select ok(has_function_privilege('authenticated', 'public.admin_company_activity_counts(uuid)'::regprocedure, 'EXECUTE'), 'admin_company_activity_counts(uuid): authenticated has EXECUTE');
 select ok(has_function_privilege('authenticated', 'public.resend_company_invitation(uuid)'::regprocedure, 'EXECUTE'), 'resend_company_invitation(uuid): authenticated has EXECUTE');
 select ok(has_function_privilege('authenticated', 'public.cancel_company_invitation(uuid)'::regprocedure, 'EXECUTE'), 'cancel_company_invitation(uuid): authenticated has EXECUTE');
@@ -124,6 +127,8 @@ select ok(has_function_privilege('authenticated', 'public.admin_delete_company_p
 -- it's revoked from authenticated entirely (see its own schema.sql comment),
 -- unlike every other RPC this file asserts EXECUTE for.
 select ok(has_function_privilege('authenticated', 'public.create_order(uuid, jsonb, text)'::regprocedure, 'EXECUTE'), 'create_order(uuid, jsonb, text): authenticated has EXECUTE');
+-- Phase 11 (Company Accounts & Pricing): companies.status enforcement.
+select ok(has_function_privilege('authenticated', 'public.company_onboarding_progress(uuid)'::regprocedure, 'EXECUTE'), 'company_onboarding_progress(uuid): authenticated has EXECUTE');
 
 select * from finish();
 rollback;

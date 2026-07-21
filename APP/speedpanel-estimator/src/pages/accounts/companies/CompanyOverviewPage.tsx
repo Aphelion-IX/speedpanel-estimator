@@ -13,7 +13,7 @@
 // project/order KPI tiles.
 // =============================================================================
 import { useState } from "react";
-import { Building2, Users as UsersIcon, ListTree, ClipboardList } from "lucide-react";
+import { Building2, Users as UsersIcon, ListTree, ClipboardList, AlertTriangle, CheckCircle2, Circle } from "lucide-react";
 import { cx, NAVY, MUTED, BLUE, tone } from "../../../styleTokens";
 import { LoadingState, ErrorState } from "../../../ui/states";
 import { Button } from "../../../ui/button";
@@ -21,7 +21,7 @@ import { Tabs, TabPanel } from "../../../ui/tabs";
 import { PlaceholderPage } from "../../PlaceholderPage";
 import type { Route } from "../../../appShell/useHashRoute";
 import {
-  useAdminCompanies, useCompanyActivityCounts, adminSetCompanyStatus,
+  useAdminCompanies, useCompanyActivityCounts, useCompanyOnboardingProgress, adminSetCompanyStatus,
   COMPANY_STATUS_LABELS, COMPANY_STATUSES, type AdminCompanyRow, type CompanyStatus,
 } from "../../admin/companies/companiesStore";
 import { CompanyAddressesTab } from "./CompanyAddressesTab";
@@ -42,6 +42,7 @@ const KV = ({ label, value }: { label: string; value: React.ReactNode }) => (
 const StatusChanger = ({ company, onChanged }: { company: AdminCompanyRow; onChanged: () => void }) => {
   const [status, setStatus] = useState<CompanyStatus>(company.status);
   const [reason, setReason] = useState("");
+  const [reviewDate, setReviewDate] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
@@ -51,11 +52,12 @@ const StatusChanger = ({ company, onChanged }: { company: AdminCompanyRow; onCha
   const submit = async () => {
     setSubmitting(true);
     setError(null);
-    const err = await adminSetCompanyStatus(company.id, status, reason.trim() || undefined);
+    const err = await adminSetCompanyStatus(company.id, status, reason.trim() || undefined, status === "on_hold" ? reviewDate || undefined : undefined);
     setSubmitting(false);
     if (err) { setError(err); return; }
     setOpen(false);
     setReason("");
+    setReviewDate("");
     onChanged();
   };
 
@@ -68,10 +70,76 @@ const StatusChanger = ({ company, onChanged }: { company: AdminCompanyRow; onCha
         value={reason} onChange={e => setReason(e.target.value)}
         placeholder="Reason (optional)" className={cx.input + " w-56"}
       />
+      {status === "on_hold" && (
+        <label className="flex items-center gap-2 text-sm" style={{ color: NAVY }}>
+          Review date
+          <input type="date" value={reviewDate} onChange={e => setReviewDate(e.target.value)} className={cx.input + " w-auto"} />
+        </label>
+      )}
       <Button onClick={submit} disabled={submitting}>{submitting ? "Saving..." : "Save"}</Button>
       <Button variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
       {error && <p className="w-full text-sm text-red-600 dark:text-red-300">{error}</p>}
     </div>
+  );
+};
+
+// Shown for both On Hold and Suspended (functionally identical for order-
+// blocking purposes, per the plan's own resolved decision) -- the richer
+// reason/applied-by/review-date card below is On-Hold-only, since Suspended
+// carries no such tracking.
+const RestrictionsBanner = ({ status }: { status: CompanyStatus }) => (
+  <section className={`${cx.card} flex items-start gap-3 border-l-4 border-amber-500`}>
+    <AlertTriangle size={18} className="mt-0.5 shrink-0 text-amber-500" />
+    <div>
+      <p className="text-sm font-semibold" style={{ color: NAVY }}>
+        This company is {status === "on_hold" ? "On Hold" : "Suspended"}
+      </p>
+      <ul className="mt-1 list-disc pl-4 text-sm" style={{ color: MUTED }}>
+        <li>New orders and pro forma requests can't be created for this company</li>
+        <li>Existing projects, orders, and order history remain fully visible</li>
+        <li>Company users can still sign in, browse, and estimate as normal</li>
+      </ul>
+    </div>
+  </section>
+);
+
+const HoldDetailsCard = ({ company }: { company: AdminCompanyRow }) => (
+  <section className={cx.card}>
+    <h2 className={cx.h3}>Hold details</h2>
+    <div className="mt-3">
+      <KV label="Reason" value={company.hold_reason ?? "—"} />
+      <KV label="Applied by" value={company.hold_applied_by_name ?? "—"} />
+      <KV label="Placed on" value={company.hold_placed_at ? new Date(company.hold_placed_at).toLocaleString() : "—"} />
+      <KV label="Review date" value={company.hold_review_date ? new Date(company.hold_review_date).toLocaleDateString() : "—"} />
+    </div>
+  </section>
+);
+
+const ChecklistRow = ({ done, label }: { done: boolean; label: string }) => (
+  <div className="flex items-center gap-2 text-sm" style={{ color: done ? NAVY : MUTED }}>
+    {done ? <CheckCircle2 size={16} className="shrink-0 text-emerald-600 dark:text-emerald-400" /> : <Circle size={16} className="shrink-0" style={{ color: MUTED }} />}
+    {label}
+  </div>
+);
+
+// Pending Setup checklist -- informational only, no auto-transition to
+// Active. Staff still changes status explicitly via StatusChanger above;
+// this just tells them what's outstanding.
+const PendingSetupCard = ({ companyId }: { companyId: string }) => {
+  const { progress, loading } = useCompanyOnboardingProgress(companyId);
+  if (loading || !progress) return null;
+
+  return (
+    <section className={cx.card}>
+      <h2 className={cx.h3}>Pending Setup</h2>
+      <p className="mt-1 text-sm" style={{ color: MUTED }}>Steps to complete before this company is ready to go Active.</p>
+      <div className="mt-3 space-y-2">
+        <ChecklistRow done={progress.has_legal_details} label="Legal name and ABN on file" />
+        <ChecklistRow done={progress.has_owner} label="A Primary User (owner) has been added" />
+        <ChecklistRow done={progress.has_default_address} label="A default address has been saved" />
+        <ChecklistRow done={progress.has_pricing_setup} label="Pricing has been set up (an assigned list or an item override)" />
+      </div>
+    </section>
   );
 };
 
@@ -98,6 +166,16 @@ const OverviewTab = ({ company, onOpenUsers }: { company: AdminCompanyRow; onOpe
           <span className="cap-kpi-value">{counts?.order_count ?? "—"}</span>
         </div>
       </div>
+
+      {company.status === "pending" && (
+        <div className="mt-6"><PendingSetupCard companyId={company.id} /></div>
+      )}
+      {(company.status === "on_hold" || company.status === "suspended") && (
+        <div className="mt-6"><RestrictionsBanner status={company.status} /></div>
+      )}
+      {company.status === "on_hold" && (
+        <div className="mt-5"><HoldDetailsCard company={company} /></div>
+      )}
 
       <div className="mt-6 grid grid-cols-1 gap-5 lg:grid-cols-2">
         <section className={cx.card}>

@@ -41,6 +41,12 @@ const AdminCompanyRowSchema = z.object({
   price_list_id: z.string().nullable(), price_list_name: z.string().nullable(),
   primary_user_name: z.string().nullable(), primary_user_email: z.string().nullable(),
   internal_owner_name: z.string().nullable(),
+  // Phase 11 (Company Accounts & Pricing): only ever populated while
+  // status === 'on_hold' -- admin_set_company_status() clears all four the
+  // moment status changes to anything else, so these never show a stale
+  // hold's details.
+  hold_reason: z.string().nullable(), hold_applied_by_name: z.string().nullable(),
+  hold_placed_at: z.string().nullable(), hold_review_date: z.string().nullable(),
 });
 export type AdminCompanyRow = z.infer<typeof AdminCompanyRowSchema>;
 
@@ -98,13 +104,45 @@ export function useAdminCreateCompany() {
 }
 
 // admin_set_company_status() -- Phase 2's status editor, used by
-// CompanyOverviewPage.tsx's status badge/action.
-export async function adminSetCompanyStatus(companyId: string, status: CompanyStatus, reason?: string): Promise<string | null> {
+// CompanyOverviewPage.tsx's status badge/action. holdReviewDate (Phase 11)
+// only matters when status is 'on_hold' -- the RPC itself ignores/clears it
+// for every other status, so passing it regardless of the target status is
+// harmless.
+export async function adminSetCompanyStatus(companyId: string, status: CompanyStatus, reason?: string, holdReviewDate?: string): Promise<string | null> {
   if (!supabase) return NOT_CONFIGURED;
   const { error } = await supabase.rpc("admin_set_company_status", {
-    p_company_id: companyId, p_status: status, p_reason: reason || null,
+    p_company_id: companyId, p_status: status, p_reason: reason || null, p_hold_review_date: holdReviewDate || null,
   });
   return error ? error.message : null;
+}
+
+const OnboardingProgressSchema = z.object({
+  has_legal_details: z.boolean(), has_owner: z.boolean(), has_default_address: z.boolean(), has_pricing_setup: z.boolean(),
+});
+export type OnboardingProgress = z.infer<typeof OnboardingProgressSchema>;
+
+// company_onboarding_progress() -- Phase 11's Pending Setup checklist, a
+// computed function server-side (never a stored percentage) so it can't
+// drift out of sync with the data it's checking.
+export function useCompanyOnboardingProgress(companyId: string | null) {
+  const [progress, setProgress] = useState<OnboardingProgress | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!supabase || !companyId) { setLoading(false); setError(companyId ? NOT_CONFIGURED : null); return; }
+    setLoading(true);
+    supabase.rpc("company_onboarding_progress", { p_company_id: companyId }).then(({ data, error: err }) => {
+      if (err) { setError(err.message); setLoading(false); return; }
+      const row = Array.isArray(data) ? data[0] : data;
+      const parsed = OnboardingProgressSchema.safeParse(row);
+      if (!parsed.success) { setError(BAD_SHAPE); setLoading(false); return; }
+      setProgress(parsed.data);
+      setLoading(false);
+    });
+  }, [companyId]);
+
+  return { progress, loading, error };
 }
 
 const ActivityCountsSchema = z.object({ project_count: z.number(), order_count: z.number() });
