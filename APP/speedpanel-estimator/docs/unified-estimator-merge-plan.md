@@ -484,6 +484,80 @@ CSS with no extra config needed. Verified live: read every resolved CSS custom p
 byte-identical in every case, confirming the refactor is a pure structural no-op with zero visible
 change. Full verification suite (typecheck/test/build/depcruise) clean, 187 tests passing.
 
+**Follow-up bug fix: estimator `.workspace` 2-column tier leaving a dead gap at iPad-landscape
+widths — DONE.** User report: "the iPad view system estimator is not rendering correctly and
+there are gaps in the overall structure." The 900–1340px breakpoint tier (`.workspace`'s
+`grid-template-columns: 240px 1fr`, added long before this branch, in the original mockup port
+`f0351ff` — not something any fix in this branch introduced) covers real iPad-landscape widths
+(1024–1194px) and iPad Pro 12.9" portrait (1024px), a range no prior mockup-parity audit actually
+exercised — the "iPad" viewport those audits screenshotted was 820px portrait, which sits inside
+the single-column tier below 900px, so this tier's own bug went unnoticed. The CSS only gave
+`.summary` an explicit `grid-column: 2` override, leaving `.structure` and `.main-column`
+un-positioned; CSS Grid's row-auto-placement (row-major, DOM order) packed `.structure` into row
+1/col 1 and `.main-column` into row 1/col 2 first, which then forced `.summary` into row 2/col 2 —
+leaving row 2/col 1 completely empty and capping `.structure`'s sticky containing block at the
+bottom of row 1. Confirmed live at 1024×1400: `.structure`'s box ended at document y=1237 while
+the workspace continued to y=2773 — an ~1536px dead zone in the left column, during which the
+sticky structure nav had already detached and stopped tracking the scroll (it doesn't resume once
+past its own grid cell), reading as the structure sidebar "disappearing" mid-scroll while a large
+blank gap sits in its place. Fixed with explicit `grid-template-areas` (`"structure main"
+"structure summary"`) so `.structure`'s single named cell spans both rows instead of being left to
+accidental auto-placement — this is what the row-auto-placement was presumably trying (and failing)
+to achieve, given the sidebar's `position: sticky` styling only makes sense meant to track the full
+column height. Also gave the single-column (<900px) tier the equivalent `"structure" "main"
+"summary"` areas instead of leaving `.summary` on a bare `grid-column: 1` override, for the same
+robustness reason, though that tier had no observable bug (a true 1-column grid has nowhere for
+auto-placement to go wrong). Verified live: a width sweep at 700/899/900/901/1024/1080/1200/1340/
+1341/1600/1920px confirms the exact breakpoint boundaries switch cleanly with zero horizontal
+overflow at any width; scroll-position sampling at 1024px confirms `.structure` now stays visible
+(sticky, pinned near the top of the viewport) well past the old dead-zone boundary instead of
+detaching; light and dark mode both screenshotted at 1024px and correctly themed. Full verification
+suite (typecheck/test/build/depcruise) clean, 187 tests passing.
+
+**Follow-up bug fix: Wall geometry card's Profile/Dimensions split showing the same dead-gap
+pattern — DONE.** User screenshot report right after the fix above: the "Wall geometry" card's
+Profile row (label + Standard/Raked/Gable icons) rendered across the full card width at the top,
+then Dimensions/Width/Height/Preview/Span table were all squeezed into roughly the left half only,
+with a large blank gap on the right for the rest of the card. Root cause was the same class of CSS
+Grid auto-placement bug as the iPad fix above, just in a different component: `Calculator.tsx`'s
+`geometryContent` renders straight into `.geometry-body`'s 2-column grid (`ui/estimatorTheme.css`)
+expecting exactly two top-level children -- one per column -- but `wallConfig.tsx`'s
+`ProfileSection` returns a bare fragment (its own "Profile" label div and `<ProfileSelector>` as
+two separate un-wrapped nodes, no container). Auto-placement split those two nodes across row 1's
+two columns on its own, then packed the second real child (the `border-t` div holding
+Dimensions/preview/span table) into row 2 col 1 alone, leaving row 2 col 2 empty --
+`firstWallSetup.tsx`'s own `<ProfileSection>` call already wraps it in a `<div>` for exactly this
+reason, `Calculator.tsx`'s didn't. Fixed by wrapping the `<ProfileSection>` call in `geometryContent`
+in a `<div>` too, so `.geometry-body` gets exactly two grid items again (Profile | Dimensions).
+Audited the other CSS-grid content slots in `Calculator.tsx` (`.product-body`'s `stock-col`/
+`materials-col`, `.config-row`'s `WallTypeSelector`/`OrientationSelector`/`WallSystemSelector`) for
+the same bare-fragment-into-grid pattern -- all already wrap their content in a single container,
+so this was an isolated instance. Verified live: `.geometry-body` now has exactly two grid
+children, correctly split ~46/54 into Profile | Dimensions+Preview+Span-table, both full card
+height, in both light and dark mode. Full verification suite (typecheck/test/build/depcruise)
+clean, 187 tests passing.
+
+**Follow-up layout request: Preview moved into its own full-height right column — DONE.** User
+request right after the fix above: "Preview should be full right side with dimensions and the
+other info on the left hand." Restructured `geometryContent`'s two `.geometry-body` grid children
+from [Profile | Dimensions+Preview+Span-table] to [Profile+Dimensions+Span-table | Preview] --
+`WallPreviewSection` (`ui/wallPreview.tsx`) moved out of the `border-t` div and out to be its own
+second top-level child of the fragment, taking the whole right column at the grid row's full
+height (matching the left column, since CSS Grid's `align-items: start` default still lets each
+column size to its own content, but `.geometry-body` has no `align-items` override so both stretch
+to the row's height by default). `WallPreviewSection` already returns a single wrapping `<div>` (no
+bare-fragment risk the same way `ProfileSection` was -- see the fix above), so no extra wrapper
+needed there; `ProfileSection`'s own wrapper div now also holds the `border-t` Dimensions/Span-table
+block alongside it, still a single grid item. Phone's own `GeometrySectionPhone`
+(`phoneSections.tsx`) is untouched -- it keeps Preview inline below Dimensions, a deliberate
+divergence noted in the code (phone has no side-by-side room for a Preview column). Verified live
+at both web (1600px) and iPad-landscape (1024px) widths, with real dimensions entered (Preview
+renders the actual SVG wall diagram, not just the empty-state placeholder) and in dark mode; also
+confirmed the Raked-profile note (an extra conditional child inside `ProfileSection`'s own bare
+fragment) still stays contained within the left column's single grid item, not spilling into a
+third auto-placed cell. Full verification suite (typecheck/test/build/depcruise) clean, 187 tests
+passing.
+
 ### What Phase 4 actually required (historical — kept for context; Phase 4 is now done, see above)
 
 Two files need **zero changes** — confirmed by full diff, not just line-count comparison:
