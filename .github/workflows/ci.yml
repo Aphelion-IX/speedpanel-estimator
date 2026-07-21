@@ -147,16 +147,22 @@ jobs:
         # before the build step below -- persisting them to $GITHUB_ENV makes
         # the browser bundle Playwright drives talk to the local stack we just
         # seeded, not the live project (src/lib/supabaseClient.ts's hardcoded
-        # fallback). The API port is fixed by config.toml; the anon key is read
-        # from the running stack so it never drifts.
+        # fallback). Both the URL and anon key are read from the running stack
+        # so nothing drifts. The full status is echoed (local dev keys, not
+        # secrets) so the log shows exactly what got baked in.
         run: |
+          echo "=== supabase status -o env ==="
+          supabase status -o env || true
+          echo "=============================="
+          api_url="$(supabase status -o env | sed -n 's/^API_URL="\(.*\)"$/\1/p')"
           anon_key="$(supabase status -o env | sed -n 's/^ANON_KEY="\(.*\)"$/\1/p')"
+          : "${api_url:=http://127.0.0.1:54321}"
           if [ -z "$anon_key" ]; then
-            echo "Could not read ANON_KEY from 'supabase status -o env':" >&2
-            supabase status -o env >&2
+            echo "ERROR: could not read ANON_KEY from 'supabase status -o env' (see dump above)" >&2
             exit 1
           fi
-          echo "VITE_SUPABASE_URL=http://127.0.0.1:54321" >> "$GITHUB_ENV"
+          echo "Baking VITE_SUPABASE_URL=$api_url  (anon key length: ${#anon_key})"
+          echo "VITE_SUPABASE_URL=$api_url" >> "$GITHUB_ENV"
           echo "VITE_SUPABASE_PUBLISHABLE_KEY=$anon_key" >> "$GITHUB_ENV"
 
       - name: Install Playwright browser
@@ -165,8 +171,31 @@ jobs:
       - name: Build application
         run: npm run build
 
+      - name: Verify the build baked in the local Supabase URL
+        # Fail loudly and immediately if the app bundle still points at the
+        # live project instead of the local stack -- otherwise every sign-in
+        # silently 30s-times-out against a database that lacks the seeded
+        # @e2e.test personas, which is exactly the failure this whole job fixes.
+        run: |
+          if grep -rq "127.0.0.1:54321" dist/assets; then
+            echo "OK: bundle points at the local Supabase stack."
+          else
+            echo "ERROR: built bundle does not contain 127.0.0.1:54321 -- VITE_SUPABASE_URL did not bake in." >&2
+            echo "Live-project fallback host in bundle:" >&2
+            grep -ro "https://[a-z0-9]*\.supabase\.co" dist/assets | sort -u >&2 || true
+            exit 1
+          fi
+
+      - name: Smoke-check the local Supabase auth endpoint
+        # Confirms GoTrue is reachable at the same URL the browser will use,
+        # before spending time on the full Playwright suite.
+        run: curl -fsS "http://127.0.0.1:54321/auth/v1/health" && echo
+
       - name: Run E2E tests
-        run: npm run test:e2e
+        # --max-failures=1 / --retries=0 keep a broken run short and its log
+        # readable instead of grinding through 51 specs x 3 retries x 30s until
+        # the job timeout. Revert to the full retrying run once this is green.
+        run: npm run test:e2e -- --max-failures=1 --retries=0
 
       - name: Stop local Supabase stack
         if: always()
