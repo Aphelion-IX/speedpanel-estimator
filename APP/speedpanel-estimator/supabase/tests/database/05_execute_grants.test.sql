@@ -24,7 +24,7 @@
 -- and add the corresponding `ok(...)` line below (bump plan() to match).
 -- =============================================================================
 begin;
-select plan(74);
+select plan(76);
 
 select ok(has_function_privilege('authenticated', 'public.is_admin()'::regprocedure, 'EXECUTE'), 'is_admin(): authenticated has EXECUTE');
 select ok(has_function_privilege('authenticated', 'public.has_staff_role(text[])'::regprocedure, 'EXECUTE'), 'has_staff_role(text[]): authenticated has EXECUTE');
@@ -59,6 +59,8 @@ select ok(has_function_privilege('authenticated', 'public.admin_set_company_stat
 select ok(has_function_privilege('authenticated', 'public.admin_company_activity_counts(uuid)'::regprocedure, 'EXECUTE'), 'admin_company_activity_counts(uuid): authenticated has EXECUTE');
 select ok(has_function_privilege('authenticated', 'public.resend_company_invitation(uuid)'::regprocedure, 'EXECUTE'), 'resend_company_invitation(uuid): authenticated has EXECUTE');
 select ok(has_function_privilege('authenticated', 'public.cancel_company_invitation(uuid)'::regprocedure, 'EXECUTE'), 'cancel_company_invitation(uuid): authenticated has EXECUTE');
+select ok(has_function_privilege('authenticated', 'public.admin_list_invitations(uuid, text)'::regprocedure, 'EXECUTE'), 'admin_list_invitations(uuid, text): authenticated has EXECUTE');
+select ok(has_function_privilege('authenticated', 'public.admin_fix_invitation_email(uuid, text)'::regprocedure, 'EXECUTE'), 'admin_fix_invitation_email(uuid, text): authenticated has EXECUTE');
 select ok(has_function_privilege('authenticated', 'public.accept_company_invitation(uuid)'::regprocedure, 'EXECUTE'), 'accept_company_invitation(uuid): authenticated has EXECUTE');
 select ok(has_function_privilege('authenticated', 'public.decline_company_invitation(uuid)'::regprocedure, 'EXECUTE'), 'decline_company_invitation(uuid): authenticated has EXECUTE');
 select ok(has_function_privilege('authenticated', 'public.company_set_member_role(uuid, uuid, text)'::regprocedure, 'EXECUTE'), 'company_set_member_role(uuid, uuid, text): authenticated has EXECUTE');

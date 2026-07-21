@@ -2614,8 +2614,10 @@ begin
   -- Metadata-only: extends the expiry window. Actually re-sending Supabase's
   -- own invite email (for the still-no-account case) needs the service-role
   -- key, so that half happens in company-invite-member's "resend" mode,
-  -- which calls this RPC for the validation + expiry reset.
-  update invitations set expires_at = now() + interval '14 days' where id = p_invitation_id;
+  -- which calls this RPC for the validation + expiry reset. 5 days, not the
+  -- original 14 -- Phase 5 (Company Accounts & Pricing) changed the default
+  -- to match the mockup's "Invitation Rules" copy; kept in sync here.
+  update invitations set expires_at = now() + interval '5 days' where id = p_invitation_id;
 end;
 $$;
 revoke execute on function public.resend_company_invitation(uuid) from public, anon;
@@ -2694,6 +2696,92 @@ end;
 $$;
 revoke execute on function public.decline_company_invitation(uuid) from public, anon;
 grant execute on function public.decline_company_invitation(uuid) to authenticated;
+
+-- =============================================================================
+-- Company Accounts & Pricing -- Phase 5: standalone Invitations page +
+-- "Delivery Failed" status
+-- =============================================================================
+-- A real send failure previously deleted the just-inserted invitations row
+-- (see company-invite-member/index.ts's old comment, now rewritten) and
+-- returned a synchronous error -- nothing persisted, so a failed send was
+-- invisible anywhere in the app after the fact. delivery_failed makes that
+-- state real and visible instead. ALTERed rather than edited into the
+-- original `create table if not exists invitations` above, same reasoning
+-- as companies.status in Phase 2's own schema catch-up -- that CREATE TABLE
+-- only ever runs once against a real project, so a column/constraint change
+-- has to be a separate statement appended here, not a rewrite of the
+-- original text.
+alter table invitations add column failure_reason text;
+alter table invitations drop constraint invitations_status_check;
+alter table invitations add constraint invitations_status_check
+  check (status in ('pending', 'accepted', 'expired', 'cancelled', 'delivery_failed'));
+-- 14 -> 5 days, per the mockup's "Invitation Rules" panel copy
+-- ("expires after five days"). Only affects new rows -- existing pending
+-- invitations keep whatever expires_at they already have.
+alter table invitations alter column expires_at set default (now() + interval '5 days');
+
+insert into public.permissions (key, description, category) values
+  ('invitations.list', 'List invitations across every company (staff module)', 'invitations')
+on conflict (key) do nothing;
+
+-- Cross-company read for the standalone Invitations page
+-- (src/pages/accounts/invitations/InvitationsPage.tsx) -- every other
+-- invitation RPC above is scoped to one company (reached from that
+-- company's own Users tab); this is the first one that lists across all of
+-- them, so it gets its own permission key rather than reusing
+-- is_company_admin()'s per-company check.
+create or replace function public.admin_list_invitations(p_company_id uuid default null, p_status text default null)
+returns table (
+  id uuid, company_id uuid, company_name text, email text, invitee_name text,
+  role text, status text, failure_reason text,
+  created_at timestamptz, expires_at timestamptz, accepted_at timestamptz
+)
+language sql security definer stable
+set search_path = public
+as $$
+  select i.id, i.company_id, coalesce(c.trading_name, c.legal_name), i.email, i.invitee_name,
+    i.role, i.status, i.failure_reason, i.created_at, i.expires_at, i.accepted_at
+  from invitations i
+  join companies c on c.id = i.company_id
+  where public.has_permission('invitations.list')
+    and (p_company_id is null or i.company_id = p_company_id)
+    and (p_status is null or i.status = p_status)
+  order by i.created_at desc;
+$$;
+revoke execute on function public.admin_list_invitations(uuid, text) from public, anon;
+grant execute on function public.admin_list_invitations(uuid, text) to authenticated;
+
+-- The metadata half of "fix the email and retry" for a delivery_failed
+-- invitation -- resets status/failure_reason/expiry so the row looks like a
+-- brand-new pending invite again. Same split as resend_company_invitation:
+-- this RPC does the auth check + metadata reset, company-invite-member's
+-- new "fixEmail" action calls it then does the half that needs the
+-- service-role key (re-firing inviteUserByEmail at the corrected address).
+-- is_company_admin()-gated (not invitations.list) -- fixing one company's
+-- invitation is a per-company write, same as resend/cancel above, even
+-- though the page it's reached from lists across companies.
+create or replace function public.admin_fix_invitation_email(p_invitation_id uuid, p_new_email text) returns void
+language plpgsql security definer
+set search_path = public
+as $$
+declare
+  v_company uuid;
+  v_status text;
+begin
+  select company_id, status into v_company, v_status from invitations where id = p_invitation_id;
+  if v_company is null then raise exception 'Invitation not found'; end if;
+  if not public.is_company_admin(v_company) then raise exception 'Not authorized'; end if;
+  if v_status <> 'delivery_failed' then raise exception 'Only a delivery-failed invitation can be fixed'; end if;
+  if p_new_email is null or p_new_email !~ '^[^\s@]+@[^\s@]+\.[^\s@]+$' then raise exception 'Enter a valid email address'; end if;
+
+  update invitations set email = p_new_email, status = 'pending', failure_reason = null,
+    expires_at = now() + interval '5 days'
+    where id = p_invitation_id;
+  perform public.log_audit(v_company, auth.uid(), 'invitation_fixed', null, null, jsonb_build_object('invitation_id', p_invitation_id, 'new_email', p_new_email));
+end;
+$$;
+revoke execute on function public.admin_fix_invitation_email(uuid, text) from public, anon;
+grant execute on function public.admin_fix_invitation_email(uuid, text) to authenticated;
 
 -- =============================================================================
 -- Self-service member management

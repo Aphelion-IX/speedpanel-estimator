@@ -127,4 +127,5 @@ export const EVENT_TYPE_LABELS: Record<string, string> = {
   company_address_added: "Company address added",
   company_address_changed: "Company address changed",
   company_address_removed: "Company address removed",
+  invitation_fixed: "Invitation email corrected and resent",
 };

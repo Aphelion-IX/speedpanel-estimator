@@ -36,6 +36,7 @@ import { ControlRoomPage } from "./ControlRoomPage";
 import { CompaniesListPage } from "./companies/CompaniesListPage";
 import { CompanyWizard } from "./companies/CompanyWizard";
 import { CompanyOverviewPage } from "./companies/CompanyOverviewPage";
+import { InvitationsPage } from "./invitations/InvitationsPage";
 
 const NAV: { id: AccountsSubPage; label: string; icon: React.ReactNode; group: string }[] = [
   { id: "controlRoom", label: "Control Room", icon: <LayoutDashboard size={15} />, group: "Workspace" },
@@ -53,7 +54,6 @@ const NAV: { id: AccountsSubPage; label: string; icon: React.ReactNode; group: s
 // documents for the Admin section.
 const COMING_SOON: Partial<Record<AccountsSubPage, { title: string; description: string }>> = {
   companyUsers: { title: "Company Users", description: "Cross-company external-user roster -- coming in a later phase." },
-  invitations: { title: "Invitations", description: "Cross-company invitation queue, including delivery-failure handling -- coming in a later phase." },
   companyPricing: { title: "Company Pricing", description: "Per-company item price overrides and pricing preview -- coming in a later phase." },
   priceLists: { title: "Price Lists", description: "Versioned price lists, draft editing, and compare & publish -- coming in a later phase." },
   permissions: { title: "Access Permissions", description: "Curated internal-role capability grid -- coming in a later phase." },
@@ -98,6 +98,7 @@ export const AccountsRoot = ({ route, navigate, auth }: {
               <CompanyOverviewPage companyId={route.companyId} myUserId={auth.user?.id ?? null} navigate={navigate} />
             )}
             {route.sub === "companies" && !route.newCompany && !route.companyId && <CompaniesListPage navigate={navigate} />}
+            {route.sub === "invitations" && <InvitationsPage navigate={navigate} />}
             {COMING_SOON[route.sub] && (
               <PlaceholderPage title={COMING_SOON[route.sub]!.title} description={COMING_SOON[route.sub]!.description} />
             )}
