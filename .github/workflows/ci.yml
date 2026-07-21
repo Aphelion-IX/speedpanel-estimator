@@ -1,4 +1,4 @@
-name: E2E Tests
+name: CI
 
 on:
   workflow_dispatch:
@@ -16,7 +16,71 @@ defaults:
     working-directory: APP/speedpanel-estimator
 
 jobs:
+  checks:
+    name: Typecheck, unit tests, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: APP/speedpanel-estimator/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+  pgtap:
+    name: pgTAP (Supabase RLS/schema tests)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: APP/speedpanel-estimator/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Set up Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Start local Supabase stack
+        run: supabase start
+
+      - name: Reset database (applies schema.sql + seed.sql)
+        run: supabase db reset
+
+      - name: Run pgTAP tests
+        run: npm run test:rls
+
+      - name: Stop local Supabase stack
+        if: always()
+        run: supabase stop
+
   e2e:
+    name: E2E (Playwright)
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
