@@ -43,6 +43,32 @@ jobs:
       - name: Build
         run: npm run build
 
+  e2e-drift-check:
+    name: E2E drift check (advisory)
+    # PR-only -- needs a base commit to diff against, which a plain push to
+    # main doesn't have in the same way. Never fails the job (see
+    # scripts/check-e2e-drift.mjs's own header comment) -- it only leaves
+    # ::warning:: annotations and a job-summary table when auth/admin UI
+    # changed without its usual e2e/pgTAP coverage changing alongside it.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          # Need the base commit present locally to diff against -- a shallow
+          # checkout (the default) only has the merge commit itself.
+          fetch-depth: 0
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Check for UI changes without matching test coverage
+        run: node scripts/check-e2e-drift.mjs "${{ github.event.pull_request.base.sha }}" "${{ github.sha }}"
+
   pgtap:
     name: pgTAP (Supabase RLS/schema tests)
     runs-on: ubuntu-latest

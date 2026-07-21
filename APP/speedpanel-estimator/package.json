@@ -11,6 +11,7 @@
     "test:watch": "vitest",
     "test:rls": "supabase test db",
     "test:e2e": "playwright test",
+    "check:e2e-drift": "node scripts/check-e2e-drift.mjs",
     "depcruise": "depcruise --config .dependency-cruiser.js src",
     "depcruise:graph": "depcruise --config .dependency-cruiser.js --output-type mermaid src > depcruise-graph.mmd"
   },
