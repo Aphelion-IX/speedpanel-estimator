@@ -2373,6 +2373,188 @@ $$;
 revoke execute on function public.admin_company_activity_counts(uuid) from public, anon;
 grant execute on function public.admin_company_activity_counts(uuid) to authenticated;
 
+-- =============================================================================
+-- Company Accounts & Pricing -- Phase 3: Company Addresses
+-- =============================================================================
+-- Genuinely new -- today `companies.address` is one text field. This table
+-- is purely a picker source for pre-filling order_deliveries' own address
+-- fields at delivery-creation time; order_deliveries already freezes
+-- addresses as plain text with no FK (see the phased plan's corrected-
+-- understanding notes), so nothing about that freeze behavior changes here.
+--
+-- `label` is one deliberate addition beyond the phased plan's own draft SQL
+-- (flagged there as "exact field set to confirm against spec text") -- the
+-- backend spec's table list names `company_addresses` but gives no column
+-- list of its own, and the screenshots need *something* to distinguish two
+-- addresses of the same type (e.g. two delivery locations, only one
+-- default) -- "Dandenong Warehouse" vs "Sydney Office" in the mockup.
+--
+-- Two access paths, deliberately separate:
+-- - RLS (below): the company's OWN active members/admins reading/writing
+--   directly -- is_company_admin() already carries the companies.manage_all
+--   staff bypass, so this also covers staff, but is the path a future
+--   customer-facing addresses page would use.
+-- - The RPCs further down: the STAFF module's path (CompanyAddressesTab.tsx),
+--   gated by the new company_addresses.read/write permission keys (dynamic
+--   RBAC -- lets e.g. dispatch read without necessarily being able to write)
+--   rather than is_company_admin(), and the only path that calls log_audit().
+create table company_addresses (
+  id uuid primary key default gen_random_uuid(),
+  company_id uuid not null references companies (id) on delete cascade,
+  type text not null check (type in ('billing', 'delivery', 'office')),
+  is_default boolean not null default false,
+  label text,
+  line1 text not null,
+  line2 text,
+  suburb text,
+  state text,
+  postcode text,
+  delivery_contact_name text,
+  delivery_contact_phone text,
+  created_by uuid references auth.users (id),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+-- One default per (company, type) -- e.g. one default billing address and
+-- one default delivery address at a time, enforced at the DB level, not
+-- just by the RPCs clearing the old default first (see
+-- admin_set_company_address/admin_set_default_address below).
+create unique index company_addresses_one_default_per_type on company_addresses (company_id, type) where is_default;
+create index idx_company_addresses_company_id on company_addresses (company_id);
+
+alter table company_addresses enable row level security;
+
+create policy "Members and admins can read company addresses" on company_addresses
+  for select using (
+    public.is_admin()
+    or exists (select 1 from company_memberships cm where cm.company_id = company_addresses.company_id and cm.user_id = auth.uid() and cm.status = 'active')
+  );
+create policy "Company admins can insert company addresses" on company_addresses
+  for insert with check (public.is_company_admin(company_id));
+create policy "Company admins can update company addresses" on company_addresses
+  for update using (public.is_company_admin(company_id)) with check (public.is_company_admin(company_id));
+create policy "Company admins can delete company addresses" on company_addresses
+  for delete using (public.is_company_admin(company_id));
+
+insert into public.permissions (key, description, category) values
+  ('company_addresses.read', 'Read a company''s saved addresses (staff module)', 'companies'),
+  ('company_addresses.write', 'Create/edit/delete a company''s saved addresses (staff module)', 'companies')
+on conflict (key) do nothing;
+
+create or replace function public.company_list_addresses(p_company_id uuid)
+returns table (
+  id uuid, type text, is_default boolean, label text, line1 text, line2 text,
+  suburb text, state text, postcode text, delivery_contact_name text, delivery_contact_phone text,
+  created_at timestamptz, updated_at timestamptz
+)
+language sql security definer stable
+set search_path = public
+as $$
+  select id, type, is_default, label, line1, line2, suburb, state, postcode,
+    delivery_contact_name, delivery_contact_phone, created_at, updated_at
+  from company_addresses
+  where company_id = p_company_id and public.has_permission('company_addresses.read')
+  order by type, is_default desc, created_at;
+$$;
+revoke execute on function public.company_list_addresses(uuid) from public, anon;
+grant execute on function public.company_list_addresses(uuid) to authenticated;
+
+-- Upsert -- p_address_id null creates, present updates. Clearing the old
+-- default is its own statement (not folded into the insert/update), so the
+-- one-default-per-type unique index above never sees two defaults at once
+-- even transiently -- each statement's constraint check runs immediately,
+-- not deferred to end of transaction.
+create or replace function public.admin_set_company_address(
+  p_address_id uuid, p_company_id uuid, p_type text, p_label text,
+  p_line1 text, p_line2 text, p_suburb text, p_state text, p_postcode text,
+  p_delivery_contact_name text default null, p_delivery_contact_phone text default null,
+  p_is_default boolean default false
+) returns uuid
+language plpgsql security definer
+set search_path = public
+as $$
+declare
+  v_id uuid;
+  v_event text;
+begin
+  if not public.has_permission('company_addresses.write') then raise exception 'Not authorized'; end if;
+  if p_type not in ('billing', 'delivery', 'office') then raise exception 'Invalid address type'; end if;
+  if coalesce(trim(p_line1), '') = '' then raise exception 'Street address is required'; end if;
+
+  if p_is_default then
+    update company_addresses set is_default = false, updated_at = now()
+      where company_id = p_company_id and type = p_type and is_default and id is distinct from p_address_id;
+  end if;
+
+  if p_address_id is null then
+    insert into company_addresses (
+      company_id, type, label, line1, line2, suburb, state, postcode,
+      delivery_contact_name, delivery_contact_phone, is_default, created_by
+    ) values (
+      p_company_id, p_type, nullif(trim(p_label), ''), p_line1, nullif(trim(p_line2), ''), p_suburb, p_state, p_postcode,
+      nullif(trim(p_delivery_contact_name), ''), nullif(trim(p_delivery_contact_phone), ''), p_is_default, auth.uid()
+    ) returning id into v_id;
+    v_event := 'company_address_added';
+  else
+    update company_addresses set
+      type = p_type, label = nullif(trim(p_label), ''), line1 = p_line1, line2 = nullif(trim(p_line2), ''),
+      suburb = p_suburb, state = p_state, postcode = p_postcode,
+      delivery_contact_name = nullif(trim(p_delivery_contact_name), ''), delivery_contact_phone = nullif(trim(p_delivery_contact_phone), ''),
+      is_default = p_is_default, updated_at = now()
+      where id = p_address_id and company_id = p_company_id
+      returning id into v_id;
+    if v_id is null then raise exception 'Address not found'; end if;
+    v_event := 'company_address_changed';
+  end if;
+
+  perform public.log_audit(p_company_id, auth.uid(), v_event, null, null, jsonb_build_object('address_id', v_id, 'type', p_type));
+  return v_id;
+end;
+$$;
+revoke execute on function public.admin_set_company_address(uuid, uuid, text, text, text, text, text, text, text, text, text, boolean) from public, anon;
+grant execute on function public.admin_set_company_address(uuid, uuid, text, text, text, text, text, text, text, text, text, boolean) to authenticated;
+
+create or replace function public.admin_delete_company_address(p_address_id uuid) returns void
+language plpgsql security definer
+set search_path = public
+as $$
+declare
+  v_company_id uuid;
+begin
+  if not public.has_permission('company_addresses.write') then raise exception 'Not authorized'; end if;
+  delete from company_addresses where id = p_address_id returning company_id into v_company_id;
+  if v_company_id is null then raise exception 'Address not found'; end if;
+  perform public.log_audit(v_company_id, auth.uid(), 'company_address_removed', null, null, jsonb_build_object('address_id', p_address_id));
+end;
+$$;
+revoke execute on function public.admin_delete_company_address(uuid) from public, anon;
+grant execute on function public.admin_delete_company_address(uuid) to authenticated;
+
+-- Lighter-weight than admin_set_company_address for the common "make this
+-- existing address the default" action (e.g. a card's own "Set default"
+-- button) -- no need to resubmit the whole address form.
+create or replace function public.admin_set_default_address(p_address_id uuid) returns void
+language plpgsql security definer
+set search_path = public
+as $$
+declare
+  v_company_id uuid;
+  v_type text;
+begin
+  if not public.has_permission('company_addresses.write') then raise exception 'Not authorized'; end if;
+  select company_id, type into v_company_id, v_type from company_addresses where id = p_address_id;
+  if v_company_id is null then raise exception 'Address not found'; end if;
+
+  update company_addresses set is_default = false, updated_at = now()
+    where company_id = v_company_id and type = v_type and is_default and id <> p_address_id;
+  update company_addresses set is_default = true, updated_at = now() where id = p_address_id;
+
+  perform public.log_audit(v_company_id, auth.uid(), 'company_address_changed', null, null, jsonb_build_object('address_id', p_address_id, 'set_default', true));
+end;
+$$;
+revoke execute on function public.admin_set_default_address(uuid) from public, anon;
+grant execute on function public.admin_set_default_address(uuid) to authenticated;
+
 -- handle_new_user() extended (redefined here, after invitations/
 -- company_memberships/project_memberships/log_audit all exist) to
 -- auto-accept any pending invitation(s) addressed to the new email --

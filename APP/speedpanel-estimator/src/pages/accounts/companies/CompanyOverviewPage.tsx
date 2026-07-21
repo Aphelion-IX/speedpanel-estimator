@@ -1,13 +1,13 @@
 // =============================================================================
 // Company Accounts & Pricing -- Company Overview
 // =============================================================================
-// Phase 2 scope is the Overview tab only (per the phased plan) -- Users/
-// Pricing/Addresses/Projects/Quotes/Orders/Audit all render PlaceholderPage
-// until their own phase lands (4, 9, 3, none planned yet, none planned yet,
-// 10, 13 respectively), same "swap page-by-page" convention
-// PlaceholderPage.tsx documents. Real data comes from the same
-// useAdminCompanies() row Phase 2 extended admin_list_companies() to carry
-// (see companiesStore.ts) plus useCompanyActivityCounts() for the two
+// Phase 2 scope was the Overview tab only -- Users/Pricing/Projects/Quotes/
+// Orders/Audit still render PlaceholderPage until their own phase lands (4,
+// 9, none planned yet, none planned yet, 10, 13 respectively), same "swap
+// page-by-page" convention PlaceholderPage.tsx documents. Phase 3 makes
+// Addresses real too (CompanyAddressesTab.tsx). Real data comes from the
+// same useAdminCompanies() row Phase 2 extended admin_list_companies() to
+// carry (see companiesStore.ts) plus useCompanyActivityCounts() for the two
 // project/order KPI tiles.
 // =============================================================================
 import { useState } from "react";
@@ -22,6 +22,7 @@ import {
   useAdminCompanies, useCompanyActivityCounts, adminSetCompanyStatus,
   COMPANY_STATUS_LABELS, COMPANY_STATUSES, type AdminCompanyRow, type CompanyStatus,
 } from "../../admin/companies/companiesStore";
+import { CompanyAddressesTab } from "./CompanyAddressesTab";
 
 const STATUS_TONE: Record<CompanyStatus, "ok" | "warn" | "danger" | "info" | "neutral"> = {
   pending: "info", active: "ok", on_hold: "warn", suspended: "danger", archived: "neutral",
@@ -115,7 +116,7 @@ const OverviewTab = ({ company, navigate }: { company: AdminCompanyRow; navigate
             <KV label="Address" value={company.address ?? "—"} />
           </div>
           <p className="mt-3 text-xs" style={{ color: MUTED }}>
-            Dedicated billing/delivery/office addresses are coming in a later phase (Phase 3) -- the single address above is today's only stored value.
+            The address above is this company's original single stored value. Dedicated billing/delivery/office addresses now live on the Addresses tab.
           </p>
         </section>
       </div>
@@ -138,10 +139,11 @@ const OverviewTab = ({ company, navigate }: { company: AdminCompanyRow; navigate
   );
 };
 
+// "addresses" is deliberately absent -- it's real now (CompanyAddressesTab.tsx),
+// dispatched separately below rather than through this PlaceholderPage list.
 const OTHER_TABS: { id: string; label: string; title: string; description: string }[] = [
   { id: "users", label: "Users", title: "Company Users", description: "Roster, roles and invitations for this company -- coming in Phase 4." },
   { id: "pricing", label: "Pricing", title: "Company Pricing", description: "Assigned price list and item-specific overrides -- coming in Phase 9." },
-  { id: "addresses", label: "Addresses", title: "Company Addresses", description: "Billing, delivery and office addresses -- coming in Phase 3." },
   { id: "projects", label: "Projects", title: "Projects", description: "This company's projects, scoped to this workspace -- not yet planned." },
   { id: "quotes", label: "Quotes", title: "Quotes", description: "This company's quote requests, scoped to this workspace -- not yet planned." },
   { id: "orders", label: "Orders", title: "Orders", description: "This company's order history, scoped to this workspace -- coming in Phase 10." },
@@ -182,13 +184,23 @@ export const CompanyOverviewPage = ({ companyId, navigate }: { companyId: string
 
       <div className="mt-5">
         <Tabs
-          tabs={[{ id: "overview", label: "Overview" }, ...OTHER_TABS.map(t => ({ id: t.id, label: t.label }))]}
+          tabs={[
+            { id: "overview", label: "Overview" },
+            { id: "users", label: "Users" },
+            { id: "pricing", label: "Pricing" },
+            { id: "addresses", label: "Addresses" },
+            { id: "projects", label: "Projects" },
+            { id: "quotes", label: "Quotes" },
+            { id: "orders", label: "Orders" },
+            { id: "audit", label: "Audit" },
+          ]}
           activeId={activeTab}
           onChange={setActiveTab}
         />
       </div>
 
       <TabPanel id="overview" activeId={activeTab}><OverviewTab company={company} navigate={navigate} /></TabPanel>
+      <TabPanel id="addresses" activeId={activeTab}><CompanyAddressesTab companyId={company.id} /></TabPanel>
       {OTHER_TABS.map(t => (
         <TabPanel key={t.id} id={t.id} activeId={activeTab}>
           <PlaceholderPage title={t.title} description={t.description} />

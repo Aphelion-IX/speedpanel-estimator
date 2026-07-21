@@ -2,12 +2,11 @@
 // Company Accounts & Pricing -- Create Company wizard
 // =============================================================================
 // The screenshots show a 6-step wizard (Company / Account / Primary User /
-// Addresses / Pricing / Review). Only the first 3 are real here -- Addresses
-// is Phase 3 (company_addresses doesn't exist yet) and Pricing is Phase 9
-// (company_price_overrides doesn't exist yet), so steps 4-6 render as
-// disabled "later phase" chips in the step indicator rather than being
-// faked, same "don't fake, note where a later phase wires it in" precedent
-// as ControlRoomPage.tsx/controlRoomStore.ts.
+// Addresses / Pricing / Review). The first 4 are real as of Phase 3 --
+// Pricing is still Phase 9 (company_price_overrides doesn't exist yet), so
+// steps 5-6 render as disabled "later phase" chips in the step indicator
+// rather than being faked, same "don't fake, note where a later phase
+// wires it in" precedent as ControlRoomPage.tsx/controlRoomStore.ts.
 //
 // The 3 real steps repurpose AdminCompanyWizard.tsx's existing 3 (Company
 // Details -> Customer Users -> Assign Speedpanel Team), reordered to match
@@ -29,12 +28,13 @@ import { Field, TextAreaField } from "../../shared/fields";
 import { useCompanyMembers } from "../../company/companyStore";
 import { useAdminCreateCompany } from "../../admin/companies/companiesStore";
 import { StaffTeamAssignmentPanel } from "../../admin/companies/StaffTeamAssignmentPanel";
+import { CompanyAddressesTab } from "./CompanyAddressesTab";
 import type { Route } from "../../../appShell/useHashRoute";
 
-const REAL_STEPS = ["Company", "Account", "Primary User"] as const;
-const FUTURE_STEPS = ["Addresses", "Pricing", "Review"] as const;
+const REAL_STEPS = ["Company", "Account", "Primary User", "Addresses"] as const;
+const FUTURE_STEPS = ["Pricing", "Review"] as const;
 
-const StepIndicator = ({ step }: { step: 1 | 2 | 3 }) => (
+const StepIndicator = ({ step }: { step: 1 | 2 | 3 | 4 }) => (
   <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-semibold">
     {REAL_STEPS.map((label, i) => (
       <span key={label} style={{ color: i + 1 === step ? BLUE : MUTED }}>
@@ -149,14 +149,24 @@ const PrimaryUserStep = ({ companyId, onNext }: { companyId: string; onNext: () 
         </form>
       )}
       <Button variant="secondary" className="w-full" onClick={onNext}>
-        {invited ? "Finish" : "Skip for now"}
+        {invited ? "Continue" : "Skip for now"}
       </Button>
     </div>
   );
 };
 
+const AddressesStep = ({ companyId, onFinish }: { companyId: string; onFinish: () => void }) => (
+  <div className="mt-4">
+    <p className={cx.footnote} style={{ paddingTop: 0 }}>
+      Add this company's billing and delivery addresses now, or skip and add them later from the company's own Addresses tab.
+    </p>
+    <CompanyAddressesTab companyId={companyId} />
+    <Button className="mt-3 w-full" onClick={onFinish}>Finish</Button>
+  </div>
+);
+
 export const CompanyWizard = ({ navigate }: { navigate: (r: Route) => void }) => {
-  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
   const [companyId, setCompanyId] = useState<string | null>(null);
 
   const goToCompany = (id?: string) => navigate({ tab: "accounts", sub: "companies", companyId: id });
@@ -181,7 +191,10 @@ export const CompanyWizard = ({ navigate }: { navigate: (r: Route) => void }) =>
         {step === 1 && <CompanyDetailsStep onCreated={id => { setCompanyId(id); setStep(2); }} />}
         {step === 2 && companyId && <AccountStep companyId={companyId} onNext={() => setStep(3)} />}
         {step === 3 && companyId && (
-          <PrimaryUserStep companyId={companyId} onNext={() => goToCompany(companyId)} />
+          <PrimaryUserStep companyId={companyId} onNext={() => setStep(4)} />
+        )}
+        {step === 4 && companyId && (
+          <AddressesStep companyId={companyId} onFinish={() => goToCompany(companyId)} />
         )}
       </div>
     </div>

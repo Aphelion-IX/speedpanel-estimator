@@ -76,31 +76,19 @@ This plan is intentionally phased for execution across many separate future sess
 
 ---
 
-## Phase 3 — Company Addresses
+## Phase 3 — Company Addresses — DONE
 
-**Scope.** New `company_addresses` table (billing/delivery/office typing, default flags, delivery-contact fields) + Addresses tab on Company Overview + the wizard's Addresses step. This is genuinely new — today `companies.address` is one text field. Existing `order_deliveries` freeze behavior (Phase note above) needs zero changes — this table is purely a picker source for pre-filling that form.
+**Scope.** New `company_addresses` table (billing/delivery/office typing, default flags, delivery-contact fields) + Addresses tab on Company Overview + the wizard's Addresses step. This is genuinely new — today `companies.address` is one text field. Existing `order_deliveries` freeze behavior (Phase note above) needed zero changes — this table is purely a picker source for pre-filling that form.
 
-**Backend.**
-```sql
-create table company_addresses (
-  id uuid primary key default gen_random_uuid(),
-  company_id uuid not null references companies(id) on delete cascade,
-  type text not null check (type in ('billing','delivery','office')),
-  is_default boolean not null default false,
-  line1 text not null, line2 text, suburb text, state text, postcode text,
-  delivery_contact_name text, delivery_contact_phone text,
-  created_by uuid references auth.users(id), created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-create unique index company_addresses_one_default_per_type on company_addresses (company_id, type) where is_default;
-```
-(exact field set to confirm against spec text). New RPCs: `company_list_addresses`, `admin_set_company_address` (upsert), `admin_delete_company_address`, `admin_set_default_address`. New permission keys `company_addresses.read`/`company_addresses.write`. RLS: `is_company_admin(company_id)` write-gate (existing precedent), active-membership read (mirrors `staff_assignments`' read policy).
+**What actually shipped.**
+- **Schema** (new "Company Accounts & Pricing -- Phase 3: Company Addresses" section in `supabase/schema.sql`, right after Phase 2's `admin_company_activity_counts`): `company_addresses` table matching this section's own draft SQL, **plus one deliberate addition beyond it** -- a `label text` column. The draft schema had no way to distinguish two addresses of the same type (the screenshots show "Dandenong Warehouse" and "Sydney Office" as two distinct saved locations), and the backend spec's own table list names `company_addresses` without giving a column list of its own, so this was a judgment call, not a spec violation. `company_addresses_one_default_per_type` unique partial index enforces one default per `(company_id, type)` at the DB level. **Two separate access paths**, both as planned: RLS gives the company's own active members read access and `is_company_admin(company_id)` write access (a future customer-facing addresses page could use this directly, though none exists yet); the 4 new RPCs (`company_list_addresses`, `admin_set_company_address` upsert, `admin_delete_company_address`, `admin_set_default_address`) are the STAFF module's path instead, gated by the new `company_addresses.read`/`company_addresses.write` permission keys and the only path that calls `log_audit()` (`company_address_added`/`changed`/`removed`, added to `EVENT_TYPE_LABELS`). `admin_set_company_address` clears any existing default for that type in its own statement before inserting/updating the new one, so the unique index's constraint check (immediate, not deferred) never sees two defaults at once even transiently.
+- **`src/pages/accounts/companies/companyAddressesStore.ts`** + **`CompanyAddressesTab.tsx`** — one reusable block, not two implementations: `CompanyOverviewPage.tsx`'s Addresses tab renders it directly, and `CompanyWizard.tsx`'s new step 4 embeds the exact same component. Address cards show label/type badge/default badge, with Edit/Delete/"Set as default" (star icon) actions; an inline form (shared for create and edit) handles label/type/street/suburb/state/postcode/delivery-contact fields. The screenshots' "Address Usage" card (recent transactions using saved addresses) was deliberately omitted — `order_deliveries` freezes addresses as plain text with no `address_id` FK, so there's no real per-address transaction history to show, only what would be fabricated.
+- **`CompanyWizard.tsx`** grew a real 4th step (`Addresses`, embedding `CompanyAddressesTab`) — `REAL_STEPS` now covers `Company`/`Account`/`Primary User`/`Addresses`, `FUTURE_STEPS` is down to just `Pricing`/`Review` (Phase 9). Primary User's "Finish" button was relabelled "Continue" now that a real step follows it.
+- **`CompanyOverviewPage.tsx`** — the Addresses tab is real now (was a `PlaceholderPage`); the Overview tab's stale "coming in Phase 3" footnote was updated to point at the new tab.
 
-**Frontend.** `src/pages/accounts/companies/CompanyAddressesTab.tsx`, `companyAddressesStore.ts`, wizard's Addresses step.
+**Verified live** (Playwright against a local Supabase instance, `admin@e2e.test`): Addresses tab create/edit/delete all work against real data; adding a second default address correctly clears the first's default flag (both in the UI and confirmed via pgTAP against the raw table); the wizard's new Addresses step adds an address and finishes onto the real company overview; light and dark mode both screenshotted and correct. `npm run typecheck && npm test && npm run build && npm run depcruise` all clean (187/187 tests, 0 new depcruise errors). `npm run test:rls`: new `09_company_addresses.test.sql` (11 assertions: create/clear-old-default/raw-insert-still-rejected-by-the-unique-index/cross-company-isolation/permission-denied-for-an-ungranted-role/delete) and the extended `05_execute_grants.test.sql` both pass cleanly; the same 3 pre-existing failures from Phase 2 (`02`/`06`/`07`, confirmed via `git diff` to be outside every phase's diff) are unchanged.
 
 **Dependencies.** Phase 2.
-
-**Verification.** Standard triad; new pgTAP file for the one-default-per-type constraint + cross-company isolation (extend `02_company_isolation.test.sql`'s pattern); live Playwright pass add/edit/delete + default-flag exclusivity.
 
 ---
 

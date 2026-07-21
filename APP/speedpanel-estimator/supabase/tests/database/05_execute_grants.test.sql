@@ -24,7 +24,7 @@
 -- and add the corresponding `ok(...)` line below (bump plan() to match).
 -- =============================================================================
 begin;
-select plan(70);
+select plan(74);
 
 select ok(has_function_privilege('authenticated', 'public.is_admin()'::regprocedure, 'EXECUTE'), 'is_admin(): authenticated has EXECUTE');
 select ok(has_function_privilege('authenticated', 'public.has_staff_role(text[])'::regprocedure, 'EXECUTE'), 'has_staff_role(text[]): authenticated has EXECUTE');
@@ -86,6 +86,10 @@ select ok(has_function_privilege('authenticated', 'public.admin_set_price_list_p
 select ok(has_function_privilege('authenticated', 'public.admin_delete_price_list_price(uuid)'::regprocedure, 'EXECUTE'), 'admin_delete_price_list_price(uuid): authenticated has EXECUTE');
 select ok(has_function_privilege('authenticated', 'public.admin_delete_price_list(uuid)'::regprocedure, 'EXECUTE'), 'admin_delete_price_list(uuid): authenticated has EXECUTE');
 select ok(has_function_privilege('authenticated', 'public.admin_set_company_price_list(uuid, uuid)'::regprocedure, 'EXECUTE'), 'admin_set_company_price_list(uuid, uuid): authenticated has EXECUTE');
+select ok(has_function_privilege('authenticated', 'public.company_list_addresses(uuid)'::regprocedure, 'EXECUTE'), 'company_list_addresses(uuid): authenticated has EXECUTE');
+select ok(has_function_privilege('authenticated', 'public.admin_set_company_address(uuid, uuid, text, text, text, text, text, text, text, text, text, boolean)'::regprocedure, 'EXECUTE'), 'admin_set_company_address(...): authenticated has EXECUTE');
+select ok(has_function_privilege('authenticated', 'public.admin_delete_company_address(uuid)'::regprocedure, 'EXECUTE'), 'admin_delete_company_address(uuid): authenticated has EXECUTE');
+select ok(has_function_privilege('authenticated', 'public.admin_set_default_address(uuid)'::regprocedure, 'EXECUTE'), 'admin_set_default_address(uuid): authenticated has EXECUTE');
 select ok(has_function_privilege('authenticated', 'public.accept_delivery_date(uuid)'::regprocedure, 'EXECUTE'), 'accept_delivery_date(uuid): authenticated has EXECUTE');
 select ok(has_function_privilege('authenticated', 'public.propose_delivery_date(uuid, date)'::regprocedure, 'EXECUTE'), 'propose_delivery_date(uuid, date): authenticated has EXECUTE');
 select ok(has_function_privilege('authenticated', 'public.accept_proposed_delivery_date(uuid)'::regprocedure, 'EXECUTE'), 'accept_proposed_delivery_date(uuid): authenticated has EXECUTE');
