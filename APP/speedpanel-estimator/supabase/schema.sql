@@ -16,6 +16,25 @@
 
 create extension if not exists pgcrypto;
 
+-- Baseline table/sequence/function privileges for anon/authenticated --
+-- RLS (enabled per-table below) is the real access boundary, but without
+-- this grant Postgres blocks every query before RLS is even evaluated
+-- ("permission denied for table X", distinct from an RLS denial). On a
+-- hosted Supabase project this is applied automatically at project
+-- creation, outside schema.sql, which is why it was never captured here --
+-- but that means schema.sql alone could never actually bootstrap a working
+-- database (confirmed: a from-scratch `supabase db reset` gets exactly
+-- that "permission denied" error on every table). ALTER DEFAULT PRIVILEGES
+-- extends the same grant to every table this script creates below,
+-- matching what the hosted platform already does going forward too.
+grant usage on schema public to anon, authenticated, service_role;
+grant all on all tables in schema public to anon, authenticated, service_role;
+grant all on all sequences in schema public to anon, authenticated, service_role;
+grant all on all functions in schema public to anon, authenticated, service_role;
+alter default privileges in schema public grant all on tables to anon, authenticated, service_role;
+alter default privileges in schema public grant all on sequences to anon, authenticated, service_role;
+alter default privileges in schema public grant all on functions to anon, authenticated, service_role;
+
 create table if not exists panels (
   id uuid primary key default gen_random_uuid(),
   created_at timestamptz not null default now(),
