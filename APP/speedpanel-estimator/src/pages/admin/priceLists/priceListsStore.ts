@@ -9,7 +9,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "../../../lib/supabaseClient";
 import {
-  PriceListSummaryRowSchema, PriceListRowSchema, PriceListPriceRowSchema,
+  PriceListSummaryRowSchema, PriceListRowSchema, PriceListPriceRowSchema, PriceListVersionRowSchema,
+  priceRowProductId,
   type PriceListSummaryRow, type PriceListRow, type PriceListPriceRow, type PriceableCategory,
 } from "./priceListTypes";
 
@@ -91,42 +92,86 @@ export function usePriceListPicker() {
   return { priceLists, loading, error };
 }
 
-interface PriceListPricesState { prices: PriceListPriceRow[]; loading: boolean; error: string | null; }
+interface PriceListPricesState {
+  prices: PriceListPriceRow[];
+  // Phase 6 (Company Accounts & Pricing): which price_list_versions row is
+  // currently being shown -- an existing draft if the list has one in
+  // progress, else its active version. null only while unresolved/no list
+  // selected. AdminPriceListsPage.tsx surfaces versionStatus so an admin
+  // can tell "you're editing an unpublished draft" apart from "this is
+  // today's live pricing" -- a real behavior change from pre-Phase-6, where
+  // every edit here went live immediately.
+  versionId: string | null;
+  versionStatus: "draft" | "active" | null;
+  loading: boolean;
+  error: string | null;
+}
 
 export function useAdminPriceListPrices(priceListId: string | null) {
-  const [state, setState] = useState<PriceListPricesState>({ prices: [], loading: true, error: null });
+  const [state, setState] = useState<PriceListPricesState>({ prices: [], versionId: null, versionStatus: null, loading: true, error: null });
 
   const load = useCallback(async () => {
-    if (!supabase || !priceListId) { setState({ prices: [], loading: false, error: supabase ? null : NOT_CONFIGURED }); return; }
+    if (!supabase || !priceListId) {
+      setState({ prices: [], versionId: null, versionStatus: null, loading: false, error: supabase ? null : NOT_CONFIGURED });
+      return;
+    }
     setState(s => ({ ...s, loading: true, error: null }));
-    const { data, error } = await supabase.from("price_list_prices").select("*").eq("price_list_id", priceListId);
-    if (error) { setState({ prices: [], loading: false, error: error.message }); return; }
+    const { data: versionRows, error: vErr } = await supabase
+      .from("price_list_versions").select("id, status")
+      .eq("price_list_id", priceListId).in("status", ["draft", "active"]);
+    if (vErr) { setState({ prices: [], versionId: null, versionStatus: null, loading: false, error: vErr.message }); return; }
+    const versionsParsed = PriceListVersionRowSchema.array().safeParse(versionRows ?? []);
+    if (!versionsParsed.success) { setState({ prices: [], versionId: null, versionStatus: null, loading: false, error: BAD_SHAPE }); return; }
+    const draft = versionsParsed.data.find(v => v.status === "draft");
+    const active = versionsParsed.data.find(v => v.status === "active");
+    const resolved = draft ?? active ?? null;
+    if (!resolved) { setState({ prices: [], versionId: null, versionStatus: null, loading: false, error: null }); return; }
+
+    const { data, error } = await supabase.from("price_list_prices").select("*").eq("price_list_version_id", resolved.id);
+    const versionStatus = resolved.status as "draft" | "active";
+    if (error) { setState({ prices: [], versionId: resolved.id, versionStatus, loading: false, error: error.message }); return; }
     const parsed = PriceListPriceRowSchema.array().safeParse(data ?? []);
-    if (!parsed.success) { setState({ prices: [], loading: false, error: BAD_SHAPE }); return; }
-    setState({ prices: parsed.data, loading: false, error: null });
+    if (!parsed.success) { setState({ prices: [], versionId: resolved.id, versionStatus, loading: false, error: BAD_SHAPE }); return; }
+    setState({ prices: parsed.data, versionId: resolved.id, versionStatus, loading: false, error: null });
   }, [priceListId]);
 
   useEffect(() => { load(); }, [load]);
 
+  // First write against a list still showing its active version auto-forks
+  // a draft (admin_create_draft_version copies every current price into
+  // fresh rows) -- matches AdminPriceListsPage.tsx's Phase 6 stopgap: an
+  // edit here never touches a published/active version directly again, it
+  // targets a draft that Phase 8's publish flow later makes live.
+  const resolveDraftVersionId = async (): Promise<{ id: string | null; error: string | null }> => {
+    if (!supabase || !priceListId) return { id: null, error: NOT_CONFIGURED };
+    if (state.versionStatus === "draft" && state.versionId) return { id: state.versionId, error: null };
+    const { data, error } = await supabase.rpc("admin_create_draft_version", { p_price_list_id: priceListId });
+    if (error) return { id: null, error: error.message };
+    return { id: data as string, error: null };
+  };
+
   const setPrice = async (category: PriceableCategory, productId: string, price: number): Promise<string | null> => {
-    if (!supabase || !priceListId) return NOT_CONFIGURED;
-    const { error } = await supabase.rpc("admin_set_price_list_price", {
-      p_price_list_id: priceListId, p_category: category, p_product_id: productId, p_price: price,
+    const { id: versionId, error: draftErr } = await resolveDraftVersionId();
+    if (draftErr || !versionId) return draftErr ?? NOT_CONFIGURED;
+    const { error } = await supabase!.rpc("admin_set_draft_price", {
+      p_version_id: versionId, p_category: category, p_product_id: productId, p_price: price,
     });
     if (error) return error.message;
     await load();
     return null;
   };
 
-  // Bulk variant for CSV import (priceListCsv.ts) -- fires every row's RPC
-  // in parallel and reloads once at the end, instead of setPrice's one-row-
-  // at-a-time "await load() after every call" (fine for a single edit, but
-  // would mean one full refetch per row for a hundred-plus-row import).
+  // Bulk variant for CSV import (priceListCsv.ts) -- resolves/forks the
+  // draft once, then fires every row's RPC in parallel against it and
+  // reloads once at the end, instead of setPrice's one-row-at-a-time "await
+  // load() after every call" (fine for a single edit, but would mean one
+  // full refetch per row for a hundred-plus-row import).
   const setPrices = async (rows: { category: PriceableCategory; productId: string; price: number }[]): Promise<{ successCount: number; errors: string[] }> => {
-    if (!supabase || !priceListId) return { successCount: 0, errors: [NOT_CONFIGURED] };
+    const { id: versionId, error: draftErr } = await resolveDraftVersionId();
+    if (draftErr || !versionId) return { successCount: 0, errors: [draftErr ?? NOT_CONFIGURED] };
     const results = await Promise.all(rows.map(r =>
-      supabase!.rpc("admin_set_price_list_price", {
-        p_price_list_id: priceListId, p_category: r.category, p_product_id: r.productId, p_price: r.price,
+      supabase!.rpc("admin_set_draft_price", {
+        p_version_id: versionId, p_category: r.category, p_product_id: r.productId, p_price: r.price,
       })
     ));
     const errors = results.flatMap(r => r.error ? [r.error.message] : []);
@@ -134,11 +179,36 @@ export function useAdminPriceListPrices(priceListId: string | null) {
     return { successCount: rows.length - errors.length, errors };
   };
 
+  // A row's id belongs to whichever version load() last resolved. If that's
+  // already a draft, admin_delete_draft_price(id) works directly. If it's
+  // still the active version, resolveDraftVersionId() forks a full copy
+  // first (new ids for every row) -- the caller's stale active-version id
+  // no longer identifies anything in the new draft, so the matching row is
+  // re-found there by product identity (category + the one non-null
+  // panel/track/fixing/sealant id) instead.
   const deletePrice = async (id: string): Promise<string | null> => {
     if (!supabase) return NOT_CONFIGURED;
-    const { error } = await supabase.rpc("admin_delete_price_list_price", { p_id: id });
+    if (state.versionStatus === "draft" && state.versionId) {
+      const { error } = await supabase.rpc("admin_delete_draft_price", { p_id: id });
+      if (error) return error.message;
+      setState(s => ({ ...s, prices: s.prices.filter(p => p.id !== id) }));
+      return null;
+    }
+    const row = state.prices.find(p => p.id === id);
+    if (!row) return "Price row not found";
+    const productId = priceRowProductId(row);
+    const { id: versionId, error: draftErr } = await resolveDraftVersionId();
+    if (draftErr || !versionId) return draftErr ?? NOT_CONFIGURED;
+    const { data: freshRows, error: freshErr } = await supabase
+      .from("price_list_prices").select("*").eq("price_list_version_id", versionId).eq("category", row.category);
+    if (freshErr) return freshErr.message;
+    const freshParsed = PriceListPriceRowSchema.array().safeParse(freshRows ?? []);
+    if (!freshParsed.success) return BAD_SHAPE;
+    const match = freshParsed.data.find(r => priceRowProductId(r) === productId);
+    if (!match) return "Price row not found in the new draft";
+    const { error } = await supabase.rpc("admin_delete_draft_price", { p_id: match.id });
     if (error) return error.message;
-    setState(s => ({ ...s, prices: s.prices.filter(p => p.id !== id) }));
+    await load();
     return null;
   };
 
@@ -212,12 +282,16 @@ export function useEffectivePriceListPrices(companyId: string | null) {
         assignedId = (company?.price_list_id as string | null) ?? null;
       }
 
+      // current_price_list_prices() (Phase 6) resolves each list's ACTIVE
+      // version only -- an in-progress draft never leaks into customer-
+      // facing order pricing, regardless of what an admin is mid-editing on
+      // AdminPriceListsPage.tsx right now.
       const [assignedRes, defaultRes] = await Promise.all([
         assignedId && assignedId !== defaultId
-          ? supabase.from("price_list_prices").select("*").eq("price_list_id", assignedId)
+          ? supabase.rpc("current_price_list_prices", { p_price_list_id: assignedId })
           : Promise.resolve({ data: [] as unknown[], error: null }),
         defaultId
-          ? supabase.from("price_list_prices").select("*").eq("price_list_id", defaultId)
+          ? supabase.rpc("current_price_list_prices", { p_price_list_id: defaultId })
           : Promise.resolve({ data: [] as unknown[], error: null }),
       ]);
       if (cancelled) return;

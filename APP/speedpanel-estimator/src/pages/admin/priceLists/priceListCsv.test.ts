@@ -15,7 +15,7 @@ function baseCatalog(): ProductCatalog {
 
 function priceRow(overrides: Partial<PriceListPriceRow>): PriceListPriceRow {
   return {
-    id: "row-1", price_list_id: "pl-1", category: "panel",
+    id: "row-1", price_list_version_id: "plv-1", category: "panel",
     panel_id: null, track_id: null, fixing_id: null, sealant_id: null,
     price: 0, created_at: "2026-01-01", updated_at: "2026-01-01",
     ...overrides,
