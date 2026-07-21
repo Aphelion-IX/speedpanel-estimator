@@ -7,7 +7,7 @@
 -- other company's rows on any of these tables.
 -- =============================================================================
 begin;
-select plan(10);
+select plan(11);
 
 set local role authenticated;
 
