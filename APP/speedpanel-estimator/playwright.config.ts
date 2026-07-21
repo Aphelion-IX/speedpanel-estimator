@@ -29,7 +29,7 @@ export default defineConfig({
   webServer: {
     // Against the production build (not `npm run dev`) -- matches what
     // actually ships, and what the GitHub Actions workflow runs after its
-    // own `npm run build` step (see .github/workflows/e2e.yml).
+    // own `npm run build` step (see .github/workflows/ci.yml).
     command: "npm run preview -- --host 127.0.0.1 --port 4173",
     url: "http://127.0.0.1:4173",
     reuseExistingServer: !process.env.CI,

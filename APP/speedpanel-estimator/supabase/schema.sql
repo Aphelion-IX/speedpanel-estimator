@@ -16,6 +16,25 @@
 
 create extension if not exists pgcrypto;
 
+-- Baseline table/sequence/function privileges for anon/authenticated --
+-- RLS (enabled per-table below) is the real access boundary, but without
+-- this grant Postgres blocks every query before RLS is even evaluated
+-- ("permission denied for table X", distinct from an RLS denial). On a
+-- hosted Supabase project this is applied automatically at project
+-- creation, outside schema.sql, which is why it was never captured here --
+-- but that means schema.sql alone could never actually bootstrap a working
+-- database (confirmed: a from-scratch `supabase db reset` gets exactly
+-- that "permission denied" error on every table). ALTER DEFAULT PRIVILEGES
+-- extends the same grant to every table this script creates below,
+-- matching what the hosted platform already does going forward too.
+grant usage on schema public to anon, authenticated, service_role;
+grant all on all tables in schema public to anon, authenticated, service_role;
+grant all on all sequences in schema public to anon, authenticated, service_role;
+grant all on all functions in schema public to anon, authenticated, service_role;
+alter default privileges in schema public grant all on tables to anon, authenticated, service_role;
+alter default privileges in schema public grant all on sequences to anon, authenticated, service_role;
+alter default privileges in schema public grant all on functions to anon, authenticated, service_role;
+
 create table if not exists panels (
   id uuid primary key default gen_random_uuid(),
   created_at timestamptz not null default now(),
@@ -2953,7 +2972,12 @@ create table price_lists (
   name text not null,
   is_default boolean not null default false,
   notes text,
-  created_by uuid not null references auth.users (id),
+  -- Nullable: the PL1 backfill below runs as part of schema application,
+  -- before any admin profile necessarily exists (a fresh `supabase db
+  -- reset`/CI bootstrap applies schema.sql before seed.sql creates
+  -- profiles) -- attributing it to a real admin when one already exists
+  -- (the live-project case) is still preferred, null is just the fallback.
+  created_by uuid references auth.users (id),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -3040,8 +3064,9 @@ create policy "Company members can read their assigned list's prices" on price_l
 -- assign every existing company to it -- keeps every company priced
 -- exactly as before this migration until an admin creates/assigns a
 -- different list. created_by attributes the seed row to the earliest admin
--- account rather than leaving it null (the column is not-null, and no real
--- "actor" performed this one-time migration).
+-- account when one already exists (the live-project case); on a fresh
+-- bootstrap with no profiles yet (local Docker/CI, schema.sql applies
+-- before seed.sql), the subquery is null, which created_by now allows.
 insert into price_lists (name, is_default, created_by)
   select 'PL1 - Standard', true, (select id from profiles where role = 'admin' order by created_at asc limit 1)
   where not exists (select 1 from price_lists where is_default);

@@ -14,11 +14,13 @@
 begin;
 select plan(12);
 
--- Seed-preservation: exactly the 31 rows supabase/schema.sql's Dynamic RBAC
--- section seeds, reproducing the old hardcoded SECTION_ROLES/
--- has_staff_role(array[...]) call-site behavior with zero net change. See
--- that migration's own seed comment for the full list this count covers.
-select is((select count(*) from role_permissions)::int, 31, 'role_permissions has exactly the 31 seeded grants');
+-- Seed-preservation: the 31 rows supabase/schema.sql's original Dynamic RBAC
+-- section seeds (reproducing the old hardcoded SECTION_ROLES/
+-- has_staff_role(array[...]) call-site behavior with zero net change; see
+-- that migration's own seed comment for the full list this count covers)
+-- plus 1 added later by the order-revision feature (internal_sales gets
+-- orders.revise_order, see schema.sql's order_revisions section) = 32.
+select is((select count(*) from role_permissions)::int, 32, 'role_permissions has exactly the 32 seeded grants');
 select ok(
   exists(select 1 from role_permissions where role = 'bdm' and permission_key = 'requests.triage_update'),
   'seed: bdm has requests.triage_update (was has_staff_role([bdm]))'

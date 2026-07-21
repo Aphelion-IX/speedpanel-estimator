@@ -2,10 +2,15 @@
 -- E2E test fixtures -- role-based auth/RLS testing
 -- =============================================================================
 -- Idempotent (every insert is `on conflict do nothing`/upsert on a fixed
--- UUID) -- safe to re-run, and this is exactly what `supabase db reset`
--- runs against a fresh local stack. All emails are under the IANA-reserved
--- `.test` TLD (RFC 2606), never a real domain. See e2e/README.md for the
--- full persona table and role matrix this seeds.
+-- UUID) -- safe to re-run. All emails are under the IANA-reserved `.test`
+-- TLD (RFC 2606), never a real domain. See e2e/README.md for the full
+-- persona table and role matrix this seeds.
+--
+-- Must be applied via a literal `psql -f seed.sql` invocation (see
+-- e2e/README.md's Path A), never `supabase db reset`'s own auto-seed
+-- (`[db.seed] enabled = false` in config.toml reflects this) -- that step
+-- sends raw SQL batches over the wire rather than running real psql, so it
+-- can't interpret this file's `\set` below at all.
 --
 -- Passwords are set via pgcrypto's crypt()/gen_salt('bf') directly into
 -- auth.users -- this is the standard, documented pattern for local-dev
@@ -18,8 +23,8 @@
 -- is applied against, committed straight into git history) -- it's read
 -- from the E2E_SEED_PASSWORD environment variable via psql's `\set`
 -- backtick-shell-command substitution, which runs on the machine invoking
--- psql/`supabase db reset`, not inside the SQL itself. Set it before
--- running this file: `export E2E_SEED_PASSWORD='...'` (see e2e/README.md).
+-- psql, not inside the SQL itself. Set it before running this file:
+-- `export E2E_SEED_PASSWORD='...'` (see e2e/README.md).
 -- Applying this via the Supabase MCP connector's execute_sql (which can't
 -- run psql meta-commands) means substituting the real value directly into
 -- that one tool call instead -- never write it back into this file.
@@ -27,6 +32,12 @@
 -- See supabase/teardown-e2e.sql to remove everything this file creates.
 -- =============================================================================
 \set seed_password `printf '%s' "${E2E_SEED_PASSWORD:?Set E2E_SEED_PASSWORD before running seed.sql -- see e2e/README.md}"`
+-- psql's :'var' substitution never reaches inside a `do $$ ... $$` body --
+-- dollar-quoting is opaque to it by design (that's the whole point of
+-- dollar-quoting: protecting code from further client-side munging) -- so
+-- bridge it through a session-scoped GUC instead of referencing
+-- :'seed_password' directly inside the block below.
+select set_config('app.seed_password', :'seed_password', false);
 
 -- ---------------------------------------------------------------------------
 -- 1. Auth users + identities (triggers handle_new_user(), which creates the
@@ -35,7 +46,7 @@
 -- ---------------------------------------------------------------------------
 do $$
 declare
-  v_password text := :'seed_password';
+  v_password text := current_setting('app.seed_password');
   v_users jsonb := '[
     {"id": "eeeeeeee-0000-0000-0000-000000000001", "email": "admin@e2e.test"},
     {"id": "eeeeeeee-0000-0000-0000-000000000002", "email": "project-manager@e2e.test"},
@@ -96,10 +107,14 @@ update profiles set role = 'admin', staff_role = 'technical_services' where id =
 -- 3. Companies A and B -- A holds company-admin/member + every staff
 --    assignment; B holds only outsider, the cross-company-isolation target.
 -- ---------------------------------------------------------------------------
-insert into companies (id, legal_name, trading_name, status, created_by, created_at, updated_at)
+-- price_list_id is not null with no column default -- the real
+-- create_company() RPC always supplies (select id from price_lists where
+-- is_default) explicitly (see schema.sql), and this raw insert (bypassing
+-- that RPC) must do the same.
+insert into companies (id, legal_name, trading_name, status, created_by, created_at, updated_at, price_list_id)
 values
-  ('eeeeeeee-0000-0000-0001-000000000001', 'E2E Test Co A Pty Ltd', 'E2E Test Co A', 'active', 'eeeeeeee-0000-0000-0000-000000000001', now(), now()),
-  ('eeeeeeee-0000-0000-0001-000000000002', 'E2E Test Co B Pty Ltd', 'E2E Test Co B', 'active', 'eeeeeeee-0000-0000-0000-000000000001', now(), now())
+  ('eeeeeeee-0000-0000-0001-000000000001', 'E2E Test Co A Pty Ltd', 'E2E Test Co A', 'active', 'eeeeeeee-0000-0000-0000-000000000001', now(), now(), (select id from price_lists where is_default)),
+  ('eeeeeeee-0000-0000-0001-000000000002', 'E2E Test Co B Pty Ltd', 'E2E Test Co B', 'active', 'eeeeeeee-0000-0000-0000-000000000001', now(), now(), (select id from price_lists where is_default))
 on conflict (id) do nothing;
 
 insert into company_memberships (id, company_id, user_id, role, status, joined_at)
