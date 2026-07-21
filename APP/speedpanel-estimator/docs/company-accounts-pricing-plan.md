@@ -92,17 +92,18 @@ This plan is intentionally phased for execution across many separate future sess
 
 ---
 
-## Phase 4 — Company Users tab
+## Phase 4 — Company Users tab — DONE
 
 **Scope.** Restyle `CompanyMemberList.tsx` (308 lines, already implements roster/invite/role-change/suspend/remove/resend against real data) into the new module's Users tab — overwhelmingly reuse, minimal-to-no new backend.
 
-**Backend.** None expected — `CompanyMemberRowSchema` already returns `assigned_project_count`; verify the mockup's "Project Access" column needs nothing further before assuming a change is needed.
+**What actually shipped.**
+- **Backend.** None, confirmed — `CompanyMemberRowSchema` already returns `assigned_project_count`, matching the mockup's "Project Access" column exactly (shown as body text under each member's name, not a separate table column, per `CompanyMemberList.tsx`'s existing `MemberRow` — see the "restyle not rebuild" note below for why that stayed as-is).
+- **`src/pages/accounts/companies/CompanyUsersTab.tsx`** — a thin wrapper, not a fork: renders `CompanyMemberList.tsx` verbatim with `canManage={true}`/`isSpeedpanelAdmin={true}` (same as the old `AdminCompaniesPage.tsx`'s "Members" accordion), plus one line of intro copy. `CompanyMemberList.tsx` itself was **not modified at all** — its card-based roster/invite-form/pending-invitations layout stayed exactly as-is rather than being rebuilt into the mockup's table-based "Company Users" screen, per the plan's own explicit "same component, new container styling — not a fork" instruction.
+- **`CompanyOverviewPage.tsx`** — the Users tab is real now (was a `PlaceholderPage`); gained a `myUserId` prop (threaded from `AccountsRoot.tsx`'s `auth.user?.id`, needed so `CompanyMemberList` can mark "(you)" and hide self-management controls correctly) and the Overview tab's "Manage company users" link now switches to the local Users tab instead of navigating to the still-unbuilt standalone cross-company "Company Users" sidebar page.
 
-**Frontend.** `src/pages/accounts/companies/CompanyUsersTab.tsx` wrapping `CompanyMemberList.tsx` in the new module's chrome (same component, new container styling — not a fork).
+**Verified live** (Playwright against a local Supabase instance, `admin@e2e.test`): the Overview tab's "Manage company users" link correctly switches to Users; both seeded members render; role change (Estimator → Viewer → back) and suspend/reactivate both work end-to-end against real RPCs; the "Add existing account" form (staff-only) renders. **One gap, documented rather than silently skipped**: invite/resend/cancel all go through the `company-invite-member` Edge Function, and this sandbox's Docker cannot run the edge-runtime container at all (`supabase functions serve` itself fails with a rootless-Docker rlimit error, confirmed directly, not assumed) — so the actual invite-send round-trip isn't exercised here. This is a sandbox limitation, not new to this phase (`CompanyMemberList.tsx`'s invite code is unmodified pre-existing functionality); role-change/suspend/reactivate (real RPCs, no Edge Function) cover the "did wrapping this in new chrome silently break a click handler" risk this phase's own verification note calls out. `npm run typecheck && npm test && npm run build && npm run depcruise` all clean (187/187 tests, 0 new depcruise errors). No new pgTAP file (no new backend); `npm run test:rls` re-run as a sanity check, same result as Phase 3 (all touched files pass, same 3 pre-existing unrelated failures).
 
 **Dependencies.** Phase 2.
-
-**Verification.** Standard triad; live Playwright pass re-testing invite/role-change/suspend/resend inside the new tab (a restyle can silently break a click handler — don't just trust it compiled, per this session's own recent "functional wiring audit" precedent on the estimator).
 
 ---
 

@@ -95,7 +95,7 @@ export const AccountsRoot = ({ route, navigate, auth }: {
             {route.sub === "controlRoom" && <ControlRoomPage navigate={navigate} />}
             {route.sub === "companies" && route.newCompany && <CompanyWizard navigate={navigate} />}
             {route.sub === "companies" && !route.newCompany && route.companyId && (
-              <CompanyOverviewPage companyId={route.companyId} navigate={navigate} />
+              <CompanyOverviewPage companyId={route.companyId} myUserId={auth.user?.id ?? null} navigate={navigate} />
             )}
             {route.sub === "companies" && !route.newCompany && !route.companyId && <CompaniesListPage navigate={navigate} />}
             {COMING_SOON[route.sub] && (

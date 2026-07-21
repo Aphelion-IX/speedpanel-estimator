@@ -1,14 +1,15 @@
 // =============================================================================
 // Company Accounts & Pricing -- Company Overview
 // =============================================================================
-// Phase 2 scope was the Overview tab only -- Users/Pricing/Projects/Quotes/
-// Orders/Audit still render PlaceholderPage until their own phase lands (4,
-// 9, none planned yet, none planned yet, 10, 13 respectively), same "swap
-// page-by-page" convention PlaceholderPage.tsx documents. Phase 3 makes
-// Addresses real too (CompanyAddressesTab.tsx). Real data comes from the
-// same useAdminCompanies() row Phase 2 extended admin_list_companies() to
-// carry (see companiesStore.ts) plus useCompanyActivityCounts() for the two
-// project/order KPI tiles.
+// Phase 2 scope was the Overview tab only -- Pricing/Projects/Quotes/Orders/
+// Audit still render PlaceholderPage until their own phase lands (9, none
+// planned yet, none planned yet, 10, 13 respectively), same "swap
+// page-by-page" convention PlaceholderPage.tsx documents. Phase 3 made
+// Addresses real (CompanyAddressesTab.tsx); Phase 4 makes Users real too
+// (CompanyUsersTab.tsx, wrapping the existing CompanyMemberList.tsx). Real
+// data comes from the same useAdminCompanies() row Phase 2 extended
+// admin_list_companies() to carry (see companiesStore.ts) plus
+// useCompanyActivityCounts() for the two project/order KPI tiles.
 // =============================================================================
 import { useState } from "react";
 import { Building2, Users as UsersIcon, ListTree, ClipboardList } from "lucide-react";
@@ -23,6 +24,7 @@ import {
   COMPANY_STATUS_LABELS, COMPANY_STATUSES, type AdminCompanyRow, type CompanyStatus,
 } from "../../admin/companies/companiesStore";
 import { CompanyAddressesTab } from "./CompanyAddressesTab";
+import { CompanyUsersTab } from "./CompanyUsersTab";
 
 const STATUS_TONE: Record<CompanyStatus, "ok" | "warn" | "danger" | "info" | "neutral"> = {
   pending: "info", active: "ok", on_hold: "warn", suspended: "danger", archived: "neutral",
@@ -71,7 +73,7 @@ const StatusChanger = ({ company, onChanged }: { company: AdminCompanyRow; onCha
   );
 };
 
-const OverviewTab = ({ company, navigate }: { company: AdminCompanyRow; navigate: (r: Route) => void }) => {
+const OverviewTab = ({ company, onOpenUsers }: { company: AdminCompanyRow; onOpenUsers: () => void }) => {
   const { counts } = useCompanyActivityCounts(company.id);
 
   return (
@@ -131,7 +133,7 @@ const OverviewTab = ({ company, navigate }: { company: AdminCompanyRow; navigate
       <p className="mt-5 text-xs" style={{ color: MUTED }}>
         Item price overrides, price visibility rules and ordering permissions are coming in later phases (9, 10, 12) -- not shown here until they're real.
         {" "}
-        <button className="font-semibold hover:underline" style={{ color: BLUE }} onClick={() => navigate({ tab: "accounts", sub: "companyUsers" })}>
+        <button className="font-semibold hover:underline" style={{ color: BLUE }} onClick={onOpenUsers}>
           Manage company users
         </button>
       </p>
@@ -139,10 +141,10 @@ const OverviewTab = ({ company, navigate }: { company: AdminCompanyRow; navigate
   );
 };
 
-// "addresses" is deliberately absent -- it's real now (CompanyAddressesTab.tsx),
-// dispatched separately below rather than through this PlaceholderPage list.
+// "addresses"/"users" are deliberately absent -- both real now
+// (CompanyAddressesTab.tsx/CompanyUsersTab.tsx), dispatched separately
+// below rather than through this PlaceholderPage list.
 const OTHER_TABS: { id: string; label: string; title: string; description: string }[] = [
-  { id: "users", label: "Users", title: "Company Users", description: "Roster, roles and invitations for this company -- coming in Phase 4." },
   { id: "pricing", label: "Pricing", title: "Company Pricing", description: "Assigned price list and item-specific overrides -- coming in Phase 9." },
   { id: "projects", label: "Projects", title: "Projects", description: "This company's projects, scoped to this workspace -- not yet planned." },
   { id: "quotes", label: "Quotes", title: "Quotes", description: "This company's quote requests, scoped to this workspace -- not yet planned." },
@@ -150,7 +152,7 @@ const OTHER_TABS: { id: string; label: string; title: string; description: strin
   { id: "audit", label: "Audit", title: "Audit History", description: "This company's audit trail -- coming in Phase 13." },
 ];
 
-export const CompanyOverviewPage = ({ companyId, navigate }: { companyId: string; navigate: (r: Route) => void }) => {
+export const CompanyOverviewPage = ({ companyId, myUserId, navigate }: { companyId: string; myUserId: string | null; navigate: (r: Route) => void }) => {
   const { companies, loading, error, reload } = useAdminCompanies();
   const [activeTab, setActiveTab] = useState("overview");
   const company = companies.find(c => c.id === companyId);
@@ -199,7 +201,8 @@ export const CompanyOverviewPage = ({ companyId, navigate }: { companyId: string
         />
       </div>
 
-      <TabPanel id="overview" activeId={activeTab}><OverviewTab company={company} navigate={navigate} /></TabPanel>
+      <TabPanel id="overview" activeId={activeTab}><OverviewTab company={company} onOpenUsers={() => setActiveTab("users")} /></TabPanel>
+      <TabPanel id="users" activeId={activeTab}><CompanyUsersTab companyId={company.id} myUserId={myUserId} /></TabPanel>
       <TabPanel id="addresses" activeId={activeTab}><CompanyAddressesTab companyId={company.id} /></TabPanel>
       {OTHER_TABS.map(t => (
         <TabPanel key={t.id} id={t.id} activeId={activeTab}>
