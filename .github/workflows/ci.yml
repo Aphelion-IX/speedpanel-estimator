@@ -69,8 +69,17 @@ jobs:
       - name: Start local Supabase stack
         run: supabase start
 
-      - name: Reset database (applies schema.sql + seed.sql)
+      - name: Reset database (applies schema.sql)
         run: supabase db reset
+
+      - name: Seed test data
+        # supabase db reset's own auto-seed is disabled (config.toml's
+        # [db.seed] enabled = false) because it sends raw SQL batches over
+        # the wire rather than running real psql, and seed.sql needs real
+        # psql to interpret its `\set` (see seed.sql's header comment).
+        env:
+          E2E_SEED_PASSWORD: ${{ secrets.E2E_PASSWORD }}
+        run: psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -v ON_ERROR_STOP=1 -f supabase/seed.sql
 
       - name: Run pgTAP tests
         run: npm run test:rls

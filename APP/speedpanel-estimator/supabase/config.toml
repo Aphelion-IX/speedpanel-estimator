@@ -64,8 +64,14 @@ enabled = true
 schema_paths = ["./schema.sql"]
 
 [db.seed]
-# If enabled, seeds the database after migrations during a db reset.
-enabled = true
+# Disabled: seed.sql uses psql's `\set` (backtick shell-command
+# substitution, to read E2E_SEED_PASSWORD without ever writing a real
+# password literal into this file) -- `db reset`'s own auto-seed step
+# doesn't run real psql, it sends raw SQL batches over the wire, which
+# can't interpret `\set` at all ("syntax error at or near \"). seed.sql
+# must be applied explicitly via a literal `psql -f seed.sql` invocation
+# instead -- see e2e/README.md's Path A instructions.
+enabled = false
 # Specifies an ordered list of seed files to load during db reset.
 # Supports glob patterns relative to supabase directory: "./seeds/*.sql"
 sql_paths = ["./seed.sql"]

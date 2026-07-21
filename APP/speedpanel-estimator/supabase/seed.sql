@@ -2,10 +2,15 @@
 -- E2E test fixtures -- role-based auth/RLS testing
 -- =============================================================================
 -- Idempotent (every insert is `on conflict do nothing`/upsert on a fixed
--- UUID) -- safe to re-run, and this is exactly what `supabase db reset`
--- runs against a fresh local stack. All emails are under the IANA-reserved
--- `.test` TLD (RFC 2606), never a real domain. See e2e/README.md for the
--- full persona table and role matrix this seeds.
+-- UUID) -- safe to re-run. All emails are under the IANA-reserved `.test`
+-- TLD (RFC 2606), never a real domain. See e2e/README.md for the full
+-- persona table and role matrix this seeds.
+--
+-- Must be applied via a literal `psql -f seed.sql` invocation (see
+-- e2e/README.md's Path A), never `supabase db reset`'s own auto-seed
+-- (`[db.seed] enabled = false` in config.toml reflects this) -- that step
+-- sends raw SQL batches over the wire rather than running real psql, so it
+-- can't interpret this file's `\set` below at all.
 --
 -- Passwords are set via pgcrypto's crypt()/gen_salt('bf') directly into
 -- auth.users -- this is the standard, documented pattern for local-dev
@@ -18,8 +23,8 @@
 -- is applied against, committed straight into git history) -- it's read
 -- from the E2E_SEED_PASSWORD environment variable via psql's `\set`
 -- backtick-shell-command substitution, which runs on the machine invoking
--- psql/`supabase db reset`, not inside the SQL itself. Set it before
--- running this file: `export E2E_SEED_PASSWORD='...'` (see e2e/README.md).
+-- psql, not inside the SQL itself. Set it before running this file:
+-- `export E2E_SEED_PASSWORD='...'` (see e2e/README.md).
 -- Applying this via the Supabase MCP connector's execute_sql (which can't
 -- run psql meta-commands) means substituting the real value directly into
 -- that one tool call instead -- never write it back into this file.

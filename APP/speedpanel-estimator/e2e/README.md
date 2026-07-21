@@ -92,12 +92,20 @@ production `dist/` build, on `http://127.0.0.1:4173` by default), not
 ### Path A -- local Supabase (needs Docker + real network access)
 ```
 supabase start
-supabase db reset      # applies schema.sql + seed.sql -- schema.sql is
-                        # applied via supabase/migrations/00000000000000_schema.sql,
-                        # a symlink to ../schema.sql (db reset only ever
-                        # applies files under supabase/migrations/; config.toml's
-                        # [db.migrations] schema_paths is unrelated -- that's
-                        # only consulted by `supabase db diff`)
+supabase db reset      # applies schema.sql (via
+                        # supabase/migrations/00000000000000_schema.sql, a
+                        # symlink to ../schema.sql -- db reset only ever
+                        # applies files under supabase/migrations/;
+                        # config.toml's [db.migrations] schema_paths is
+                        # unrelated, that's only consulted by `supabase db
+                        # diff`). Does NOT seed -- [db.seed] enabled = false,
+                        # see next line.
+export E2E_SEED_PASSWORD='...'
+psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+  -v ON_ERROR_STOP=1 -f supabase/seed.sql
+                        # seed.sql needs real psql for its `\set` --
+                        # db reset's own auto-seed sends raw SQL batches
+                        # over the wire and can't interpret that
 npm run test:rls       # pgTAP via `supabase test db`
 npm run build
 npm run test:e2e       # Playwright, against the local stack
@@ -122,31 +130,36 @@ Runs on every `pull_request`/`push` to `main`, and on demand via
 - **`checks`** -- `npm run typecheck`, `npm test` (vitest unit tests), then
   `npm run build`. Blocking.
 - **`pgtap`** -- installs the Supabase CLI, `supabase start` + `supabase db
-  reset` (spins up a fully local Postgres stack, no live project or secrets
-  needed), then `npm run test:rls` against it. Blocking.
+  reset` (spins up a fully local Postgres stack), seeds it via a literal
+  `psql -f supabase/seed.sql` (reusing the `E2E_PASSWORD` secret as
+  `E2E_SEED_PASSWORD`, since seed.sql needs real psql for its `\set`), then
+  `npm run test:rls` against it. Blocking.
 - **`e2e`** -- builds the app, starts the preview server, runs the full
   Playwright suite against the live project below, and uploads the
   Playwright HTML report + traces/screenshots/videos as build artifacts
   (`if: always()`, 14-day retention) so a failure is debuggable without
   rerunning anything locally. Non-blocking (see below).
 
-Only the `e2e` job needs the secrets/live project described next -- `checks`
-and `pgtap` are fully self-contained.
+`pgtap` needs the `E2E_PASSWORD` secret too (to seed its own local stack,
+as `E2E_SEED_PASSWORD`) but never touches the live project -- only `e2e`
+needs the live project described next. `checks` needs neither.
 
 Requires these repository secrets (Settings -> Secrets and variables ->
 Actions) to be set **once**, manually -- never committed to git:
 
 | Secret | Required? | Notes |
 |---|---|---|
-| `E2E_PASSWORD` | **Yes** | The one shared password for all 10 seeded `@e2e.test` personas (see `supabase/seed.sql`). Without this, sign-in fails for every persona-based test. |
+| `E2E_PASSWORD` | **Yes** | The one shared password for all 10 seeded `@e2e.test` personas (see `supabase/seed.sql`). Used by both `e2e` (sign-in) and `pgtap` (as `E2E_SEED_PASSWORD`, to seed its own ephemeral local stack). Without this, sign-in fails for every persona-based test, and `pgtap` fails outright. |
 | `VITE_SUPABASE_URL` | Optional | `src/lib/supabaseClient.ts` falls back to this project's own URL if unset. Only needed to point the workflow at a *different* project. |
 | `VITE_SUPABASE_PUBLISHABLE_KEY` | Optional | Same fallback as above, for the anon/publishable key. |
 
-Nothing here is a service-role key, and the workflow never seeds data
-itself -- `seed.sql`/`teardown-e2e.sql` are applied out-of-band by whoever
-administers the target project, same as Path B above. The invite-flow spec
+Nothing here is a service-role key. The `e2e` job never seeds the live
+project itself -- `seed.sql`/`teardown-e2e.sql` are applied out-of-band by
+whoever administers it, same as Path B above. The invite-flow spec
 (`admin-invite-flow.spec.ts`) calls the already-deployed `admin-invite-user`
-Edge Function through the real UI; it does not redeploy it.
+Edge Function through the real UI; it does not redeploy it. The `pgtap` job
+is different -- it does seed data, but only into its own disposable local
+stack that's torn down at the end of the job, never the live project.
 
 ## Spec files
 
@@ -169,17 +182,34 @@ Edge Function through the real UI; it does not redeploy it.
   real against the live project via the Supabase MCP connector's
   `execute_sql` (simulating each user's JWT session with `set local role
   authenticated` + `request.jwt.claims`, the same technique
-  `basejump/supabase_test_helpers` uses) and confirmed passing. **Also now
-  runs in CI** (`ci.yml`'s `pgtap` job) against a fresh local Postgres
-  stack on every PR/push -- this required adding
-  `supabase/migrations/00000000000000_schema.sql` (a symlink to
-  `../schema.sql`), since `supabase db reset` only ever applies files under
-  `supabase/migrations/` and this repo had none, so `schema.sql` was never
-  actually loaded despite this doc's Path A instructions claiming it was
-  (confirmed by the first CI run of this change: `db reset`'s seed step
-  failed with `relation "profiles" does not exist`). `config.toml`'s
-  `[db.migrations] schema_paths` is unrelated to this -- it's only consulted
-  by `supabase db diff`, not `db reset`/`start`.
+  `basejump/supabase_test_helpers` uses) and confirmed passing.
+  **Now also wired into CI** (`ci.yml`'s `pgtap` job) against a fresh local
+  Postgres stack on every PR/push -- getting a truly fresh bootstrap
+  working surfaced three real, pre-existing gaps that only ever mattered
+  once something actually tried to apply this repo's SQL files to an empty
+  database (never true against the live project, which always already has
+  data):
+  1. `supabase db reset` only ever applies files under
+     `supabase/migrations/`, and this repo had none, so `schema.sql` was
+     never actually loaded despite this doc's Path A instructions claiming
+     it was -- fixed via `supabase/migrations/00000000000000_schema.sql`, a
+     symlink to `../schema.sql`. (`config.toml`'s `[db.migrations]
+     schema_paths` is unrelated to this -- it's only consulted by
+     `supabase db diff`, not `db reset`/`start`.)
+  2. `schema.sql`'s one-time `price_lists` "PL1 - Standard" backfill
+     attributed `created_by` to "the earliest admin", which doesn't exist
+     yet on a from-scratch bootstrap (schema applies before any profile
+     does) -- fixed by making that column nullable.
+  3. `seed.sql`'s use of psql's `\set` (to read `E2E_SEED_PASSWORD` without
+     ever committing a real password) silently assumed `supabase db
+     reset`'s auto-seed runs real psql; it doesn't -- it sends raw SQL
+     batches over the wire, which can't interpret `\set` at all. Fixed by
+     disabling `[db.seed]` and seeding explicitly via a literal
+     `psql -f seed.sql` step instead (both in CI and in the Path A
+     instructions above).
+  Confirm the `pgtap` job is green on the PR/commit this change ships
+  with for the genuine signal, not a claim made from this sandbox (which
+  cannot run `supabase start` at all -- see below).
 - ⚠️ **Playwright, run from the dev sandbox**: written completely and
   typechecks cleanly; smoke-tested against this environment's
   pre-installed Chromium, but every assertion requiring a real Supabase
@@ -192,12 +222,12 @@ Edge Function through the real UI; it does not redeploy it.
   signal -- see the workflow run linked in the PR/commit this change ships
   with, not a claim made from this sandbox.
 - ⬜ **Local Docker path (Path A)**: `supabase/config.toml` was generated by
-  the real Supabase CLI (`supabase init`), `[db.seed]` already points at
-  `seed.sql`, and `supabase/migrations/00000000000000_schema.sql` now makes
-  `schema.sql` load too, but `supabase start`/`supabase db reset` themselves
-  were never run in this session -- the same network policy blocks pulling
-  the Postgres/GoTrue/Kong container images. Untested here, but this is
-  exactly what `ci.yml`'s `pgtap` job now runs on every PR/push, so it's a
-  normal Docker-capable environment (GitHub Actions) verifying it instead --
-  see that workflow run for the genuine signal, same as Path C for
-  Playwright above.
+  the real Supabase CLI (`supabase init`), and now correctly reflects how
+  schema and seed data actually get applied (see the three fixes above),
+  but `supabase start`/`supabase db reset` themselves were never run in
+  this session -- the same network policy blocks pulling the
+  Postgres/GoTrue/Kong container images. Untested here, but this is exactly
+  what `ci.yml`'s `pgtap` job now runs on every PR/push, so it's a normal
+  Docker-capable environment (GitHub Actions) verifying it instead -- see
+  that workflow run for the genuine signal, same as Path C for Playwright
+  above.
