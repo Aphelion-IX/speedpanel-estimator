@@ -265,36 +265,39 @@ export function Calculator({
 
   // Rendered straight into .geometry-body's 2-column grid (see the section
   // comment by webWorkspaceNode below), so it needs exactly two top-level
-  // children -- one per column. ProfileSection returns a bare fragment (its
-  // own label + ProfileSelector as separate nodes, no wrapper), so without
-  // this div CSS Grid's auto-placement split those two nodes across row 1's
-  // two columns on its own, then dropped the second div below (Dimensions/
-  // preview/span table) into row 2 col 1 alone -- leaving row 2 col 2
-  // empty and the Dimensions block squeezed into half the card's width.
+  // children -- one per column: Profile/Dimensions/Span table stacked on
+  // the left, Preview alone filling the full right column. ProfileSection
+  // returns a bare fragment (its own label + ProfileSelector as separate
+  // nodes, no wrapper) and WallPreviewSection returns a single div, so only
+  // the left column needs its own wrapper div -- without it CSS Grid's
+  // auto-placement would split ProfileSection's two nodes across row 1's
+  // two columns on its own instead of treating them as one grid item.
   // firstWallSetup.tsx already wraps its own <ProfileSection> the same way.
   const geometryContent = (
     <>
-      <div><ProfileSection profile={active.profile} onChange={id => update({ profile: id })} /></div>
-      <div className="border-t border-slate-100 dark:border-slate-700 pt-3">
-        <div className="mb-2 flex items-center justify-between">
-          <span className={cx.cardHd} style={{marginBottom:0}}>Dimensions</span>
-          <div className="flex items-center gap-2">
-            <UnitToggle unit={dimUnit} setUnit={switchDimUnit} />
+      <div>
+        <ProfileSection profile={active.profile} onChange={id => update({ profile: id })} />
+        <div className="border-t border-slate-100 dark:border-slate-700 pt-3">
+          <div className="mb-2 flex items-center justify-between">
+            <span className={cx.cardHd} style={{marginBottom:0}}>Dimensions</span>
+            <div className="flex items-center gap-2">
+              <UnitToggle unit={dimUnit} setUnit={switchDimUnit} />
+            </div>
           </div>
+          <DimensionInputs active={active} toDisp={toDisp} updDim={updDim} out={out} orient={orient} walls={walls} />
+          {/* External's C-track requirement is looked up from the generic
+              span table (varies by width/height) -- Internal Standard/Corner
+              walls use one fixed section regardless of size instead (see
+              SpanTable's own branch in wallConfig.tsx). Passing wallSystem
+              only for Internal walls is what selects between the two. */}
+          <SpanTable orient={orient} type={active.type} wallSystem={isInternal ? active.wallSystem : undefined} />
         </div>
-        <DimensionInputs active={active} toDisp={toDisp} updDim={updDim} out={out} orient={orient} walls={walls} />
-        {/* geometryContent only ever renders on web (see its own comment
-            above) -- phone has its own separate GeometrySectionPhone
-            (phoneSections.tsx), which now also always shows the preview
-            inline below Dimensions, matching this. */}
-        <WallPreviewSection active={active} walls={walls} out={out} dimUnit={dimUnit} toDisp={toDisp} />
-        {/* External's C-track requirement is looked up from the generic
-            span table (varies by width/height) -- Internal Standard/Corner
-            walls use one fixed section regardless of size instead (see
-            SpanTable's own branch in wallConfig.tsx). Passing wallSystem
-            only for Internal walls is what selects between the two. */}
-        <SpanTable orient={orient} type={active.type} wallSystem={isInternal ? active.wallSystem : undefined} />
       </div>
+      {/* geometryContent only ever renders on web (see its own comment
+          above) -- phone has its own separate GeometrySectionPhone
+          (phoneSections.tsx), which keeps the preview inline below
+          Dimensions instead of splitting it into its own column. */}
+      <WallPreviewSection active={active} walls={walls} out={out} dimUnit={dimUnit} toDisp={toDisp} />
     </>
   );
   const panelLengthContent = (

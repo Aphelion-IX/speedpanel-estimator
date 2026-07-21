@@ -537,6 +537,27 @@ children, correctly split ~46/54 into Profile | Dimensions+Preview+Span-table, b
 height, in both light and dark mode. Full verification suite (typecheck/test/build/depcruise)
 clean, 187 tests passing.
 
+**Follow-up layout request: Preview moved into its own full-height right column — DONE.** User
+request right after the fix above: "Preview should be full right side with dimensions and the
+other info on the left hand." Restructured `geometryContent`'s two `.geometry-body` grid children
+from [Profile | Dimensions+Preview+Span-table] to [Profile+Dimensions+Span-table | Preview] --
+`WallPreviewSection` (`ui/wallPreview.tsx`) moved out of the `border-t` div and out to be its own
+second top-level child of the fragment, taking the whole right column at the grid row's full
+height (matching the left column, since CSS Grid's `align-items: start` default still lets each
+column size to its own content, but `.geometry-body` has no `align-items` override so both stretch
+to the row's height by default). `WallPreviewSection` already returns a single wrapping `<div>` (no
+bare-fragment risk the same way `ProfileSection` was -- see the fix above), so no extra wrapper
+needed there; `ProfileSection`'s own wrapper div now also holds the `border-t` Dimensions/Span-table
+block alongside it, still a single grid item. Phone's own `GeometrySectionPhone`
+(`phoneSections.tsx`) is untouched -- it keeps Preview inline below Dimensions, a deliberate
+divergence noted in the code (phone has no side-by-side room for a Preview column). Verified live
+at both web (1600px) and iPad-landscape (1024px) widths, with real dimensions entered (Preview
+renders the actual SVG wall diagram, not just the empty-state placeholder) and in dark mode; also
+confirmed the Raked-profile note (an extra conditional child inside `ProfileSection`'s own bare
+fragment) still stays contained within the left column's single grid item, not spilling into a
+third auto-placed cell. Full verification suite (typecheck/test/build/depcruise) clean, 187 tests
+passing.
+
 ### What Phase 4 actually required (historical — kept for context; Phase 4 is now done, see above)
 
 Two files need **zero changes** — confirmed by full diff, not just line-count comparison:
