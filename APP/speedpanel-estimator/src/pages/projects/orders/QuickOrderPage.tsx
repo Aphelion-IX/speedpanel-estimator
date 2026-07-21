@@ -122,10 +122,10 @@ export const QuickOrderPage = ({ projectId, auth, onBack, onCreated }: {
 }) => {
   const { project, loading: projectLoading, error: projectError } = useProject(projectId);
   const { catalog, loading: catalogLoading, error: catalogError } = useProductStore();
-  const { assigned, defaultList, loading: pricingLoading, error: pricingError } = useEffectivePriceListPrices(project?.company_id ?? null);
+  const { overrides, assigned, defaultList, loading: pricingLoading, error: pricingError } = useEffectivePriceListPrices(project?.company_id ?? null);
   const { createOrder } = useProjectOrders(projectId);
 
-  const effectiveCatalog = useMemo(() => applyEffectivePricing(catalog, assigned, defaultList), [catalog, assigned, defaultList]);
+  const effectiveCatalog = useMemo(() => applyEffectivePricing(catalog, overrides, assigned, defaultList), [catalog, overrides, assigned, defaultList]);
 
   const [category, setCategory] = useState<PriceableCategory>("panel");
   const [productId, setProductId] = useState("");

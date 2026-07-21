@@ -10,8 +10,9 @@ import { useCallback, useEffect, useState } from "react";
 import { supabase } from "../../../lib/supabaseClient";
 import {
   PriceListSummaryRowSchema, PriceListRowSchema, PriceListPriceRowSchema, PriceListVersionRowSchema,
+  CompanyPriceOverrideRowSchema,
   priceRowProductId,
-  type PriceListSummaryRow, type PriceListRow, type PriceListPriceRow, type PriceableCategory,
+  type PriceListSummaryRow, type PriceListRow, type PriceListPriceRow, type PriceableCategory, type CompanyPriceOverrideRow,
 } from "./priceListTypes";
 
 const NOT_CONFIGURED = "Price lists aren't configured for this environment.";
@@ -250,61 +251,74 @@ export function useCompanyPriceListAssignment(companyId: string) {
   return { priceListId, loading, error, saving, save };
 }
 
-interface EffectivePricesState { assigned: PriceListPriceRow[]; defaultList: PriceListPriceRow[]; loading: boolean; error: string | null; }
+interface EffectivePricesState {
+  overrides: CompanyPriceOverrideRow[]; assigned: PriceListPriceRow[]; defaultList: PriceListPriceRow[];
+  loading: boolean; error: string | null;
+}
+const EMPTY_EFFECTIVE_PRICES: Omit<EffectivePricesState, "loading" | "error"> = { overrides: [], assigned: [], defaultList: [] };
 
-// Powers applyEffectivePricing() at OrderBuilderPage.tsx's one call site --
-// the company's own assigned list's prices, plus PL1's (the confirmed
+// Powers applyEffectivePricing() at OrderBuilderPage.tsx/QuickOrderPage.tsx's
+// call sites -- the company's own item overrides (Phase 9, highest
+// priority), its own assigned list's prices, plus PL1's (the confirmed
 // fallback), fetched client-side rather than via a server-side "effective
-// catalog" RPC. Works for a customer (via price_list_prices' company-
-// membership + is_default read policies) and for staff alike; companyId
-// null (a solo, company-less project) skips the assigned-list lookup and
-// resolves against PL1 only.
+// catalog" RPC. Works for a customer (via price_list_prices'/
+// company_price_overrides' company-membership + is_default read policies)
+// and for staff alike; companyId null (a solo, company-less project) skips
+// both the assigned-list and overrides lookups and resolves against PL1
+// only (overrides are always company-scoped, never a PL1-style fallback).
 export function useEffectivePriceListPrices(companyId: string | null) {
-  const [state, setState] = useState<EffectivePricesState>({ assigned: [], defaultList: [], loading: true, error: null });
+  const [state, setState] = useState<EffectivePricesState>({ ...EMPTY_EFFECTIVE_PRICES, loading: true, error: null });
 
   useEffect(() => {
     let cancelled = false;
 
     async function run() {
-      if (!supabase) { setState({ assigned: [], defaultList: [], loading: false, error: NOT_CONFIGURED }); return; }
+      if (!supabase) { setState({ ...EMPTY_EFFECTIVE_PRICES, loading: false, error: NOT_CONFIGURED }); return; }
       setState(s => ({ ...s, loading: true, error: null }));
 
       const { data: defaultRow, error: defaultErr } = await supabase.from("price_lists").select("id").eq("is_default", true).maybeSingle();
       if (cancelled) return;
-      if (defaultErr) { setState({ assigned: [], defaultList: [], loading: false, error: defaultErr.message }); return; }
+      if (defaultErr) { setState({ ...EMPTY_EFFECTIVE_PRICES, loading: false, error: defaultErr.message }); return; }
       const defaultId = (defaultRow?.id as string | undefined) ?? null;
 
       let assignedId: string | null = null;
       if (companyId) {
         const { data: company, error: companyErr } = await supabase.from("companies").select("price_list_id").eq("id", companyId).maybeSingle();
         if (cancelled) return;
-        if (companyErr) { setState({ assigned: [], defaultList: [], loading: false, error: companyErr.message }); return; }
+        if (companyErr) { setState({ ...EMPTY_EFFECTIVE_PRICES, loading: false, error: companyErr.message }); return; }
         assignedId = (company?.price_list_id as string | null) ?? null;
       }
 
       // current_price_list_prices() (Phase 6) resolves each list's ACTIVE
       // version only -- an in-progress draft never leaks into customer-
       // facing order pricing, regardless of what an admin is mid-editing on
-      // AdminPriceListsPage.tsx right now.
-      const [assignedRes, defaultRes] = await Promise.all([
+      // AdminPriceListsPage.tsx right now. current_company_price_overrides()
+      // (Phase 9) has the same "currently in effect only" narrowing built in.
+      const [assignedRes, defaultRes, overridesRes] = await Promise.all([
         assignedId && assignedId !== defaultId
           ? supabase.rpc("current_price_list_prices", { p_price_list_id: assignedId })
           : Promise.resolve({ data: [] as unknown[], error: null }),
         defaultId
           ? supabase.rpc("current_price_list_prices", { p_price_list_id: defaultId })
           : Promise.resolve({ data: [] as unknown[], error: null }),
+        companyId
+          ? supabase.rpc("current_company_price_overrides", { p_company_id: companyId })
+          : Promise.resolve({ data: [] as unknown[], error: null }),
       ]);
       if (cancelled) return;
-      if (assignedRes.error) { setState({ assigned: [], defaultList: [], loading: false, error: assignedRes.error.message }); return; }
-      if (defaultRes.error) { setState({ assigned: [], defaultList: [], loading: false, error: defaultRes.error.message }); return; }
+      if (assignedRes.error) { setState({ ...EMPTY_EFFECTIVE_PRICES, loading: false, error: assignedRes.error.message }); return; }
+      if (defaultRes.error) { setState({ ...EMPTY_EFFECTIVE_PRICES, loading: false, error: defaultRes.error.message }); return; }
+      if (overridesRes.error) { setState({ ...EMPTY_EFFECTIVE_PRICES, loading: false, error: overridesRes.error.message }); return; }
 
       const defaultParsed = PriceListPriceRowSchema.array().safeParse(defaultRes.data ?? []);
-      if (!defaultParsed.success) { setState({ assigned: [], defaultList: [], loading: false, error: BAD_SHAPE }); return; }
+      if (!defaultParsed.success) { setState({ ...EMPTY_EFFECTIVE_PRICES, loading: false, error: BAD_SHAPE }); return; }
       const assignedRawRows = assignedId === defaultId ? defaultRes.data : assignedRes.data;
       const assignedParsed = PriceListPriceRowSchema.array().safeParse(assignedRawRows ?? []);
-      if (!assignedParsed.success) { setState({ assigned: [], defaultList: [], loading: false, error: BAD_SHAPE }); return; }
+      if (!assignedParsed.success) { setState({ ...EMPTY_EFFECTIVE_PRICES, loading: false, error: BAD_SHAPE }); return; }
+      const overridesParsed = CompanyPriceOverrideRowSchema.array().safeParse(overridesRes.data ?? []);
+      if (!overridesParsed.success) { setState({ ...EMPTY_EFFECTIVE_PRICES, loading: false, error: BAD_SHAPE }); return; }
 
-      setState({ assigned: assignedParsed.data, defaultList: defaultParsed.data, loading: false, error: null });
+      setState({ overrides: overridesParsed.data, assigned: assignedParsed.data, defaultList: defaultParsed.data, loading: false, error: null });
     }
 
     run();

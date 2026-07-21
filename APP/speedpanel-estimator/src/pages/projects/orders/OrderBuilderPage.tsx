@@ -28,7 +28,7 @@ export const OrderBuilderPage = ({ projectId, auth, onBack, onCreated }: {
 }) => {
   const { project, loading: projectLoading, error: projectError } = useProject(projectId);
   const { catalog, loading: catalogLoading, error: catalogError } = useProductStore();
-  const { assigned, defaultList, loading: pricingLoading, error: pricingError } = useEffectivePriceListPrices(project?.company_id ?? null);
+  const { overrides, assigned, defaultList, loading: pricingLoading, error: pricingError } = useEffectivePriceListPrices(project?.company_id ?? null);
   const { createOrder } = useProjectOrders(projectId);
 
   const [items, setItems] = useState<DraftLineItem[] | null>(null);
@@ -40,7 +40,7 @@ export const OrderBuilderPage = ({ projectId, auth, onBack, onCreated }: {
     if (!project || catalogLoading || pricingLoading) return;
     try {
       const report = computeProjectReportData(project.data);
-      const effectiveCatalog = applyEffectivePricing(catalog, assigned, defaultList);
+      const effectiveCatalog = applyEffectivePricing(catalog, overrides, assigned, defaultList);
       const priced = priceReportData(report, effectiveCatalog);
       setItems(priced.items.map(i => ({ ...i, included: true })));
     } catch (err) {
@@ -50,7 +50,7 @@ export const OrderBuilderPage = ({ projectId, auth, onBack, onCreated }: {
     // change -- not on every keystroke while the customer is adjusting
     // quantities below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [project?.id, project?.data, catalog, assigned, defaultList, pricingLoading]);
+  }, [project?.id, project?.data, catalog, overrides, assigned, defaultList, pricingLoading]);
 
   const totals = useMemo(() => {
     if (!items) return null;

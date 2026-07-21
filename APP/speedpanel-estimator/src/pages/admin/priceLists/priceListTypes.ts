@@ -60,3 +60,27 @@ export type PriceListPriceRow = z.infer<typeof PriceListPriceRowSchema>;
 export function priceRowProductId(row: PriceListPriceRow): string {
   return (row.panel_id ?? row.track_id ?? row.fixing_id ?? row.sealant_id)!;
 }
+
+// current_company_price_overrides() RPC row (Company Accounts & Pricing
+// Phase 9) -- the narrow, customer-facing shape (no internal_reason/
+// created_by/approved_* -- those are staff-only, see
+// company_list_price_overrides()'s own richer row in
+// companyPriceOverridesStore.ts). Lives here, not in that store file,
+// because applyEffectivePricing.ts and priceListsStore.ts's
+// useEffectivePriceListPrices() both need it too.
+export const CompanyPriceOverrideRowSchema = z.object({
+  id: z.string(),
+  category: z.enum(PRICEABLE_CATEGORIES),
+  panel_id: z.string().nullable(),
+  track_id: z.string().nullable(),
+  fixing_id: z.string().nullable(),
+  sealant_id: z.string().nullable(),
+  override_price: z.number(),
+  effective_date: z.string(),
+  expiry_date: z.string().nullable(),
+});
+export type CompanyPriceOverrideRow = z.infer<typeof CompanyPriceOverrideRowSchema>;
+
+export function overrideRowProductId(row: CompanyPriceOverrideRow): string {
+  return (row.panel_id ?? row.track_id ?? row.fixing_id ?? row.sealant_id)!;
+}

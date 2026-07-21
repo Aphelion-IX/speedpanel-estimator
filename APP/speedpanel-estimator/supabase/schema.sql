@@ -4202,6 +4202,249 @@ revoke execute on function public.admin_publish_price_list_version(uuid, date, t
 grant execute on function public.admin_publish_price_list_version(uuid, date, text) to authenticated;
 
 -- =============================================================================
+-- Company Price Overrides -- Method 2 pricing (Company Accounts & Pricing,
+-- Phase 9)
+-- =============================================================================
+-- The 3rd, highest-priority pricing tier applyEffectivePricing() resolves
+-- (src/export/applyEffectivePricing.ts): override > assigned price list's
+-- active version > default (PL1) list > the deprecated price_per_* column.
+-- Active/Scheduled/Expired is derived from effective_date/expiry_date at
+-- read time, never stored -- only genuinely stateful lifecycles like
+-- price_list_versions.status get an explicit column (matches the mockup's
+-- own description of this screen).
+-- =============================================================================
+create table company_price_overrides (
+  id uuid primary key default gen_random_uuid(),
+  company_id uuid not null references companies (id) on delete cascade,
+  category text not null check (category in ('panel', 'track', 'fixing', 'sealant')),
+  panel_id uuid references panels (id) on delete cascade,
+  track_id uuid references tracks (id) on delete cascade,
+  fixing_id uuid references fixings (id) on delete cascade,
+  sealant_id uuid references sealants (id) on delete cascade,
+  override_price numeric not null,
+  effective_date date not null default current_date,
+  expiry_date date,
+  -- Internal-only (see the column-level grant below, same technique
+  -- order_deliveries.internal_note already established) -- why this
+  -- customer got a special price is staff-facing context, never shown to
+  -- the customer themselves.
+  internal_reason text,
+  created_by uuid not null references auth.users (id),
+  created_at timestamptz not null default now(),
+  -- Audit-only metadata, not a second workflow state (confirmed against the
+  -- spec/mockup: override status shown is only Active/Scheduled/Expired,
+  -- derived from dates -- there's no separate pending-approval gate here).
+  -- Set at creation/edit time by whoever has company_price_overrides.write,
+  -- same as created_by.
+  approved_by uuid references auth.users (id),
+  approved_at timestamptz,
+  check (
+    (category = 'panel'   and panel_id   is not null and track_id is null and fixing_id is null and sealant_id is null) or
+    (category = 'track'   and track_id   is not null and panel_id is null and fixing_id is null and sealant_id is null) or
+    (category = 'fixing'  and fixing_id  is not null and panel_id is null and track_id is null and sealant_id is null) or
+    (category = 'sealant' and sealant_id is not null and panel_id is null and track_id is null and fixing_id is null)
+  ),
+  check (expiry_date is null or expiry_date >= effective_date)
+);
+create index idx_company_price_overrides_company_id on company_price_overrides (company_id);
+create index idx_company_price_overrides_panel_id    on company_price_overrides (panel_id);
+create index idx_company_price_overrides_track_id    on company_price_overrides (track_id);
+create index idx_company_price_overrides_fixing_id   on company_price_overrides (fixing_id);
+create index idx_company_price_overrides_sealant_id  on company_price_overrides (sealant_id);
+
+-- The plan's own sketch called for a partial unique index scoped to
+-- "currently relevant" rows (`where expiry_date is null or expiry_date >=
+-- current_date`) -- confirmed directly against a real Postgres that this
+-- fails outright ("functions in index predicate must be marked IMMUTABLE"):
+-- current_date is stable, not immutable, and index predicates require the
+-- latter. A BEFORE trigger has no such restriction (same reasoning
+-- guard_price_list_prices_immutable/guard_order_delivery_allocation already
+-- rely on triggers for date/status-sensitive checks a plain constraint
+-- can't express) and gives the same "at most one current-or-upcoming
+-- override per product" invariant. admin_set_company_price_override()
+-- below upserts the existing row instead of inserting a second one, so
+-- this trigger is defense-in-depth against that RPC's own logic, not the
+-- primary mechanism -- same relationship the immutability trigger has to
+-- admin_set_draft_price()'s own draft-only pre-check.
+create or replace function public.guard_company_price_overrides_no_overlap() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  if exists (
+    select 1 from company_price_overrides o
+    where o.company_id = new.company_id and o.category = new.category
+      and coalesce(o.panel_id, o.track_id, o.fixing_id, o.sealant_id) = coalesce(new.panel_id, new.track_id, new.fixing_id, new.sealant_id)
+      and o.id <> new.id
+      and (o.expiry_date is null or o.expiry_date >= current_date)
+  ) then
+    raise exception 'This company already has a current or upcoming override for this product -- edit or remove it first';
+  end if;
+  return new;
+end;
+$$;
+create trigger guard_company_price_overrides_no_overlap before insert or update on company_price_overrides
+  for each row execute function public.guard_company_price_overrides_no_overlap();
+
+alter table company_price_overrides enable row level security;
+
+create policy "Staff can read company price overrides" on company_price_overrides
+  for select using (public.has_permission('company_price_overrides.read'));
+
+-- A customer needs to read their OWN company's CURRENTLY active overrides
+-- (never a future-scheduled or already-expired one) so client-side order
+-- pricing (applyEffectivePricing(), via current_company_price_overrides()
+-- below) can apply them without a staff-only RPC in the loop -- same
+-- "assigned list's active version, not everything" scoping
+-- "Company members can read their assigned list's prices" already
+-- establishes for price_list_prices.
+create policy "Company members can read their company's active overrides" on company_price_overrides
+  for select using (
+    exists (select 1 from company_memberships cm where cm.company_id = company_price_overrides.company_id and cm.user_id = auth.uid() and cm.status = 'active')
+    and effective_date <= current_date
+    and (expiry_date is null or expiry_date >= current_date)
+  );
+-- No insert/update/delete policy -- admin_* RPCs only, same convention as
+-- price_lists/price_list_prices.
+
+-- internal_reason (and created_by/approved_by/approved_at, staff-only
+-- audit metadata) excluded from the authenticated column grant -- same
+-- technique order_deliveries.internal_note already uses. Doesn't affect
+-- company_list_price_overrides() below (security definer, reads as the
+-- table owner, bypassing this column restriction the same way it bypasses
+-- RLS) -- only a direct table read (a customer's own RLS-visible row, or
+-- current_company_price_overrides()'s invoker-security select) is narrowed.
+revoke select on company_price_overrides from authenticated;
+grant select (id, company_id, category, panel_id, track_id, fixing_id, sealant_id, override_price, effective_date, expiry_date)
+  on company_price_overrides to authenticated;
+
+insert into public.permissions (key, description, category) values
+  ('company_price_overrides.read', 'Read a company''s item price overrides (staff module)', 'companies'),
+  ('company_price_overrides.write', 'Create/edit/delete a company''s item price overrides (staff module)', 'companies')
+on conflict (key) do nothing;
+
+-- SECURITY INVOKER -- same reasoning as current_price_list_prices(): reads
+-- through the CALLING user's own RLS grants above rather than bypassing
+-- them, and its own column list already excludes internal_reason/
+-- created_by/approved_by/approved_at (redundant with the column-level
+-- grant above, but explicit here since this is the one function customer
+-- pricing code actually calls).
+create or replace function public.current_company_price_overrides(p_company_id uuid)
+returns table (
+  id uuid, category text, panel_id uuid, track_id uuid, fixing_id uuid, sealant_id uuid,
+  override_price numeric, effective_date date, expiry_date date
+)
+language sql security invoker stable
+set search_path = public
+as $$
+  select id, category, panel_id, track_id, fixing_id, sealant_id, override_price, effective_date, expiry_date
+  from company_price_overrides
+  where company_id = p_company_id
+    and effective_date <= current_date
+    and (expiry_date is null or expiry_date >= current_date);
+$$;
+revoke execute on function public.current_company_price_overrides(uuid) from public, anon;
+grant execute on function public.current_company_price_overrides(uuid) to authenticated;
+
+-- Staff-side read -- every override regardless of active/scheduled/expired
+-- status (the admin table shows full history), all columns including
+-- internal_reason/approver -- same display-name-or-email lateral-join
+-- pattern admin_list_companies()/admin_list_price_list_versions() already
+-- use.
+create or replace function public.company_list_price_overrides(p_company_id uuid)
+returns table (
+  id uuid, category text, panel_id uuid, track_id uuid, fixing_id uuid, sealant_id uuid,
+  override_price numeric, effective_date date, expiry_date date, internal_reason text,
+  created_by uuid, created_by_name text, created_at timestamptz,
+  approved_by uuid, approved_by_name text, approved_at timestamptz
+)
+language sql security definer stable
+set search_path = public
+as $$
+  select
+    o.id, o.category, o.panel_id, o.track_id, o.fixing_id, o.sealant_id,
+    o.override_price, o.effective_date, o.expiry_date, o.internal_reason,
+    o.created_by, creator.display_name_or_email, o.created_at,
+    o.approved_by, approver.display_name_or_email, o.approved_at
+  from company_price_overrides o
+  left join lateral (
+    select coalesce(p.display_name, u.email) as display_name_or_email
+    from profiles p join auth.users u on u.id = p.id where p.id = o.created_by
+  ) creator on true
+  left join lateral (
+    select coalesce(p.display_name, u.email) as display_name_or_email
+    from profiles p join auth.users u on u.id = p.id where p.id = o.approved_by
+  ) approver on true
+  where o.company_id = p_company_id and public.has_permission('company_price_overrides.read')
+  order by o.created_at desc;
+$$;
+revoke execute on function public.company_list_price_overrides(uuid) from public, anon;
+grant execute on function public.company_list_price_overrides(uuid) to authenticated;
+
+-- Upsert -- reuses an existing current-or-upcoming override for the same
+-- product if one exists (matching the no-overlap trigger's own definition
+-- of "conflicting"), otherwise creates a new one. approved_by/approved_at
+-- are audit-only metadata (see the table's own comment) set to whoever
+-- calls this, not a separate approval step.
+create or replace function public.admin_set_company_price_override(
+  p_company_id uuid, p_category text, p_product_id uuid, p_override_price numeric,
+  p_effective_date date default current_date, p_expiry_date date default null, p_internal_reason text default null
+) returns uuid
+language plpgsql security definer set search_path = public as $$
+declare
+  v_id uuid;
+  v_event text;
+begin
+  if not public.has_permission('company_price_overrides.write') then raise exception 'Not authorized'; end if;
+  if p_category not in ('panel', 'track', 'fixing', 'sealant') then raise exception 'Invalid category'; end if;
+  if p_expiry_date is not null and p_expiry_date < p_effective_date then raise exception 'Expiry date can''t be before the effective date'; end if;
+
+  select id into v_id from company_price_overrides
+    where company_id = p_company_id and category = p_category
+      and coalesce(panel_id, track_id, fixing_id, sealant_id) = p_product_id
+      and (expiry_date is null or expiry_date >= current_date);
+
+  if v_id is null then
+    insert into company_price_overrides (
+      company_id, category, panel_id, track_id, fixing_id, sealant_id,
+      override_price, effective_date, expiry_date, internal_reason, created_by, approved_by, approved_at
+    ) values (
+      p_company_id, p_category,
+      case when p_category = 'panel' then p_product_id end,
+      case when p_category = 'track' then p_product_id end,
+      case when p_category = 'fixing' then p_product_id end,
+      case when p_category = 'sealant' then p_product_id end,
+      p_override_price, p_effective_date, p_expiry_date, nullif(trim(p_internal_reason), ''), auth.uid(), auth.uid(), now()
+    ) returning id into v_id;
+    v_event := 'item_override_added';
+  else
+    update company_price_overrides set
+      override_price = p_override_price, effective_date = p_effective_date, expiry_date = p_expiry_date,
+      internal_reason = nullif(trim(p_internal_reason), ''), approved_by = auth.uid(), approved_at = now()
+      where id = v_id;
+    v_event := 'item_override_changed';
+  end if;
+
+  perform public.log_audit(p_company_id, auth.uid(), v_event, null, null,
+    jsonb_build_object('override_id', v_id, 'category', p_category, 'override_price', p_override_price));
+  return v_id;
+end;
+$$;
+revoke execute on function public.admin_set_company_price_override(uuid, text, uuid, numeric, date, date, text) from public, anon;
+grant execute on function public.admin_set_company_price_override(uuid, text, uuid, numeric, date, date, text) to authenticated;
+
+create or replace function public.admin_delete_company_price_override(p_id uuid) returns void
+language plpgsql security definer set search_path = public as $$
+declare v_company_id uuid;
+begin
+  if not public.has_permission('company_price_overrides.write') then raise exception 'Not authorized'; end if;
+  delete from company_price_overrides where id = p_id returning company_id into v_company_id;
+  if v_company_id is null then raise exception 'Override not found'; end if;
+  perform public.log_audit(v_company_id, auth.uid(), 'item_override_removed', null, null, jsonb_build_object('override_id', p_id));
+end;
+$$;
+revoke execute on function public.admin_delete_company_price_override(uuid) from public, anon;
+grant execute on function public.admin_delete_company_price_override(uuid) to authenticated;
+
+-- =============================================================================
 -- Delivery request/approval workflow
 -- =============================================================================
 -- Replaces order_deliveries' original "committed on insert, draft-only"

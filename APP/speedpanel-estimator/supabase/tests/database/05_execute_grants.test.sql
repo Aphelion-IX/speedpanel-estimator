@@ -24,7 +24,7 @@
 -- and add the corresponding `ok(...)` line below (bump plan() to match).
 -- =============================================================================
 begin;
-select plan(82);
+select plan(86);
 
 select ok(has_function_privilege('authenticated', 'public.is_admin()'::regprocedure, 'EXECUTE'), 'is_admin(): authenticated has EXECUTE');
 select ok(has_function_privilege('authenticated', 'public.has_staff_role(text[])'::regprocedure, 'EXECUTE'), 'has_staff_role(text[]): authenticated has EXECUTE');
@@ -114,6 +114,11 @@ select ok(has_function_privilege('authenticated', 'public.set_delivery_customer_
 select ok(has_function_privilege('authenticated', 'public.admin_create_delivery(uuid, text, text, text, text, text, text, text, date, text, text, text, jsonb)'::regprocedure, 'EXECUTE'), 'admin_create_delivery(uuid, text, text, text, text, text, text, text, date, text, text, text, jsonb): authenticated has EXECUTE');
 select ok(has_function_privilege('authenticated', 'public.admin_update_delivery(uuid, text, text, text, text, text, text, text, text, text, text, jsonb)'::regprocedure, 'EXECUTE'), 'admin_update_delivery(uuid, text, text, text, text, text, text, text, text, text, text, jsonb): authenticated has EXECUTE');
 select ok(has_function_privilege('authenticated', 'public.admin_list_delivery_requests()'::regprocedure, 'EXECUTE'), 'admin_list_delivery_requests(): authenticated has EXECUTE');
+-- Phase 9 (Company Accounts & Pricing): item-level company price overrides.
+select ok(has_function_privilege('authenticated', 'public.current_company_price_overrides(uuid)'::regprocedure, 'EXECUTE'), 'current_company_price_overrides(uuid): authenticated has EXECUTE');
+select ok(has_function_privilege('authenticated', 'public.company_list_price_overrides(uuid)'::regprocedure, 'EXECUTE'), 'company_list_price_overrides(uuid): authenticated has EXECUTE');
+select ok(has_function_privilege('authenticated', 'public.admin_set_company_price_override(uuid, text, uuid, numeric, date, date, text)'::regprocedure, 'EXECUTE'), 'admin_set_company_price_override(uuid, text, uuid, numeric, date, date, text): authenticated has EXECUTE');
+select ok(has_function_privilege('authenticated', 'public.admin_delete_company_price_override(uuid)'::regprocedure, 'EXECUTE'), 'admin_delete_company_price_override(uuid): authenticated has EXECUTE');
 
 select * from finish();
 rollback;

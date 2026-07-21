@@ -1,15 +1,16 @@
 // =============================================================================
 // Company Accounts & Pricing -- Company Overview
 // =============================================================================
-// Phase 2 scope was the Overview tab only -- Pricing/Projects/Quotes/Orders/
-// Audit still render PlaceholderPage until their own phase lands (9, none
-// planned yet, none planned yet, 10, 13 respectively), same "swap
-// page-by-page" convention PlaceholderPage.tsx documents. Phase 3 made
-// Addresses real (CompanyAddressesTab.tsx); Phase 4 makes Users real too
-// (CompanyUsersTab.tsx, wrapping the existing CompanyMemberList.tsx). Real
-// data comes from the same useAdminCompanies() row Phase 2 extended
-// admin_list_companies() to carry (see companiesStore.ts) plus
-// useCompanyActivityCounts() for the two project/order KPI tiles.
+// Phase 2 scope was the Overview tab only -- Projects/Quotes/Orders/Audit
+// still render PlaceholderPage until their own phase lands (none planned
+// yet, none planned yet, 10, 13 respectively), same "swap page-by-page"
+// convention PlaceholderPage.tsx documents. Phase 3 made Addresses real
+// (CompanyAddressesTab.tsx); Phase 4 made Users real too (CompanyUsersTab.tsx,
+// wrapping the existing CompanyMemberList.tsx); Phase 9 made Pricing real
+// (CompanyPricingTab.tsx). Real data comes from the same useAdminCompanies()
+// row Phase 2 extended admin_list_companies() to carry (see
+// companiesStore.ts) plus useCompanyActivityCounts() for the two
+// project/order KPI tiles.
 // =============================================================================
 import { useState } from "react";
 import { Building2, Users as UsersIcon, ListTree, ClipboardList } from "lucide-react";
@@ -25,6 +26,7 @@ import {
 } from "../../admin/companies/companiesStore";
 import { CompanyAddressesTab } from "./CompanyAddressesTab";
 import { CompanyUsersTab } from "./CompanyUsersTab";
+import { CompanyPricingTab } from "./CompanyPricingTab";
 
 const STATUS_TONE: Record<CompanyStatus, "ok" | "warn" | "danger" | "info" | "neutral"> = {
   pending: "info", active: "ok", on_hold: "warn", suspended: "danger", archived: "neutral",
@@ -131,7 +133,7 @@ const OverviewTab = ({ company, onOpenUsers }: { company: AdminCompanyRow; onOpe
       )}
 
       <p className="mt-5 text-xs" style={{ color: MUTED }}>
-        Item price overrides, price visibility rules and ordering permissions are coming in later phases (9, 10, 12) -- not shown here until they're real.
+        Price visibility rules and ordering permissions are coming in later phases (10, 12) -- not shown here until they're real.
         {" "}
         <button className="font-semibold hover:underline" style={{ color: BLUE }} onClick={onOpenUsers}>
           Manage company users
@@ -141,11 +143,10 @@ const OverviewTab = ({ company, onOpenUsers }: { company: AdminCompanyRow; onOpe
   );
 };
 
-// "addresses"/"users" are deliberately absent -- both real now
-// (CompanyAddressesTab.tsx/CompanyUsersTab.tsx), dispatched separately
-// below rather than through this PlaceholderPage list.
+// "addresses"/"users"/"pricing" are deliberately absent -- all three real
+// now (CompanyAddressesTab.tsx/CompanyUsersTab.tsx/CompanyPricingTab.tsx),
+// dispatched separately below rather than through this PlaceholderPage list.
 const OTHER_TABS: { id: string; label: string; title: string; description: string }[] = [
-  { id: "pricing", label: "Pricing", title: "Company Pricing", description: "Assigned price list and item-specific overrides -- coming in Phase 9." },
   { id: "projects", label: "Projects", title: "Projects", description: "This company's projects, scoped to this workspace -- not yet planned." },
   { id: "quotes", label: "Quotes", title: "Quotes", description: "This company's quote requests, scoped to this workspace -- not yet planned." },
   { id: "orders", label: "Orders", title: "Orders", description: "This company's order history, scoped to this workspace -- coming in Phase 10." },
@@ -204,6 +205,7 @@ export const CompanyOverviewPage = ({ companyId, myUserId, navigate }: { company
       <TabPanel id="overview" activeId={activeTab}><OverviewTab company={company} onOpenUsers={() => setActiveTab("users")} /></TabPanel>
       <TabPanel id="users" activeId={activeTab}><CompanyUsersTab companyId={company.id} myUserId={myUserId} /></TabPanel>
       <TabPanel id="addresses" activeId={activeTab}><CompanyAddressesTab companyId={company.id} /></TabPanel>
+      <TabPanel id="pricing" activeId={activeTab}><CompanyPricingTab company={company} /></TabPanel>
       {OTHER_TABS.map(t => (
         <TabPanel key={t.id} id={t.id} activeId={activeTab}>
           <PlaceholderPage title={t.title} description={t.description} />
