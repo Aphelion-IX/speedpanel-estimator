@@ -107,3 +107,17 @@ export function useVersionDiff(fromVersionId: string | null, toVersionId: string
 
   return state;
 }
+
+// Phase 8's one write action -- publishes a draft version. p_effective_date
+// null (or today/past) publishes immediately; a future date schedules it
+// instead (see admin_publish_price_list_version()'s own comment in
+// supabase/schema.sql for the full "no cron job" lazy-activation story).
+export async function adminPublishPriceListVersion(
+  versionId: string, effectiveDate: string | null, approvalNote: string | null,
+): Promise<string | null> {
+  if (!supabase) return NOT_CONFIGURED;
+  const { error } = await supabase.rpc("admin_publish_price_list_version", {
+    p_version_id: versionId, p_effective_date: effectiveDate, p_approval_note: approvalNote || null,
+  });
+  return error ? error.message : null;
+}

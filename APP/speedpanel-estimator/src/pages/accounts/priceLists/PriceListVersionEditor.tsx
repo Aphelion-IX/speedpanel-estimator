@@ -1,18 +1,16 @@
 // =============================================================================
-// Company Accounts & Pricing -- Price List draft editor (Phase 7)
+// Company Accounts & Pricing -- Price List draft editor (Phase 7/8)
 // =============================================================================
 // Reached by opening a price list from PriceListsPage.tsx. Product Prices
 // tab reuses useAdminPriceListPrices() (Phase 6, src/pages/admin/priceLists/
 // priceListsStore.ts) verbatim -- the same auto-fork-a-draft-on-first-edit
 // stopgap AdminPriceListsPage.tsx already exercises, just presented in this
 // module's own chrome/tabs rather than that page's flat layout. Publish tab
-// previews the draft-vs-active diff and a validation checklist, but the
-// actual publish action is Phase 8's -- this stays read-only/informational
-// until admin_publish_price_list_version() exists, per the plan's own
-// phase split.
+// is ComparePublishPage.tsx (Phase 8) -- the diff/checklist/company-impact/
+// approval-note/real Publish action live there, not inline here.
 // =============================================================================
 import { useMemo, useRef, useState } from "react";
-import { ChevronLeft, Search, Copy, Trash2, Pencil, Check, X, Download, Upload, AlertTriangle } from "lucide-react";
+import { ChevronLeft, Search, Copy, Trash2, Pencil, Check, X, Download, Upload } from "lucide-react";
 import { cx, BLUE, WHITE, NAVY, MUTED } from "../../../styleTokens";
 import { CardGrid, SectionLabel, IconButton } from "../../../ui/primitives";
 import { Button } from "../../../ui/button";
@@ -33,9 +31,9 @@ import { PRICEABLE_CATEGORIES, priceRowProductId, type PriceableCategory } from 
 import { buildPriceListCsvRows, exportPriceListCsv, parsePriceListCsv, type ImportParseResult } from "../../admin/priceLists/priceListCsv";
 import { useAdminCompanies } from "../../admin/companies/companiesStore";
 import {
-  useAdminPriceListVersions, useVersionDiff, priceDiffRowProductId,
-  PRICE_LIST_VERSION_STATUS_LABELS, type PriceDiffRow, type AdminPriceListVersionRow,
+  useAdminPriceListVersions, PRICE_LIST_VERSION_STATUS_LABELS, type AdminPriceListVersionRow,
 } from "./priceListVersionsStore";
+import { ComparePublishPage } from "./ComparePublishPage";
 
 const matchesQuery = (item: ProductItem, q: string): boolean => JSON.stringify(item).toLowerCase().includes(q);
 
@@ -368,84 +366,6 @@ const CompanyImpactTab = ({ priceListId, navigate }: { priceListId: string; navi
   return <Table columns={columns} rows={assigned} rowKey={c => c.id} />;
 };
 
-// =============================================================================
-// Publish tab -- draft-vs-active diff + a client-side validation checklist.
-// The actual publish action is Phase 8's (admin_publish_price_list_version()
-// doesn't exist yet) -- this stays a preview.
-// =============================================================================
-const PublishTab = ({ activeVersionId, draftVersionId }: { activeVersionId: string | null; draftVersionId: string | null }) => {
-  const { catalog } = useProductStore();
-  const { rows, loading, error } = useVersionDiff(activeVersionId, draftVersionId);
-
-  const labelFor = (row: PriceDiffRow): string => {
-    const productId = priceDiffRowProductId(row);
-    const items = catalog[CATEGORY_KEY[row.category]] as ProductItem[];
-    const item = items.find(i => i.id === productId);
-    return item ? itemTitle(row.category, item) : productId;
-  };
-
-  const changed = rows.filter(r => r.change_type !== "unchanged");
-  const negativeOrZero = changed.filter(r => r.new_price != null && r.new_price <= 0);
-  const largeChanges = changed.filter(r =>
-    r.change_type === "changed" && r.old_price != null && r.old_price !== 0 && r.new_price != null
-    && Math.abs((r.new_price - r.old_price) / r.old_price) > 0.2
-  );
-  const removed = changed.filter(r => r.change_type === "removed");
-
-  if (!draftVersionId) {
-    return <EmptyState className={`${cx.card} text-center`} message="No draft in progress -- start editing a price on the Product Prices tab to create one." />;
-  }
-  if (loading) return <LoadingState className="mt-3" label="Comparing versions" />;
-  if (error) return <ErrorState className="mt-3" message={error} />;
-
-  const columns: TableColumn<PriceDiffRow>[] = [
-    { key: "product", header: "Product", cell: r => labelFor(r) },
-    { key: "category", header: "Category", cell: r => CATEGORY_LABEL[r.category] },
-    { key: "old", header: "Live price", align: "right", cell: r => r.old_price != null ? `$${r.old_price.toFixed(2)}` : "—" },
-    { key: "new", header: "Draft price", align: "right", cell: r => r.new_price != null ? `$${r.new_price.toFixed(2)}` : "—" },
-    {
-      key: "change", header: "Change", align: "right",
-      cell: r => {
-        const t = r.change_type === "added" ? "info" : r.change_type === "removed" ? "danger" : r.change_type === "changed" ? "warn" : "neutral";
-        const label = r.change_type === "added" ? "Added" : r.change_type === "removed" ? "Removed" : r.change_type === "changed" ? "Changed" : "Unchanged";
-        return <Badge tone={t}>{label}</Badge>;
-      },
-    },
-  ];
-
-  return (
-    <div className="space-y-5">
-      <div className={cx.card}>
-        <h2 className={cx.h3}>Draft-validation checklist</h2>
-        <div className="mt-3 space-y-2 text-sm">
-          <p style={{ color: negativeOrZero.length > 0 ? undefined : MUTED }} className={negativeOrZero.length > 0 ? "flex items-center gap-2 font-semibold text-red-600 dark:text-red-300" : "flex items-center gap-2"}>
-            {negativeOrZero.length > 0 && <AlertTriangle size={14} />} {negativeOrZero.length} price{negativeOrZero.length === 1 ? "" : "s"} at zero or below
-          </p>
-          <p style={{ color: largeChanges.length > 0 ? undefined : MUTED }} className={largeChanges.length > 0 ? "flex items-center gap-2 font-semibold text-amber-600 dark:text-amber-300" : "flex items-center gap-2"}>
-            {largeChanges.length > 0 && <AlertTriangle size={14} />} {largeChanges.length} price{largeChanges.length === 1 ? "" : "s"} changed by more than 20%
-          </p>
-          <p style={{ color: MUTED }}>{removed.length} price{removed.length === 1 ? "" : "s"} removed, {changed.length} total change{changed.length === 1 ? "" : "s"}</p>
-        </div>
-      </div>
-
-      <div className={cx.card}>
-        <div className="flex items-center justify-between gap-2">
-          <h2 className={cx.h3}>Changes vs. today's live prices</h2>
-          <Button disabled title="Coming in Phase 8">Publish</Button>
-        </div>
-        <p className="mt-1 text-xs" style={{ color: MUTED }}>
-          Publishing (making this draft the live, active version) lands in Phase 8 -- this is a preview of what it would change.
-        </p>
-        {changed.length === 0 ? (
-          <EmptyState className="mt-3 text-center" message="No changes yet -- this draft is identical to the live prices." />
-        ) : (
-          <div className="mt-3"><Table columns={columns} rows={changed} rowKey={(r, i) => `${r.category}-${priceDiffRowProductId(r)}-${i}`} /></div>
-        )}
-      </div>
-    </div>
-  );
-};
-
 export const PriceListVersionEditor = ({ priceListId, layoutMode, navigate }: {
   priceListId: string; layoutMode: EffectiveLayout; navigate: (r: Route) => void;
 }) => {
@@ -508,7 +428,10 @@ export const PriceListVersionEditor = ({ priceListId, layoutMode, navigate }: {
       <TabPanel id="visibility" activeId={activeTab}><VisibilityTab isDefault={pl.is_default} /></TabPanel>
       <TabPanel id="impact" activeId={activeTab}><CompanyImpactTab priceListId={priceListId} navigate={navigate} /></TabPanel>
       <TabPanel id="publish" activeId={activeTab}>
-        <PublishTab activeVersionId={activeVersion?.id ?? null} draftVersionId={draftVersion?.id ?? null} />
+        <ComparePublishPage
+          priceListId={priceListId} activeVersionId={activeVersion?.id ?? null} draftVersionId={draftVersion?.id ?? null}
+          onPublished={() => { reloadVersions(); setActiveTab("prices"); }}
+        />
       </TabPanel>
     </div>
   );

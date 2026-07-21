@@ -4043,6 +4043,165 @@ revoke execute on function public.admin_diff_price_list_versions(uuid, uuid) fro
 grant execute on function public.admin_diff_price_list_versions(uuid, uuid) to authenticated;
 
 -- =============================================================================
+-- Pricing: Compare & Publish (Company Accounts & Pricing, Phase 8)
+-- =============================================================================
+-- admin_publish_price_list_version() below is the one real write RPC this
+-- phase adds; everything else here is the "lazy on-read check" scheduled-
+-- activation mechanism the Phase 6 plan flagged as a from-scratch design
+-- call, not a convention to follow -- no pg_cron, no background job. A
+-- future-dated publish sets a version to 'scheduled' and otherwise leaves
+-- the current 'active' version alone (see the RPC's own comment for why);
+-- current_price_list_version_id() below is what "resolves" a scheduled
+-- version into the effective current one once its effective_date arrives,
+-- used everywhere a caller needs pricing to be genuinely correct
+-- (current_price_list_prices()). Deliberately NOT threaded into
+-- admin_list_price_lists()'s product_count or
+-- admin_list_price_list_versions()'s status column -- those keep showing
+-- the literal stored status ('scheduled' stays 'scheduled' in the admin UI
+-- even once its date has passed) rather than duplicating this resolution
+-- logic into every display path; only customer-facing pricing needs to be
+-- lazily correct, not every admin list/count.
+-- =============================================================================
+
+-- Both RLS policies below are the SAME ones Phase 6 wrote (drop+recreate
+-- again here, same "append a new section rather than edit into place"
+-- convention already established for this file's live tables) --
+-- extended with an OR clause admitting a 'scheduled' version whose
+-- effective_date has already arrived, alongside the existing literal
+-- 'active' check.
+drop policy if exists "Active price list versions are readable by any authenticated user" on price_list_versions;
+create policy "Active price list versions are readable by any authenticated user" on price_list_versions
+  for select using (status = 'active' or (status = 'scheduled' and effective_date <= current_date));
+
+drop policy if exists "Company members can read their assigned list's prices" on price_list_prices;
+create policy "Company members can read their assigned list's prices" on price_list_prices
+  for select using (
+    exists (
+      select 1 from price_list_versions plv
+      join companies c on c.price_list_id = plv.price_list_id
+      join company_memberships cm on cm.company_id = c.id
+      where plv.id = price_list_prices.price_list_version_id
+        and (plv.status = 'active' or (plv.status = 'scheduled' and plv.effective_date <= current_date))
+        and cm.user_id = auth.uid() and cm.status = 'active'
+    )
+    or exists (
+      select 1 from price_list_versions plv
+      join price_lists pl on pl.id = plv.price_list_id
+      where plv.id = price_list_prices.price_list_version_id
+        and (plv.status = 'active' or (plv.status = 'scheduled' and plv.effective_date <= current_date))
+        and pl.is_default
+    )
+  );
+
+-- Resolves "the one version currently in effect" for a price list --
+-- literally 'active', or if none, the most recent 'scheduled' version
+-- whose effective_date has arrived. A plain OR filter (matching both RLS
+-- policies above) could return two candidate rows at once during the
+-- window after a scheduled version's date passes but before anything
+-- re-publishes it (the outgoing active version is deliberately left alone
+-- at schedule time, see admin_publish_price_list_version()) -- this
+-- resolves that down to exactly one, deterministically preferring the
+-- due-scheduled version over a stale literal-active one, so
+-- current_price_list_prices() below never blends two versions' prices
+-- together. SECURITY INVOKER, same reasoning as current_price_list_prices()
+-- itself -- relies on the caller's own RLS on price_list_versions (both
+-- policies above), not a privilege-escalation path.
+create or replace function public.current_price_list_version_id(p_price_list_id uuid) returns uuid
+language sql security invoker stable
+set search_path = public
+as $$
+  select id from price_list_versions
+  where price_list_id = p_price_list_id
+    and (status = 'active' or (status = 'scheduled' and effective_date <= current_date))
+  order by (status = 'scheduled') desc, effective_date desc nulls last, version_number desc
+  limit 1;
+$$;
+revoke execute on function public.current_price_list_version_id(uuid) from public, anon;
+grant execute on function public.current_price_list_version_id(uuid) to authenticated;
+
+-- Redefined (not the Phase 6 definition edited in place) for the same
+-- `language sql`-checked-at-CREATE-time reason every other redefinition in
+-- this file follows -- current_price_list_version_id() above must exist
+-- first. Behavior is identical for every list with a literal active
+-- version and no due-scheduled one (the overwhelming common case); only
+-- changes for a list with a scheduled version whose date has passed.
+create or replace function public.current_price_list_prices(p_price_list_id uuid)
+returns setof price_list_prices
+language sql security invoker stable
+set search_path = public
+as $$
+  select plp.* from price_list_prices plp
+  where plp.price_list_version_id = public.current_price_list_version_id(p_price_list_id);
+$$;
+revoke execute on function public.current_price_list_prices(uuid) from public, anon;
+grant execute on function public.current_price_list_prices(uuid) to authenticated;
+
+-- Publishes a draft: reuses the existing price_lists.publish permission key
+-- seeded (unused) back in Phase 6. p_effective_date null or <= today means
+-- publish immediately (the outgoing active version -- if any -- is expired
+-- FIRST, then the target activated second: the price_list_versions_one_active
+-- partial unique index isn't deferrable, so activating the new version
+-- before expiring the old one would momentarily violate it -- 1 active -> 0
+-- -> 1, never 1 -> 2). A future p_effective_date instead leaves the
+-- current active version alone entirely and marks the target 'scheduled' --
+-- current_price_list_version_id() above is what makes it start resolving
+-- as "the" active version once that date arrives, with no further write
+-- needed here or anywhere else (no cron job).
+--
+-- "No concurrent publish in flight": rejects outright if this list already
+-- has a pending 'scheduled' version, regardless of whether the new publish
+-- is itself immediate or another future date -- keeps at most one pending
+-- future activation per list at a time, so there's never ambiguity about
+-- which of two scheduled versions should win.
+--
+-- Audit: log_audit() is inherently per-company (it silently no-ops on a
+-- null company_id), and a price list isn't itself scoped to one company --
+-- so this logs one price_list_version_published row per company currently
+-- assigned to the list (their own Activity Log is exactly where "your
+-- price list changed" belongs), rather than skipping audit logging
+-- entirely or reworking log_audit's shape. A list with zero assigned
+-- companies (e.g. a brand new one) logs nothing, same as log_audit's own
+-- existing "nothing to attribute this to" precedent elsewhere.
+create or replace function public.admin_publish_price_list_version(p_version_id uuid, p_effective_date date default null, p_approval_note text default null) returns void
+language plpgsql security definer set search_path = public as $$
+declare
+  v_price_list_id uuid;
+  v_version_number int;
+  v_effective date := coalesce(p_effective_date, current_date);
+  v_company record;
+begin
+  if not public.has_permission('price_lists.publish') then raise exception 'Not authorized'; end if;
+
+  select price_list_id, version_number into v_price_list_id, v_version_number
+    from price_list_versions where id = p_version_id and status = 'draft';
+  if v_price_list_id is null then raise exception 'Only a draft version can be published'; end if;
+
+  if exists (select 1 from price_list_versions where price_list_id = v_price_list_id and status = 'scheduled') then
+    raise exception 'This price list already has a scheduled publish pending -- resolve it before publishing another';
+  end if;
+
+  if v_effective <= current_date then
+    update price_list_versions set status = 'expired' where price_list_id = v_price_list_id and status = 'active';
+    update price_list_versions set status = 'active', effective_date = v_effective, published_at = now(), published_by = auth.uid()
+      where id = p_version_id;
+  else
+    update price_list_versions set status = 'scheduled', effective_date = v_effective, published_at = now(), published_by = auth.uid()
+      where id = p_version_id;
+  end if;
+
+  for v_company in select id from companies where price_list_id = v_price_list_id loop
+    perform public.log_audit(v_company.id, auth.uid(), 'price_list_version_published', null, null,
+      jsonb_build_object(
+        'price_list_id', v_price_list_id, 'version_id', p_version_id, 'version_number', v_version_number,
+        'effective_date', v_effective, 'immediate', v_effective <= current_date, 'approval_note', p_approval_note
+      ));
+  end loop;
+end;
+$$;
+revoke execute on function public.admin_publish_price_list_version(uuid, date, text) from public, anon;
+grant execute on function public.admin_publish_price_list_version(uuid, date, text) to authenticated;
+
+-- =============================================================================
 -- Delivery request/approval workflow
 -- =============================================================================
 -- Replaces order_deliveries' original "committed on insert, draft-only"

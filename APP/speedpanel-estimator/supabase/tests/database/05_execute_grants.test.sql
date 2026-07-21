@@ -24,7 +24,7 @@
 -- and add the corresponding `ok(...)` line below (bump plan() to match).
 -- =============================================================================
 begin;
-select plan(80);
+select plan(82);
 
 select ok(has_function_privilege('authenticated', 'public.is_admin()'::regprocedure, 'EXECUTE'), 'is_admin(): authenticated has EXECUTE');
 select ok(has_function_privilege('authenticated', 'public.has_staff_role(text[])'::regprocedure, 'EXECUTE'), 'has_staff_role(text[]): authenticated has EXECUTE');
@@ -82,6 +82,9 @@ select ok(has_function_privilege('authenticated', 'public.admin_delete_draft_pri
 -- Phase 7 (Company Accounts & Pricing): Price Lists library + draft editor.
 select ok(has_function_privilege('authenticated', 'public.admin_list_price_list_versions(uuid)'::regprocedure, 'EXECUTE'), 'admin_list_price_list_versions(uuid): authenticated has EXECUTE');
 select ok(has_function_privilege('authenticated', 'public.admin_diff_price_list_versions(uuid, uuid)'::regprocedure, 'EXECUTE'), 'admin_diff_price_list_versions(uuid, uuid): authenticated has EXECUTE');
+-- Phase 8 (Company Accounts & Pricing): Compare & Publish.
+select ok(has_function_privilege('authenticated', 'public.current_price_list_version_id(uuid)'::regprocedure, 'EXECUTE'), 'current_price_list_version_id(uuid): authenticated has EXECUTE');
+select ok(has_function_privilege('authenticated', 'public.admin_publish_price_list_version(uuid, date, text)'::regprocedure, 'EXECUTE'), 'admin_publish_price_list_version(uuid, date, text): authenticated has EXECUTE');
 select ok(has_function_privilege('authenticated', 'public.admin_set_user_company(uuid, uuid, text)'::regprocedure, 'EXECUTE'), 'admin_set_user_company(uuid, uuid, text): authenticated has EXECUTE');
 select ok(has_function_privilege('authenticated', 'public.admin_add_company_member_by_email(uuid, text, text)'::regprocedure, 'EXECUTE'), 'admin_add_company_member_by_email(uuid, text, text): authenticated has EXECUTE');
 select ok(has_function_privilege('authenticated', 'public.admin_set_staff_assignment(uuid, uuid, text)'::regprocedure, 'EXECUTE'), 'admin_set_staff_assignment(uuid, uuid, text): authenticated has EXECUTE');
