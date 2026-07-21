@@ -10,7 +10,9 @@ test.describe("admin (super_admin)", () => {
   test("1-2. can sign in and out", async ({ page }) => {
     await expect(page.getByTitle(/^Signed in as /)).toBeVisible();
     await signOut(page);
-    await expect(page.getByTitle("Log in")).toBeVisible();
+    // Signed out returns to the full-screen LandingPage, not the shell's
+    // header "Log in" icon (see fixtures/auth.ts) -- assert on its heading.
+    await expect(page.getByRole("heading", { name: "Log in to mySPEEDPORTAL" })).toBeVisible();
   });
 
   test("3. every admin dashboard section is reachable", async ({ page }) => {

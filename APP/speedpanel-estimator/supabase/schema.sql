@@ -3694,7 +3694,13 @@ create table price_list_versions (
   status text not null check (status in ('draft', 'scheduled', 'active', 'expired', 'archived')),
   effective_date date,
   notes text,
-  created_by uuid not null references auth.users (id),
+  -- Nullable for the same reason price_lists.created_by is: the version-1
+  -- backfill below copies created_by straight from price_lists, and on a
+  -- from-scratch bootstrap (a fresh `supabase db reset`/CI, schema applies
+  -- before seed.sql creates any profile) that value is null. Attributing it
+  -- to a real admin when one exists (the live-project case) is still
+  -- preferred; null is just the bootstrap fallback.
+  created_by uuid references auth.users (id),
   created_at timestamptz not null default now(),
   published_at timestamptz,
   published_by uuid references auth.users (id),

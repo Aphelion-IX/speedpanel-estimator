@@ -22,10 +22,10 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
@@ -43,16 +43,42 @@ jobs:
       - name: Build
         run: npm run build
 
+  e2e-drift-check:
+    name: E2E drift check (advisory)
+    # PR-only -- needs a base commit to diff against, which a plain push to
+    # main doesn't have in the same way. Never fails the job (see
+    # scripts/check-e2e-drift.mjs's own header comment) -- it only leaves
+    # ::warning:: annotations and a job-summary table when auth/admin UI
+    # changed without its usual e2e/pgTAP coverage changing alongside it.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          # Need the base commit present locally to diff against -- a shallow
+          # checkout (the default) only has the merge commit itself.
+          fetch-depth: 0
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Check for UI changes without matching test coverage
+        run: node scripts/check-e2e-drift.mjs "${{ github.event.pull_request.base.sha }}" "${{ github.sha }}"
+
   pgtap:
     name: pgTAP (Supabase RLS/schema tests)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
@@ -62,7 +88,7 @@ jobs:
         run: npm ci
 
       - name: Set up Supabase CLI
-        uses: supabase/setup-cli@v1
+        uses: supabase/setup-cli@v3
         with:
           version: latest
 
@@ -91,17 +117,13 @@ jobs:
   e2e:
     name: E2E (Playwright)
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     env:
       CI: true
-      VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-      VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
       E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
       E2E_BASE_URL: http://127.0.0.1:4173
       # Not secret -- fixed, non-sensitive @e2e.test addresses seeded by
-      # supabase/seed.sql (see e2e/README.md's persona table). Seeding
-      # itself is NOT part of this workflow -- it's applied separately,
-      # out-of-band, by whoever administers the target Supabase project.
+      # supabase/seed.sql (see e2e/README.md's persona table).
       E2E_ADMIN_EMAIL: admin@e2e.test
       E2E_PROJECT_MANAGER_EMAIL: project-manager@e2e.test
       E2E_BDM_EMAIL: bdm@e2e.test
@@ -114,10 +136,10 @@ jobs:
       E2E_UNASSIGNED_EMAIL: unassigned@e2e.test
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
@@ -126,25 +148,97 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Set up Supabase CLI
+        uses: supabase/setup-cli@v3
+        with:
+          version: latest
+
+      - name: Start local Supabase stack
+        run: supabase start
+
+      - name: Reset database (applies schema.sql)
+        run: supabase db reset
+
+      - name: Seed test data
+        # Same self-contained local seeding as the pgtap job -- seed.sql needs
+        # real psql for its `\set` (config.toml's [db.seed] is disabled), and
+        # this password must match E2E_PASSWORD below so the personas Playwright
+        # signs in as have the password it types.
+        env:
+          E2E_SEED_PASSWORD: ${{ secrets.E2E_PASSWORD }}
+        run: psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -v ON_ERROR_STOP=1 -f supabase/seed.sql
+
+      - name: Point the build at the local Supabase stack
+        # Vite bakes VITE_* into the bundle at build time, so these must be set
+        # before the build step below -- persisting them to $GITHUB_ENV makes
+        # the browser bundle Playwright drives talk to the local stack we just
+        # seeded, not the live project (src/lib/supabaseClient.ts's hardcoded
+        # fallback). Both the URL and anon key are read from the running stack
+        # so nothing drifts. The full status is echoed (local dev keys, not
+        # secrets) so the log shows exactly what got baked in.
+        run: |
+          echo "=== supabase status -o env ==="
+          supabase status -o env || true
+          echo "=============================="
+          api_url="$(supabase status -o env | sed -n 's/^API_URL="\(.*\)"$/\1/p')"
+          anon_key="$(supabase status -o env | sed -n 's/^ANON_KEY="\(.*\)"$/\1/p')"
+          : "${api_url:=http://127.0.0.1:54321}"
+          if [ -z "$anon_key" ]; then
+            echo "ERROR: could not read ANON_KEY from 'supabase status -o env' (see dump above)" >&2
+            exit 1
+          fi
+          echo "Baking VITE_SUPABASE_URL=$api_url  (anon key length: ${#anon_key})"
+          echo "VITE_SUPABASE_URL=$api_url" >> "$GITHUB_ENV"
+          echo "VITE_SUPABASE_PUBLISHABLE_KEY=$anon_key" >> "$GITHUB_ENV"
+
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium
 
       - name: Build application
         run: npm run build
 
+      - name: Verify the build baked in the local Supabase URL
+        # Fail loudly and immediately if the app bundle still points at the
+        # live project instead of the local stack -- otherwise every sign-in
+        # silently 30s-times-out against a database that lacks the seeded
+        # @e2e.test personas, which is exactly the failure this whole job fixes.
+        run: |
+          if grep -rq "127.0.0.1:54321" dist/assets; then
+            echo "OK: bundle points at the local Supabase stack."
+          else
+            echo "ERROR: built bundle does not contain 127.0.0.1:54321 -- VITE_SUPABASE_URL did not bake in." >&2
+            echo "Live-project fallback host in bundle:" >&2
+            grep -ro "https://[a-z0-9]*\.supabase\.co" dist/assets | sort -u >&2 || true
+            exit 1
+          fi
+
+      - name: Smoke-check the local Supabase auth endpoint
+        # Confirms GoTrue is reachable at the same URL the browser will use,
+        # before spending time on the full Playwright suite.
+        run: curl -fsS "http://127.0.0.1:54321/auth/v1/health" && echo
+
       - name: Run E2E tests
-        # Non-blocking: the auth/RLS-session specs currently fail against the
-        # CI Supabase project regardless of app changes (pre-existing
-        # environment issue, not a regression in this repo's code). Step-level
-        # (not job-level) continue-on-error is what actually makes the check
-        # run report success -- job-level only affects the workflow run's
-        # overall conclusion, not this job's own check-run status.
+        # Non-blocking for now: 44/51 specs pass for real against the local
+        # stack, but ~7 pre-existing specs rotted against UI/behaviour changes
+        # while this suite could never run green (the old setup never seeded a
+        # project to sign in against, so nothing here ever actually ran). Those
+        # are tracked as a follow-up; step-level continue-on-error lets the
+        # check-run report success meanwhile (job-level would only affect the
+        # run's overall conclusion, not this job's own check-run status). The
+        # build-bake verify + GoTrue health checks ABOVE are NOT
+        # continue-on-error, so a genuinely broken local stack still fails the
+        # job -- only real test assertions are tolerated here, not infra.
+        # --retries=0: the local stack is deterministic, no flaky network.
         continue-on-error: true
-        run: npm run test:e2e
+        run: npm run test:e2e -- --retries=0
+
+      - name: Stop local Supabase stack
+        if: always()
+        run: supabase stop
 
       - name: Upload Playwright report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: playwright-report
           path: APP/speedpanel-estimator/playwright-report/
@@ -152,7 +246,7 @@ jobs:
 
       - name: Upload test results (traces/screenshots/videos)
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: playwright-test-results
           path: APP/speedpanel-estimator/test-results/

@@ -22,16 +22,28 @@ test.describe("session and anonymous access", () => {
     }
   });
 
-  test("anonymous (never signed in) can still submit the public 'Request a quote' flow", async ({ page }) => {
+  test("anonymous visitors are gated to the login page, even on the quote route", async ({ page }) => {
+    // The signed-out app is now the full-screen LandingPage on every route --
+    // the old anonymous "Request a Quote" front door was removed (see
+    // LandingPage.tsx / CLAUDE.md: no anonymous access, no exceptions). What's
+    // under test is that gate holding, not a quote form that no longer exists
+    // for signed-out users.
     await page.goto("/#/projects/request");
-    await expect(page.getByRole("heading", { name: /Request a Quote/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Log in to mySPEEDPORTAL" })).toBeVisible();
   });
 
   test("anonymous cannot read requests -- admins-only per RLS, no session at all", async ({ page }) => {
     await page.goto("/");
     const result = await directTable(page, "requests");
-    expect(result.status).toBe(200);
-    expect(JSON.parse(result.body)).toEqual([]);
+    // Same two-secure-outcomes shape as the logout test above: anonymous
+    // either falls back to the anon key and gets zero rows (requests has no
+    // public-read policy) or is rejected outright with 401 -- either way no
+    // request data reaches an anonymous caller, which is the property here.
+    if (result.status === 200) {
+      expect(JSON.parse(result.body)).toEqual([]);
+    } else {
+      expect(result.status).toBe(401);
+    }
   });
 
   test("anonymous cannot call any has_staff_role()-gated RPC", async ({ page }) => {
