@@ -107,10 +107,14 @@ update profiles set role = 'admin', staff_role = 'technical_services' where id =
 -- 3. Companies A and B -- A holds company-admin/member + every staff
 --    assignment; B holds only outsider, the cross-company-isolation target.
 -- ---------------------------------------------------------------------------
-insert into companies (id, legal_name, trading_name, status, created_by, created_at, updated_at)
+-- price_list_id is not null with no column default -- the real
+-- create_company() RPC always supplies (select id from price_lists where
+-- is_default) explicitly (see schema.sql), and this raw insert (bypassing
+-- that RPC) must do the same.
+insert into companies (id, legal_name, trading_name, status, created_by, created_at, updated_at, price_list_id)
 values
-  ('eeeeeeee-0000-0000-0001-000000000001', 'E2E Test Co A Pty Ltd', 'E2E Test Co A', 'active', 'eeeeeeee-0000-0000-0000-000000000001', now(), now()),
-  ('eeeeeeee-0000-0000-0001-000000000002', 'E2E Test Co B Pty Ltd', 'E2E Test Co B', 'active', 'eeeeeeee-0000-0000-0000-000000000001', now(), now())
+  ('eeeeeeee-0000-0000-0001-000000000001', 'E2E Test Co A Pty Ltd', 'E2E Test Co A', 'active', 'eeeeeeee-0000-0000-0000-000000000001', now(), now(), (select id from price_lists where is_default)),
+  ('eeeeeeee-0000-0000-0001-000000000002', 'E2E Test Co B Pty Ltd', 'E2E Test Co B', 'active', 'eeeeeeee-0000-0000-0000-000000000001', now(), now(), (select id from price_lists where is_default))
 on conflict (id) do nothing;
 
 insert into company_memberships (id, company_id, user_id, role, status, joined_at)
