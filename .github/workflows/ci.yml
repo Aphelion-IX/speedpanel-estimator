@@ -192,10 +192,11 @@ jobs:
         run: curl -fsS "http://127.0.0.1:54321/auth/v1/health" && echo
 
       - name: Run E2E tests
-        # --max-failures=1 / --retries=0 keep a broken run short and its log
-        # readable instead of grinding through 51 specs x 3 retries x 30s until
-        # the job timeout. Revert to the full retrying run once this is green.
-        run: npm run test:e2e -- --max-failures=1 --retries=0
+        # --retries=0 keeps the log readable and the run bounded (no 3x-retry
+        # grind) while the suite is being brought green against the local
+        # stack -- against a deterministic local Supabase there's no flaky
+        # network to paper over. Restore the default retrying run once green.
+        run: npm run test:e2e -- --retries=0
 
       - name: Stop local Supabase stack
         if: always()

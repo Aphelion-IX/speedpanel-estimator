@@ -1,15 +1,18 @@
 import type { Page } from "@playwright/test";
 
 // =============================================================================
-// Sign-in helpers -- drive the REAL login form (SignInGate.tsx), never the
-// service-role key or a mocked session. See e2e/README.md for the full
-// persona table these env vars/emails correspond to.
+// Sign-in helpers -- drive the REAL login form (LandingPage.tsx, the
+// signed-out "mySPEEDPORTAL" front door), never the service-role key or a
+// mocked session. See e2e/README.md for the full persona table these env
+// vars/emails correspond to.
 // =============================================================================
-// SignInGate.tsx's Field component (src/pages/shared/fields.tsx) renders a
-// bare <label> with no htmlFor/id pairing, so getByLabel() doesn't resolve
-// -- select inputs by `type` within the sign-in form instead. The form only
-// renders once you're on the "projects" tab (#/projects) while signed out
-// -- there is no separate /login route.
+// The signed-out app is the full-screen LandingPage (App.tsx early-returns it
+// before the TopNav/shell), so any signed-out route -- e.g. #/projects --
+// lands on the same login form. Its submit button is labelled "Log in"; the
+// email/password inputs are the only ones on the page, so select them by
+// `type` within that form. Signed-in state is detected via AuthStatus.tsx's
+// header button, whose title is `Signed in as {email}` -- the most reliable
+// "we're actually signed in" signal, independent of which tab/page we land on.
 // =============================================================================
 
 export async function signInAs(page: Page, email: string, password: string): Promise<void> {
@@ -17,16 +20,18 @@ export async function signInAs(page: Page, email: string, password: string): Pro
   const form = page.locator("form").filter({ has: page.locator('input[type="email"]') });
   await form.locator('input[type="email"]').fill(email);
   await form.locator('input[type="password"]').fill(password);
-  await form.getByRole("button", { name: "Sign in" }).click();
-  // AuthStatus.tsx's header button title flips to "Signed in as {email} --
-  // click to log out" once the session is established -- the most reliable
-  // "we're actually signed in" signal, independent of which tab/page we land on.
+  await form.getByRole("button", { name: "Log in" }).click();
   await page.getByTitle(/^Signed in as /).waitFor({ state: "visible", timeout: 15_000 });
 }
 
 export async function signOut(page: Page): Promise<void> {
+  // The signed-in avatar (title "Signed in as ...") only opens a dropdown;
+  // the actual sign-out is a "Sign out" item inside it (AuthStatus.tsx). Once
+  // signed out the app returns to the LandingPage, whose "Log in to
+  // mySPEEDPORTAL" heading is the signed-out signal.
   await page.getByTitle(/^Signed in as /).click();
-  await page.getByTitle("Log in").waitFor({ state: "visible", timeout: 10_000 });
+  await page.getByRole("button", { name: "Sign out" }).click();
+  await page.getByRole("heading", { name: "Log in to mySPEEDPORTAL" }).waitFor({ state: "visible", timeout: 10_000 });
 }
 
 const password = () => {
