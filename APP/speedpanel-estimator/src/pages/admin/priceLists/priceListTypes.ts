@@ -31,9 +31,18 @@ export type PriceListSummaryRow = z.infer<typeof PriceListSummaryRowSchema>;
 export const PriceListRowSchema = z.object({ id: z.string(), name: z.string(), is_default: z.boolean() });
 export type PriceListRow = z.infer<typeof PriceListRowSchema>;
 
+// Bare price_list_versions row -- used by priceListsStore.ts's
+// useAdminPriceListPrices() to resolve which version (an existing draft, if
+// any, else the active one) a price list's admin editor should show/target.
+export const PriceListVersionRowSchema = z.object({
+  id: z.string(),
+  status: z.enum(["draft", "scheduled", "active", "expired", "archived"]),
+});
+export type PriceListVersionRow = z.infer<typeof PriceListVersionRowSchema>;
+
 export const PriceListPriceRowSchema = z.object({
   id: z.string(),
-  price_list_id: z.string(),
+  price_list_version_id: z.string(),
   category: z.enum(PRICEABLE_CATEGORIES),
   panel_id: z.string().nullable(),
   track_id: z.string().nullable(),

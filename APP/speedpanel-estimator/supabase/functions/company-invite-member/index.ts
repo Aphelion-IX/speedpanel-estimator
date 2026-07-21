@@ -28,6 +28,18 @@
 // inviteUserByEmail() -- resend_company_invitation() (the RPC) does the
 // metadata-only half; this function does the half that needs the
 // service-role key.
+//
+// A third mode (`action: "fixEmail"`) is Phase 5's (Company Accounts &
+// Pricing) retry path for a `delivery_failed` invitation: same split as
+// resend -- admin_fix_invitation_email() (the RPC) resets email/status/
+// failure_reason, then this function re-fires inviteUserByEmail() at the
+// (possibly corrected) address.
+//
+// A real inviteUserByEmail() failure (not "already registered") on either
+// the initial send or a resend/fixEmail retry now UPDATES the invitations
+// row to `delivery_failed` + failure_reason instead of deleting it (Phase 5
+// -- a failed send used to leave literally no record anywhere that it was
+// ever attempted).
 // =============================================================================
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -86,7 +98,30 @@ Deno.serve(async req => {
     const { data: invitation } = await serviceClient.from("invitations").select("email").eq("id", invitationId).single();
     if (invitation?.email) {
       const { error: reinviteError } = await serviceClient.auth.admin.inviteUserByEmail(invitation.email);
-      if (reinviteError && !isAlreadyRegistered(reinviteError.message)) return json({ error: reinviteError.message }, 400);
+      if (reinviteError && !isAlreadyRegistered(reinviteError.message)) {
+        await serviceClient.from("invitations").update({ status: "delivery_failed", failure_reason: reinviteError.message }).eq("id", invitationId);
+        return json({ error: reinviteError.message, deliveryFailed: true }, 400);
+      }
+    }
+    return json({ ok: true });
+  }
+
+  if (body.action === "fixEmail") {
+    const invitationId = typeof body.invitationId === "string" ? body.invitationId : "";
+    const newEmail = typeof body.email === "string" ? body.email.trim() : "";
+    if (!invitationId) return json({ error: "Missing invitationId" }, 400);
+    if (!EMAIL_RE.test(newEmail)) return json({ error: "Enter a valid email address." }, 400);
+
+    // admin_fix_invitation_email() does the auth check (is_company_admin),
+    // requires the row to currently be delivery_failed, and resets
+    // email/status/failure_reason/expiry -- same split as "resend" above.
+    const { error: fixError } = await callerClient.rpc("admin_fix_invitation_email", { p_invitation_id: invitationId, p_new_email: newEmail });
+    if (fixError) return json({ error: fixError.message }, 400);
+
+    const { error: reinviteError } = await serviceClient.auth.admin.inviteUserByEmail(newEmail);
+    if (reinviteError && !isAlreadyRegistered(reinviteError.message)) {
+      await serviceClient.from("invitations").update({ status: "delivery_failed", failure_reason: reinviteError.message }).eq("id", invitationId);
+      return json({ error: reinviteError.message, deliveryFailed: true }, 400);
     }
     return json({ ok: true });
   }
@@ -122,11 +157,13 @@ Deno.serve(async req => {
 
   const { error: inviteError } = await serviceClient.auth.admin.inviteUserByEmail(email);
   if (inviteError && !isAlreadyRegistered(inviteError.message)) {
-    // A real failure (not "already registered") -- roll back the
-    // invitations row so a failed invite doesn't leave an orphaned pending
-    // row with no corresponding email ever sent.
-    await serviceClient.from("invitations").delete().eq("id", invitation.id);
-    return json({ error: inviteError.message }, 400);
+    // A real failure (not "already registered") -- mark the row
+    // delivery_failed instead of deleting it (Phase 5, Company Accounts &
+    // Pricing), so it's visible on the standalone Invitations page and
+    // fixable via admin_fix_invitation_email() rather than vanishing with
+    // no trace that a send was ever attempted.
+    await serviceClient.from("invitations").update({ status: "delivery_failed", failure_reason: inviteError.message }).eq("id", invitation.id);
+    return json({ error: inviteError.message, invitationId: invitation.id, deliveryFailed: true }, 400);
   }
 
   return json({ id: invitation.id, existingAccount: Boolean(inviteError) });
