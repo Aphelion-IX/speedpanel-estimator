@@ -59,11 +59,11 @@ const CATEGORY_CONFIG: Record<PriceableCategory, { unit: OrderLineItemUnit; prod
   sealant: { unit: "box",   products: c => c.sealants.map(s => ({ id: s.id, label: s.product, price: s.pricePerBox })) },
 };
 
-function makeLineItem(category: PriceableCategory, label: string, qty: number, unitPrice: number | null): OrderLineItem {
+function makeLineItem(category: PriceableCategory, label: string, qty: number, unitPrice: number | null, productId: string | null): OrderLineItem {
   const matched = unitPrice != null;
   return {
     id: crypto.randomUUID(), category, label, qty, unit: CATEGORY_CONFIG[category].unit,
-    unitPriceExGst: unitPrice, lineTotalExGst: matched ? round2(unitPrice! * qty) : 0, matched,
+    unitPriceExGst: unitPrice, lineTotalExGst: matched ? round2(unitPrice! * qty) : 0, matched, productId,
   };
 }
 
@@ -72,7 +72,7 @@ function makeLineItem(category: PriceableCategory, label: string, qty: number, u
 // OrderLineItem so repeat "add 5 more" clicks can be re-packed from the
 // true cumulative requirement instead of compounding an already-rounded
 // quantity.
-interface PanelGroup { panelType: number; label: string; price: number | null; lengthM: number; pieces: number; }
+interface PanelGroup { panelType: number; panelId: string; label: string; price: number | null; lengthM: number; pieces: number; }
 
 const panelGroupKey = (panelType: number, lengthM: number) => `panel:${panelType}:${lengthM}`;
 
@@ -149,6 +149,7 @@ export const QuickOrderPage = ({ projectId, auth, onBack, onCreated }: {
     return {
       id: key, category: "panel" as const, label: `${g.label} - ${r1(g.lengthM)} m`, qty: pack.ordered, unit: "panel" as const,
       unitPriceExGst: g.price, lineTotalExGst: g.price != null ? round2(g.price * pack.ordered) : 0, matched: g.price != null,
+      productId: g.panelId,
     };
   }), [panelGroups]);
 
@@ -161,7 +162,7 @@ export const QuickOrderPage = ({ projectId, auth, onBack, onCreated }: {
       setPanelGroups(prev => ({
         ...prev,
         [key]: {
-          panelType: selectedPanel.type, label: selectedPanel.label, price: selectedPanel.pricePerPanel ?? null,
+          panelType: selectedPanel.type, panelId: selectedPanel.id, label: selectedPanel.label, price: selectedPanel.pricePerPanel ?? null,
           lengthM, pieces: (prev[key]?.pieces ?? 0) + qty,
         },
       }));
@@ -173,7 +174,7 @@ export const QuickOrderPage = ({ projectId, auth, onBack, onCreated }: {
     // Fixing/sealant are whole-box units -- clamp to a whole number
     // (track stays fractional -- it's genuinely billed by raw metres).
     const finalQty = category === "fixing" || category === "sealant" ? Math.max(1, Math.round(qty)) : qty;
-    setManualItems(prev => [...prev, makeLineItem(category, product.label, finalQty, product.price ?? null)]);
+    setManualItems(prev => [...prev, makeLineItem(category, product.label, finalQty, product.price ?? null, product.id)]);
     setProductId("");
     setQty(1);
   };
@@ -200,10 +201,7 @@ export const QuickOrderPage = ({ projectId, auth, onBack, onCreated }: {
     if (items.length === 0) { setCreateError("Add at least one line item."); return; }
     setCreating(true);
     setCreateError(null);
-    const { id, error } = await createOrder(auth.user.id, {
-      lineItems: items, subtotalExGst: totals.subtotalExGst, gstRate: GST_RATE,
-      gstAmount: totals.gstAmount, totalIncGst: totals.totalIncGst, unpricedItemCount: totals.unpricedItemCount,
-    });
+    const { id, error } = await createOrder(items);
     setCreating(false);
     if (error) { setCreateError(error); return; }
     if (id) onCreated(id);

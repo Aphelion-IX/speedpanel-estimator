@@ -24,7 +24,7 @@
 -- and add the corresponding `ok(...)` line below (bump plan() to match).
 -- =============================================================================
 begin;
-select plan(86);
+select plan(87);
 
 select ok(has_function_privilege('authenticated', 'public.is_admin()'::regprocedure, 'EXECUTE'), 'is_admin(): authenticated has EXECUTE');
 select ok(has_function_privilege('authenticated', 'public.has_staff_role(text[])'::regprocedure, 'EXECUTE'), 'has_staff_role(text[]): authenticated has EXECUTE');
@@ -119,6 +119,11 @@ select ok(has_function_privilege('authenticated', 'public.current_company_price_
 select ok(has_function_privilege('authenticated', 'public.company_list_price_overrides(uuid)'::regprocedure, 'EXECUTE'), 'company_list_price_overrides(uuid): authenticated has EXECUTE');
 select ok(has_function_privilege('authenticated', 'public.admin_set_company_price_override(uuid, text, uuid, numeric, date, date, text)'::regprocedure, 'EXECUTE'), 'admin_set_company_price_override(uuid, text, uuid, numeric, date, date, text): authenticated has EXECUTE');
 select ok(has_function_privilege('authenticated', 'public.admin_delete_company_price_override(uuid)'::regprocedure, 'EXECUTE'), 'admin_delete_company_price_override(uuid): authenticated has EXECUTE');
+-- Phase 10 (Company Accounts & Pricing): order price freeze. Note:
+-- resolve_effective_price(uuid, text, uuid) is DELIBERATELY excluded here --
+-- it's revoked from authenticated entirely (see its own schema.sql comment),
+-- unlike every other RPC this file asserts EXECUTE for.
+select ok(has_function_privilege('authenticated', 'public.create_order(uuid, jsonb, text)'::regprocedure, 'EXECUTE'), 'create_order(uuid, jsonb, text): authenticated has EXECUTE');
 
 select * from finish();
 rollback;

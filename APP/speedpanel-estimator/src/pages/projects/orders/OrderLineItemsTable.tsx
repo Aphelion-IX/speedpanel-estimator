@@ -13,12 +13,29 @@
 // but Internal Sales correcting a submitted quote's pricing is exactly what
 // revise_order() exists for. Off by default so every existing customer-
 // facing/read-only usage is unaffected.
+//
+// The "Price source" column (Company Accounts & Pricing Phase 10) only
+// shows in the readOnly view -- a not-yet-created draft (OrderBuilderPage.tsx/
+// QuickOrderPage.tsx) has no priceSource yet at all, since create_order()
+// only stamps it once the order is actually placed; showing an always-blank
+// column there would just be noise. A pre-Phase-10 order (or a line that
+// resolved against neither price list nor an override -- the deprecated
+// catalog-column tier) has priceSource null, rendered as "--" rather than
+// hidden, so its absence is visible rather than silently gapped.
 // =============================================================================
+import { Badge } from "../../../ui/badge";
 import { NAVY, MUTED, GOLD } from "../../../styleTokens";
 import { Table, type TableColumn } from "../../../ui/table";
-import { round2, type OrderLineItem } from "../../../export/priceEstimateReportData";
+import { round2, type OrderLineItem, type OrderLineItemPriceSource } from "../../../export/priceEstimateReportData";
 
 export interface DraftLineItem extends OrderLineItem { included: boolean; }
+
+const PRICE_SOURCE_LABEL: Record<OrderLineItemPriceSource, string> = {
+  override: "Item override", price_list: "Assigned list", default: "PL1 -- Standard",
+};
+const PRICE_SOURCE_TONE: Record<OrderLineItemPriceSource, "ok" | "info" | "neutral"> = {
+  override: "ok", price_list: "info", default: "neutral",
+};
 
 export const OrderLineItemsTable = ({ items, onChange, readOnly, editablePrice }: {
   items: DraftLineItem[]; onChange?: (items: DraftLineItem[]) => void; readOnly?: boolean; editablePrice?: boolean;
@@ -92,6 +109,14 @@ export const OrderLineItemsTable = ({ items, onChange, readOnly, editablePrice }
       align: "right",
       cell: item => <span className="font-semibold" style={{ color: NAVY }}>{item.included ? `$${item.lineTotalExGst.toFixed(2)}` : "--"}</span>,
     },
+    ...(readOnly ? [{
+      key: "priceSource",
+      header: "Price source",
+      align: "right" as const,
+      cell: (item: DraftLineItem) => item.priceSource
+        ? <Badge tone={PRICE_SOURCE_TONE[item.priceSource]}>{PRICE_SOURCE_LABEL[item.priceSource]}</Badge>
+        : <span style={{ color: MUTED }}>--</span>,
+    }] : []),
   ];
 
   return (

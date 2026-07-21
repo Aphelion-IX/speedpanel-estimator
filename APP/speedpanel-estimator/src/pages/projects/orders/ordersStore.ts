@@ -2,10 +2,14 @@
 // Orders -- list for a project + creation
 // =============================================================================
 // Same {data,loading,error,reload,...actions} shape as projectDetailStore.ts.
-// Creation is a plain insert (no RPC) -- see supabase/schema.sql's "Owners
-// can create their own orders" policy: order creation has no current-state
-// transition to validate (no stage gating), so the RLS check-constraint
-// alone (owner_id + project ownership) is sufficient.
+// Creation goes through create_order() (Company Accounts & Pricing Phase
+// 10) -- no longer a plain insert. The RPC re-resolves every line item's
+// price server-side (ignoring whatever unitPriceExGst/lineTotalExGst the
+// client sent) against the same override/assigned-list/PL1/catalog chain
+// applyEffectivePricing.ts already uses for the pre-submission review UI,
+// closing what was previously a real gap: order creation had no server-side
+// price re-verification at all. See create_order()'s own comment in
+// supabase/schema.sql for the full rationale.
 // =============================================================================
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "../../../lib/supabaseClient";
@@ -16,15 +20,6 @@ const NOT_CONFIGURED = "Orders aren't configured for this environment.";
 const BAD_SHAPE = "Unexpected data shape from the server.";
 
 interface OrdersState { orders: OrderRow[]; loading: boolean; error: string | null; }
-
-export interface NewOrderTotals {
-  lineItems: OrderLineItem[];
-  subtotalExGst: number;
-  gstRate: number;
-  gstAmount: number;
-  totalIncGst: number;
-  unpricedItemCount: number;
-}
 
 export function useProjectOrders(projectId: string) {
   const [state, setState] = useState<OrdersState>(() =>
@@ -46,13 +41,17 @@ export function useProjectOrders(projectId: string) {
 
   useEffect(() => { load(); }, [load]);
 
-  const createOrder = async (ownerId: string, totals: NewOrderTotals): Promise<{ id: string | null; error: string | null }> => {
+  // Only lineItems (category/qty/unit/label/productId -- what's being
+  // ordered) and an optional customerNote are sent -- pricing totals are no
+  // longer a client responsibility at all: create_order() recomputes
+  // subtotal/gst/total server-side from its own re-resolved per-line
+  // prices, so there's nothing left for the client to compute-and-send that
+  // the server would trust anyway.
+  const createOrder = async (lineItems: OrderLineItem[], customerNote?: string | null): Promise<{ id: string | null; error: string | null }> => {
     if (!supabase) return { id: null, error: NOT_CONFIGURED };
-    const { data, error } = await supabase.from("orders").insert({
-      project_id: projectId, owner_id: ownerId, line_items: totals.lineItems,
-      subtotal_ex_gst: totals.subtotalExGst, gst_rate: totals.gstRate, gst_amount: totals.gstAmount,
-      total_inc_gst: totals.totalIncGst, unpriced_item_count: totals.unpricedItemCount,
-    }).select("*").single();
+    const { data, error } = await supabase.rpc("create_order", {
+      p_project_id: projectId, p_line_items: lineItems, p_customer_note: customerNote || null,
+    });
     if (error) return { id: null, error: error.message };
     const parsed = OrderRowSchema.safeParse(data);
     if (!parsed.success) return { id: null, error: BAD_SHAPE };

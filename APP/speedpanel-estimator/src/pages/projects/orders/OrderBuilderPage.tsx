@@ -68,10 +68,7 @@ export const OrderBuilderPage = ({ projectId, auth, onBack, onCreated }: {
     if (totals.includedItems.length === 0) { setCreateError("Include at least one line item."); return; }
     setCreating(true);
     setCreateError(null);
-    const { id, error } = await createOrder(auth.user.id, {
-      lineItems: totals.includedItems, subtotalExGst: totals.subtotalExGst, gstRate: GST_RATE,
-      gstAmount: totals.gstAmount, totalIncGst: totals.totalIncGst, unpricedItemCount: totals.unpricedItemCount,
-    });
+    const { id, error } = await createOrder(totals.includedItems);
     setCreating(false);
     if (error) { setCreateError(error); return; }
     if (id) onCreated(id);
