@@ -558,6 +558,31 @@ fragment) still stays contained within the left column's single grid item, not s
 third auto-placed cell. Full verification suite (typecheck/test/build/depcruise) clean, 187 tests
 passing.
 
+**Follow-up: functional wiring audit of the estimator — DONE, no defects found.** User request:
+"check all functions are wired up" (after three rounds of layout fixes touching Calculator.tsx's
+JSX structure, worth confirming nothing broke a click handler in the reshuffle). Live Playwright
+pass exercising First-Wall Setup's Wall type/Orientation/Panel type/Profile toggles, Create Wall,
+the Wall geometry card's dimension inputs/unit conversion/Preview/Span table, Panel length &
+materials' strategy picker and restrained-edge toggles, Structure nav's "+ Internal wall"/
+"+ External wall" buttons and wall-list selection, Results card's four tabs, the Order Review
+drawer, Wall setup's duplicate/delete-wall icons (including the "always keep >=1 wall" protection
+dialog and its Cancel path), a full Corner-wall two-wall linking flow (add a second wall, set both
+to Corner, link them via `CornerLinkSelector`, verify the Free-corner-side toggle appears), and
+Excel export (confirmed an actual `.xlsx` file downloads). Every apparent failure across the first
+few passes turned out to be a test-script mistake, not an app defect, once traced down: `cx.cardHd`
+headings render through a CSS `text-transform: uppercase`, so Playwright's `innerText`-based
+substring checks against the JSX's own mixed-case strings (e.g. `"Panel type"`, `"Corner partner
+run"`, `"Free corner side"`) never matched even though the sections were correctly rendered and
+interactive (confirmed by successfully clicking controls inside them moments later); a button-name
+regex accidentally re-matched the Wall setup header's own `title="Delete"` icon a second time
+(instead of a dialog's actual "Clear wall"/"Cancel" button), silently reopening the last-wall
+protection dialog and leaving it blocking every later click; and selecting "Corner" from an
+*existing* wall's own `WallSystemSelector` was wrongly expected to auto-create a linked partner
+wall, when the actual (correct, documented) design requires adding a second wall and linking the
+two explicitly via `CornerLinkSelector` -- only `FirstWallSetup`'s own dedicated flow auto-converts
+via `convertActiveToCornerPair()`. No code changes resulted from this pass -- every interactive
+control tested is correctly wired to real state and behaves as designed.
+
 ### What Phase 4 actually required (historical — kept for context; Phase 4 is now done, see above)
 
 Two files need **zero changes** — confirmed by full diff, not just line-count comparison:
