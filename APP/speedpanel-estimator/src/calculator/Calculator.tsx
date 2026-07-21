@@ -263,11 +263,18 @@ export function Calculator({
     />
   );
 
-  // Shared between the phone (flat sections) and web (CollapsibleSection
-  // accordion) branches below, so the two layouts can't drift apart.
+  // Rendered straight into .geometry-body's 2-column grid (see the section
+  // comment by webWorkspaceNode below), so it needs exactly two top-level
+  // children -- one per column. ProfileSection returns a bare fragment (its
+  // own label + ProfileSelector as separate nodes, no wrapper), so without
+  // this div CSS Grid's auto-placement split those two nodes across row 1's
+  // two columns on its own, then dropped the second div below (Dimensions/
+  // preview/span table) into row 2 col 1 alone -- leaving row 2 col 2
+  // empty and the Dimensions block squeezed into half the card's width.
+  // firstWallSetup.tsx already wraps its own <ProfileSection> the same way.
   const geometryContent = (
     <>
-      <ProfileSection profile={active.profile} onChange={id => update({ profile: id })} />
+      <div><ProfileSection profile={active.profile} onChange={id => update({ profile: id })} /></div>
       <div className="border-t border-slate-100 dark:border-slate-700 pt-3">
         <div className="mb-2 flex items-center justify-between">
           <span className={cx.cardHd} style={{marginBottom:0}}>Dimensions</span>

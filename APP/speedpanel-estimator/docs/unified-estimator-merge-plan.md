@@ -514,6 +514,29 @@ overflow at any width; scroll-position sampling at 1024px confirms `.structure` 
 detaching; light and dark mode both screenshotted at 1024px and correctly themed. Full verification
 suite (typecheck/test/build/depcruise) clean, 187 tests passing.
 
+**Follow-up bug fix: Wall geometry card's Profile/Dimensions split showing the same dead-gap
+pattern — DONE.** User screenshot report right after the fix above: the "Wall geometry" card's
+Profile row (label + Standard/Raked/Gable icons) rendered across the full card width at the top,
+then Dimensions/Width/Height/Preview/Span table were all squeezed into roughly the left half only,
+with a large blank gap on the right for the rest of the card. Root cause was the same class of CSS
+Grid auto-placement bug as the iPad fix above, just in a different component: `Calculator.tsx`'s
+`geometryContent` renders straight into `.geometry-body`'s 2-column grid (`ui/estimatorTheme.css`)
+expecting exactly two top-level children -- one per column -- but `wallConfig.tsx`'s
+`ProfileSection` returns a bare fragment (its own "Profile" label div and `<ProfileSelector>` as
+two separate un-wrapped nodes, no container). Auto-placement split those two nodes across row 1's
+two columns on its own, then packed the second real child (the `border-t` div holding
+Dimensions/preview/span table) into row 2 col 1 alone, leaving row 2 col 2 empty --
+`firstWallSetup.tsx`'s own `<ProfileSection>` call already wraps it in a `<div>` for exactly this
+reason, `Calculator.tsx`'s didn't. Fixed by wrapping the `<ProfileSection>` call in `geometryContent`
+in a `<div>` too, so `.geometry-body` gets exactly two grid items again (Profile | Dimensions).
+Audited the other CSS-grid content slots in `Calculator.tsx` (`.product-body`'s `stock-col`/
+`materials-col`, `.config-row`'s `WallTypeSelector`/`OrientationSelector`/`WallSystemSelector`) for
+the same bare-fragment-into-grid pattern -- all already wrap their content in a single container,
+so this was an isolated instance. Verified live: `.geometry-body` now has exactly two grid
+children, correctly split ~46/54 into Profile | Dimensions+Preview+Span-table, both full card
+height, in both light and dark mode. Full verification suite (typecheck/test/build/depcruise)
+clean, 187 tests passing.
+
 ### What Phase 4 actually required (historical — kept for context; Phase 4 is now done, see above)
 
 Two files need **zero changes** — confirmed by full diff, not just line-count comparison:
