@@ -2258,6 +2258,32 @@ end;
 $$;
 
 -- =============================================================================
+-- Company Accounts & Pricing -- Phase 2 schema catch-up
+-- =============================================================================
+-- Expands companies.status from the original 3-value placeholder set
+-- ('active'/'suspended'/'closed', never actually surfaced in any admin UI
+-- before now) to the 5-state model the backend spec describes
+-- (Pending/Active/On Hold/Suspended/Archived). 'closed' never had a code
+-- path that set it (grep confirms), so it maps onto 'archived' rather than
+-- needing its own case. New companies now start 'pending' -- admin_create_company
+-- below is the only insert path into this table (see "Company-creation
+-- cutover" a few lines down), so the column default doubles as that call
+-- site's default. This is enum/default catch-up ONLY -- nothing yet reads
+-- these new states to block anything (see the phased plan's Phase 11 for
+-- actual On-Hold/Suspended order-blocking enforcement).
+update companies set status = 'archived' where status = 'closed';
+alter table companies drop constraint companies_status_check;
+alter table companies add constraint companies_status_check
+  check (status in ('pending', 'active', 'on_hold', 'suspended', 'archived'));
+alter table companies alter column status set default 'pending';
+
+-- "Payment or account terms" / "Internal notes" -- two of the Account-step
+-- fields the backend spec's company field list (section 1) names that had
+-- no column yet.
+alter table companies add column payment_terms text;
+alter table companies add column internal_notes text;
+
+-- =============================================================================
 -- Self-service company creation, membership, and invitations
 -- =============================================================================
 
@@ -2274,10 +2300,20 @@ drop function if exists public.create_company(text, text, text, text, text, text
 -- being a member. The company's actual first Owner is added afterward via
 -- the normal invite path (company-invite-member / admin-invite-user with
 -- companyId+companyRole), same as any other member.
+--
+-- p_payment_terms/p_internal_notes (Phase 2) are appended, not inserted
+-- among the existing params -- old callers (the pre-Phase-2 3-step wizard)
+-- that never pass them still work unchanged via the defaults. Dropped and
+-- recreated (not a bare `create or replace`) because appending params
+-- changes the function's argument-type signature, same convention already
+-- used by admin_list_staff_candidates()/admin_list_companies() below.
+drop function if exists public.admin_create_company(text, text, text, text, text, text, text);
+
 create or replace function public.admin_create_company(
   p_legal_name text, p_trading_name text default null, p_abn text default null,
   p_customer_account_number text default null, p_billing_email text default null,
-  p_phone text default null, p_address text default null
+  p_phone text default null, p_address text default null,
+  p_payment_terms text default null, p_internal_notes text default null
 ) returns uuid
 language plpgsql security definer
 set search_path = public
@@ -2292,17 +2328,251 @@ begin
   -- backfill) but this function predates that column and was never updated
   -- when it was added -- every new company defaults to PL1 - Standard, same
   -- as every pre-existing company was backfilled to, until an admin assigns
-  -- a different list via admin_set_company_price_list().
-  insert into companies (legal_name, trading_name, abn, customer_account_number, billing_email, phone, address, created_by, price_list_id)
-    values (p_legal_name, p_trading_name, p_abn, p_customer_account_number, p_billing_email, p_phone, p_address, auth.uid(),
+  -- a different list via admin_set_company_price_list(). status is left to
+  -- the column default ('pending', see the Phase 2 schema catch-up above).
+  insert into companies (legal_name, trading_name, abn, customer_account_number, billing_email, phone, address, payment_terms, internal_notes, created_by, price_list_id)
+    values (p_legal_name, p_trading_name, p_abn, p_customer_account_number, p_billing_email, p_phone, p_address, p_payment_terms, p_internal_notes, auth.uid(),
       (select id from price_lists where is_default))
     returning id into v_company_id;
   perform public.log_audit(v_company_id, auth.uid(), 'company_created');
   return v_company_id;
 end;
 $$;
-revoke execute on function public.admin_create_company(text, text, text, text, text, text, text) from public, anon;
-grant execute on function public.admin_create_company(text, text, text, text, text, text, text) to authenticated;
+revoke execute on function public.admin_create_company(text, text, text, text, text, text, text, text, text) from public, anon;
+grant execute on function public.admin_create_company(text, text, text, text, text, text, text, text, text) to authenticated;
+
+-- Phase 2's company-status editor -- has_permission('companies.set_status')-gated
+-- (new permission key, see the block below), records the transition on
+-- audit_logs via log_audit() the same way every other company-workspace
+-- mutation does. p_status is validated against the same 5-state list as the
+-- table's own check constraint (defence in depth -- a bad value should fail
+-- with a clear message here, not a raw constraint-violation error).
+create or replace function public.admin_set_company_status(p_company_id uuid, p_status text, p_reason text default null) returns void
+language plpgsql security definer
+set search_path = public
+as $$
+declare
+  v_old_status text;
+begin
+  if not public.has_permission('companies.set_status') then raise exception 'Not authorized'; end if;
+  if p_status not in ('pending', 'active', 'on_hold', 'suspended', 'archived') then raise exception 'Invalid status'; end if;
+
+  select status into v_old_status from companies where id = p_company_id;
+  if not found then raise exception 'Company not found'; end if;
+
+  update companies set status = p_status, updated_at = now() where id = p_company_id;
+  perform public.log_audit(p_company_id, auth.uid(), 'company_status_changed', null, null,
+    jsonb_build_object('from', v_old_status, 'to', p_status, 'reason', p_reason));
+end;
+$$;
+revoke execute on function public.admin_set_company_status(uuid, text, text) from public, anon;
+grant execute on function public.admin_set_company_status(uuid, text, text) to authenticated;
+
+insert into public.permissions (key, description, category) values
+  ('companies.set_status', 'Change a company''s account status (Pending/Active/On Hold/Suspended/Archived)', 'companies')
+on conflict (key) do nothing;
+
+-- Single-company activity counts for CompanyOverviewPage.tsx's KPI tiles --
+-- kept as its own tiny RPC (parameterized to one company_id, cheap even as
+-- a correlated-subquery pair) rather than folded into admin_list_companies()
+-- below, since the list view never needs per-row project/order counts and
+-- admin_list_companies() already runs across every company. orders has no
+-- company_id column of its own (see the phased plan's corrected-understanding
+-- notes) -- reached via its project_id -> projects.company_id join instead.
+create or replace function public.admin_company_activity_counts(p_company_id uuid)
+returns table (project_count bigint, order_count bigint)
+language sql security definer stable
+set search_path = public
+as $$
+  select
+    (select count(*) from projects where company_id = p_company_id and deleted_at is null),
+    (select count(*) from orders o join projects p on p.id = o.project_id where p.company_id = p_company_id)
+  where public.has_permission('companies.list');
+$$;
+revoke execute on function public.admin_company_activity_counts(uuid) from public, anon;
+grant execute on function public.admin_company_activity_counts(uuid) to authenticated;
+
+-- =============================================================================
+-- Company Accounts & Pricing -- Phase 3: Company Addresses
+-- =============================================================================
+-- Genuinely new -- today `companies.address` is one text field. This table
+-- is purely a picker source for pre-filling order_deliveries' own address
+-- fields at delivery-creation time; order_deliveries already freezes
+-- addresses as plain text with no FK (see the phased plan's corrected-
+-- understanding notes), so nothing about that freeze behavior changes here.
+--
+-- `label` is one deliberate addition beyond the phased plan's own draft SQL
+-- (flagged there as "exact field set to confirm against spec text") -- the
+-- backend spec's table list names `company_addresses` but gives no column
+-- list of its own, and the screenshots need *something* to distinguish two
+-- addresses of the same type (e.g. two delivery locations, only one
+-- default) -- "Dandenong Warehouse" vs "Sydney Office" in the mockup.
+--
+-- Two access paths, deliberately separate:
+-- - RLS (below): the company's OWN active members/admins reading/writing
+--   directly -- is_company_admin() already carries the companies.manage_all
+--   staff bypass, so this also covers staff, but is the path a future
+--   customer-facing addresses page would use.
+-- - The RPCs further down: the STAFF module's path (CompanyAddressesTab.tsx),
+--   gated by the new company_addresses.read/write permission keys (dynamic
+--   RBAC -- lets e.g. dispatch read without necessarily being able to write)
+--   rather than is_company_admin(), and the only path that calls log_audit().
+create table company_addresses (
+  id uuid primary key default gen_random_uuid(),
+  company_id uuid not null references companies (id) on delete cascade,
+  type text not null check (type in ('billing', 'delivery', 'office')),
+  is_default boolean not null default false,
+  label text,
+  line1 text not null,
+  line2 text,
+  suburb text,
+  state text,
+  postcode text,
+  delivery_contact_name text,
+  delivery_contact_phone text,
+  created_by uuid references auth.users (id),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+-- One default per (company, type) -- e.g. one default billing address and
+-- one default delivery address at a time, enforced at the DB level, not
+-- just by the RPCs clearing the old default first (see
+-- admin_set_company_address/admin_set_default_address below).
+create unique index company_addresses_one_default_per_type on company_addresses (company_id, type) where is_default;
+create index idx_company_addresses_company_id on company_addresses (company_id);
+
+alter table company_addresses enable row level security;
+
+create policy "Members and admins can read company addresses" on company_addresses
+  for select using (
+    public.is_admin()
+    or exists (select 1 from company_memberships cm where cm.company_id = company_addresses.company_id and cm.user_id = auth.uid() and cm.status = 'active')
+  );
+create policy "Company admins can insert company addresses" on company_addresses
+  for insert with check (public.is_company_admin(company_id));
+create policy "Company admins can update company addresses" on company_addresses
+  for update using (public.is_company_admin(company_id)) with check (public.is_company_admin(company_id));
+create policy "Company admins can delete company addresses" on company_addresses
+  for delete using (public.is_company_admin(company_id));
+
+insert into public.permissions (key, description, category) values
+  ('company_addresses.read', 'Read a company''s saved addresses (staff module)', 'companies'),
+  ('company_addresses.write', 'Create/edit/delete a company''s saved addresses (staff module)', 'companies')
+on conflict (key) do nothing;
+
+create or replace function public.company_list_addresses(p_company_id uuid)
+returns table (
+  id uuid, type text, is_default boolean, label text, line1 text, line2 text,
+  suburb text, state text, postcode text, delivery_contact_name text, delivery_contact_phone text,
+  created_at timestamptz, updated_at timestamptz
+)
+language sql security definer stable
+set search_path = public
+as $$
+  select id, type, is_default, label, line1, line2, suburb, state, postcode,
+    delivery_contact_name, delivery_contact_phone, created_at, updated_at
+  from company_addresses
+  where company_id = p_company_id and public.has_permission('company_addresses.read')
+  order by type, is_default desc, created_at;
+$$;
+revoke execute on function public.company_list_addresses(uuid) from public, anon;
+grant execute on function public.company_list_addresses(uuid) to authenticated;
+
+-- Upsert -- p_address_id null creates, present updates. Clearing the old
+-- default is its own statement (not folded into the insert/update), so the
+-- one-default-per-type unique index above never sees two defaults at once
+-- even transiently -- each statement's constraint check runs immediately,
+-- not deferred to end of transaction.
+create or replace function public.admin_set_company_address(
+  p_address_id uuid, p_company_id uuid, p_type text, p_label text,
+  p_line1 text, p_line2 text, p_suburb text, p_state text, p_postcode text,
+  p_delivery_contact_name text default null, p_delivery_contact_phone text default null,
+  p_is_default boolean default false
+) returns uuid
+language plpgsql security definer
+set search_path = public
+as $$
+declare
+  v_id uuid;
+  v_event text;
+begin
+  if not public.has_permission('company_addresses.write') then raise exception 'Not authorized'; end if;
+  if p_type not in ('billing', 'delivery', 'office') then raise exception 'Invalid address type'; end if;
+  if coalesce(trim(p_line1), '') = '' then raise exception 'Street address is required'; end if;
+
+  if p_is_default then
+    update company_addresses set is_default = false, updated_at = now()
+      where company_id = p_company_id and type = p_type and is_default and id is distinct from p_address_id;
+  end if;
+
+  if p_address_id is null then
+    insert into company_addresses (
+      company_id, type, label, line1, line2, suburb, state, postcode,
+      delivery_contact_name, delivery_contact_phone, is_default, created_by
+    ) values (
+      p_company_id, p_type, nullif(trim(p_label), ''), p_line1, nullif(trim(p_line2), ''), p_suburb, p_state, p_postcode,
+      nullif(trim(p_delivery_contact_name), ''), nullif(trim(p_delivery_contact_phone), ''), p_is_default, auth.uid()
+    ) returning id into v_id;
+    v_event := 'company_address_added';
+  else
+    update company_addresses set
+      type = p_type, label = nullif(trim(p_label), ''), line1 = p_line1, line2 = nullif(trim(p_line2), ''),
+      suburb = p_suburb, state = p_state, postcode = p_postcode,
+      delivery_contact_name = nullif(trim(p_delivery_contact_name), ''), delivery_contact_phone = nullif(trim(p_delivery_contact_phone), ''),
+      is_default = p_is_default, updated_at = now()
+      where id = p_address_id and company_id = p_company_id
+      returning id into v_id;
+    if v_id is null then raise exception 'Address not found'; end if;
+    v_event := 'company_address_changed';
+  end if;
+
+  perform public.log_audit(p_company_id, auth.uid(), v_event, null, null, jsonb_build_object('address_id', v_id, 'type', p_type));
+  return v_id;
+end;
+$$;
+revoke execute on function public.admin_set_company_address(uuid, uuid, text, text, text, text, text, text, text, text, text, boolean) from public, anon;
+grant execute on function public.admin_set_company_address(uuid, uuid, text, text, text, text, text, text, text, text, text, boolean) to authenticated;
+
+create or replace function public.admin_delete_company_address(p_address_id uuid) returns void
+language plpgsql security definer
+set search_path = public
+as $$
+declare
+  v_company_id uuid;
+begin
+  if not public.has_permission('company_addresses.write') then raise exception 'Not authorized'; end if;
+  delete from company_addresses where id = p_address_id returning company_id into v_company_id;
+  if v_company_id is null then raise exception 'Address not found'; end if;
+  perform public.log_audit(v_company_id, auth.uid(), 'company_address_removed', null, null, jsonb_build_object('address_id', p_address_id));
+end;
+$$;
+revoke execute on function public.admin_delete_company_address(uuid) from public, anon;
+grant execute on function public.admin_delete_company_address(uuid) to authenticated;
+
+-- Lighter-weight than admin_set_company_address for the common "make this
+-- existing address the default" action (e.g. a card's own "Set default"
+-- button) -- no need to resubmit the whole address form.
+create or replace function public.admin_set_default_address(p_address_id uuid) returns void
+language plpgsql security definer
+set search_path = public
+as $$
+declare
+  v_company_id uuid;
+  v_type text;
+begin
+  if not public.has_permission('company_addresses.write') then raise exception 'Not authorized'; end if;
+  select company_id, type into v_company_id, v_type from company_addresses where id = p_address_id;
+  if v_company_id is null then raise exception 'Address not found'; end if;
+
+  update company_addresses set is_default = false, updated_at = now()
+    where company_id = v_company_id and type = v_type and is_default and id <> p_address_id;
+  update company_addresses set is_default = true, updated_at = now() where id = p_address_id;
+
+  perform public.log_audit(v_company_id, auth.uid(), 'company_address_changed', null, null, jsonb_build_object('address_id', p_address_id, 'set_default', true));
+end;
+$$;
+revoke execute on function public.admin_set_default_address(uuid) from public, anon;
+grant execute on function public.admin_set_default_address(uuid) to authenticated;
 
 -- handle_new_user() extended (redefined here, after invitations/
 -- company_memberships/project_memberships/log_audit all exist) to
@@ -2363,8 +2633,10 @@ begin
   -- Metadata-only: extends the expiry window. Actually re-sending Supabase's
   -- own invite email (for the still-no-account case) needs the service-role
   -- key, so that half happens in company-invite-member's "resend" mode,
-  -- which calls this RPC for the validation + expiry reset.
-  update invitations set expires_at = now() + interval '14 days' where id = p_invitation_id;
+  -- which calls this RPC for the validation + expiry reset. 5 days, not the
+  -- original 14 -- Phase 5 (Company Accounts & Pricing) changed the default
+  -- to match the mockup's "Invitation Rules" copy; kept in sync here.
+  update invitations set expires_at = now() + interval '5 days' where id = p_invitation_id;
 end;
 $$;
 revoke execute on function public.resend_company_invitation(uuid) from public, anon;
@@ -2443,6 +2715,92 @@ end;
 $$;
 revoke execute on function public.decline_company_invitation(uuid) from public, anon;
 grant execute on function public.decline_company_invitation(uuid) to authenticated;
+
+-- =============================================================================
+-- Company Accounts & Pricing -- Phase 5: standalone Invitations page +
+-- "Delivery Failed" status
+-- =============================================================================
+-- A real send failure previously deleted the just-inserted invitations row
+-- (see company-invite-member/index.ts's old comment, now rewritten) and
+-- returned a synchronous error -- nothing persisted, so a failed send was
+-- invisible anywhere in the app after the fact. delivery_failed makes that
+-- state real and visible instead. ALTERed rather than edited into the
+-- original `create table if not exists invitations` above, same reasoning
+-- as companies.status in Phase 2's own schema catch-up -- that CREATE TABLE
+-- only ever runs once against a real project, so a column/constraint change
+-- has to be a separate statement appended here, not a rewrite of the
+-- original text.
+alter table invitations add column failure_reason text;
+alter table invitations drop constraint invitations_status_check;
+alter table invitations add constraint invitations_status_check
+  check (status in ('pending', 'accepted', 'expired', 'cancelled', 'delivery_failed'));
+-- 14 -> 5 days, per the mockup's "Invitation Rules" panel copy
+-- ("expires after five days"). Only affects new rows -- existing pending
+-- invitations keep whatever expires_at they already have.
+alter table invitations alter column expires_at set default (now() + interval '5 days');
+
+insert into public.permissions (key, description, category) values
+  ('invitations.list', 'List invitations across every company (staff module)', 'invitations')
+on conflict (key) do nothing;
+
+-- Cross-company read for the standalone Invitations page
+-- (src/pages/accounts/invitations/InvitationsPage.tsx) -- every other
+-- invitation RPC above is scoped to one company (reached from that
+-- company's own Users tab); this is the first one that lists across all of
+-- them, so it gets its own permission key rather than reusing
+-- is_company_admin()'s per-company check.
+create or replace function public.admin_list_invitations(p_company_id uuid default null, p_status text default null)
+returns table (
+  id uuid, company_id uuid, company_name text, email text, invitee_name text,
+  role text, status text, failure_reason text,
+  created_at timestamptz, expires_at timestamptz, accepted_at timestamptz
+)
+language sql security definer stable
+set search_path = public
+as $$
+  select i.id, i.company_id, coalesce(c.trading_name, c.legal_name), i.email, i.invitee_name,
+    i.role, i.status, i.failure_reason, i.created_at, i.expires_at, i.accepted_at
+  from invitations i
+  join companies c on c.id = i.company_id
+  where public.has_permission('invitations.list')
+    and (p_company_id is null or i.company_id = p_company_id)
+    and (p_status is null or i.status = p_status)
+  order by i.created_at desc;
+$$;
+revoke execute on function public.admin_list_invitations(uuid, text) from public, anon;
+grant execute on function public.admin_list_invitations(uuid, text) to authenticated;
+
+-- The metadata half of "fix the email and retry" for a delivery_failed
+-- invitation -- resets status/failure_reason/expiry so the row looks like a
+-- brand-new pending invite again. Same split as resend_company_invitation:
+-- this RPC does the auth check + metadata reset, company-invite-member's
+-- new "fixEmail" action calls it then does the half that needs the
+-- service-role key (re-firing inviteUserByEmail at the corrected address).
+-- is_company_admin()-gated (not invitations.list) -- fixing one company's
+-- invitation is a per-company write, same as resend/cancel above, even
+-- though the page it's reached from lists across companies.
+create or replace function public.admin_fix_invitation_email(p_invitation_id uuid, p_new_email text) returns void
+language plpgsql security definer
+set search_path = public
+as $$
+declare
+  v_company uuid;
+  v_status text;
+begin
+  select company_id, status into v_company, v_status from invitations where id = p_invitation_id;
+  if v_company is null then raise exception 'Invitation not found'; end if;
+  if not public.is_company_admin(v_company) then raise exception 'Not authorized'; end if;
+  if v_status <> 'delivery_failed' then raise exception 'Only a delivery-failed invitation can be fixed'; end if;
+  if p_new_email is null or p_new_email !~ '^[^\s@]+@[^\s@]+\.[^\s@]+$' then raise exception 'Enter a valid email address'; end if;
+
+  update invitations set email = p_new_email, status = 'pending', failure_reason = null,
+    expires_at = now() + interval '5 days'
+    where id = p_invitation_id;
+  perform public.log_audit(v_company, auth.uid(), 'invitation_fixed', null, null, jsonb_build_object('invitation_id', p_invitation_id, 'new_email', p_new_email));
+end;
+$$;
+revoke execute on function public.admin_fix_invitation_email(uuid, text) from public, anon;
+grant execute on function public.admin_fix_invitation_email(uuid, text) to authenticated;
 
 -- =============================================================================
 -- Self-service member management
@@ -2715,20 +3073,11 @@ grant execute on function public.remove_project_member(uuid, uuid) to authentica
 -- admin-gated read view + the one write action needed to bootstrap a
 -- company's first Owner from the existing Admin > Users roster.
 
-create or replace function public.admin_list_companies()
-returns table (id uuid, name text, member_count bigint, created_at timestamptz)
-language sql security definer stable
-set search_path = public
-as $$
-  select c.id, coalesce(c.trading_name, c.legal_name), count(cm.id) filter (where cm.status = 'active'), c.created_at
-  from companies c
-  left join company_memberships cm on cm.company_id = c.id
-  where public.has_permission('companies.list')
-  group by c.id, c.trading_name, c.legal_name, c.created_at
-  order by c.created_at desc;
-$$;
-revoke execute on function public.admin_list_companies() from public, anon;
-grant execute on function public.admin_list_companies() to authenticated;
+-- admin_list_companies() itself lives further down (Phase 2's version reads
+-- price_lists.name, so it's defined after the Pricing: Price List RPCs
+-- section instead of here -- language sql function bodies are checked
+-- against referenced-object existence at CREATE time, unlike plpgsql, so it
+-- can't reference a table that doesn't exist yet this early in the script).
 
 -- Assigns/detaches an EXISTING user to/from a company. p_company_id = null
 -- detaches (soft, mirrors company_remove_member's effect) -- also doubles as
@@ -3129,12 +3478,20 @@ $$;
 revoke execute on function public.admin_list_price_lists() from public, anon;
 grant execute on function public.admin_list_price_lists() to authenticated;
 
+-- Also creates the new list's initial version 1, status 'active' -- Phase 6
+-- (Company Accounts & Pricing) versioning makes every price_lists row
+-- require at least one version to have any prices at all. plpgsql (not sql)
+-- so referencing price_list_versions here, defined further down the file,
+-- is fine -- only checked against real object existence at CALL time, not
+-- at this CREATE.
 create or replace function public.admin_create_price_list(p_name text, p_notes text default null) returns uuid
 language plpgsql security definer set search_path = public as $$
 declare v_id uuid;
 begin
   if not public.has_permission('price_lists.create') then raise exception 'Not authorized'; end if;
   insert into price_lists (name, notes, created_by) values (p_name, p_notes, auth.uid()) returning id into v_id;
+  insert into price_list_versions (price_list_id, version_number, status, effective_date, created_by, published_at, published_by)
+    values (v_id, 1, 'active', current_date, auth.uid(), now(), auth.uid());
   return v_id;
 end;
 $$;
@@ -3153,20 +3510,27 @@ revoke execute on function public.admin_rename_price_list(uuid, text) from publi
 grant execute on function public.admin_rename_price_list(uuid, text) to authenticated;
 
 -- The entire "Duplicate Price List" backend -- one new price_lists row plus
--- one INSERT...SELECT across every priced product on the source list, no
--- loop.
+-- a new version 1 (status 'active') plus one INSERT...SELECT across every
+-- priced product on the source list's own CURRENT (active) version, no
+-- loop. Phase 6 (Company Accounts & Pricing): duplicating copies today's
+-- live prices, never a draft-in-progress on the source list.
 create or replace function public.admin_duplicate_price_list(p_source_price_list_id uuid, p_new_name text) returns uuid
 language plpgsql security definer set search_path = public as $$
-declare v_id uuid;
+declare v_id uuid; v_version_id uuid; v_source_version_id uuid;
 begin
   if not public.has_permission('price_lists.duplicate') then raise exception 'Not authorized'; end if;
+  select id into v_source_version_id from price_list_versions where price_list_id = p_source_price_list_id and status = 'active';
+  if v_source_version_id is null then raise exception 'Price list not found'; end if;
   insert into price_lists (name, notes, created_by)
     select p_new_name, notes, auth.uid() from price_lists where id = p_source_price_list_id
     returning id into v_id;
   if v_id is null then raise exception 'Price list not found'; end if;
-  insert into price_list_prices (price_list_id, category, panel_id, track_id, fixing_id, sealant_id, price)
-    select v_id, category, panel_id, track_id, fixing_id, sealant_id, price
-    from price_list_prices where price_list_id = p_source_price_list_id;
+  insert into price_list_versions (price_list_id, version_number, status, effective_date, created_by, published_at, published_by)
+    values (v_id, 1, 'active', current_date, auth.uid(), now(), auth.uid())
+    returning id into v_version_id;
+  insert into price_list_prices (price_list_version_id, category, panel_id, track_id, fixing_id, sealant_id, price)
+    select v_version_id, category, panel_id, track_id, fixing_id, sealant_id, price
+    from price_list_prices where price_list_version_id = v_source_version_id;
   return v_id;
 end;
 $$;
@@ -3236,6 +3600,65 @@ $$;
 revoke execute on function public.admin_set_company_price_list(uuid, uuid) from public, anon;
 grant execute on function public.admin_set_company_price_list(uuid, uuid) to authenticated;
 
+-- Phase 2 (Company Accounts & Pricing): extended from the original 4-column
+-- row (id/name/member_count/created_at, see "Admin (Speedpanel staff)
+-- visibility into companies" above) to also carry every field
+-- CompaniesListPage.tsx's table and CompanyOverviewPage.tsx's detail cards
+-- need -- one shared row shape for both screens rather than a second
+-- per-company RPC, since the company count here is small enough (internal
+-- B2B customer list, not end-user scale) that returning the full row for
+-- every company is cheap. Dropped and recreated (not `create or replace`)
+-- since the return column list is growing, which `create or replace
+-- function` can't do in place. Defined here (after price_lists exists)
+-- rather than back at its original spot, since it reads price_lists.name --
+-- language sql function bodies are checked against referenced-object
+-- existence at CREATE time, unlike plpgsql.
+drop function if exists public.admin_list_companies();
+
+create or replace function public.admin_list_companies()
+returns table (
+  id uuid, name text, member_count bigint, created_at timestamptz,
+  legal_name text, trading_name text, abn text, account_code text,
+  billing_email text, phone text, address text, status text,
+  payment_terms text, internal_notes text,
+  price_list_id uuid, price_list_name text,
+  primary_user_name text, primary_user_email text, internal_owner_name text
+)
+language sql security definer stable
+set search_path = public
+as $$
+  select
+    c.id, coalesce(c.trading_name, c.legal_name), count(cm.id) filter (where cm.status = 'active'), c.created_at,
+    c.legal_name, c.trading_name, c.abn, c.customer_account_number,
+    c.billing_email, c.phone, c.address, c.status,
+    c.payment_terms, c.internal_notes,
+    c.price_list_id, pl.name,
+    owner.display_name_or_email, owner.email, creator.display_name_or_email
+  from companies c
+  left join company_memberships cm on cm.company_id = c.id
+  left join price_lists pl on pl.id = c.price_list_id
+  left join lateral (
+    select coalesce(p.display_name, u.email) as display_name_or_email, u.email
+    from company_memberships owner_cm
+    join profiles p on p.id = owner_cm.user_id
+    join auth.users u on u.id = owner_cm.user_id
+    where owner_cm.company_id = c.id and owner_cm.role = 'owner' and owner_cm.status = 'active'
+    limit 1
+  ) owner on true
+  left join lateral (
+    select coalesce(p.display_name, u.email) as display_name_or_email
+    from profiles p join auth.users u on u.id = p.id
+    where p.id = c.created_by
+  ) creator on true
+  where public.has_permission('companies.list')
+  group by c.id, c.trading_name, c.legal_name, c.created_at, c.abn, c.customer_account_number,
+    c.billing_email, c.phone, c.address, c.status, c.payment_terms, c.internal_notes,
+    c.price_list_id, pl.name, owner.display_name_or_email, owner.email, creator.display_name_or_email
+  order by c.created_at desc;
+$$;
+revoke execute on function public.admin_list_companies() from public, anon;
+grant execute on function public.admin_list_companies() to authenticated;
+
 -- =============================================================================
 -- Foreign key indexes -- pricing tables
 -- =============================================================================
@@ -3245,6 +3668,286 @@ create index if not exists idx_price_list_prices_track_id      on price_list_pri
 create index if not exists idx_price_list_prices_fixing_id     on price_list_prices (fixing_id);
 create index if not exists idx_price_list_prices_sealant_id    on price_list_prices (sealant_id);
 create index if not exists idx_companies_price_list_id         on companies (price_list_id);
+
+-- =============================================================================
+-- Pricing: Price List Versioning (Company Accounts & Pricing, Phase 6)
+-- =============================================================================
+-- Restructures price_list_prices from one flat, live-edited row set per
+-- price_lists row into a versioned model: every price now belongs to a
+-- price_list_versions row, exactly one of which is ever 'active' per
+-- price_lists row at a time. companies.price_list_id keeps meaning the
+-- LOGICAL list (unchanged by this migration) -- callers that need today's
+-- real prices resolve through current_price_list_prices() below, which
+-- always reads the active version.
+--
+-- This is a live-table migration, not a fresh CREATE TABLE -- schema.sql
+-- has already run against a real project by the time this section exists,
+-- so (matching this file's own established convention, e.g. the
+-- company_addresses/invitations sections) every change here is additive
+-- ALTER/new-CREATE, appended after price_list_prices' original definition
+-- rather than edited into it.
+-- =============================================================================
+create table price_list_versions (
+  id uuid primary key default gen_random_uuid(),
+  price_list_id uuid not null references price_lists (id) on delete cascade,
+  version_number int not null,
+  status text not null check (status in ('draft', 'scheduled', 'active', 'expired', 'archived')),
+  effective_date date,
+  notes text,
+  created_by uuid not null references auth.users (id),
+  created_at timestamptz not null default now(),
+  published_at timestamptz,
+  published_by uuid references auth.users (id),
+  unique (price_list_id, version_number)
+);
+-- Enforces the "exactly one active version per list" invariant at the
+-- database level, not just in RPC logic -- a partial unique index so
+-- draft/scheduled/expired/archived rows are unconstrained.
+create unique index price_list_versions_one_active on price_list_versions (price_list_id) where status = 'active';
+
+alter table price_list_versions enable row level security;
+drop policy if exists "Staff can read price list versions" on price_list_versions;
+create policy "Staff can read price list versions" on price_list_versions
+  for select using (public.has_permission('price_lists.read'));
+-- current_price_list_prices() below is SECURITY INVOKER (deliberately, see
+-- its own comment) and joins through this table, so a non-staff company
+-- member needs read access to at least the active row to resolve their own
+-- assigned list's current prices client-side -- mirrors "Default price list
+-- is readable by any authenticated user" above. Only status/dates/version
+-- numbers are exposed by this policy, never a draft's own price rows (those
+-- stay gated by price_list_prices' own policy, rewritten below).
+drop policy if exists "Active price list versions are readable by any authenticated user" on price_list_versions;
+create policy "Active price list versions are readable by any authenticated user" on price_list_versions
+  for select using (status = 'active');
+-- No insert/update/delete policy -- admin_* RPCs only, same convention as
+-- price_lists/price_list_prices above.
+
+-- One version per existing price_lists row, seeded as version 1 / active /
+-- effective today -- every company stays priced exactly as before this
+-- migration.
+insert into price_list_versions (price_list_id, version_number, status, effective_date, created_by, created_at, published_at, published_by)
+  select id, 1, 'active', current_date, created_by, created_at, created_at, created_by
+  from price_lists;
+
+alter table price_list_prices add column price_list_version_id uuid references price_list_versions (id) on delete cascade;
+update price_list_prices plp
+  set price_list_version_id = plv.id
+  from price_list_versions plv
+  where plv.price_list_id = plp.price_list_id and plv.status = 'active';
+alter table price_list_prices alter column price_list_version_id set not null;
+
+-- Rewritten to join through price_list_version_id (price_list_id, the
+-- column this policy used to reference, is being dropped a few statements
+-- down) and to genuinely restrict to the active version only -- once drafts
+-- exist, a company member must never be able to read a not-yet-published
+-- draft's prices. Must run (and so must the column backfill above) BEFORE
+-- price_list_id is dropped: this policy's old body depends on that column,
+-- and Postgres won't let a column be dropped while a policy still
+-- references it.
+drop policy if exists "Company members can read their assigned list's prices" on price_list_prices;
+create policy "Company members can read their assigned list's prices" on price_list_prices
+  for select using (
+    exists (
+      select 1 from price_list_versions plv
+      join companies c on c.price_list_id = plv.price_list_id
+      join company_memberships cm on cm.company_id = c.id
+      where plv.id = price_list_prices.price_list_version_id
+        and plv.status = 'active'
+        and cm.user_id = auth.uid() and cm.status = 'active'
+    )
+    or exists (
+      select 1 from price_list_versions plv
+      join price_lists pl on pl.id = plv.price_list_id
+      where plv.id = price_list_prices.price_list_version_id
+        and plv.status = 'active' and pl.is_default
+    )
+  );
+
+-- price_list_id's own unique index and FK index are dropped along with the
+-- column itself (Postgres drops a column's own dependent indexes
+-- automatically, no explicit DROP INDEX/CASCADE needed) -- price_list_id
+-- is superseded entirely by price_list_version_id from here on.
+drop index if exists price_list_prices_unique;
+drop index if exists idx_price_list_prices_price_list_id;
+alter table price_list_prices drop column price_list_id;
+create unique index price_list_prices_unique on price_list_prices
+  (price_list_version_id, category, coalesce(panel_id, track_id, fixing_id, sealant_id));
+create index if not exists idx_price_list_prices_price_list_version_id on price_list_prices (price_list_version_id);
+
+-- Draft-only mutability: once a price_list_prices row's version is
+-- 'active', its price can no longer be changed or removed in place --
+-- publishing a new version (Phase 8) is the only way to change a live
+-- price from here on. Fires on UPDATE/DELETE only, not INSERT: every INSERT
+-- path into this table is already RPC-gated (RLS above grants "admin_* RPCs
+-- only", no direct client insert policy exists at all) and the only RPCs
+-- that insert into an ALREADY-existing version either create that version
+-- as part of the same statement (admin_create_price_list/
+-- admin_duplicate_price_list, populating a brand-new active version, not
+-- mutating an existing one) or explicitly require status = 'draft' first
+-- (admin_set_draft_price below) -- so guarding INSERT here would only block
+-- that legitimate initial-population path, not add any real protection.
+-- Placed here, after the data-migration UPDATE above (which itself targets
+-- rows whose version is already 'active') and after price_list_version_id's
+-- NOT NULL is set -- a trigger active any earlier would reject that very
+-- backfill.
+create or replace function public.guard_price_list_prices_immutable() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare v_status text;
+begin
+  select status into v_status from price_list_versions where id = coalesce(new.price_list_version_id, old.price_list_version_id);
+  if v_status = 'active' then
+    raise exception 'Cannot modify prices on an active price list version -- create a draft first';
+  end if;
+  return coalesce(new, old);
+end;
+$$;
+create trigger guard_price_list_prices_immutable before update or delete on price_list_prices
+  for each row execute function public.guard_price_list_prices_immutable();
+
+-- publish/schedule seeded now (Phase 6) even though admin_publish_price_
+-- list_version()/the scheduled-activation check land in Phase 8 -- same
+-- "seed the permission key before its RPC exists" precedent this file's
+-- nav (admin.section.*) keys already follow. Like every other price_lists.*
+-- key, none of these three are granted to any staff role below -- only
+-- super_admin/null-staff_role passes has_permission() for them, matching
+-- price_lists.create/rename/etc.'s existing super-admin-only posture.
+insert into public.permissions (key, description, category) values
+  ('price_lists.create_draft', 'Create a draft version of a price list', 'price_lists'),
+  ('price_lists.publish', 'Publish a price list version, making it the active one', 'price_lists'),
+  ('price_lists.schedule', 'Schedule a future price list version to activate on its effective date', 'price_lists')
+on conflict (key) do nothing;
+
+-- SECURITY INVOKER -- deliberately the odd one out among this file's RPCs,
+-- almost all of which are security definer. This reads through the CALLING
+-- user's own RLS grants on price_list_prices/price_list_versions rather
+-- than bypassing them, so a customer calling this can only ever see what
+-- "Company members can read their assigned list's prices" and "Active
+-- price list versions are readable by any authenticated user" above
+-- already let them see directly -- there's no privilege-escalation surface
+-- to guard with has_permission() here, unlike the admin_* RPCs below.
+create or replace function public.current_price_list_prices(p_price_list_id uuid)
+returns setof price_list_prices
+language sql security invoker stable
+set search_path = public
+as $$
+  select plp.* from price_list_prices plp
+  join price_list_versions plv on plv.id = plp.price_list_version_id
+  where plv.price_list_id = p_price_list_id and plv.status = 'active';
+$$;
+revoke execute on function public.current_price_list_prices(uuid) from public, anon;
+grant execute on function public.current_price_list_prices(uuid) to authenticated;
+
+-- Creates a new draft version, optionally seeded by copying an existing
+-- version's prices (defaults to copying the list's current active version,
+-- so an admin editing "in place" always starts from today's real prices).
+-- Backs AdminPriceListsPage.tsx's Phase 6 stopgap: its existing edit-price
+-- action auto-creates a draft via this RPC on first edit if the list has no
+-- draft yet (see admin_set_draft_price below), rather than editing the
+-- active version directly the way admin_set_price_list_price used to.
+create or replace function public.admin_create_draft_version(p_price_list_id uuid, p_from_version_id uuid default null) returns uuid
+language plpgsql security definer set search_path = public as $$
+declare v_id uuid; v_next_version int; v_source_version_id uuid;
+begin
+  if not public.has_permission('price_lists.create_draft') then raise exception 'Not authorized'; end if;
+  select coalesce(max(version_number), 0) + 1 into v_next_version from price_list_versions where price_list_id = p_price_list_id;
+  v_source_version_id := coalesce(p_from_version_id, (select id from price_list_versions where price_list_id = p_price_list_id and status = 'active'));
+  insert into price_list_versions (price_list_id, version_number, status, created_by)
+    values (p_price_list_id, v_next_version, 'draft', auth.uid())
+    returning id into v_id;
+  if v_source_version_id is not null then
+    insert into price_list_prices (price_list_version_id, category, panel_id, track_id, fixing_id, sealant_id, price)
+      select v_id, category, panel_id, track_id, fixing_id, sealant_id, price
+      from price_list_prices where price_list_version_id = v_source_version_id;
+  end if;
+  return v_id;
+end;
+$$;
+revoke execute on function public.admin_create_draft_version(uuid, uuid) from public, anon;
+grant execute on function public.admin_create_draft_version(uuid, uuid) to authenticated;
+
+-- Replaces admin_set_price_list_price (dropped below) as the version-scoped
+-- write path -- rejects a target version that isn't currently a draft
+-- (defense in depth on top of the immutability trigger above, which would
+-- reject the same write with a less specific error message).
+create or replace function public.admin_set_draft_price(p_version_id uuid, p_category text, p_product_id uuid, p_price numeric) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if not public.has_permission('price_lists.set_price') then raise exception 'Not authorized'; end if;
+  if p_category not in ('panel', 'track', 'fixing', 'sealant') then raise exception 'Invalid category'; end if;
+  if not exists (select 1 from price_list_versions where id = p_version_id and status = 'draft') then
+    raise exception 'Prices can only be set on a draft version';
+  end if;
+  insert into price_list_prices (price_list_version_id, category, panel_id, track_id, fixing_id, sealant_id, price)
+  values (
+    p_version_id, p_category,
+    case when p_category = 'panel' then p_product_id end,
+    case when p_category = 'track' then p_product_id end,
+    case when p_category = 'fixing' then p_product_id end,
+    case when p_category = 'sealant' then p_product_id end,
+    p_price
+  )
+  on conflict (price_list_version_id, category, coalesce(panel_id, track_id, fixing_id, sealant_id))
+  do update set price = excluded.price, updated_at = now();
+end;
+$$;
+revoke execute on function public.admin_set_draft_price(uuid, text, uuid, numeric) from public, anon;
+grant execute on function public.admin_set_draft_price(uuid, text, uuid, numeric) to authenticated;
+
+-- Not named in the Phase 6 plan doc (which only calls out
+-- admin_set_draft_price as the write RPC to add) -- added because
+-- admin_delete_price_list_price is being dropped outright as part of this
+-- same cutover, and AdminPriceListsPage.tsx's existing "remove price"
+-- action needs a version-scoped equivalent to keep working. Reuses the
+-- existing price_lists.delete_price permission key, matching
+-- admin_set_draft_price's reuse of price_lists.set_price above rather than
+-- minting a key the plan doc doesn't call for.
+create or replace function public.admin_delete_draft_price(p_id uuid) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if not public.has_permission('price_lists.delete_price') then raise exception 'Not authorized'; end if;
+  if not exists (
+    select 1 from price_list_prices plp
+    join price_list_versions plv on plv.id = plp.price_list_version_id
+    where plp.id = p_id and plv.status = 'draft'
+  ) then
+    raise exception 'Prices can only be deleted from a draft version';
+  end if;
+  delete from price_list_prices where id = p_id;
+end;
+$$;
+revoke execute on function public.admin_delete_draft_price(uuid) from public, anon;
+grant execute on function public.admin_delete_draft_price(uuid) to authenticated;
+
+-- Superseded by admin_set_draft_price/admin_delete_draft_price above --
+-- both wrote directly into whatever version price_list_id logically meant,
+-- which no longer exists now every price belongs to a specific version.
+drop function if exists public.admin_set_price_list_price(uuid, text, uuid, numeric);
+drop function if exists public.admin_delete_price_list_price(uuid);
+
+-- Redefined (not edited in place at its original definition above) because
+-- it's `language sql` -- checked against referenced-object existence at
+-- CREATE time, unlike plpgsql, so it can't reference price_list_versions/
+-- price_list_version_id until after both exist, i.e. here. Same
+-- product_count/company_count shape as before; product_count now counts
+-- only the list's current ACTIVE version's prices (a draft-in-progress
+-- shouldn't inflate the count shown in the library table).
+create or replace function public.admin_list_price_lists()
+returns table (id uuid, name text, is_default boolean, notes text, product_count bigint, company_count bigint, created_at timestamptz, updated_at timestamptz)
+language sql security definer stable
+set search_path = public
+as $$
+  select pl.id, pl.name, pl.is_default, pl.notes,
+    (select count(*) from price_list_prices plp
+       join price_list_versions plv on plv.id = plp.price_list_version_id
+       where plv.price_list_id = pl.id and plv.status = 'active'),
+    (select count(*) from companies c where c.price_list_id = pl.id),
+    pl.created_at, pl.updated_at
+  from price_lists pl
+  where public.has_permission('price_lists.list')
+  order by pl.is_default desc, pl.name;
+$$;
+revoke execute on function public.admin_list_price_lists() from public, anon;
+grant execute on function public.admin_list_price_lists() to authenticated;
 
 -- =============================================================================
 -- Delivery request/approval workflow

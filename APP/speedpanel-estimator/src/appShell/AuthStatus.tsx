@@ -11,7 +11,7 @@
 // needs one yet.
 // =============================================================================
 import { useEffect, useRef, useState } from "react";
-import { LogIn, LogOut, ChevronDown, ShieldCheck } from "lucide-react";
+import { LogIn, LogOut, ChevronDown, ShieldCheck, Building2 } from "lucide-react";
 import { BLUE, WHITE, NAVY } from "../styleTokens";
 import { IconButton } from "../ui/primitives";
 import type { UseAuth } from "../lib/useAuth";
@@ -78,7 +78,7 @@ export const AuthStatus = ({ auth, onSignInClick, isInternalStaff, staffRole, na
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full z-20 mt-2 w-48 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 shadow-lg">
+        <div className="absolute right-0 top-full z-20 mt-2 w-60 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 shadow-lg">
           {isInternalStaff && (
             <button
               onClick={() => { setOpen(false); navigate({ tab: "admin", sub: "dashboard" }); }}
@@ -86,6 +86,15 @@ export const AuthStatus = ({ auth, onSignInClick, isInternalStaff, staffRole, na
               style={{ color: NAVY }}
             >
               <ShieldCheck size={15} /> Admin
+            </button>
+          )}
+          {isInternalStaff && (
+            <button
+              onClick={() => { setOpen(false); navigate({ tab: "accounts", sub: "controlRoom" }); }}
+              className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm font-semibold hover:bg-slate-50 dark:hover:bg-slate-700"
+              style={{ color: NAVY }}
+            >
+              <Building2 size={15} /> Company Accounts & Pricing
             </button>
           )}
           <button

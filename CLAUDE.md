@@ -112,6 +112,28 @@ whole `src/` tree or a scoped subfolder, e.g.
   viewport, since the toggle flips relative to the *currently effective*
   auto-detected layout and can flip the wrong way on an already-narrow page.
 
+## Company Accounts & Pricing (src/pages/accounts)
+
+A new top-level, internal-staff-only workspace being built in phases against
+`docs/company-accounts-pricing-plan.md` — read that doc before touching
+anything under `src/pages/accounts/`, it has the full phased plan plus
+load-bearing research findings (which existing tables/RPCs already satisfy
+which requirement, what's genuinely missing, and several corrected
+assumptions worth not re-deriving). Reached via `AuthStatus.tsx`'s account
+dropdown (`"Company Accounts & Pricing"`, next to `"Admin"`), never a
+`TOP_NAV_ITEMS` entry — same "admin-like area, not a top-nav tab" precedent
+`"admin"` itself already follows. `AccountsRoot.tsx` owns one persistent left
+sidebar shared by every sub-page (unlike Admin, where each section owns its
+own); `accountsTheme.css`'s `.cap-shell` deliberately does NOT shadow
+`--navy`/`--blue`/etc the way `.pa-shell`/`.est-shell` do, since this
+module's screenshots are the live app's own real branding, not a separately-
+designed mockup — it reads the site-wide tokens directly and only adds new
+CSS for shapes with no existing equivalent. Phase 1 (workspace shell,
+routing, Control Room) is done; every other sub-page currently renders
+`PlaceholderPage` until its own phase lands — don't build a later phase's
+screen ahead of order without checking the plan doc's dependency chain
+first (price-list versioning in particular has real, deliberate sequencing).
+
 ## Debugging an auth/RLS failure ("permission denied for table ...", etc.)
 
 Do NOT bypass the failure by disabling RLS, weakening a policy, or reaching

@@ -123,4 +123,9 @@ export const EVENT_TYPE_LABELS: Record<string, string> = {
   project_reassigned: "Project access changed",
   staff_assignment_added: "Speedpanel team member assigned",
   staff_assignment_removed: "Speedpanel team member removed",
+  company_status_changed: "Company status changed",
+  company_address_added: "Company address added",
+  company_address_changed: "Company address changed",
+  company_address_removed: "Company address removed",
+  invitation_fixed: "Invitation email corrected and resent",
 };

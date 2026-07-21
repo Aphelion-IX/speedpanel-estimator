@@ -88,7 +88,7 @@ const PriceListDetail = ({ pl, layoutMode, onRenamed, onDuplicated, onDeleted }:
   onRenamed: () => void; onDuplicated: (id: string) => void; onDeleted: () => void;
 }) => {
   const { catalog, loading: catalogLoading } = useProductStore();
-  const { prices, loading: pricesLoading, error: pricesError, setPrice, setPrices, deletePrice } = useAdminPriceListPrices(pl.id);
+  const { prices, versionStatus, loading: pricesLoading, error: pricesError, setPrice, setPrices, deletePrice } = useAdminPriceListPrices(pl.id);
   const { renamePriceList, duplicatePriceList, deletePriceList } = useAdminPriceLists();
   const [category, setCategory] = useState<PriceableCategory>("panel");
   const [query, setQuery] = useState("");
@@ -214,6 +214,11 @@ const PriceListDetail = ({ pl, layoutMode, onRenamed, onDuplicated, onDeleted }:
               <div className="flex items-center gap-2">
                 <span className="text-base font-bold" style={{ color: NAVY }}>{pl.name}</span>
                 {pl.is_default && <Badge tone="info">Default</Badge>}
+                {versionStatus === "draft" && (
+                  <span title="Edits here are saved to an unpublished draft -- customers still see the last published prices until it's published.">
+                    <Badge tone="warn">Draft in progress</Badge>
+                  </span>
+                )}
               </div>
               <div className="flex items-center gap-2">
                 <IconButton size="sm" ariaLabel="Export prices to CSV" title="Export CSV" onClick={handleExport} disabled={catalogLoading}><Download size={14} /></IconButton>

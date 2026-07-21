@@ -24,7 +24,7 @@
 -- and add the corresponding `ok(...)` line below (bump plan() to match).
 -- =============================================================================
 begin;
-select plan(68);
+select plan(78);
 
 select ok(has_function_privilege('authenticated', 'public.is_admin()'::regprocedure, 'EXECUTE'), 'is_admin(): authenticated has EXECUTE');
 select ok(has_function_privilege('authenticated', 'public.has_staff_role(text[])'::regprocedure, 'EXECUTE'), 'has_staff_role(text[]): authenticated has EXECUTE');
@@ -54,9 +54,13 @@ select ok(has_function_privilege('authenticated', 'public.can_view_project(uuid,
 select ok(has_function_privilege('authenticated', 'public.can_edit_project(uuid, uuid, uuid)'::regprocedure, 'EXECUTE'), 'can_edit_project(uuid, uuid, uuid): authenticated has EXECUTE');
 select ok(has_function_privilege('authenticated', 'public.can_submit_orders(uuid, uuid, uuid)'::regprocedure, 'EXECUTE'), 'can_submit_orders(uuid, uuid, uuid): authenticated has EXECUTE');
 select ok(has_function_privilege('authenticated', 'public.log_audit(uuid, uuid, text, uuid, uuid, jsonb)'::regprocedure, 'EXECUTE'), 'log_audit(uuid, uuid, text, uuid, uuid, jsonb): authenticated has EXECUTE');
-select ok(has_function_privilege('authenticated', 'public.admin_create_company(text, text, text, text, text, text, text)'::regprocedure, 'EXECUTE'), 'admin_create_company(text, text, text, text, text, text, text): authenticated has EXECUTE');
+select ok(has_function_privilege('authenticated', 'public.admin_create_company(text, text, text, text, text, text, text, text, text)'::regprocedure, 'EXECUTE'), 'admin_create_company(text, text, text, text, text, text, text, text, text): authenticated has EXECUTE');
+select ok(has_function_privilege('authenticated', 'public.admin_set_company_status(uuid, text, text)'::regprocedure, 'EXECUTE'), 'admin_set_company_status(uuid, text, text): authenticated has EXECUTE');
+select ok(has_function_privilege('authenticated', 'public.admin_company_activity_counts(uuid)'::regprocedure, 'EXECUTE'), 'admin_company_activity_counts(uuid): authenticated has EXECUTE');
 select ok(has_function_privilege('authenticated', 'public.resend_company_invitation(uuid)'::regprocedure, 'EXECUTE'), 'resend_company_invitation(uuid): authenticated has EXECUTE');
 select ok(has_function_privilege('authenticated', 'public.cancel_company_invitation(uuid)'::regprocedure, 'EXECUTE'), 'cancel_company_invitation(uuid): authenticated has EXECUTE');
+select ok(has_function_privilege('authenticated', 'public.admin_list_invitations(uuid, text)'::regprocedure, 'EXECUTE'), 'admin_list_invitations(uuid, text): authenticated has EXECUTE');
+select ok(has_function_privilege('authenticated', 'public.admin_fix_invitation_email(uuid, text)'::regprocedure, 'EXECUTE'), 'admin_fix_invitation_email(uuid, text): authenticated has EXECUTE');
 select ok(has_function_privilege('authenticated', 'public.accept_company_invitation(uuid)'::regprocedure, 'EXECUTE'), 'accept_company_invitation(uuid): authenticated has EXECUTE');
 select ok(has_function_privilege('authenticated', 'public.decline_company_invitation(uuid)'::regprocedure, 'EXECUTE'), 'decline_company_invitation(uuid): authenticated has EXECUTE');
 select ok(has_function_privilege('authenticated', 'public.company_set_member_role(uuid, uuid, text)'::regprocedure, 'EXECUTE'), 'company_set_member_role(uuid, uuid, text): authenticated has EXECUTE');
@@ -70,6 +74,11 @@ select ok(has_function_privilege('authenticated', 'public.add_project_member(uui
 select ok(has_function_privilege('authenticated', 'public.set_project_member_role(uuid, uuid, text)'::regprocedure, 'EXECUTE'), 'set_project_member_role(uuid, uuid, text): authenticated has EXECUTE');
 select ok(has_function_privilege('authenticated', 'public.remove_project_member(uuid, uuid)'::regprocedure, 'EXECUTE'), 'remove_project_member(uuid, uuid): authenticated has EXECUTE');
 select ok(has_function_privilege('authenticated', 'public.admin_list_companies()'::regprocedure, 'EXECUTE'), 'admin_list_companies(): authenticated has EXECUTE');
+-- Phase 6 (Company Accounts & Pricing): price-list versioning RPCs.
+select ok(has_function_privilege('authenticated', 'public.current_price_list_prices(uuid)'::regprocedure, 'EXECUTE'), 'current_price_list_prices(uuid): authenticated has EXECUTE');
+select ok(has_function_privilege('authenticated', 'public.admin_create_draft_version(uuid, uuid)'::regprocedure, 'EXECUTE'), 'admin_create_draft_version(uuid, uuid): authenticated has EXECUTE');
+select ok(has_function_privilege('authenticated', 'public.admin_set_draft_price(uuid, text, uuid, numeric)'::regprocedure, 'EXECUTE'), 'admin_set_draft_price(uuid, text, uuid, numeric): authenticated has EXECUTE');
+select ok(has_function_privilege('authenticated', 'public.admin_delete_draft_price(uuid)'::regprocedure, 'EXECUTE'), 'admin_delete_draft_price(uuid): authenticated has EXECUTE');
 select ok(has_function_privilege('authenticated', 'public.admin_set_user_company(uuid, uuid, text)'::regprocedure, 'EXECUTE'), 'admin_set_user_company(uuid, uuid, text): authenticated has EXECUTE');
 select ok(has_function_privilege('authenticated', 'public.admin_add_company_member_by_email(uuid, text, text)'::regprocedure, 'EXECUTE'), 'admin_add_company_member_by_email(uuid, text, text): authenticated has EXECUTE');
 select ok(has_function_privilege('authenticated', 'public.admin_set_staff_assignment(uuid, uuid, text)'::regprocedure, 'EXECUTE'), 'admin_set_staff_assignment(uuid, uuid, text): authenticated has EXECUTE');
@@ -80,10 +89,15 @@ select ok(has_function_privilege('authenticated', 'public.admin_list_price_lists
 select ok(has_function_privilege('authenticated', 'public.admin_create_price_list(text, text)'::regprocedure, 'EXECUTE'), 'admin_create_price_list(text, text): authenticated has EXECUTE');
 select ok(has_function_privilege('authenticated', 'public.admin_rename_price_list(uuid, text)'::regprocedure, 'EXECUTE'), 'admin_rename_price_list(uuid, text): authenticated has EXECUTE');
 select ok(has_function_privilege('authenticated', 'public.admin_duplicate_price_list(uuid, text)'::regprocedure, 'EXECUTE'), 'admin_duplicate_price_list(uuid, text): authenticated has EXECUTE');
-select ok(has_function_privilege('authenticated', 'public.admin_set_price_list_price(uuid, text, uuid, numeric)'::regprocedure, 'EXECUTE'), 'admin_set_price_list_price(uuid, text, uuid, numeric): authenticated has EXECUTE');
-select ok(has_function_privilege('authenticated', 'public.admin_delete_price_list_price(uuid)'::regprocedure, 'EXECUTE'), 'admin_delete_price_list_price(uuid): authenticated has EXECUTE');
+-- Phase 6 (Company Accounts & Pricing): admin_set_price_list_price/
+-- admin_delete_price_list_price are gone -- superseded by the version-
+-- scoped draft RPCs below.
 select ok(has_function_privilege('authenticated', 'public.admin_delete_price_list(uuid)'::regprocedure, 'EXECUTE'), 'admin_delete_price_list(uuid): authenticated has EXECUTE');
 select ok(has_function_privilege('authenticated', 'public.admin_set_company_price_list(uuid, uuid)'::regprocedure, 'EXECUTE'), 'admin_set_company_price_list(uuid, uuid): authenticated has EXECUTE');
+select ok(has_function_privilege('authenticated', 'public.company_list_addresses(uuid)'::regprocedure, 'EXECUTE'), 'company_list_addresses(uuid): authenticated has EXECUTE');
+select ok(has_function_privilege('authenticated', 'public.admin_set_company_address(uuid, uuid, text, text, text, text, text, text, text, text, text, boolean)'::regprocedure, 'EXECUTE'), 'admin_set_company_address(...): authenticated has EXECUTE');
+select ok(has_function_privilege('authenticated', 'public.admin_delete_company_address(uuid)'::regprocedure, 'EXECUTE'), 'admin_delete_company_address(uuid): authenticated has EXECUTE');
+select ok(has_function_privilege('authenticated', 'public.admin_set_default_address(uuid)'::regprocedure, 'EXECUTE'), 'admin_set_default_address(uuid): authenticated has EXECUTE');
 select ok(has_function_privilege('authenticated', 'public.accept_delivery_date(uuid)'::regprocedure, 'EXECUTE'), 'accept_delivery_date(uuid): authenticated has EXECUTE');
 select ok(has_function_privilege('authenticated', 'public.propose_delivery_date(uuid, date)'::regprocedure, 'EXECUTE'), 'propose_delivery_date(uuid, date): authenticated has EXECUTE');
 select ok(has_function_privilege('authenticated', 'public.accept_proposed_delivery_date(uuid)'::regprocedure, 'EXECUTE'), 'accept_proposed_delivery_date(uuid): authenticated has EXECUTE');

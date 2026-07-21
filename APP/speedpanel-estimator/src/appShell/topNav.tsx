@@ -35,11 +35,13 @@ import { IconButton } from "../ui/primitives";
 // and entry-point callouts on ProjectsListPage.tsx, not a top-nav tab. "admin"
 // isn't in the list either -- it's reached via the account dropdown's Admin
 // shortcut (AuthStatus.tsx) instead of a top-nav tab. Same for "myRequests" --
-// reached via the account dropdown's "My Requests" shortcut. All three are
-// still part of this union purely so route.tab (which includes them)
-// type-checks as an activeTab value -- they just never match any
-// TOP_NAV_ITEMS key, so no button ever highlights for them.
-export type TopNavTab = "home" | "order" | "estimator" | "selector" | "education" | "projects" | "admin" | "company" | "myRequests";
+// reached via the account dropdown's "My Requests" shortcut, and "accounts"
+// (the Company Accounts & Pricing workspace) -- reached via the account
+// dropdown's own shortcut next to Admin. All four are still part of this
+// union purely so route.tab (which includes them) type-checks as an
+// activeTab value -- they just never match any TOP_NAV_ITEMS key, so no
+// button ever highlights for them.
+export type TopNavTab = "home" | "order" | "estimator" | "selector" | "education" | "projects" | "admin" | "accounts" | "company" | "myRequests";
 
 const TOP_NAV_ITEMS: { key: TopNavTab; label: string }[] = [
   { key: "home",      label: "Home" },
