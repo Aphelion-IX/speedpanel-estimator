@@ -13,7 +13,7 @@
 import { useMemo, useRef, useState } from "react";
 import { ChevronLeft, Search, Copy, Trash2, Pencil, Check, X, Download, Upload } from "lucide-react";
 import { cx, BLUE, WHITE, NAVY, MUTED } from "../../../styleTokens";
-import { CardGrid, SectionLabel, IconButton } from "../../../ui/primitives";
+import { CardGrid, SectionLabel, IconButton, SearchBox } from "../../../ui/primitives";
 import { Button } from "../../../ui/button";
 import { Badge } from "../../../ui/badge";
 import { LoadingState, ErrorState, EmptyState } from "../../../ui/states";
@@ -169,11 +169,7 @@ const ProductPricesTab = ({ priceListId, priceListName, layoutMode, onChanged }:
       </div>
       {importSummary && <p className="mt-2 text-sm font-semibold" style={{ color: BLUE }}>{importSummary}</p>}
 
-      <div className="mt-4 flex items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-4 py-3 shadow-sm">
-        <Search size={16} className="shrink-0" style={{ color: MUTED }} />
-        <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search products..."
-          className="w-full bg-transparent text-sm outline-none" style={{ color: NAVY }} />
-      </div>
+      <SearchBox value={query} onChange={setQuery} placeholder="Search products..." />
       <div className="mt-3 flex flex-wrap gap-2">
         {PRICEABLE_CATEGORIES.map(c => {
           const on = category === c;

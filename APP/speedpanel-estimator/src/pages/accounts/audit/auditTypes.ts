@@ -10,6 +10,7 @@
 // already covers.
 // =============================================================================
 import { z } from "zod";
+import { EVENT_TYPE_LABELS } from "../../company/companyTypes";
 
 export const AdminAuditLogRowSchema = z.object({
   id: z.string(),
@@ -34,3 +35,10 @@ export function auditDetailOrderId(row: AdminAuditLogRow): string | null {
   const raw = row.detail?.order_id;
   return typeof raw === "string" ? raw : null;
 }
+
+// Shared by AuditHistoryPage.tsx and CompanyAuditTab.tsx's event-type
+// filters -- one label source of truth, and sorted once at module load
+// rather than re-sorted on every render in each caller.
+export const eventLabel = (eventType: string): string => EVENT_TYPE_LABELS[eventType] ?? eventType;
+export const SORTED_EVENT_TYPES: string[] =
+  Object.keys(EVENT_TYPE_LABELS).sort((a, b) => eventLabel(a).localeCompare(eventLabel(b)));
