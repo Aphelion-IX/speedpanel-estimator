@@ -36,6 +36,7 @@ import {
 } from "./companyPriceOverridesStore";
 import { PricingPriorityExplainer } from "./PricingPriorityExplainer";
 import { CustomerPricePreview } from "./CustomerPricePreview";
+import { CompanyPriceListCard } from "../../admin/priceLists/CompanyPriceListCard";
 
 const LIFECYCLE_TONE: Record<OverrideLifecycle, "ok" | "info" | "neutral"> = { active: "ok", scheduled: "info", expired: "neutral" };
 const LIFECYCLE_LABEL: Record<OverrideLifecycle, string> = { active: "Active", scheduled: "Scheduled", expired: "Expired" };
@@ -116,7 +117,7 @@ const OverrideForm = ({ companyId, catalog, editing, onDone, onCancel }: {
   );
 };
 
-export const CompanyPricingTab = ({ company }: { company: AdminCompanyRow }) => {
+export const CompanyPricingTab = ({ company, onCompanyChanged }: { company: AdminCompanyRow; onCompanyChanged?: () => void }) => {
   const { catalog, loading: catalogLoading } = useProductStore();
   const { overrides, loading, error, reload } = useCompanyPriceOverrides(company.id);
   const [adding, setAdding] = useState(false);
@@ -199,6 +200,14 @@ export const CompanyPricingTab = ({ company }: { company: AdminCompanyRow }) => 
         onCancel={() => setDeletingId(null)}
       />
       <ErrorDialog message={busyError} onDismiss={() => setBusyError(null)} />
+
+      <section className={cx.card}>
+        <h2 className={cx.h3}>Assigned price list</h2>
+        <p className="mt-1 text-sm" style={{ color: MUTED }}>
+          This company's Tier 2 pricing -- the list every product falls back to when there's no item override in effect.
+        </p>
+        <div className="mt-3"><CompanyPriceListCard companyId={company.id} onAssigned={onCompanyChanged} /></div>
+      </section>
 
       <PricingPriorityExplainer />
 

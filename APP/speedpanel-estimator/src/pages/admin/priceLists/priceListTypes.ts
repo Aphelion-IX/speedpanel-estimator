@@ -25,9 +25,9 @@ export const PriceListSummaryRowSchema = z.object({
 });
 export type PriceListSummaryRow = z.infer<typeof PriceListSummaryRowSchema>;
 
-// Bare price_lists row -- used for the name-only picker on AdminCompaniesPage
-// (a plain select, no RPC needed: staff read price_lists via a direct RLS
-// policy).
+// Bare price_lists row -- used for the name-only picker on
+// CompanyPriceListCard.tsx (a plain select, no RPC needed: staff read
+// price_lists via a direct RLS policy).
 export const PriceListRowSchema = z.object({ id: z.string(), name: z.string(), is_default: z.boolean() });
 export type PriceListRow = z.infer<typeof PriceListRowSchema>;
 

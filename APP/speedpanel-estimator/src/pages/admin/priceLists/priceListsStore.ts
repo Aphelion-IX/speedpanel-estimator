@@ -217,7 +217,7 @@ export function useAdminPriceListPrices(priceListId: string | null) {
 }
 
 // Current price-list assignment for one company, plus the save action --
-// powers AdminCompaniesPage.tsx's "Price List" AccordionCard. Reads
+// powers CompanyPriceListCard.tsx (embedded on CompanyPricingTab.tsx). Reads
 // companies.price_list_id directly (staff pass its "Company members can
 // read their own company" RLS policy via the is_admin() OR-clause).
 export function useCompanyPriceListAssignment(companyId: string) {

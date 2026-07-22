@@ -1,9 +1,10 @@
 // =============================================================================
-// Admin > Companies -- "Price List" AccordionCard content
+// Company Accounts & Pricing -- "Assigned price list" picker
 // =============================================================================
-// Drops into AdminCompaniesPage.tsx's CompanyRow, after "Speedpanel Team",
-// per that file's own documented extension point. A plain dropdown of
-// price_lists + Save -> admin_set_company_price_list.
+// A plain dropdown of price_lists + Save -> admin_set_company_price_list.
+// Used on CompanyPricingTab.tsx (Phase 14 -- the only UI anywhere that can
+// change a company's assigned list; retired AdminCompaniesPage.tsx's own
+// "Price List" accordion used to be the only other caller).
 // =============================================================================
 import { useEffect, useState } from "react";
 import { MUTED } from "../../../styleTokens";
@@ -12,7 +13,7 @@ import { LoadingState, ErrorState } from "../../../ui/states";
 import { SelectField } from "../../shared/fields";
 import { usePriceListPicker, useCompanyPriceListAssignment } from "./priceListsStore";
 
-export const CompanyPriceListCard = ({ companyId }: { companyId: string }) => {
+export const CompanyPriceListCard = ({ companyId, onAssigned }: { companyId: string; onAssigned?: () => void }) => {
   const { priceLists, loading: pickerLoading, error: pickerError } = usePriceListPicker();
   const { priceListId, loading: assignmentLoading, error: assignmentError, saving, save } = useCompanyPriceListAssignment(companyId);
   const [draft, setDraft] = useState<string | null>(null);
@@ -33,6 +34,7 @@ export const CompanyPriceListCard = ({ companyId }: { companyId: string }) => {
     const error = await save(draft);
     if (error) { setSaveError(error); return; }
     setSaved(true);
+    onAssigned?.();
   };
 
   return (

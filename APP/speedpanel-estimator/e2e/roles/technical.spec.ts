@@ -11,8 +11,18 @@ test.describe("technical (staff)", () => {
     await page.goto("/#/admin/projectReviews");
     await expect(page.getByText("Not part of your role")).not.toBeVisible();
 
-    await page.goto("/#/admin/companies");
-    await expect(page.getByText("Not part of your role")).toBeVisible();
+    // #/admin/companies retired (Phase 14, Company Accounts & Pricing) --
+    // redirects to #/accounts/companies, which isn't nav-gated per role the
+    // way old Admin was (Phase 1's own deliberate, documented deferral --
+    // every #/accounts/* route is isInternalStaff-only, not per-section).
+    // The real data boundary is still server-side: admin_list_companies()
+    // is has_permission('companies.list')-gated (super_admin-only by
+    // default) folded into its own WHERE clause, so a technical_services
+    // caller gets zero rows back, not an exception -- verify that (no
+    // company names leak), not a nav message that no longer applies here.
+    await page.goto("/#/accounts/companies");
+    await expect(page.getByText("No company workspaces yet.")).toBeVisible();
+    await expect(page.getByText("E2E Test Co A")).not.toBeVisible();
   });
 
   test("4. Approve technical review action is visible", async ({ page }) => {

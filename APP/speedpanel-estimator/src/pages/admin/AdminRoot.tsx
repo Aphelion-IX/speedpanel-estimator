@@ -9,11 +9,13 @@
 //
 // canAccessSection (adminSectionAccess.ts) gates direct navigation to a
 // section, not just AdminDashboard.tsx's tiles -- someone who types
-// #/admin/companies into the address bar gets the same "not part of your
+// #/admin/products into the address bar gets the same "not part of your
 // role" message a hidden tile implies, not the actual page. This is
 // UI-side only; the real enforcement is server-side (has_staff_role() in
 // supabase/schema.sql), so this check can never grant more than the server
-// would already allow.
+// would already allow. (#/admin/companies and #/admin/priceLists redirect
+// to their Company Accounts & Pricing equivalents before ever reaching this
+// gate -- see useHashRoute.ts's Phase 14 retirement comment.)
 // =============================================================================
 import { BLUE, NAVY, MUTED, cx } from "../../styleTokens";
 import type { EffectiveLayout } from "../../useLayoutMode";
@@ -22,7 +24,6 @@ import type { Route } from "../../appShell/useHashRoute";
 import { AdminGate } from "../../appShell/AdminGate";
 import { AdminDashboard } from "./AdminDashboard";
 import { AdminProductsPage } from "./AdminProductsPage";
-import { AdminPriceListsPage } from "./AdminPriceListsPage";
 import { AdminSystemsPage } from "./AdminSystemsPage";
 import { AdminMathsPage } from "./AdminMathsPage";
 import { AdminDocumentsPage } from "./AdminDocumentsPage";
@@ -34,7 +35,6 @@ import { AdminAnalyticsPage } from "./AdminAnalyticsPage";
 import { AdminAuditLogPage } from "./AdminAuditLogPage";
 import { AdminOrdersPage } from "./AdminOrdersPage";
 import { AdminManufacturingPage } from "./AdminManufacturingPage";
-import { AdminCompaniesPage } from "./AdminCompaniesPage";
 import { AdminRolesPage } from "./AdminRolesPage";
 import { AdminDeliveryRequestsPage } from "./deliveryRequests/AdminDeliveryRequestsPage";
 import { AdminServiceRequestsPage } from "./serviceRequests/AdminServiceRequestsPage";
@@ -72,7 +72,6 @@ export const AdminRoot = ({ route, navigate, layoutMode, auth }: {
               </div>
             )}
             {allowed && route.sub === "products"  && <AdminProductsPage layoutMode={layoutMode} />}
-            {allowed && route.sub === "priceLists" && <AdminPriceListsPage layoutMode={layoutMode} />}
             {allowed && route.sub === "systems"   && <AdminSystemsPage layoutMode={layoutMode} />}
             {allowed && route.sub === "maths"     && <AdminMathsPage />}
             {allowed && route.sub === "documents" && <AdminDocumentsPage layoutMode={layoutMode} />}
@@ -84,7 +83,6 @@ export const AdminRoot = ({ route, navigate, layoutMode, auth }: {
             {allowed && route.sub === "auditLog"  && <AdminAuditLogPage />}
             {allowed && route.sub === "orders"    && <AdminOrdersPage userId={auth.user?.id ?? null} staffRole={staffRole} staffRoleLoading={roleLoading} />}
             {allowed && route.sub === "manufacturing" && <AdminManufacturingPage userId={auth.user?.id ?? null} staffRole={staffRole} staffRoleLoading={roleLoading} />}
-            {allowed && route.sub === "companies" && <AdminCompaniesPage auth={auth} />}
             {allowed && route.sub === "permissions" && <AdminRolesPage />}
             {allowed && route.sub === "deliveryRequests" && <AdminDeliveryRequestsPage userId={auth.user?.id ?? null} staffRole={staffRole} staffRoleLoading={roleLoading} />}
             {allowed && route.sub === "serviceRequests" && <AdminServiceRequestsPage layoutMode={layoutMode} userId={auth.user?.id ?? null} />}

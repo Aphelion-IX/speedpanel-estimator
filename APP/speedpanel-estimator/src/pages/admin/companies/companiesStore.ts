@@ -6,7 +6,7 @@
 // "Company-creation cutover"/"Internal staff roles") -- not the deferred
 // SupportAccess grant model. That bypass is also what lets this file's
 // roster/staff-team management reuse company/companyStore.ts's
-// useCompanyMembers directly (AdminCompaniesPage.tsx does) rather than a
+// useCompanyMembers directly (CompanyUsersTab.tsx does) rather than a
 // parallel read-only path: the same RPCs (company_set_member_role/
 // company_remove_member/etc.) now work for an admin who was never added as
 // a member of the company they're managing.
@@ -181,7 +181,7 @@ export function useCompanyActivityCounts(companyId: string | null) {
 // optional -- present, the account is live immediately with that password
 // (no email); absent, they get an invite email instead. role is always
 // "user" here (never "admin"/staff) -- an external user, not a hire. Called
-// from CreateCompanyUserForm.tsx, one per company row on AdminCompaniesPage.tsx.
+// from CreateCompanyUserForm.tsx, embedded on CompanyUsersTab.tsx.
 export async function adminCreateCompanyUser(input: {
   companyId: string; email: string; role: CompanyRole; password?: string;
 }): Promise<string | null> {

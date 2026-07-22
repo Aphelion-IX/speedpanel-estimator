@@ -9,10 +9,17 @@
 // =============================================================================
 import { useCallback, useEffect, useState } from "react";
 
-export type AdminSubPage = "dashboard" | "products" | "priceLists" | "systems" | "maths" | "documents" | "requests" | "projectReviews" | "projectsAdmin" | "users" | "analytics" | "auditLog" | "orders" | "manufacturing" | "companies" | "permissions" | "deliveryRequests" | "serviceRequests";
+// "companies"/"priceLists" retired (Phase 14, Company Accounts & Pricing) --
+// #/admin/companies and #/admin/priceLists now redirect to their
+// #/accounts equivalents (see parseHash below) rather than being real
+// AdminSubPage values, since AdminCompaniesPage.tsx/AdminCompanyWizard.tsx/
+// AdminPriceListsPage.tsx were deleted outright, not kept as dead code
+// behind a route that no longer dispatches to anything.
+export type AdminSubPage = "dashboard" | "products" | "systems" | "maths" | "documents" | "requests" | "projectReviews" | "projectsAdmin" | "users" | "analytics" | "auditLog" | "orders" | "manufacturing" | "permissions" | "deliveryRequests" | "serviceRequests";
 // "create" removed -- self-service company creation no longer exists, see
 // CompanyRouter.tsx/NoCompanyPage.tsx. Companies are created only via the
-// Admin > Companies wizard.
+// Company Accounts & Pricing workspace's own wizard now (see "companies"
+// retirement note above).
 export type CompanySubPage = "team" | "activity";
 
 // "Company Accounts & Pricing" -- a new top-level internal-staff workspace
@@ -75,13 +82,21 @@ export type Route =
   // shell/nav JSX, since it's a printable document, not a page in the app.
   | { tab: "proforma"; orderId: string };
 
-const ADMIN_SUBPAGES: AdminSubPage[] = ["products", "priceLists", "systems", "maths", "documents", "requests", "projectReviews", "projectsAdmin", "users", "analytics", "auditLog", "orders", "manufacturing", "companies", "permissions", "deliveryRequests", "serviceRequests"];
+const ADMIN_SUBPAGES: AdminSubPage[] = ["products", "systems", "maths", "documents", "requests", "projectReviews", "projectsAdmin", "users", "analytics", "auditLog", "orders", "manufacturing", "permissions", "deliveryRequests", "serviceRequests"];
 const COMPANY_SUBPAGES: CompanySubPage[] = ["team", "activity"];
 const ACCOUNTS_SUBPAGES: AccountsSubPage[] = ["controlRoom", "companies", "companyUsers", "invitations", "companyPricing", "priceLists", "permissions", "auditHistory"];
 
 function parseHash(hash: string): Route {
   const segments = hash.replace(/^#\/?/, "").split("/").filter(Boolean);
   const [first, second, third, fourth] = segments;
+  // Retired (Phase 14, Company Accounts & Pricing) -- kept as redirects so
+  // bookmarked/shared #/admin/companies or #/admin/priceLists links still
+  // land somewhere useful, same "#/quote" precedent below. A bare
+  // "#/admin/companies/<id>" (no such deep-link ever existed on the old
+  // page, which had no per-company route of its own) still just lands on
+  // the new list, same as a plain "#/admin/companies".
+  if (first === "admin" && second === "companies")  return { tab: "accounts", sub: "companies" };
+  if (first === "admin" && second === "priceLists") return { tab: "accounts", sub: "priceLists" };
   if (first === "admin") {
     const sub = ADMIN_SUBPAGES.find(s => s === second) ?? "dashboard";
     return { tab: "admin", sub };

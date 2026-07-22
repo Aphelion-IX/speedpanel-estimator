@@ -27,6 +27,8 @@ import {
 import { CompanyAddressesTab } from "./CompanyAddressesTab";
 import { CompanyUsersTab } from "./CompanyUsersTab";
 import { CompanyPricingTab } from "./CompanyPricingTab";
+import { CompanyAuditTab } from "./CompanyAuditTab";
+import { StaffTeamAssignmentPanel } from "../../admin/companies/StaffTeamAssignmentPanel";
 
 const STATUS_TONE: Record<CompanyStatus, "ok" | "warn" | "danger" | "info" | "neutral"> = {
   pending: "info", active: "ok", on_hold: "warn", suspended: "danger", archived: "neutral",
@@ -143,6 +145,23 @@ const PendingSetupCard = ({ companyId }: { companyId: string }) => {
   );
 };
 
+// Reused verbatim from src/pages/admin/companies/ -- the same component
+// CompanyWizard.tsx's own Account step already uses at creation time (see
+// that file's own comment). This is its ongoing-management home for an
+// EXISTING company -- the wizard's one-time use during creation doesn't
+// cover reassigning/removing a Speedpanel team member later, which the
+// retired AdminCompaniesPage.tsx's "Speedpanel Team" accordion used to be
+// the only way to do.
+const SpeedpanelTeamCard = ({ companyId }: { companyId: string }) => (
+  <section className={cx.card}>
+    <h2 className={cx.h3}>Speedpanel Team</h2>
+    <p className="mt-1 text-sm" style={{ color: MUTED }}>
+      The internal staff assigned to this account -- Project Manager and BDM are shown as its internal owner elsewhere.
+    </p>
+    <div className="mt-3"><StaffTeamAssignmentPanel companyId={companyId} /></div>
+  </section>
+);
+
 const OverviewTab = ({ company, onOpenUsers }: { company: AdminCompanyRow; onOpenUsers: () => void }) => {
   const { counts } = useCompanyActivityCounts(company.id);
 
@@ -203,6 +222,8 @@ const OverviewTab = ({ company, onOpenUsers }: { company: AdminCompanyRow; onOpe
         </section>
       </div>
 
+      <div className="mt-5"><SpeedpanelTeamCard companyId={company.id} /></div>
+
       {company.internal_notes && (
         <section className={`${cx.card} mt-5`}>
           <h2 className={cx.h3}>Internal notes</h2>
@@ -211,8 +232,6 @@ const OverviewTab = ({ company, onOpenUsers }: { company: AdminCompanyRow; onOpe
       )}
 
       <p className="mt-5 text-xs" style={{ color: MUTED }}>
-        Price visibility rules and ordering permissions are coming in later phases (10, 12) -- not shown here until they're real.
-        {" "}
         <button className="font-semibold hover:underline" style={{ color: BLUE }} onClick={onOpenUsers}>
           Manage company users
         </button>
@@ -221,14 +240,14 @@ const OverviewTab = ({ company, onOpenUsers }: { company: AdminCompanyRow; onOpe
   );
 };
 
-// "addresses"/"users"/"pricing" are deliberately absent -- all three real
-// now (CompanyAddressesTab.tsx/CompanyUsersTab.tsx/CompanyPricingTab.tsx),
-// dispatched separately below rather than through this PlaceholderPage list.
+// "addresses"/"users"/"pricing"/"audit" are deliberately absent -- all four
+// real now (CompanyAddressesTab.tsx/CompanyUsersTab.tsx/CompanyPricingTab.tsx/
+// CompanyAuditTab.tsx), dispatched separately below rather than through this
+// PlaceholderPage list.
 const OTHER_TABS: { id: string; label: string; title: string; description: string }[] = [
   { id: "projects", label: "Projects", title: "Projects", description: "This company's projects, scoped to this workspace -- not yet planned." },
   { id: "quotes", label: "Quotes", title: "Quotes", description: "This company's quote requests, scoped to this workspace -- not yet planned." },
-  { id: "orders", label: "Orders", title: "Orders", description: "This company's order history, scoped to this workspace -- coming in Phase 10." },
-  { id: "audit", label: "Audit", title: "Audit History", description: "This company's audit trail -- coming in Phase 13." },
+  { id: "orders", label: "Orders", title: "Orders", description: "This company's order history, scoped to this workspace -- not yet planned." },
 ];
 
 export const CompanyOverviewPage = ({ companyId, myUserId, navigate }: { companyId: string; myUserId: string | null; navigate: (r: Route) => void }) => {
@@ -283,7 +302,8 @@ export const CompanyOverviewPage = ({ companyId, myUserId, navigate }: { company
       <TabPanel id="overview" activeId={activeTab}><OverviewTab company={company} onOpenUsers={() => setActiveTab("users")} /></TabPanel>
       <TabPanel id="users" activeId={activeTab}><CompanyUsersTab companyId={company.id} myUserId={myUserId} /></TabPanel>
       <TabPanel id="addresses" activeId={activeTab}><CompanyAddressesTab companyId={company.id} /></TabPanel>
-      <TabPanel id="pricing" activeId={activeTab}><CompanyPricingTab company={company} /></TabPanel>
+      <TabPanel id="pricing" activeId={activeTab}><CompanyPricingTab company={company} onCompanyChanged={reload} /></TabPanel>
+      <TabPanel id="audit" activeId={activeTab}><CompanyAuditTab companyId={company.id} /></TabPanel>
       {OTHER_TABS.map(t => (
         <TabPanel key={t.id} id={t.id} activeId={activeTab}>
           <PlaceholderPage title={t.title} description={t.description} />

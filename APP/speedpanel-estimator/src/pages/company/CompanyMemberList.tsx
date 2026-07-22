@@ -1,14 +1,14 @@
 // =============================================================================
 // Company roster + pending invitations -- shared between the customer-facing
-// Team page and Admin > Companies
+// Team page and the Company Accounts & Pricing workspace's Users tab
 // =============================================================================
-// Extracted out of CompanyTeamPage.tsx so Admin > Companies can manage any
-// company's roster through the exact same, already-tested invite/role/
-// suspend/remove controls, now that is_company_admin/is_company_owner's
-// is_admin() bypass (see supabase/schema.sql) lets an admin call these RPCs
-// for a company they were never added to as a member. canManage is passed in
-// rather than derived here: on the customer side it's "am I owner/admin of
-// this company", on the Admin side it's always true (is_admin() is the real
+// Extracted out of CompanyTeamPage.tsx so staff can manage any company's
+// roster through the exact same, already-tested invite/role/suspend/remove
+// controls, now that is_company_admin/is_company_owner's is_admin() bypass
+// (see supabase/schema.sql) lets an admin call these RPCs for a company
+// they were never added to as a member. canManage is passed in rather than
+// derived here: on the customer side it's "am I owner/admin of this
+// company", on the staff side it's always true (is_admin() is the real
 // gate either way).
 //
 // isSpeedpanelAdmin (default false, so CompanyTeamPage.tsx's customer-facing
@@ -19,12 +19,12 @@
 // SEPARATE flag from canManage: canManage on the customer side means "I'm
 // this company's own Owner/Admin", a different, RLS-narrower permission
 // that would never actually pass that RPC's check. Only
-// AdminCompaniesPage.tsx's CompanyRow passes isSpeedpanelAdmin={true}.
+// CompanyUsersTab.tsx passes isSpeedpanelAdmin={true}.
 // Brand-new-account creation (as opposed to granting an existing one) lives
-// in CreateCompanyUserForm.tsx instead, alongside this accordion on that
-// same page. InviteMemberForm below stays here unconditionally since it's
+// in CreateCompanyUserForm.tsx instead, alongside this component on that
+// same tab. InviteMemberForm below stays here unconditionally since it's
 // genuinely different in kind (self-service, used by customers too via
-// CompanyTeamPage.tsx, not admin-only).
+// CompanyTeamPage.tsx, not staff-only).
 // =============================================================================
 import { useState } from "react";
 import { UserPlus, Mail } from "lucide-react";

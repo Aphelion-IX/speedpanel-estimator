@@ -4,8 +4,9 @@
 // Reached by opening a price list from PriceListsPage.tsx. Product Prices
 // tab reuses useAdminPriceListPrices() (Phase 6, src/pages/admin/priceLists/
 // priceListsStore.ts) verbatim -- the same auto-fork-a-draft-on-first-edit
-// stopgap AdminPriceListsPage.tsx already exercises, just presented in this
-// module's own chrome/tabs rather than that page's flat layout. Publish tab
+// stopgap the now-retired AdminPriceListsPage.tsx used to exercise, just
+// presented in this module's own chrome/tabs rather than that page's flat
+// layout. Publish tab
 // is ComparePublishPage.tsx (Phase 8) -- the diff/checklist/company-impact/
 // approval-note/real Publish action live there, not inline here.
 // =============================================================================

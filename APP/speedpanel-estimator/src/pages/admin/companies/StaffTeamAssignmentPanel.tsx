@@ -1,10 +1,14 @@
 // =============================================================================
 // Speedpanel Team assignment editor -- super_admin-only
 // =============================================================================
-// Shared between AdminCompanyWizard.tsx's step 3 and AdminCompaniesPage.tsx's
-// per-company "Speedpanel Team" accordion -- same component, same
-// useStaffAssignments(companyId) + useAdminStaffCandidates() (companiesStore.ts),
-// both has_staff_role(array[])-gated server-side. Single-assignment roles
+// Shared between CompanyWizard.tsx's Account step (accounts/companies/,
+// one-time assignment at creation) and CompanyOverviewPage.tsx's own
+// "Speedpanel Team" card (Phase 14, ongoing management of an existing
+// company -- the retired AdminCompaniesPage.tsx's own "Speedpanel Team"
+// accordion used to be the only way to do this after creation) -- same
+// component, same useStaffAssignments(companyId) + useAdminStaffCandidates()
+// (companiesStore.ts), both has_staff_role(array[])-gated server-side.
+// Single-assignment roles
 // (Project Manager, BDM) render as a radio list -- picking someone new
 // automatically replaces the prior assignee (admin_set_staff_assignment
 // enforces this via the staff_assignments_single_role_idx partial unique
