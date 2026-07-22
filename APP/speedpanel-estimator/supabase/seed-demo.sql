@@ -494,15 +494,37 @@ select
   now()
 from line_item_src l
 cross join lateral (
+  -- category/label/unit are picked as one aligned triple (not three
+  -- independently-cycling arrays) so every row is internally consistent --
+  -- e.g. never a 'panel' category item with a 'Sealant Cartridge' label.
+  -- unit is one of OrderLineItemSchema's actual ORDER_LINE_ITEM_UNITS
+  -- ("panel" | "metre" | "box", see src/export/priceEstimateReportData.ts)
+  -- -- an earlier version of this script used "ea", which isn't a member of
+  -- that enum: OrderRowSchema.array().safeParse() fails the ENTIRE fetched
+  -- batch when even one row's line_items don't validate (both
+  -- ordersStore.ts and customerOrdersStore.ts do a batch-level safeParse,
+  -- not per-row), so that one bad value broke every Orders list touching
+  -- seeded data -- confirmed live as the cause of a real "orders isn't
+  -- working" report after this seed had already been applied.
   select
     jsonb_agg(jsonb_build_object(
-      'id', gen_random_uuid()::text, 'category', (array['panel', 'track', 'fixing', 'sealant'])[1 + (n % 4)],
-      'label', (array['SP100 Panel', 'C-Track 75mm', 'Z-Flash 150mm', 'Fixing Bolt M10', 'Sealant Cartridge', 'J-Track 50mm'])[1 + (n % 6)],
-      'qty', 5 + n * 3, 'unit', 'ea', 'unitPriceExGst', round((45 + n * 12.5)::numeric, 2),
+      'id', gen_random_uuid()::text,
+      'category', (triples.t)[1 + (n % 6)][1],
+      'label', (triples.t)[1 + (n % 6)][2],
+      'unit', (triples.t)[1 + (n % 6)][3],
+      'qty', 5 + n * 3, 'unitPriceExGst', round((45 + n * 12.5)::numeric, 2),
       'lineTotalExGst', round(((5 + n * 3) * (45 + n * 12.5))::numeric, 2), 'matched', true
     )) as line_items,
     sum(round(((5 + n * 3) * (45 + n * 12.5))::numeric, 2)) as subtotal
-  from generate_series(1, l.item_count) as n
+  from generate_series(1, l.item_count) as n,
+    lateral (select array[
+      array['panel', 'SP100 Panel', 'panel'],
+      array['track', 'C-Track 75mm', 'metre'],
+      array['track', 'Z-Flash 150mm', 'metre'],
+      array['fixing', 'Fixing Bolt M10', 'box'],
+      array['sealant', 'Sealant Cartridge', 'box'],
+      array['track', 'J-Track 50mm', 'metre']
+    ] as t) triples
 ) items;
 
 insert into _demo_seed_orders (id, project_id, company_seq, owner_id, stage)
