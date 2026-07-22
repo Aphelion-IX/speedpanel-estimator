@@ -7981,3 +7981,166 @@ grant execute on function public.order_completion_check(uuid) to authenticated;
 grant execute on function public.complete_order(uuid, integer) to authenticated;
 grant execute on function public.repeat_order(uuid) to authenticated;
 grant execute on function public.create_order_amendment(uuid, text) to authenticated;
+
+-- =============================================================================
+-- Company Accounts & Pricing Phase 13 -- cross-company Audit History
+-- =============================================================================
+insert into public.permissions (key, description, category) values
+  ('audit.list_all', 'Read the cross-company audit history', 'audit')
+on conflict (key) do nothing;
+-- No default role_permissions row -- super_admin-only via the has_staff_role
+-- grandfather clause, same as companies.list/admin.stage_events.list above
+-- (neither has a role_permissions row either).
+
+-- Cross-company sibling of company_list_audit_log() (further up this file,
+-- deliberately per-company, is_company_admin()-gated, backs a company's own
+-- Users tab Activity Log). This is the staff-facing "every company at once"
+-- version behind AuditHistoryPage.tsx -- optional company_id/event_type
+-- filters double it as that same page's per-company drill-down too, rather
+-- than shipping two near-identical RPCs.
+create or replace function public.admin_list_audit_log(
+  p_company_id uuid default null, p_event_type text default null,
+  p_limit int default 50, p_offset int default 0
+)
+returns table (
+  id uuid, company_id uuid, company_name text, actor_id uuid, actor_email text, event_type text,
+  target_user_id uuid, target_email text, project_id uuid, project_name text,
+  detail jsonb, created_at timestamptz
+)
+language sql security definer stable
+set search_path = public
+as $$
+  select al.id, al.company_id, coalesce(c.trading_name, c.legal_name), al.actor_id, au.email, al.event_type,
+    al.target_user_id, tu.email, al.project_id, pr.name, al.detail, al.created_at
+  from audit_logs al
+  join companies c on c.id = al.company_id
+  left join auth.users au on au.id = al.actor_id
+  left join auth.users tu on tu.id = al.target_user_id
+  left join projects pr on pr.id = al.project_id
+  where public.has_permission('audit.list_all')
+    and (p_company_id is null or al.company_id = p_company_id)
+    and (p_event_type is null or al.event_type = p_event_type)
+  order by al.created_at desc
+  limit p_limit offset p_offset;
+$$;
+revoke execute on function public.admin_list_audit_log(uuid, text, int, int) from public, anon;
+grant execute on function public.admin_list_audit_log(uuid, text, int, int) to authenticated;
+
+-- price_list_assigned event -- fresh redefinition of
+-- admin_set_company_price_list() (originally further up this file) adding
+-- the one log_audit() call the plan names as missing; same "always append a
+-- fresh redefinition, never edit an earlier phase's definition in place"
+-- convention as every other later-phase change in this file. Signature/
+-- return type unchanged, so a plain create-or-replace is compatible.
+create or replace function public.admin_set_company_price_list(p_company_id uuid, p_price_list_id uuid) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if not public.has_permission('price_lists.assign_to_company') then raise exception 'Not authorized'; end if;
+  update companies set price_list_id = p_price_list_id, updated_at = now() where id = p_company_id;
+  if not found then raise exception 'Company not found'; end if;
+  perform public.log_audit(p_company_id, auth.uid(), 'price_list_assigned', null, null, jsonb_build_object('price_list_id', p_price_list_id));
+end;
+$$;
+revoke execute on function public.admin_set_company_price_list(uuid, uuid) from public, anon;
+grant execute on function public.admin_set_company_price_list(uuid, uuid) to authenticated;
+
+-- pricing_used_in_order event -- fresh redefinition of create_order()
+-- (originally further up, most recently redefined in Phase 11) adding one
+-- log_audit() call at the end, backing the Transaction Price Trace -- the
+-- trace reads this event's detail as its anchor rather than re-deriving
+-- everything from a bare orders row scan, consistent with every other
+-- pricing-affecting action in this file already being logged. One row per
+-- order, not per line item -- detail carries a compact summary (price list
+-- version, subtotal, override/unpriced counts), not the full frozen
+-- line_items array (already stored on the order row itself).
+create or replace function public.create_order(p_project_id uuid, p_line_items jsonb, p_customer_note text default null)
+returns orders
+language plpgsql security definer
+set search_path = public
+as $$
+declare
+  v_owner_id uuid;
+  v_company_id uuid;
+  v_company_status text;
+  v_order_plv_id uuid;
+  v_resolved jsonb;
+  v_subtotal numeric;
+  v_gst numeric;
+  v_total numeric;
+  v_unpriced int;
+  v_row orders%rowtype;
+begin
+  if jsonb_typeof(p_line_items) is distinct from 'array' or jsonb_array_length(p_line_items) = 0 then
+    raise exception 'Order must have at least one line item';
+  end if;
+
+  select p.owner_id, p.company_id into v_owner_id, v_company_id from projects p where p.id = p_project_id;
+  if v_owner_id is null then raise exception 'Project not found'; end if;
+  if not public.can_edit_project(v_owner_id, v_company_id, p_project_id) then raise exception 'Not authorized'; end if;
+
+  if v_company_id is not null and not public.is_admin() then
+    select status into v_company_status from companies where id = v_company_id;
+    if v_company_status in ('on_hold', 'suspended') then
+      raise exception 'This company''s account is currently % -- new orders can''t be created until it''s reactivated', v_company_status;
+    end if;
+  end if;
+
+  if exists (
+    select 1 from jsonb_array_elements(p_line_items) li
+    where coalesce(li->>'id', '') = ''
+       or (li->>'category') not in ('panel', 'custom_panel', 'track', 'fixing', 'sealant')
+       or coalesce((li->>'qty')::numeric, 0) <= 0
+  ) then
+    raise exception 'Every line item needs an id and a recognized category, and quantity must be positive';
+  end if;
+
+  select public.current_price_list_version_id(price_list_id) into v_order_plv_id
+    from companies where id = v_company_id;
+
+  select
+    jsonb_agg(jsonb_build_object(
+      'id', li->>'id',
+      'category', li->>'category',
+      'label', li->>'label',
+      'qty', (li->>'qty')::numeric,
+      'unit', li->>'unit',
+      'productId', li->>'productId',
+      'unitPriceExGst', r.price,
+      'lineTotalExGst', case when r.price is not null then round(r.price * (li->>'qty')::numeric, 2) else 0 end,
+      'matched', r.price is not null,
+      'priceSource', r.source,
+      'priceListVersionId', r.price_list_version_id,
+      'overrideId', r.override_id
+    )),
+    coalesce(round(sum(case when r.price is not null then r.price * (li->>'qty')::numeric else 0 end), 2), 0),
+    coalesce(count(*) filter (where r.price is null), 0)
+    into v_resolved, v_subtotal, v_unpriced
+  from jsonb_array_elements(p_line_items) li
+  left join lateral public.resolve_effective_price(
+    v_company_id, li->>'category', nullif(li->>'productId', '')::uuid
+  ) r on true;
+
+  v_gst := round(v_subtotal * 0.10, 2);
+  v_total := v_subtotal + v_gst;
+
+  insert into orders (
+    project_id, owner_id, line_items, subtotal_ex_gst, gst_rate, gst_amount, total_inc_gst,
+    unpriced_item_count, customer_note, price_list_version_id
+  ) values (
+    p_project_id, auth.uid(), v_resolved, v_subtotal, 0.10, v_gst, v_total,
+    v_unpriced, nullif(trim(p_customer_note), ''), v_order_plv_id
+  ) returning * into v_row;
+
+  perform public.log_audit(v_company_id, auth.uid(), 'pricing_used_in_order', null, p_project_id, jsonb_build_object(
+    'order_id', v_row.id,
+    'price_list_version_id', v_order_plv_id,
+    'subtotal_ex_gst', v_subtotal,
+    'override_count', (select count(*) from jsonb_array_elements(v_resolved) li where li->>'priceSource' = 'override'),
+    'unpriced_count', v_unpriced
+  ));
+
+  return v_row;
+end;
+$$;
+revoke execute on function public.create_order(uuid, jsonb, text) from public, anon;
+grant execute on function public.create_order(uuid, jsonb, text) to authenticated;

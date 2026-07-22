@@ -24,7 +24,7 @@
 -- and add the corresponding `ok(...)` line below (bump plan() to match).
 -- =============================================================================
 begin;
-select plan(88);
+select plan(89);
 
 select ok(has_function_privilege('authenticated', 'public.is_admin()'::regprocedure, 'EXECUTE'), 'is_admin(): authenticated has EXECUTE');
 select ok(has_function_privilege('authenticated', 'public.has_staff_role(text[])'::regprocedure, 'EXECUTE'), 'has_staff_role(text[]): authenticated has EXECUTE');
@@ -129,6 +129,8 @@ select ok(has_function_privilege('authenticated', 'public.admin_delete_company_p
 select ok(has_function_privilege('authenticated', 'public.create_order(uuid, jsonb, text)'::regprocedure, 'EXECUTE'), 'create_order(uuid, jsonb, text): authenticated has EXECUTE');
 -- Phase 11 (Company Accounts & Pricing): companies.status enforcement.
 select ok(has_function_privilege('authenticated', 'public.company_onboarding_progress(uuid)'::regprocedure, 'EXECUTE'), 'company_onboarding_progress(uuid): authenticated has EXECUTE');
+-- Phase 13 (Company Accounts & Pricing): cross-company Audit History.
+select ok(has_function_privilege('authenticated', 'public.admin_list_audit_log(uuid, text, int, int)'::regprocedure, 'EXECUTE'), 'admin_list_audit_log(uuid, text, int, int): authenticated has EXECUTE');
 
 select * from finish();
 rollback;

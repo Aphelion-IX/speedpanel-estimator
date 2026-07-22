@@ -41,6 +41,7 @@ import { InvitationsPage } from "./invitations/InvitationsPage";
 import { PriceListsPage } from "./priceLists/PriceListsPage";
 import { PriceListVersionEditor } from "./priceLists/PriceListVersionEditor";
 import { AccessPermissionsPage } from "./permissions/AccessPermissionsPage";
+import { AuditHistoryPage } from "./audit/AuditHistoryPage";
 
 const NAV: { id: AccountsSubPage; label: string; icon: React.ReactNode; group: string }[] = [
   { id: "controlRoom", label: "Control Room", icon: <LayoutDashboard size={15} />, group: "Workspace" },
@@ -59,7 +60,6 @@ const NAV: { id: AccountsSubPage; label: string; icon: React.ReactNode; group: s
 const COMING_SOON: Partial<Record<AccountsSubPage, { title: string; description: string }>> = {
   companyUsers: { title: "Company Users", description: "Cross-company external-user roster -- coming in a later phase." },
   companyPricing: { title: "Company Pricing", description: "Per-company item price overrides and pricing preview -- coming in a later phase." },
-  auditHistory: { title: "Audit History", description: "Cross-company audit trail and transaction price trace -- coming in a later phase." },
 };
 
 export const AccountsRoot = ({ route, navigate, auth, layoutMode }: {
@@ -107,6 +107,7 @@ export const AccountsRoot = ({ route, navigate, auth, layoutMode }: {
             )}
             {route.sub === "priceLists" && !route.priceListId && <PriceListsPage navigate={navigate} />}
             {route.sub === "permissions" && <AccessPermissionsPage />}
+            {route.sub === "auditHistory" && <AuditHistoryPage />}
             {COMING_SOON[route.sub] && (
               <PlaceholderPage title={COMING_SOON[route.sub]!.title} description={COMING_SOON[route.sub]!.description} />
             )}
