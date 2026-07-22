@@ -5555,6 +5555,28 @@ revoke execute on function public.admin_list_companies() from public, anon;
 grant execute on function public.admin_list_companies() to authenticated;
 
 -- =============================================================================
+-- Company Accounts & Pricing Phase 12 -- companies column-grant restriction
+-- =============================================================================
+-- Security-review finding (Phase 12's own mandated review pass): unlike
+-- order_deliveries/company_price_overrides (both already column-grant-
+-- restricted below), the companies table itself has never had one -- only
+-- the row-level "Company members can read their own company" RLS policy.
+-- RLS is row-level only, so a company member's own raw
+-- `.from("companies").select("*")` could read internal_notes/hold_reason/
+-- hold_applied_by/hold_placed_at/hold_review_date for their own company row
+-- -- all staff-internal fields never meant for a customer, even though no
+-- real frontend call site selects them today (every current caller only
+-- selects narrow safe columns). Same fix, same pattern as the two existing
+-- restrictions: revoke blanket select, grant back only the customer-safe
+-- columns. admin_list_companies() (security definer) is unaffected -- it
+-- bypasses column grants the same way it bypasses RLS.
+revoke select on companies from authenticated;
+grant select (
+  id, legal_name, trading_name, abn, customer_account_number, billing_email, phone, address,
+  status, payment_terms, price_list_id, created_by, created_at, updated_at
+) on companies to authenticated;
+
+-- =============================================================================
 -- Support & Services -- service_requests (minimal: table + read policies)
 -- =============================================================================
 -- The customer/admin Support & Services UI (ProjectServicesCard.tsx,

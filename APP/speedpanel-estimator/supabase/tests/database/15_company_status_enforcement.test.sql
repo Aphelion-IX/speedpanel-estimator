@@ -87,17 +87,22 @@ select lives_ok(
 select is(
   (select status from companies where id = 'eeeeeeee-0000-0000-0001-000000000001'), 'on_hold', 'Company A status is now on_hold'
 );
+-- hold_reason/hold_applied_by/hold_placed_at/hold_review_date are column-
+-- grant-restricted on companies as of Phase 12 (see
+-- 16_companies_column_grant.test.sql) -- read them back the same way real
+-- staff UI does, through admin_list_companies() (security definer, bypasses
+-- the column grant same as it bypasses RLS), not a raw table select.
 select is(
-  (select hold_reason from companies where id = 'eeeeeeee-0000-0000-0001-000000000001'), 'Overdue invoice', 'hold_reason recorded'
+  (select hold_reason from admin_list_companies() where id = 'eeeeeeee-0000-0000-0001-000000000001'), 'Overdue invoice', 'hold_reason recorded'
 );
 select is(
-  (select hold_applied_by from companies where id = 'eeeeeeee-0000-0000-0001-000000000001'), 'eeeeeeee-0000-0000-0000-000000000001', 'hold_applied_by recorded'
+  (select hold_applied_by_name from admin_list_companies() where id = 'eeeeeeee-0000-0000-0001-000000000001'), 'admin@e2e.test', 'hold_applied_by_name recorded'
 );
 select ok(
-  (select hold_placed_at from companies where id = 'eeeeeeee-0000-0000-0001-000000000001') is not null, 'hold_placed_at recorded'
+  (select hold_placed_at from admin_list_companies() where id = 'eeeeeeee-0000-0000-0001-000000000001') is not null, 'hold_placed_at recorded'
 );
 select is(
-  (select hold_review_date from companies where id = 'eeeeeeee-0000-0000-0001-000000000001'), (current_date + 14), 'hold_review_date recorded'
+  (select hold_review_date from admin_list_companies() where id = 'eeeeeeee-0000-0000-0001-000000000001'), (current_date + 14), 'hold_review_date recorded'
 );
 
 -- =============================================================================
@@ -143,10 +148,10 @@ select lives_ok(
   $$ select admin_set_company_status('eeeeeeee-0000-0000-0001-000000000001', 'active', null, null) $$,
   'super_admin: admin_set_company_status() reactivates Company A'
 );
-select is( (select hold_reason from companies where id = 'eeeeeeee-0000-0000-0001-000000000001'), null, 'hold_reason cleared on reactivation' );
-select is( (select hold_applied_by from companies where id = 'eeeeeeee-0000-0000-0001-000000000001'), null, 'hold_applied_by cleared on reactivation' );
-select is( (select hold_placed_at from companies where id = 'eeeeeeee-0000-0000-0001-000000000001'), null, 'hold_placed_at cleared on reactivation' );
-select is( (select hold_review_date from companies where id = 'eeeeeeee-0000-0000-0001-000000000001'), null, 'hold_review_date cleared on reactivation' );
+select is( (select hold_reason from admin_list_companies() where id = 'eeeeeeee-0000-0000-0001-000000000001'), null, 'hold_reason cleared on reactivation' );
+select is( (select hold_applied_by_name from admin_list_companies() where id = 'eeeeeeee-0000-0000-0001-000000000001'), null, 'hold_applied_by_name cleared on reactivation' );
+select is( (select hold_placed_at from admin_list_companies() where id = 'eeeeeeee-0000-0000-0001-000000000001'), null, 'hold_placed_at cleared on reactivation' );
+select is( (select hold_review_date from admin_list_companies() where id = 'eeeeeeee-0000-0000-0001-000000000001'), null, 'hold_review_date cleared on reactivation' );
 
 select set_config('request.jwt.claims', json_build_object('sub', 'eeeeeeee-0000-0000-0000-000000000008')::text, true); -- member again
 select lives_ok(
