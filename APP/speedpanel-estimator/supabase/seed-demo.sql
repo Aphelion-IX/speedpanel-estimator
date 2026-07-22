@@ -6,14 +6,11 @@
 -- volume meant for demoing the Admin/Company Accounts & Pricing UIs with
 -- realistic scale -- NOT for CI/RLS assertions (that's supabase/seed.sql's
 -- job; this file is much bigger and coarser-grained by design). Deliberately
--- includes error/edge-case states throughout (suspended/closed companies,
--- companies with zero users, expired/stale-pending invitations, cancelled
--- orders, orders on hold, "changes requested" reviews) rather than only
--- happy-path rows, so the demo can show off how the app handles those
--- states too. Targets the schema as actually deployed on the live project,
--- not schema.sql's full history -- see the two "NOTE ON SCHEMA DRIFT"
--- comments below (companies.status, invitations.failure_reason) for two
--- migrations confirmed live-but-not-applied that this works around.
+-- includes error/edge-case states throughout (pending/on-hold/suspended/
+-- archived companies, companies with zero users, expired/stale-pending/
+-- delivery-failed invitations, cancelled orders, orders on hold, "changes
+-- requested" reviews) rather than only happy-path rows, so the demo can
+-- show off how the app handles those states too.
 --
 -- Idempotent-ish: guarded by a check for its own fixed marker company id
 -- below (raises instead of double-seeding). Not safe to re-run after a
@@ -155,25 +152,16 @@ end $$;
 
 -- =============================================================================
 -- 2. Companies (200 total: 3 named "key persona" demo companies -- a fully
---    staffed active flagship, a suspended company for the account-status
---    error demo, and a brand-new near-empty company -- plus 197 bulk
---    companies spanning active/suspended/closed).
---
--- NOTE ON SCHEMA DRIFT: schema.sql (Company Accounts & Pricing Phase 2)
--- expands companies.status to a 5-state model (pending/active/on_hold/
--- suspended/archived) and adds payment_terms/internal_notes/hold_* columns
--- -- confirmed live against this project that migration was never applied
--- (companies_status_check is still the original 3-state
--- active/suspended/closed, and none of those columns exist). This section
--- targets the schema actually deployed here, not schema.sql's full history
--- -- see the PR description for this finding, it's a separate concern from
--- this seed data itself and shouldn't be silently patched as a side effect
--- of seeding.
+--    staffed active flagship, an on-hold company for the account-status
+--    error demo (fully staffed but still blocked from ordering -- see
+--    can_submit_orders()/create_order() in schema.sql's Phase 11), and a
+--    brand-new near-empty company -- plus 197 bulk companies spanning
+--    pending/active/on_hold/suspended/archived).
 -- =============================================================================
 insert into _demo_seed_companies (seq, id, legal_name, trading_name, slug, status, addr_suburb, addr_state, addr_postcode) values
-  (1, 'dddddddd-0000-0000-0001-000000000001', 'Ironbark Cold Storage Constructions Pty Ltd', 'Ironbark Cold Storage', 'ironbark', 'active',    'Parramatta', 'NSW', '2150'),
-  (2, 'dddddddd-0000-0000-0001-000000000002', 'Redgum Regional Developments Pty Ltd',        'Redgum Regional Developments', 'redgum', 'suspended', 'Geelong',    'VIC', '3220'),
-  (3, 'dddddddd-0000-0000-0001-000000000003', 'Frontier Panel Solutions Pty Ltd',            'Frontier Panel Solutions', 'frontier', 'active',   'Fortitude Valley', 'QLD', '4006');
+  (1, 'dddddddd-0000-0000-0001-000000000001', 'Ironbark Cold Storage Constructions Pty Ltd', 'Ironbark Cold Storage', 'ironbark', 'active',  'Parramatta', 'NSW', '2150'),
+  (2, 'dddddddd-0000-0000-0001-000000000002', 'Redgum Regional Developments Pty Ltd',        'Redgum Regional Developments', 'redgum', 'on_hold', 'Geelong',    'VIC', '3220'),
+  (3, 'dddddddd-0000-0000-0001-000000000003', 'Frontier Panel Solutions Pty Ltd',            'Frontier Panel Solutions', 'frontier', 'pending', 'Fortitude Valley', 'QLD', '4006');
 
 with p as (
   select
@@ -191,19 +179,23 @@ select
   p.roots[1 + ((gs - 1) % array_length(p.roots, 1))] || ' ' || p.suffixes[1 + (((gs - 1) / array_length(p.roots, 1)) % array_length(p.suffixes, 1))],
   lower(regexp_replace(p.roots[1 + ((gs - 1) % array_length(p.roots, 1))], '[^a-zA-Z0-9]', '', 'g')) || gs,
   case
-    when gs <= 165 then 'active'
-    when gs <= 187 then 'suspended'
-    else 'closed'
+    when gs <= 148 then 'active'
+    when gs <= 172 then 'pending'
+    when gs <= 184 then 'on_hold'
+    when gs <= 192 then 'suspended'
+    else 'archived'
   end,
   p.suburbs[1 + ((gs - 1) % 25)], p.states[1 + ((gs - 1) % 25)], p.postcodes[1 + ((gs - 1) % 25)]
 from generate_series(1, 197) as gs, p;
 
 with default_pl as (select id from price_lists where is_default limit 1),
   creators as (select array_agg(id order by seq) as ids from _demo_seed_staff where staff_role in ('internal_sales', 'bdm')),
-  super_admin_id as (select id from _demo_seed_staff where staff_role = 'super_admin' and seq = 1)
+  super_admin_id as (select id from _demo_seed_staff where staff_role = 'super_admin' and seq = 1),
+  hold_reasons as (select array['Overdue invoice #SP-2291 -- $18,450 outstanding beyond 60 days','Credit limit exceeded pending finance review','Compliance documentation expired, awaiting renewal','Dispute over delivery #4482 under review']::text[] as reasons)
 insert into companies (
   id, legal_name, trading_name, abn, customer_account_number, billing_email, phone, address, status,
-  created_by, price_list_id, created_at, updated_at
+  created_by, price_list_id, payment_terms, internal_notes,
+  hold_reason, hold_applied_by, hold_placed_at, hold_review_date, created_at, updated_at
 )
 select
   c.id, c.legal_name, c.trading_name,
@@ -217,6 +209,13 @@ select
   case when c.seq in (1, 2, 3) then (select id from super_admin_id)
     else (select ids[1 + (c.seq % array_length(ids, 1))] from creators) end,
   (select id from default_pl),
+  (array['Net 30', 'Net 14', 'COD', 'Net 60'])[1 + (c.seq % 4)],
+  null,
+  case when c.status = 'on_hold' and c.seq = 2 then (select reasons[1] from hold_reasons)
+       when c.status = 'on_hold' then (select reasons[1 + (c.seq % array_length(reasons, 1))] from hold_reasons) else null end,
+  case when c.status = 'on_hold' then (select id from super_admin_id) else null end,
+  case when c.status = 'on_hold' then now() - ((c.seq % 20) || ' days')::interval else null end,
+  case when c.status = 'on_hold' then (current_date + ((7 + (c.seq % 21)) || ' days')::interval)::date else null end,
   now() - ((c.seq % 400) || ' days')::interval,
   now()
 from _demo_seed_companies c;
@@ -328,7 +327,7 @@ eligible as (
   -- deliberately -- a fully-staffed-but-suspended account is a more
   -- useful demo point than an unstaffed suspended company.
   select c.seq, c.id from _demo_seed_companies c
-  where c.seq in (1, 2) or (c.status = 'active' and random() > 0.15)
+  where c.seq in (1, 2) or (c.status in ('active', 'pending', 'on_hold') and random() > 0.15)
 ),
 rows as (
   select
@@ -357,26 +356,21 @@ select
 from rows;
 
 -- =============================================================================
--- 5. Invitations -- pending/accepted/expired/cancelled across ~140
---    companies, including some genuinely expired-but-still-'pending' rows
---    (a real, demonstrable staleness gap) alongside properly 'expired'
---    ones. NOTE ON SCHEMA DRIFT: schema.sql (Company Accounts & Pricing
---    Phase 5) adds a 'delivery_failed' status + failure_reason column --
---    confirmed live against this project that migration was never applied
---    (invitations_status_check is still the original 4-state
---    pending/accepted/expired/cancelled, no failure_reason column), so
---    this section targets the schema actually deployed here. Same
---    out-of-scope-for-a-seed-task reasoning as the companies section above.
+-- 5. Invitations -- pending/accepted/expired/cancelled/delivery_failed
+--    across ~140 companies, including some genuinely expired-but-still-
+--    'pending' rows (a real, demonstrable staleness gap) alongside properly
+--    'expired' ones.
 -- =============================================================================
 with targets as (
   select c.seq, c.id as company_id, gs
   from _demo_seed_companies c, generate_series(1, 2) gs
-  where c.status = 'active' and (c.seq + gs) % 3 <> 0
+  where c.status in ('active', 'pending', 'on_hold') and (c.seq + gs) % 3 <> 0
 ),
 p as (
   select
     array['James','Olivia','William','Charlotte','Benjamin','Amelia','Lucas','Mia','Henry','Isla']::text[] as first_names,
     array['Nguyen','Smith','Patel','Chen','Williams','Kumar','Brown','Wilson','Taylor','Anderson']::text[] as last_names,
+    array['SMTP rejected: mailbox full','Recipient server rejected message (550)','Invalid email address format','Delivery timed out after 3 attempts']::text[] as failure_reasons,
     (select array_agg(id order by seq) from _demo_seed_staff) as staff_pool
 ),
 rowsrc as (
@@ -385,16 +379,18 @@ rowsrc as (
     p.first_names[1 + ((t.seq * 5 + gs) % array_length(p.first_names, 1))] || ' ' || p.last_names[1 + ((t.seq * 3 + gs) % array_length(p.last_names, 1))] as invitee_name,
     lower(p.first_names[1 + ((t.seq * 5 + gs) % array_length(p.first_names, 1))]) || '.invite' || t.seq || gs || '@example.demo.test' as email,
     (array['owner', 'admin', 'project_manager', 'estimator', 'site_user', 'viewer'])[1 + ((t.seq + gs) % 6)] as role,
-    (t.seq + gs) % 9 as bucket,
-    p.staff_pool[1 + ((t.seq * 7 + gs) % array_length(p.staff_pool, 1))] as invited_by
+    (t.seq + gs) % 10 as bucket,
+    p.staff_pool[1 + ((t.seq * 7 + gs) % array_length(p.staff_pool, 1))] as invited_by,
+    p.failure_reasons[1 + ((t.seq + gs) % array_length(p.failure_reasons, 1))] as failure_reason
   from targets t, p
 )
-insert into invitations (id, company_id, email, invitee_name, role, status, invited_by, created_at, expires_at, accepted_at)
+insert into invitations (id, company_id, email, invitee_name, role, status, invited_by, failure_reason, created_at, expires_at, accepted_at)
 select
   ('dddddddd-0000-0000-0009-' || lpad(rn::text, 12, '0'))::uuid,
   company_id, email, invitee_name, role,
-  case when bucket < 4 then 'pending' when bucket < 6 then 'accepted' when bucket < 8 then 'expired' else 'cancelled' end,
+  case when bucket < 4 then 'pending' when bucket < 6 then 'accepted' when bucket < 8 then 'expired' when bucket < 9 then 'cancelled' else 'delivery_failed' end,
   invited_by,
+  case when bucket = 9 then failure_reason else null end,
   now() - ((bucket + 1) || ' days')::interval,
   -- bucket=3 (still 'pending') deliberately gets a past expires_at too --
   -- nothing in this app auto-transitions a stale invitation to 'expired',
