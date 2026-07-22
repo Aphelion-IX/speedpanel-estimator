@@ -82,6 +82,15 @@ Deno.serve(async req => {
   if (!EMAIL_RE.test(email)) return json({ error: "Enter a valid email address." }, 400);
   if (!VALID_ROLES.includes(role)) return json({ error: "Invalid role." }, 400);
   if (companyId && !VALID_COMPANY_ROLES.includes(companyRole ?? "")) return json({ error: "Invalid company role." }, 400);
+  // staffRole is mandatory (not just validated-if-present) whenever
+  // role="admin" -- has_staff_role()'s own grandfather clause treats a NULL
+  // staff_role as super_admin-equivalent (it exists only to grandfather
+  // pre-dynamic-RBAC admin accounts in, see schema.sql's one-time backfill
+  // comment), so a brand-new admin profile silently left with no staff_role
+  // would be a full super_admin the moment it's created -- closing that
+  // requires never leaving staff_role unset here, not just validating it
+  // when the caller happens to send one.
+  if (role === "admin" && !staffRole) return json({ error: "A staff role is required for a new staff account." }, 400);
   if (staffRole && !VALID_STAFF_ROLES.includes(staffRole)) return json({ error: "Invalid staff role." }, 400);
   if (password !== null && password.length < 8) return json({ error: "Password must be at least 8 characters." }, 400);
 
@@ -100,6 +109,23 @@ Deno.serve(async req => {
   const permissionKey = role === "admin" || staffRole ? "users.invite_staff" : "companies.create_company_user";
   const { data: isAuthorized, error: authError } = await callerClient.rpc("has_permission", { p_permission_key: permissionKey });
   if (authError || !isAuthorized) return json({ error: "Not authorized" }, 403);
+
+  // users.invite_staff is a dynamically-grantable permission_key (a
+  // super_admin can hand it to any StaffRole from Admin > Roles without a
+  // code deploy) -- unlike admin_set_staff_role() (the RPC for changing an
+  // EXISTING account's staff role), which is hard-gated to
+  // has_staff_role(array[]::text[]) (super_admin/grandfather only) and
+  // can't be reassigned via RBAC, this function's dynamic gate alone must
+  // never be enough to MINT a brand-new super_admin account -- that would
+  // let a super_admin who grants users.invite_staff to a lesser role (a
+  // plausible, innocuous-looking delegation for routine staff onboarding)
+  // unknowingly also grant that role the power to create fresh super_admin
+  // accounts. Only an already-super_admin caller may request staffRole:
+  // "super_admin" here, mirroring admin_set_staff_role()'s own restriction.
+  if (staffRole === "super_admin") {
+    const { data: callerIsSuperAdmin, error: superAdminCheckError } = await callerClient.rpc("has_staff_role", { p_roles: [] });
+    if (superAdminCheckError || !callerIsSuperAdmin) return json({ error: "Not authorized" }, 403);
+  }
 
   const { data: callerData } = await callerClient.auth.getUser();
   const callerId = callerData.user?.id ?? null;

@@ -417,9 +417,18 @@ grant execute on function public.has_permission(text) to authenticated;
 -- that read/write the matrix) are DELIBERATELY gated by has_staff_role()
 -- directly, never has_permission() -- if "who can edit RBAC" were itself a
 -- row in role_permissions, a role holding it could self-escalate, and a bad
--- edit could lock out the only page that fixes RBAC mistakes. Same reasoning
--- applies to the admin-invite-user Edge Function's own super_admin gate,
--- which stays has_staff_role()-based too.
+-- edit could lock out the only page that fixes RBAC mistakes. The
+-- admin-invite-user Edge Function's general "create a new staff account"
+-- path IS has_permission('users.invite_staff')-gated (that's the point --
+-- a super_admin can delegate routine staff onboarding without a deploy),
+-- but that function itself additionally requires
+-- has_staff_role(array[]::text[]) (true super_admin) before it will honour
+-- a request for staffRole="super_admin" specifically, or leave a new
+-- admin's staff_role unset -- either of which has_staff_role()'s own
+-- grandfather clause below would otherwise treat as super_admin-equivalent,
+-- letting a delegated users.invite_staff holder mint a fresh super_admin.
+-- Same self-escalation reasoning as this paragraph's first sentence, just
+-- one level down.
 create or replace function public.admin_list_permission_matrix()
 returns table (permission_key text, description text, category text, role text, granted boolean)
 language sql security definer stable
