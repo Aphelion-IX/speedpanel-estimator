@@ -1785,8 +1785,13 @@ begin
     values (p_company_id, p_actor_id, p_event_type, p_target_user_id, p_project_id, p_detail);
 end;
 $$;
-revoke execute on function public.log_audit(uuid, uuid, text, uuid, uuid, jsonb) from public, anon;
-grant execute on function public.log_audit(uuid, uuid, text, uuid, uuid, jsonb) to authenticated;
+-- Never grant this to authenticated: p_actor_id is a plain parameter, not
+-- derived from auth.uid(), so a direct call could forge audit rows
+-- (spoofed actor, arbitrary company_id/event_type/detail). Every legitimate
+-- call site above is itself inside another security definer function,
+-- which executes as the function owner -- not as the original caller's
+-- `authenticated` role -- so this revoke doesn't affect any real call path.
+revoke execute on function public.log_audit(uuid, uuid, text, uuid, uuid, jsonb) from public, anon, authenticated;
 
 -- =============================================================================
 -- RLS: companies, company_memberships, invitations, project_memberships, audit_logs
