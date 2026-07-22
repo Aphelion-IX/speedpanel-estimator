@@ -9,10 +9,11 @@
 // scale assumption AdminProjectsBrowserPanel.tsx's search makes.
 // =============================================================================
 import { useMemo, useState } from "react";
-import { Plus, Search } from "lucide-react";
+import { Plus } from "lucide-react";
 import { cx, MUTED, tone } from "../../../styleTokens";
 import { LoadingState, ErrorState, EmptyState } from "../../../ui/states";
 import { Button } from "../../../ui/button";
+import { SearchInput } from "../../../ui/primitives";
 import { Table, type TableColumn } from "../../../ui/table";
 import type { Route } from "../../../appShell/useHashRoute";
 import { useAdminCompanies, COMPANY_STATUS_LABELS, type AdminCompanyRow } from "../../admin/companies/companiesStore";
@@ -86,14 +87,7 @@ export const CompaniesListPage = ({ navigate }: { navigate: (r: Route) => void }
       </div>
 
       <div className="mt-5 flex flex-wrap items-center gap-3">
-        <div className="relative min-w-[240px] flex-1">
-          <Search size={15} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2" style={{ color: MUTED }} />
-          <input
-            value={query} onChange={e => setQuery(e.target.value)}
-            placeholder="Search company, primary user or account code"
-            className={cx.input + " pl-10"}
-          />
-        </div>
+        <SearchInput value={query} onChange={setQuery} placeholder="Search company, primary user or account code" />
         <select value={status} onChange={e => setStatus(e.target.value)} className={cx.input + " w-auto"}>
           <option value="all">All statuses</option>
           {Object.entries(COMPANY_STATUS_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}

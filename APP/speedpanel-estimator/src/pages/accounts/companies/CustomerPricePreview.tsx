@@ -10,10 +10,10 @@
 // and which tier produced it.
 // =============================================================================
 import { useMemo, useState } from "react";
-import { Search } from "lucide-react";
-import { cx, NAVY, MUTED, BLUE, WHITE } from "../../../styleTokens";
+import { cx, MUTED, BLUE, WHITE } from "../../../styleTokens";
 import { Badge } from "../../../ui/badge";
 import { LoadingState, ErrorState } from "../../../ui/states";
+import { SearchBox } from "../../../ui/primitives";
 import { Table, type TableColumn } from "../../../ui/table";
 import { useProductStore } from "../../admin/products/productStore";
 import { CATEGORY_KEY, CATEGORY_LABEL } from "../../admin/products/productTypes";
@@ -77,11 +77,7 @@ export const CustomerPricePreview = ({ companyId }: { companyId: string }) => {
       <h2 className={cx.h3}>Customer Price Preview</h2>
       <p className="mt-1 text-sm" style={{ color: MUTED }}>What this company's users would actually be charged right now, for every product -- live, not a snapshot.</p>
 
-      <div className="mt-4 flex items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-4 py-3 shadow-sm">
-        <Search size={16} className="shrink-0" style={{ color: MUTED }} />
-        <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search products..."
-          className="w-full bg-transparent text-sm outline-none" style={{ color: NAVY }} />
-      </div>
+      <SearchBox value={query} onChange={setQuery} placeholder="Search products..." />
       <div className="mt-3 flex flex-wrap gap-2">
         {PRICEABLE_CATEGORIES.map(c => {
           const on = category === c;

@@ -53,7 +53,17 @@ select ok(has_function_privilege('authenticated', 'public.is_company_owner(uuid)
 select ok(has_function_privilege('authenticated', 'public.can_view_project(uuid, uuid, uuid)'::regprocedure, 'EXECUTE'), 'can_view_project(uuid, uuid, uuid): authenticated has EXECUTE');
 select ok(has_function_privilege('authenticated', 'public.can_edit_project(uuid, uuid, uuid)'::regprocedure, 'EXECUTE'), 'can_edit_project(uuid, uuid, uuid): authenticated has EXECUTE');
 select ok(has_function_privilege('authenticated', 'public.can_submit_orders(uuid, uuid, uuid)'::regprocedure, 'EXECUTE'), 'can_submit_orders(uuid, uuid, uuid): authenticated has EXECUTE');
-select ok(has_function_privilege('authenticated', 'public.log_audit(uuid, uuid, text, uuid, uuid, jsonb)'::regprocedure, 'EXECUTE'), 'log_audit(uuid, uuid, text, uuid, uuid, jsonb): authenticated has EXECUTE');
+-- SQL audit finding: log_audit()'s p_actor_id is a plain parameter, not
+-- derived from auth.uid() -- a direct authenticated call could forge audit
+-- rows (spoofed actor, arbitrary company_id/event_type/detail), so it was
+-- revoked from authenticated (every legitimate call site is itself inside
+-- another security definer function, unaffected by this revoke -- see
+-- schema.sql's own comment on the revoke statement). Same
+-- deliberately-excluded-then-asserted-negative treatment as
+-- resolve_effective_price below, but log_audit's negative is asserted
+-- explicitly since it's the one case here that changed from a real prior
+-- grant rather than never having had one.
+select ok(not has_function_privilege('authenticated', 'public.log_audit(uuid, uuid, text, uuid, uuid, jsonb)'::regprocedure, 'EXECUTE'), 'log_audit(uuid, uuid, text, uuid, uuid, jsonb): authenticated does NOT have EXECUTE');
 select ok(has_function_privilege('authenticated', 'public.admin_create_company(text, text, text, text, text, text, text, text, text)'::regprocedure, 'EXECUTE'), 'admin_create_company(text, text, text, text, text, text, text, text, text): authenticated has EXECUTE');
 -- Phase 11 (Company Accounts & Pricing) redefines this with an appended
 -- p_hold_review_date param -- the original 3-arg overload is dropped

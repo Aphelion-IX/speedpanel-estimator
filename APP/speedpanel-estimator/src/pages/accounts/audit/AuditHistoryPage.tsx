@@ -20,51 +20,9 @@ import { cx, NAVY, MUTED, tone } from "../../../styleTokens";
 import { Button } from "../../../ui/button";
 import { LoadingState, ErrorState, EmptyState } from "../../../ui/states";
 import { useAdminAuditHistory } from "./auditStore";
-import { auditDetailOrderId, type AdminAuditLogRow } from "./auditTypes";
-import { TransactionPriceTrace } from "./TransactionPriceTrace";
+import { eventLabel, SORTED_EVENT_TYPES } from "./auditTypes";
+import { AuditEventCard } from "./AuditEventCard";
 import { useAdminCompanies } from "../../admin/companies/companiesStore";
-import { EVENT_TYPE_LABELS } from "../../company/companyTypes";
-
-const eventLabel = (eventType: string) => EVENT_TYPE_LABELS[eventType] ?? eventType;
-
-const AuditEventCard = ({ row }: { row: AdminAuditLogRow }) => {
-  const [traceOpen, setTraceOpen] = useState(false);
-  const orderId = row.event_type === "pricing_used_in_order" ? auditDetailOrderId(row) : null;
-
-  return (
-    <div className={`${cx.card} mt-3`}>
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div>
-          <div className="text-sm font-bold" style={{ color: NAVY }}>{eventLabel(row.event_type)}</div>
-          <div className="mt-0.5 text-xs" style={{ color: MUTED }}>
-            {row.company_name}
-            {row.project_name && ` · ${row.project_name}`}
-            {row.target_email && ` · target: ${row.target_email}`}
-          </div>
-        </div>
-        <div className="text-right">
-          <div className={cx.footnote}>{new Date(row.created_at).toLocaleString()}</div>
-          {row.actor_email && <div className="text-xs" style={{ color: MUTED }}>{row.actor_email}</div>}
-        </div>
-      </div>
-
-      {row.detail && Object.keys(row.detail).length > 0 && (
-        <p className="mt-2 font-mono text-xs leading-relaxed" style={{ color: MUTED }}>
-          {Object.entries(row.detail).map(([k, v]) => `${k}: ${typeof v === "object" ? JSON.stringify(v) : String(v)}`).join("  ·  ")}
-        </p>
-      )}
-
-      {orderId && (
-        <>
-          <Button variant="secondary" className="mt-3" onClick={() => setTraceOpen(o => !o)}>
-            {traceOpen ? "Hide price trace" : "View price trace"}
-          </Button>
-          {traceOpen && <TransactionPriceTrace orderId={orderId} />}
-        </>
-      )}
-    </div>
-  );
-};
 
 const RequiredAuditDataPanel = () => (
   <section className={cx.card}>
@@ -110,9 +68,7 @@ export const AuditHistoryPage = () => {
         </select>
         <select value={eventType} onChange={e => setEventType(e.target.value)} className={cx.input + " w-auto"}>
           <option value="all">All event types</option>
-          {Object.keys(EVENT_TYPE_LABELS).sort((a, b) => eventLabel(a).localeCompare(eventLabel(b))).map(t => (
-            <option key={t} value={t}>{eventLabel(t)}</option>
-          ))}
+          {SORTED_EVENT_TYPES.map(t => <option key={t} value={t}>{eventLabel(t)}</option>)}
         </select>
         <span className={`${cx.badge} ${tone("neutral")}`}>{events.length} event{events.length === 1 ? "" : "s"}</span>
       </div>

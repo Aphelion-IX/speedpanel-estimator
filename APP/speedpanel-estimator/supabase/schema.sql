@@ -417,9 +417,18 @@ grant execute on function public.has_permission(text) to authenticated;
 -- that read/write the matrix) are DELIBERATELY gated by has_staff_role()
 -- directly, never has_permission() -- if "who can edit RBAC" were itself a
 -- row in role_permissions, a role holding it could self-escalate, and a bad
--- edit could lock out the only page that fixes RBAC mistakes. Same reasoning
--- applies to the admin-invite-user Edge Function's own super_admin gate,
--- which stays has_staff_role()-based too.
+-- edit could lock out the only page that fixes RBAC mistakes. The
+-- admin-invite-user Edge Function's general "create a new staff account"
+-- path IS has_permission('users.invite_staff')-gated (that's the point --
+-- a super_admin can delegate routine staff onboarding without a deploy),
+-- but that function itself additionally requires
+-- has_staff_role(array[]::text[]) (true super_admin) before it will honour
+-- a request for staffRole="super_admin" specifically, or leave a new
+-- admin's staff_role unset -- either of which has_staff_role()'s own
+-- grandfather clause below would otherwise treat as super_admin-equivalent,
+-- letting a delegated users.invite_staff holder mint a fresh super_admin.
+-- Same self-escalation reasoning as this paragraph's first sentence, just
+-- one level down.
 create or replace function public.admin_list_permission_matrix()
 returns table (permission_key text, description text, category text, role text, granted boolean)
 language sql security definer stable
@@ -1785,8 +1794,13 @@ begin
     values (p_company_id, p_actor_id, p_event_type, p_target_user_id, p_project_id, p_detail);
 end;
 $$;
-revoke execute on function public.log_audit(uuid, uuid, text, uuid, uuid, jsonb) from public, anon;
-grant execute on function public.log_audit(uuid, uuid, text, uuid, uuid, jsonb) to authenticated;
+-- Never grant this to authenticated: p_actor_id is a plain parameter, not
+-- derived from auth.uid(), so a direct call could forge audit rows
+-- (spoofed actor, arbitrary company_id/event_type/detail). Every legitimate
+-- call site above is itself inside another security definer function,
+-- which executes as the function owner -- not as the original caller's
+-- `authenticated` role -- so this revoke doesn't affect any real call path.
+revoke execute on function public.log_audit(uuid, uuid, text, uuid, uuid, jsonb) from public, anon, authenticated;
 
 -- =============================================================================
 -- RLS: companies, company_memberships, invitations, project_memberships, audit_logs

@@ -12,7 +12,7 @@ import { useState } from "react";
 import { r1 } from "../estimate/mathUtils";
 import { cx, BLUE, GOLD, WHITE, NAVY, MUTED } from "../styleTokens";
 import type { EffectiveLayout } from "../useLayoutMode";
-import { AlertTriangle, ChevronDown } from "lucide-react";
+import { AlertTriangle, ChevronDown, Search } from "lucide-react";
 
 // --- IconButton -------------------------------------------------------------
 // The header's square icon-only button shape (bell/theme/layout/reset/
@@ -255,6 +255,32 @@ export const AccordionCard = ({ summary, children }: { summary: React.ReactNode;
     </div>
   );
 };
+// --- SearchInput / SearchBox -------------------------------------------------
+// Two visually distinct search-field shapes, each duplicated verbatim across
+// several Company Accounts & Pricing pages before being extracted here.
+// SearchInput: the filter-bar shape (absolute-positioned icon over a plain
+// cx.input, sits alongside other filter dropdowns) -- CompaniesListPage.tsx,
+// InvitationsPage.tsx.
+export const SearchInput = ({ value, onChange, placeholder, className = "" }: {
+  value: string; onChange: (v: string) => void; placeholder: string; className?: string;
+}) => (
+  <div className={`relative min-w-[240px] flex-1 ${className}`}>
+    <Search size={15} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2" style={{ color: MUTED }} />
+    <input value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} className={cx.input + " pl-10"} />
+  </div>
+);
+// SearchBox: the standalone bordered-box shape, its own full-width row above
+// a product grid/category-chip row -- CustomerPricePreview.tsx,
+// PriceListVersionEditor.tsx.
+export const SearchBox = ({ value, onChange, placeholder }: {
+  value: string; onChange: (v: string) => void; placeholder: string;
+}) => (
+  <div className="mt-4 flex items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-4 py-3 shadow-sm">
+    <Search size={16} className="shrink-0" style={{ color: MUTED }} />
+    <input value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
+      className="w-full bg-transparent text-sm outline-none" style={{ color: NAVY }} />
+  </div>
+);
 // --- WarningsList -------------------------------------------------------------
 export const WarningsList = ({ warnings }: { warnings?: string[] | null }) => {
   if (!warnings || warnings.length === 0) return null;
