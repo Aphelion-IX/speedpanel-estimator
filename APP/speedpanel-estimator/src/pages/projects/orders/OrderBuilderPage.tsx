@@ -9,7 +9,8 @@
 // stage, per the feature's design.
 // =============================================================================
 import { useEffect, useMemo, useState } from "react";
-import { cx, BLUE } from "../../../styleTokens";
+import { AlertTriangle } from "lucide-react";
+import { cx, BLUE, NAVY, MUTED } from "../../../styleTokens";
 import { Row } from "../../../ui/primitives";
 import { Button } from "../../../ui/button";
 import { LoadingState, ErrorState } from "../../../ui/states";
@@ -17,18 +18,38 @@ import type { UseAuth } from "../../../lib/useAuth";
 import { useProject } from "../projectDetailStore";
 import { useProductStore } from "../../admin/products/productStore";
 import { useEffectivePriceListPrices } from "../../admin/priceLists/priceListsStore";
+import { useCompanyOrderRestriction } from "../../company/companyStore";
 import { applyEffectivePricing } from "../../../export/applyEffectivePricing";
 import { computeProjectReportData } from "../../../estimate/computeProjectReportData";
 import { priceReportData, round2, GST_RATE } from "../../../export/priceEstimateReportData";
 import { useProjectOrders } from "./ordersStore";
 import { OrderLineItemsTable, type DraftLineItem } from "./OrderLineItemsTable";
 
+// Company Accounts & Pricing Phase 11: shown instead of the priced-items
+// review + Create button when the project's own company is On Hold/
+// Suspended -- this is purely explanatory (create_order() is the real,
+// server-side gate; a client that skipped this screen entirely would still
+// be rejected there), but showing it here means the customer never gets
+// all the way through pricing review only to hit a raw RPC error at the end.
+const OrderBlockedNotice = () => (
+  <div className={`${cx.card} mt-3 flex items-start gap-3`}>
+    <AlertTriangle size={20} className="mt-0.5 shrink-0 text-amber-500" />
+    <div>
+      <p className="text-sm font-semibold" style={{ color: NAVY }}>New orders are temporarily unavailable</p>
+      <p className="mt-1 text-sm" style={{ color: MUTED }}>
+        This company's account is on hold -- new orders can't be created right now. Your existing projects and orders are unaffected. Contact Speedpanel if you have questions.
+      </p>
+    </div>
+  </div>
+);
+
 export const OrderBuilderPage = ({ projectId, auth, onBack, onCreated }: {
   projectId: string; auth: UseAuth; onBack: () => void; onCreated: (orderId: string) => void;
 }) => {
   const { project, loading: projectLoading, error: projectError } = useProject(projectId);
   const { catalog, loading: catalogLoading, error: catalogError } = useProductStore();
-  const { assigned, defaultList, loading: pricingLoading, error: pricingError } = useEffectivePriceListPrices(project?.company_id ?? null);
+  const { overrides, assigned, defaultList, loading: pricingLoading, error: pricingError } = useEffectivePriceListPrices(project?.company_id ?? null);
+  const { blocked: orderBlocked, loading: restrictionLoading } = useCompanyOrderRestriction(project?.company_id ?? null);
   const { createOrder } = useProjectOrders(projectId);
 
   const [items, setItems] = useState<DraftLineItem[] | null>(null);
@@ -40,7 +61,7 @@ export const OrderBuilderPage = ({ projectId, auth, onBack, onCreated }: {
     if (!project || catalogLoading || pricingLoading) return;
     try {
       const report = computeProjectReportData(project.data);
-      const effectiveCatalog = applyEffectivePricing(catalog, assigned, defaultList);
+      const effectiveCatalog = applyEffectivePricing(catalog, overrides, assigned, defaultList);
       const priced = priceReportData(report, effectiveCatalog);
       setItems(priced.items.map(i => ({ ...i, included: true })));
     } catch (err) {
@@ -50,7 +71,7 @@ export const OrderBuilderPage = ({ projectId, auth, onBack, onCreated }: {
     // change -- not on every keystroke while the customer is adjusting
     // quantities below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [project?.id, project?.data, catalog, assigned, defaultList, pricingLoading]);
+  }, [project?.id, project?.data, catalog, overrides, assigned, defaultList, pricingLoading]);
 
   const totals = useMemo(() => {
     if (!items) return null;
@@ -68,16 +89,13 @@ export const OrderBuilderPage = ({ projectId, auth, onBack, onCreated }: {
     if (totals.includedItems.length === 0) { setCreateError("Include at least one line item."); return; }
     setCreating(true);
     setCreateError(null);
-    const { id, error } = await createOrder(auth.user.id, {
-      lineItems: totals.includedItems, subtotalExGst: totals.subtotalExGst, gstRate: GST_RATE,
-      gstAmount: totals.gstAmount, totalIncGst: totals.totalIncGst, unpricedItemCount: totals.unpricedItemCount,
-    });
+    const { id, error } = await createOrder(totals.includedItems);
     setCreating(false);
     if (error) { setCreateError(error); return; }
     if (id) onCreated(id);
   };
 
-  if (projectLoading || catalogLoading || pricingLoading) {
+  if (projectLoading || catalogLoading || pricingLoading || restrictionLoading) {
     return <LoadingState className="mt-6" label="Loading estimate" />;
   }
 
@@ -86,6 +104,15 @@ export const OrderBuilderPage = ({ projectId, auth, onBack, onCreated }: {
       <div className="mt-6">
         <ErrorState message={projectError || "Project not found."} />
         <button onClick={onBack} className="mt-2 text-sm font-bold" style={{ color: BLUE }}>Back to project</button>
+      </div>
+    );
+  }
+
+  if (orderBlocked) {
+    return (
+      <div className="mt-2">
+        <button onClick={onBack} className="text-sm font-semibold hover:underline" style={{ color: BLUE }}>&larr; Back to project</button>
+        <OrderBlockedNotice />
       </div>
     );
   }

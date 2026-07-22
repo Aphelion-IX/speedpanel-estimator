@@ -9,10 +9,17 @@
 // =============================================================================
 import { useCallback, useEffect, useState } from "react";
 
-export type AdminSubPage = "dashboard" | "products" | "priceLists" | "systems" | "maths" | "documents" | "requests" | "projectReviews" | "projectsAdmin" | "users" | "analytics" | "auditLog" | "orders" | "manufacturing" | "companies" | "permissions" | "deliveryRequests" | "serviceRequests";
+// "companies"/"priceLists" retired (Phase 14, Company Accounts & Pricing) --
+// #/admin/companies and #/admin/priceLists now redirect to their
+// #/accounts equivalents (see parseHash below) rather than being real
+// AdminSubPage values, since AdminCompaniesPage.tsx/AdminCompanyWizard.tsx/
+// AdminPriceListsPage.tsx were deleted outright, not kept as dead code
+// behind a route that no longer dispatches to anything.
+export type AdminSubPage = "dashboard" | "products" | "systems" | "maths" | "documents" | "requests" | "projectReviews" | "projectsAdmin" | "users" | "analytics" | "auditLog" | "orders" | "manufacturing" | "permissions" | "deliveryRequests" | "serviceRequests";
 // "create" removed -- self-service company creation no longer exists, see
 // CompanyRouter.tsx/NoCompanyPage.tsx. Companies are created only via the
-// Admin > Companies wizard.
+// Company Accounts & Pricing workspace's own wizard now (see "companies"
+// retirement note above).
 export type CompanySubPage = "team" | "activity";
 
 // "Company Accounts & Pricing" -- a new top-level internal-staff workspace
@@ -53,8 +60,12 @@ export type Route =
   // companyId/newCompany only apply when sub is "companies" -- drilling into
   // one company's CompanyOverviewPage.tsx or CompanyWizard.tsx respectively
   // (Phase 2), same "extra fields only meaningful for one particular value"
-  // pattern as "projects"'s id/orderId below.
-  | { tab: "accounts"; sub: AccountsSubPage; companyId?: string; newCompany?: boolean }
+  // pattern as "projects"'s id/orderId below. priceListId only applies when
+  // sub is "priceLists" -- drilling into one list's PriceListVersionEditor.tsx
+  // (Phase 7); list creation stays an inline form on PriceListsPage.tsx
+  // itself (matching AdminPriceListsPage.tsx's existing precedent) rather
+  // than a separate route the way companies' newCompany is.
+  | { tab: "accounts"; sub: AccountsSubPage; companyId?: string; newCompany?: boolean; priceListId?: string }
   // Top-level (not nested under "projects") since it's about the signed-in
   // user's account/company membership, not any one project -- same reasoning
   // "admin" is its own top-level tab rather than nested somewhere else.
@@ -71,13 +82,21 @@ export type Route =
   // shell/nav JSX, since it's a printable document, not a page in the app.
   | { tab: "proforma"; orderId: string };
 
-const ADMIN_SUBPAGES: AdminSubPage[] = ["products", "priceLists", "systems", "maths", "documents", "requests", "projectReviews", "projectsAdmin", "users", "analytics", "auditLog", "orders", "manufacturing", "companies", "permissions", "deliveryRequests", "serviceRequests"];
+const ADMIN_SUBPAGES: AdminSubPage[] = ["products", "systems", "maths", "documents", "requests", "projectReviews", "projectsAdmin", "users", "analytics", "auditLog", "orders", "manufacturing", "permissions", "deliveryRequests", "serviceRequests"];
 const COMPANY_SUBPAGES: CompanySubPage[] = ["team", "activity"];
 const ACCOUNTS_SUBPAGES: AccountsSubPage[] = ["controlRoom", "companies", "companyUsers", "invitations", "companyPricing", "priceLists", "permissions", "auditHistory"];
 
 function parseHash(hash: string): Route {
   const segments = hash.replace(/^#\/?/, "").split("/").filter(Boolean);
   const [first, second, third, fourth] = segments;
+  // Retired (Phase 14, Company Accounts & Pricing) -- kept as redirects so
+  // bookmarked/shared #/admin/companies or #/admin/priceLists links still
+  // land somewhere useful, same "#/quote" precedent below. A bare
+  // "#/admin/companies/<id>" (no such deep-link ever existed on the old
+  // page, which had no per-company route of its own) still just lands on
+  // the new list, same as a plain "#/admin/companies".
+  if (first === "admin" && second === "companies")  return { tab: "accounts", sub: "companies" };
+  if (first === "admin" && second === "priceLists") return { tab: "accounts", sub: "priceLists" };
   if (first === "admin") {
     const sub = ADMIN_SUBPAGES.find(s => s === second) ?? "dashboard";
     return { tab: "admin", sub };
@@ -90,6 +109,7 @@ function parseHash(hash: string): Route {
     const sub = ACCOUNTS_SUBPAGES.find(s => s === second) ?? "controlRoom";
     if (sub === "companies" && third === "create") return { tab: "accounts", sub, newCompany: true };
     if (sub === "companies" && third) return { tab: "accounts", sub, companyId: third };
+    if (sub === "priceLists" && third) return { tab: "accounts", sub, priceListId: third };
     return { tab: "accounts", sub };
   }
   if (first === "myRequests") return { tab: "myRequests" };
@@ -120,6 +140,7 @@ function routeToHash(route: Route): string {
   if (route.tab === "accounts") {
     if (route.sub === "companies" && route.newCompany) return "#/accounts/companies/create";
     if (route.sub === "companies" && route.companyId) return `#/accounts/companies/${route.companyId}`;
+    if (route.sub === "priceLists" && route.priceListId) return `#/accounts/priceLists/${route.priceListId}`;
     return route.sub === "controlRoom" ? "#/accounts" : `#/accounts/${route.sub}`;
   }
   if (route.tab === "company") return `#/company/${route.sub}`;

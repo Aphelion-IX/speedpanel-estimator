@@ -24,7 +24,7 @@
 -- and add the corresponding `ok(...)` line below (bump plan() to match).
 -- =============================================================================
 begin;
-select plan(78);
+select plan(89);
 
 select ok(has_function_privilege('authenticated', 'public.is_admin()'::regprocedure, 'EXECUTE'), 'is_admin(): authenticated has EXECUTE');
 select ok(has_function_privilege('authenticated', 'public.has_staff_role(text[])'::regprocedure, 'EXECUTE'), 'has_staff_role(text[]): authenticated has EXECUTE');
@@ -55,7 +55,10 @@ select ok(has_function_privilege('authenticated', 'public.can_edit_project(uuid,
 select ok(has_function_privilege('authenticated', 'public.can_submit_orders(uuid, uuid, uuid)'::regprocedure, 'EXECUTE'), 'can_submit_orders(uuid, uuid, uuid): authenticated has EXECUTE');
 select ok(has_function_privilege('authenticated', 'public.log_audit(uuid, uuid, text, uuid, uuid, jsonb)'::regprocedure, 'EXECUTE'), 'log_audit(uuid, uuid, text, uuid, uuid, jsonb): authenticated has EXECUTE');
 select ok(has_function_privilege('authenticated', 'public.admin_create_company(text, text, text, text, text, text, text, text, text)'::regprocedure, 'EXECUTE'), 'admin_create_company(text, text, text, text, text, text, text, text, text): authenticated has EXECUTE');
-select ok(has_function_privilege('authenticated', 'public.admin_set_company_status(uuid, text, text)'::regprocedure, 'EXECUTE'), 'admin_set_company_status(uuid, text, text): authenticated has EXECUTE');
+-- Phase 11 (Company Accounts & Pricing) redefines this with an appended
+-- p_hold_review_date param -- the original 3-arg overload is dropped
+-- outright (see supabase/schema.sql), so this asserts the 4-arg signature.
+select ok(has_function_privilege('authenticated', 'public.admin_set_company_status(uuid, text, text, date)'::regprocedure, 'EXECUTE'), 'admin_set_company_status(uuid, text, text, date): authenticated has EXECUTE');
 select ok(has_function_privilege('authenticated', 'public.admin_company_activity_counts(uuid)'::regprocedure, 'EXECUTE'), 'admin_company_activity_counts(uuid): authenticated has EXECUTE');
 select ok(has_function_privilege('authenticated', 'public.resend_company_invitation(uuid)'::regprocedure, 'EXECUTE'), 'resend_company_invitation(uuid): authenticated has EXECUTE');
 select ok(has_function_privilege('authenticated', 'public.cancel_company_invitation(uuid)'::regprocedure, 'EXECUTE'), 'cancel_company_invitation(uuid): authenticated has EXECUTE');
@@ -79,6 +82,12 @@ select ok(has_function_privilege('authenticated', 'public.current_price_list_pri
 select ok(has_function_privilege('authenticated', 'public.admin_create_draft_version(uuid, uuid)'::regprocedure, 'EXECUTE'), 'admin_create_draft_version(uuid, uuid): authenticated has EXECUTE');
 select ok(has_function_privilege('authenticated', 'public.admin_set_draft_price(uuid, text, uuid, numeric)'::regprocedure, 'EXECUTE'), 'admin_set_draft_price(uuid, text, uuid, numeric): authenticated has EXECUTE');
 select ok(has_function_privilege('authenticated', 'public.admin_delete_draft_price(uuid)'::regprocedure, 'EXECUTE'), 'admin_delete_draft_price(uuid): authenticated has EXECUTE');
+-- Phase 7 (Company Accounts & Pricing): Price Lists library + draft editor.
+select ok(has_function_privilege('authenticated', 'public.admin_list_price_list_versions(uuid)'::regprocedure, 'EXECUTE'), 'admin_list_price_list_versions(uuid): authenticated has EXECUTE');
+select ok(has_function_privilege('authenticated', 'public.admin_diff_price_list_versions(uuid, uuid)'::regprocedure, 'EXECUTE'), 'admin_diff_price_list_versions(uuid, uuid): authenticated has EXECUTE');
+-- Phase 8 (Company Accounts & Pricing): Compare & Publish.
+select ok(has_function_privilege('authenticated', 'public.current_price_list_version_id(uuid)'::regprocedure, 'EXECUTE'), 'current_price_list_version_id(uuid): authenticated has EXECUTE');
+select ok(has_function_privilege('authenticated', 'public.admin_publish_price_list_version(uuid, date, text)'::regprocedure, 'EXECUTE'), 'admin_publish_price_list_version(uuid, date, text): authenticated has EXECUTE');
 select ok(has_function_privilege('authenticated', 'public.admin_set_user_company(uuid, uuid, text)'::regprocedure, 'EXECUTE'), 'admin_set_user_company(uuid, uuid, text): authenticated has EXECUTE');
 select ok(has_function_privilege('authenticated', 'public.admin_add_company_member_by_email(uuid, text, text)'::regprocedure, 'EXECUTE'), 'admin_add_company_member_by_email(uuid, text, text): authenticated has EXECUTE');
 select ok(has_function_privilege('authenticated', 'public.admin_set_staff_assignment(uuid, uuid, text)'::regprocedure, 'EXECUTE'), 'admin_set_staff_assignment(uuid, uuid, text): authenticated has EXECUTE');
@@ -108,6 +117,20 @@ select ok(has_function_privilege('authenticated', 'public.set_delivery_customer_
 select ok(has_function_privilege('authenticated', 'public.admin_create_delivery(uuid, text, text, text, text, text, text, text, date, text, text, text, jsonb)'::regprocedure, 'EXECUTE'), 'admin_create_delivery(uuid, text, text, text, text, text, text, text, date, text, text, text, jsonb): authenticated has EXECUTE');
 select ok(has_function_privilege('authenticated', 'public.admin_update_delivery(uuid, text, text, text, text, text, text, text, text, text, text, jsonb)'::regprocedure, 'EXECUTE'), 'admin_update_delivery(uuid, text, text, text, text, text, text, text, text, text, text, jsonb): authenticated has EXECUTE');
 select ok(has_function_privilege('authenticated', 'public.admin_list_delivery_requests()'::regprocedure, 'EXECUTE'), 'admin_list_delivery_requests(): authenticated has EXECUTE');
+-- Phase 9 (Company Accounts & Pricing): item-level company price overrides.
+select ok(has_function_privilege('authenticated', 'public.current_company_price_overrides(uuid)'::regprocedure, 'EXECUTE'), 'current_company_price_overrides(uuid): authenticated has EXECUTE');
+select ok(has_function_privilege('authenticated', 'public.company_list_price_overrides(uuid)'::regprocedure, 'EXECUTE'), 'company_list_price_overrides(uuid): authenticated has EXECUTE');
+select ok(has_function_privilege('authenticated', 'public.admin_set_company_price_override(uuid, text, uuid, numeric, date, date, text)'::regprocedure, 'EXECUTE'), 'admin_set_company_price_override(uuid, text, uuid, numeric, date, date, text): authenticated has EXECUTE');
+select ok(has_function_privilege('authenticated', 'public.admin_delete_company_price_override(uuid)'::regprocedure, 'EXECUTE'), 'admin_delete_company_price_override(uuid): authenticated has EXECUTE');
+-- Phase 10 (Company Accounts & Pricing): order price freeze. Note:
+-- resolve_effective_price(uuid, text, uuid) is DELIBERATELY excluded here --
+-- it's revoked from authenticated entirely (see its own schema.sql comment),
+-- unlike every other RPC this file asserts EXECUTE for.
+select ok(has_function_privilege('authenticated', 'public.create_order(uuid, jsonb, text)'::regprocedure, 'EXECUTE'), 'create_order(uuid, jsonb, text): authenticated has EXECUTE');
+-- Phase 11 (Company Accounts & Pricing): companies.status enforcement.
+select ok(has_function_privilege('authenticated', 'public.company_onboarding_progress(uuid)'::regprocedure, 'EXECUTE'), 'company_onboarding_progress(uuid): authenticated has EXECUTE');
+-- Phase 13 (Company Accounts & Pricing): cross-company Audit History.
+select ok(has_function_privilege('authenticated', 'public.admin_list_audit_log(uuid, text, int, int)'::regprocedure, 'EXECUTE'), 'admin_list_audit_log(uuid, text, int, int): authenticated has EXECUTE');
 
 select * from finish();
 rollback;

@@ -1,13 +1,13 @@
 // =============================================================================
-// Admin > Companies -- "Create user" accordion, one per company row
+// Company Accounts & Pricing -- "Create a brand-new user" accordion content
 // =============================================================================
 // Brand-new external account creation, scoped to the company this form is
-// rendered inside (companyId is a prop, not a picker) -- was a page-level
-// form on Admin > Permissions with its own company picker; moved here per
-// the People-section reorg so external-user creation lives entirely under
-// Companies. Same Method dropdown (password vs. invite email) pattern as
-// AdminUsersPage.tsx's CreateStaffForm and adminCreateCompanyUser() itself
-// (companiesStore.ts) -- unchanged, only the company selection is gone.
+// rendered inside (companyId is a prop, not a picker). Was a page-level
+// form on Admin > Permissions with its own company picker, then moved onto
+// the retired AdminCompaniesPage.tsx's per-company accordion; now lives on
+// CompanyUsersTab.tsx (accounts/companies/, Phase 14) instead. Same Method
+// dropdown (password vs. invite email) pattern as AdminUsersPage.tsx's
+// CreateStaffForm and adminCreateCompanyUser() itself (companiesStore.ts).
 // The Edge Function's own gate is has_permission('companies.create_company_user')
 // server-side (see supabase/functions/admin-invite-user/index.ts).
 // =============================================================================

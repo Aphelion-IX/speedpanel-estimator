@@ -11,9 +11,17 @@
 // boundary (is_company_admin()'s is_admin() bypass lets staff manage a
 // company they were never added to as a member), same as the old
 // Admin > Companies page's usage.
+//
+// CreateCompanyUserForm.tsx (brand-new account, password-or-invite) is the
+// retired AdminCompaniesPage.tsx's own "Create user" accordion, reused
+// verbatim -- CompanyMemberList's own "add" flow only covers invite-email
+// or attaching an already-existing account, neither of which creates a
+// brand-new account outright.
 // =============================================================================
 import { MUTED } from "../../../styleTokens";
+import { AccordionCard } from "../../../ui/primitives";
 import { CompanyMemberList } from "../../company/CompanyMemberList";
+import { CreateCompanyUserForm } from "../../admin/companies/CreateCompanyUserForm";
 
 export const CompanyUsersTab = ({ companyId, myUserId }: { companyId: string; myUserId: string | null }) => (
   <div>
@@ -23,5 +31,8 @@ export const CompanyUsersTab = ({ companyId, myUserId }: { companyId: string; my
     <div className="mt-4">
       <CompanyMemberList companyId={companyId} myUserId={myUserId} canManage={true} isSpeedpanelAdmin={true} />
     </div>
+    <AccordionCard summary="Create a brand-new user">
+      <CreateCompanyUserForm companyId={companyId} />
+    </AccordionCard>
   </div>
 );

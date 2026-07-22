@@ -75,8 +75,18 @@ test.describe("scoped queue: Project Reviews", () => {
     // per-company queue URL exists in this app (scoping is by staff_role,
     // not a route param), so the equivalent "reach into somewhere you don't
     // belong via the address bar" check is a role-gated section instead.
-    await page.goto("/#/admin/companies");
-    await expect(page.getByText("Not part of your role")).toBeVisible();
+    // #/admin/companies retired (Phase 14, Company Accounts & Pricing) --
+    // redirects to #/accounts/companies, which isn't nav-gated per role the
+    // way old Admin was (Phase 1's own deliberate, documented deferral --
+    // every #/accounts/* route is isInternalStaff-only, not per-section).
+    // The real data boundary is still server-side: admin_list_companies()
+    // is has_permission('companies.list')-gated (super_admin-only by
+    // default) folded into its own WHERE clause, so this role gets zero
+    // rows back, not an exception -- verify that (no company names leak),
+    // not a nav message that no longer applies here.
+    await page.goto("/#/accounts/companies");
+    await expect(page.getByText("No company workspaces yet.")).toBeVisible();
+    await expect(page.getByText("E2E Test Co A")).not.toBeVisible();
 
     await signOut(page);
   });

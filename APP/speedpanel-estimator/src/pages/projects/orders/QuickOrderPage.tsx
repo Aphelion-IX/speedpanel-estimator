@@ -7,8 +7,10 @@
 // chain OrderBuilderPage.tsx already proved out: useProductStore() (catalog)
 // + useEffectivePriceListPrices(project.company_id) + applyEffectivePricing()
 // to get real, company-correct prices, then builds OrderLineItem rows
-// directly from whatever the customer picks. createOrder() is unchanged --
-// it's a plain insert, agnostic to how lineItems/totals were computed.
+// directly from whatever the customer picks. createOrder() re-resolves
+// every price server-side regardless of how lineItems were computed here
+// (see create_order() in supabase/schema.sql) -- this page's own pricing is
+// just a client-side preview for the customer to review before creating.
 //
 // Panels are a special case: they're physical units, only sellable in whole
 // packs (AdminPanel.pack), and their length matters (a piece length gets
@@ -24,7 +26,7 @@
 // clamped to a whole number here.
 // =============================================================================
 import { useMemo, useState } from "react";
-import { Trash2, Plus } from "lucide-react";
+import { Trash2, Plus, AlertTriangle } from "lucide-react";
 import { cx, NAVY, BLUE, MUTED } from "../../../styleTokens";
 import { Row, IconButton } from "../../../ui/primitives";
 import { Button } from "../../../ui/button";
@@ -36,6 +38,7 @@ import type { UseAuth } from "../../../lib/useAuth";
 import { useProject } from "../projectDetailStore";
 import { useProductStore } from "../../admin/products/productStore";
 import { useEffectivePriceListPrices } from "../../admin/priceLists/priceListsStore";
+import { useCompanyOrderRestriction } from "../../company/companyStore";
 import { PRICEABLE_CATEGORIES, type PriceableCategory } from "../../admin/priceLists/priceListTypes";
 import { applyEffectivePricing } from "../../../export/applyEffectivePricing";
 import { round2, GST_RATE, type OrderLineItem, type OrderLineItemUnit } from "../../../export/priceEstimateReportData";
@@ -45,6 +48,21 @@ import { stockStatus } from "../../../estimate/computeUtils";
 import { r1 } from "../../../estimate/mathUtils";
 import { PACK, STOCK_LENGTHS } from "../../../data";
 import { useProjectOrders } from "./ordersStore";
+
+// Company Accounts & Pricing Phase 11 -- same explanatory-only notice as
+// OrderBuilderPage.tsx's own OrderBlockedNotice (create_order() is the real,
+// server-side gate either way).
+const OrderBlockedNotice = () => (
+  <div className={`${cx.card} mt-3 flex items-start gap-3`}>
+    <AlertTriangle size={20} className="mt-0.5 shrink-0 text-amber-500" />
+    <div>
+      <p className="text-sm font-semibold" style={{ color: NAVY }}>New orders are temporarily unavailable</p>
+      <p className="mt-1 text-sm" style={{ color: MUTED }}>
+        This company's account is on hold -- new orders can't be created right now. Your existing projects and orders are unaffected. Contact Speedpanel if you have questions.
+      </p>
+    </div>
+  </div>
+);
 
 const CATEGORY_LABELS: Record<PriceableCategory, string> = { panel: "Panel", track: "Track", fixing: "Fixing", sealant: "Sealant" };
 
@@ -59,11 +77,11 @@ const CATEGORY_CONFIG: Record<PriceableCategory, { unit: OrderLineItemUnit; prod
   sealant: { unit: "box",   products: c => c.sealants.map(s => ({ id: s.id, label: s.product, price: s.pricePerBox })) },
 };
 
-function makeLineItem(category: PriceableCategory, label: string, qty: number, unitPrice: number | null): OrderLineItem {
+function makeLineItem(category: PriceableCategory, label: string, qty: number, unitPrice: number | null, productId: string | null): OrderLineItem {
   const matched = unitPrice != null;
   return {
     id: crypto.randomUUID(), category, label, qty, unit: CATEGORY_CONFIG[category].unit,
-    unitPriceExGst: unitPrice, lineTotalExGst: matched ? round2(unitPrice! * qty) : 0, matched,
+    unitPriceExGst: unitPrice, lineTotalExGst: matched ? round2(unitPrice! * qty) : 0, matched, productId,
   };
 }
 
@@ -72,7 +90,7 @@ function makeLineItem(category: PriceableCategory, label: string, qty: number, u
 // OrderLineItem so repeat "add 5 more" clicks can be re-packed from the
 // true cumulative requirement instead of compounding an already-rounded
 // quantity.
-interface PanelGroup { panelType: number; label: string; price: number | null; lengthM: number; pieces: number; }
+interface PanelGroup { panelType: number; panelId: string; label: string; price: number | null; lengthM: number; pieces: number; }
 
 const panelGroupKey = (panelType: number, lengthM: number) => `panel:${panelType}:${lengthM}`;
 
@@ -122,10 +140,11 @@ export const QuickOrderPage = ({ projectId, auth, onBack, onCreated }: {
 }) => {
   const { project, loading: projectLoading, error: projectError } = useProject(projectId);
   const { catalog, loading: catalogLoading, error: catalogError } = useProductStore();
-  const { assigned, defaultList, loading: pricingLoading, error: pricingError } = useEffectivePriceListPrices(project?.company_id ?? null);
+  const { overrides, assigned, defaultList, loading: pricingLoading, error: pricingError } = useEffectivePriceListPrices(project?.company_id ?? null);
+  const { blocked: orderBlocked, loading: restrictionLoading } = useCompanyOrderRestriction(project?.company_id ?? null);
   const { createOrder } = useProjectOrders(projectId);
 
-  const effectiveCatalog = useMemo(() => applyEffectivePricing(catalog, assigned, defaultList), [catalog, assigned, defaultList]);
+  const effectiveCatalog = useMemo(() => applyEffectivePricing(catalog, overrides, assigned, defaultList), [catalog, overrides, assigned, defaultList]);
 
   const [category, setCategory] = useState<PriceableCategory>("panel");
   const [productId, setProductId] = useState("");
@@ -149,6 +168,7 @@ export const QuickOrderPage = ({ projectId, auth, onBack, onCreated }: {
     return {
       id: key, category: "panel" as const, label: `${g.label} - ${r1(g.lengthM)} m`, qty: pack.ordered, unit: "panel" as const,
       unitPriceExGst: g.price, lineTotalExGst: g.price != null ? round2(g.price * pack.ordered) : 0, matched: g.price != null,
+      productId: g.panelId,
     };
   }), [panelGroups]);
 
@@ -161,7 +181,7 @@ export const QuickOrderPage = ({ projectId, auth, onBack, onCreated }: {
       setPanelGroups(prev => ({
         ...prev,
         [key]: {
-          panelType: selectedPanel.type, label: selectedPanel.label, price: selectedPanel.pricePerPanel ?? null,
+          panelType: selectedPanel.type, panelId: selectedPanel.id, label: selectedPanel.label, price: selectedPanel.pricePerPanel ?? null,
           lengthM, pieces: (prev[key]?.pieces ?? 0) + qty,
         },
       }));
@@ -173,7 +193,7 @@ export const QuickOrderPage = ({ projectId, auth, onBack, onCreated }: {
     // Fixing/sealant are whole-box units -- clamp to a whole number
     // (track stays fractional -- it's genuinely billed by raw metres).
     const finalQty = category === "fixing" || category === "sealant" ? Math.max(1, Math.round(qty)) : qty;
-    setManualItems(prev => [...prev, makeLineItem(category, product.label, finalQty, product.price ?? null)]);
+    setManualItems(prev => [...prev, makeLineItem(category, product.label, finalQty, product.price ?? null, product.id)]);
     setProductId("");
     setQty(1);
   };
@@ -200,16 +220,13 @@ export const QuickOrderPage = ({ projectId, auth, onBack, onCreated }: {
     if (items.length === 0) { setCreateError("Add at least one line item."); return; }
     setCreating(true);
     setCreateError(null);
-    const { id, error } = await createOrder(auth.user.id, {
-      lineItems: items, subtotalExGst: totals.subtotalExGst, gstRate: GST_RATE,
-      gstAmount: totals.gstAmount, totalIncGst: totals.totalIncGst, unpricedItemCount: totals.unpricedItemCount,
-    });
+    const { id, error } = await createOrder(items);
     setCreating(false);
     if (error) { setCreateError(error); return; }
     if (id) onCreated(id);
   };
 
-  if (projectLoading || catalogLoading || pricingLoading) {
+  if (projectLoading || catalogLoading || pricingLoading || restrictionLoading) {
     return <LoadingState className="mt-6" label="Loading catalog" />;
   }
 
@@ -218,6 +235,15 @@ export const QuickOrderPage = ({ projectId, auth, onBack, onCreated }: {
       <div className="mt-6">
         <ErrorState message={projectError || "Project not found."} />
         <button onClick={onBack} className="mt-2 text-sm font-bold" style={{ color: BLUE }}>Back to project</button>
+      </div>
+    );
+  }
+
+  if (orderBlocked) {
+    return (
+      <div className="mt-2">
+        <button onClick={onBack} className="text-sm font-semibold hover:underline" style={{ color: BLUE }}>&larr; Back to project</button>
+        <OrderBlockedNotice />
       </div>
     );
   }

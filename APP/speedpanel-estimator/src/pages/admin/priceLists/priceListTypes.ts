@@ -25,9 +25,9 @@ export const PriceListSummaryRowSchema = z.object({
 });
 export type PriceListSummaryRow = z.infer<typeof PriceListSummaryRowSchema>;
 
-// Bare price_lists row -- used for the name-only picker on AdminCompaniesPage
-// (a plain select, no RPC needed: staff read price_lists via a direct RLS
-// policy).
+// Bare price_lists row -- used for the name-only picker on
+// CompanyPriceListCard.tsx (a plain select, no RPC needed: staff read
+// price_lists via a direct RLS policy).
 export const PriceListRowSchema = z.object({ id: z.string(), name: z.string(), is_default: z.boolean() });
 export type PriceListRow = z.infer<typeof PriceListRowSchema>;
 
@@ -58,5 +58,29 @@ export type PriceListPriceRow = z.infer<typeof PriceListPriceRowSchema>;
 // mirrors the coalesce(panel_id, track_id, fixing_id, sealant_id) unique
 // index price_list_prices itself is keyed on.
 export function priceRowProductId(row: PriceListPriceRow): string {
+  return (row.panel_id ?? row.track_id ?? row.fixing_id ?? row.sealant_id)!;
+}
+
+// current_company_price_overrides() RPC row (Company Accounts & Pricing
+// Phase 9) -- the narrow, customer-facing shape (no internal_reason/
+// created_by/approved_* -- those are staff-only, see
+// company_list_price_overrides()'s own richer row in
+// companyPriceOverridesStore.ts). Lives here, not in that store file,
+// because applyEffectivePricing.ts and priceListsStore.ts's
+// useEffectivePriceListPrices() both need it too.
+export const CompanyPriceOverrideRowSchema = z.object({
+  id: z.string(),
+  category: z.enum(PRICEABLE_CATEGORIES),
+  panel_id: z.string().nullable(),
+  track_id: z.string().nullable(),
+  fixing_id: z.string().nullable(),
+  sealant_id: z.string().nullable(),
+  override_price: z.number(),
+  effective_date: z.string(),
+  expiry_date: z.string().nullable(),
+});
+export type CompanyPriceOverrideRow = z.infer<typeof CompanyPriceOverrideRowSchema>;
+
+export function overrideRowProductId(row: CompanyPriceOverrideRow): string {
   return (row.panel_id ?? row.track_id ?? row.fixing_id ?? row.sealant_id)!;
 }

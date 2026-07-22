@@ -10,14 +10,21 @@
 // RPCs/policies that call has_permission() (see supabase/schema.sql's
 // "Dynamic RBAC" section). Sections with no admin.section.* grants seeded
 // for any role (Catalog: Products, Systems, Maths, Documents; People: Users,
-// Companies, Permissions; Reports: Analytics, Audit Log) are super_admin/null
-// only by default -- see that section's own seed comment for why catalog
-// writes and Analytics' underlying queries stay un-narrowed server-side even
-// though they're nav-hidden here.
+// Permissions; Reports: Analytics, Audit Log) are super_admin/null only by
+// default -- see that section's own seed comment for why catalog writes and
+// Analytics' underlying queries stay un-narrowed server-side even though
+// they're nav-hidden here.
 //
 // "permissions" is kept as the internal AdminSubPage/permission_key name for
 // URL stability (#/admin/permissions keeps working) even though the section
-// itself is labeled "Roles" in the UI -- see AdminRolesPage.tsx.
+// itself is labeled "Roles" in the UI -- see AdminRolesPage.tsx. "companies"/
+// "priceLists" are gone entirely (Phase 14, Company Accounts & Pricing) --
+// #/admin/companies and #/admin/priceLists now redirect to their #/accounts
+// equivalents before ever reaching this check (see useHashRoute.ts), and
+// their own admin.section.* permission rows are left in the catalog
+// unused/inert rather than deleted (a stale grant row is harmless; deleting
+// permission rows other data might still reference is not a Phase 14
+// cleanup this file needs to force).
 // =============================================================================
 import type { AdminSubPage } from "../../appShell/useHashRoute";
 import type { InternalRole } from "../company/staffTypes";
@@ -31,12 +38,10 @@ const SECTION_PERMISSION_KEYS: Record<Exclude<AdminSubPage, "dashboard">, string
   serviceRequests: "admin.section.serviceRequests",
   manufacturing: "admin.section.manufacturing",
   users: "admin.section.users",
-  companies: "admin.section.companies",
   permissions: "admin.section.permissions",
   analytics: "admin.section.analytics",
   auditLog: "admin.section.auditLog",
   products: "admin.section.products",
-  priceLists: "admin.section.priceLists",
   systems: "admin.section.systems",
   maths: "admin.section.maths",
   documents: "admin.section.documents",

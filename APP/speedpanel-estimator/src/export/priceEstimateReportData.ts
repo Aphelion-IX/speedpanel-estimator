@@ -16,6 +16,21 @@
 // treated as $0 -- `matched: false` and a $0 lineTotalExGst are both kept
 // visible so the Orders UI can surface "N items couldn't be priced
 // automatically" rather than hiding the gap.
+//
+// productId/priceSource/priceListVersionId/overrideId (Company Accounts &
+// Pricing Phase 10, "order price freeze") are all additive/optional -- a
+// pre-Phase-10 stored order's line items simply lack them and still parse
+// fine, same "patch missing fields on read" precedent the estimator merge
+// already established. productId is the one field a CLIENT legitimately
+// sets (it's just "which catalog row does this line refer to", resolved the
+// same way unitPriceExGst always has been, via the category-specific
+// catalog.find() calls below) -- priceSource/priceListVersionId/overrideId
+// are stamped server-side only, by create_order()/revise_order() in
+// supabase/schema.sql, never trusted from the client. unitPriceExGst/
+// lineTotalExGst/matched themselves are STILL client-computed here (for the
+// pre-submission review UI to display) but are re-resolved and overwritten
+// server-side at order-creation time regardless of what the client sent --
+// see create_order()'s own comment for why.
 // =============================================================================
 import { z } from "zod";
 import type { EstimateReportData } from "./reportTypes";
@@ -27,6 +42,9 @@ export const ORDER_LINE_ITEM_CATEGORIES = ["panel", "custom_panel", "track", "fi
 export type OrderLineItemCategory = typeof ORDER_LINE_ITEM_CATEGORIES[number];
 export const ORDER_LINE_ITEM_UNITS = ["panel", "metre", "box"] as const;
 export type OrderLineItemUnit = typeof ORDER_LINE_ITEM_UNITS[number];
+
+export const ORDER_LINE_ITEM_PRICE_SOURCES = ["override", "price_list", "default"] as const;
+export type OrderLineItemPriceSource = typeof ORDER_LINE_ITEM_PRICE_SOURCES[number];
 
 // A Zod schema (not a plain interface) since this is also what
 // orders.line_items validates on the way back out of Supabase (see
@@ -42,6 +60,10 @@ export const OrderLineItemSchema = z.object({
   unitPriceExGst: z.number().nullable(),
   lineTotalExGst: z.number(),
   matched: z.boolean(),
+  productId: z.string().nullable().optional(),
+  priceSource: z.enum(ORDER_LINE_ITEM_PRICE_SOURCES).nullable().optional(),
+  priceListVersionId: z.string().nullable().optional(),
+  overrideId: z.string().nullable().optional(),
 });
 export type OrderLineItem = z.infer<typeof OrderLineItemSchema>;
 
@@ -59,12 +81,13 @@ export interface PricedReport {
 export const round2 = (n: number): number => Math.round(n * 100) / 100;
 
 function makeItem(
-  category: OrderLineItemCategory, label: string, qty: number, unit: OrderLineItemUnit, unitPrice: number | null,
+  category: OrderLineItemCategory, label: string, qty: number, unit: OrderLineItemUnit,
+  unitPrice: number | null, productId: string | null,
 ): OrderLineItem {
   const matched = unitPrice != null;
   return {
     id: crypto.randomUUID(), category, label, qty, unit,
-    unitPriceExGst: unitPrice, lineTotalExGst: matched ? round2(unitPrice! * qty) : 0, matched,
+    unitPriceExGst: unitPrice, lineTotalExGst: matched ? round2(unitPrice! * qty) : 0, matched, productId,
   };
 }
 
@@ -73,30 +96,32 @@ export function priceReportData(report: EstimateReportData, catalog: ProductCata
 
   for (const g of report.panelGroups) {
     const panel = catalog.panels.find(p => p.type === g.panelType);
-    items.push(makeItem("panel", g.label, g.ordered, "panel", panel?.pricePerPanel ?? null));
+    items.push(makeItem("panel", g.label, g.ordered, "panel", panel?.pricePerPanel ?? null, panel?.id ?? null));
   }
   for (const g of report.customPanels) {
     const panel = catalog.panels.find(p => p.type === g.panelType);
-    items.push(makeItem("custom_panel", g.label, g.ordered, "panel", panel?.pricePerPanel ?? null));
+    items.push(makeItem("custom_panel", g.label, g.ordered, "panel", panel?.pricePerPanel ?? null, panel?.id ?? null));
   }
   for (const t of report.trackLines) {
     let unitPrice: number | null = null;
+    let trackId: string | null = null;
     if (t.kind && t.system) {
       const track = catalog.tracks.find(tr =>
         tr.kind === t.kind
         && (tr.system === t.system || tr.system === "both")
         && (t.panelType == null || tr.panelType == null || tr.panelType === t.panelType));
       unitPrice = track?.pricePerMetre ?? null;
+      trackId = track?.id ?? null;
     }
-    items.push(makeItem("track", t.label, t.lengthM, "metre", unitPrice));
+    items.push(makeItem("track", t.label, t.lengthM, "metre", unitPrice, trackId));
   }
   if (report.fixings.boxes30 > 0) {
     const fixing30 = catalog.fixings.find(f => f.lengthMm === 30);
-    items.push(makeItem("fixing", "Fixings - 30 mm", report.fixings.boxes30, "box", fixing30?.pricePerBox ?? null));
+    items.push(makeItem("fixing", "Fixings - 30 mm", report.fixings.boxes30, "box", fixing30?.pricePerBox ?? null, fixing30?.id ?? null));
   }
   if (report.fixings.boxes16 > 0) {
     const fixing16 = catalog.fixings.find(f => f.lengthMm === 16);
-    items.push(makeItem("fixing", "Fixings - 16 mm", report.fixings.boxes16, "box", fixing16?.pricePerBox ?? null));
+    items.push(makeItem("fixing", "Fixings - 16 mm", report.fixings.boxes16, "box", fixing16?.pricePerBox ?? null, fixing16?.id ?? null));
   }
   if (report.fixings.sealantLines && report.fixings.sealantLines.length > 0) {
     // A mixed Internal+External project uses two genuinely different
@@ -105,7 +130,7 @@ export function priceReportData(report: EstimateReportData, catalog: ProductCata
     // sealantBoxes pair below, which can only ever represent one of them.
     for (const line of report.fixings.sealantLines) {
       const sealant = catalog.sealants.find(s => s.system === line.system);
-      items.push(makeItem("sealant", line.label, line.boxes, "box", sealant?.pricePerBox ?? null));
+      items.push(makeItem("sealant", line.label, line.boxes, "box", sealant?.pricePerBox ?? null, sealant?.id ?? null));
     }
   } else if (report.fixings.sealantBoxes > 0) {
     // reportTypes.ts's fixings summary doesn't carry a system field directly --
@@ -113,7 +138,7 @@ export function priceReportData(report: EstimateReportData, catalog: ProductCata
     // is the one place this report already records which system it's for.
     const system = report.systemLabel.startsWith("Internal") ? "internal" : "external";
     const sealant = catalog.sealants.find(s => s.system === system);
-    items.push(makeItem("sealant", report.fixings.sealantLabel, report.fixings.sealantBoxes, "box", sealant?.pricePerBox ?? null));
+    items.push(makeItem("sealant", report.fixings.sealantLabel, report.fixings.sealantBoxes, "box", sealant?.pricePerBox ?? null, sealant?.id ?? null));
   }
 
   const unpricedCount = items.filter(i => !i.matched).length;

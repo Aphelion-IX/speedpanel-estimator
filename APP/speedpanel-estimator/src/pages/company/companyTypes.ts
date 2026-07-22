@@ -128,4 +128,10 @@ export const EVENT_TYPE_LABELS: Record<string, string> = {
   company_address_changed: "Company address changed",
   company_address_removed: "Company address removed",
   invitation_fixed: "Invitation email corrected and resent",
+  price_list_version_published: "Price list updated",
+  item_override_added: "Item price override added",
+  item_override_changed: "Item price override changed",
+  item_override_removed: "Item price override removed",
+  price_list_assigned: "Price list assigned",
+  pricing_used_in_order: "Order priced",
 };

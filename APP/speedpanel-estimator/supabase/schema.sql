@@ -3956,6 +3956,495 @@ revoke execute on function public.admin_list_price_lists() from public, anon;
 grant execute on function public.admin_list_price_lists() to authenticated;
 
 -- =============================================================================
+-- Pricing: Price Lists library + draft editor (Company Accounts & Pricing,
+-- Phase 7) -- read-only RPCs backing the new src/pages/accounts/priceLists/
+-- module. Both reuse the existing price_lists.read permission key rather
+-- than minting new ones -- everything they return is metadata/diff
+-- information staff with read access to the price-list catalog already see
+-- elsewhere (AdminPriceListsPage.tsx, admin_list_price_lists()).
+-- =============================================================================
+
+-- p_price_list_id null returns every version across every list (the
+-- library's Draft Versions/Scheduled/Archived tabs, which are cross-list);
+-- given a specific id it scopes to that one list's own version history
+-- (the draft editor's own use). created_by_name/published_by_name mirror
+-- admin_list_companies()'s own display_name-or-email lateral join pattern.
+create or replace function public.admin_list_price_list_versions(p_price_list_id uuid default null)
+returns table (
+  id uuid, price_list_id uuid, price_list_name text, version_number int, status text,
+  effective_date date, notes text, created_by uuid, created_by_name text, created_at timestamptz,
+  published_at timestamptz, published_by uuid, published_by_name text, price_count bigint
+)
+language sql security definer stable
+set search_path = public
+as $$
+  select
+    plv.id, plv.price_list_id, pl.name, plv.version_number, plv.status,
+    plv.effective_date, plv.notes, plv.created_by, creator.display_name_or_email, plv.created_at,
+    plv.published_at, plv.published_by, publisher.display_name_or_email,
+    (select count(*) from price_list_prices plp where plp.price_list_version_id = plv.id)
+  from price_list_versions plv
+  join price_lists pl on pl.id = plv.price_list_id
+  left join lateral (
+    select coalesce(p.display_name, u.email) as display_name_or_email
+    from profiles p join auth.users u on u.id = p.id where p.id = plv.created_by
+  ) creator on true
+  left join lateral (
+    select coalesce(p.display_name, u.email) as display_name_or_email
+    from profiles p join auth.users u on u.id = p.id where p.id = plv.published_by
+  ) publisher on true
+  where public.has_permission('price_lists.read')
+    and (p_price_list_id is null or plv.price_list_id = p_price_list_id)
+  order by pl.name, plv.version_number desc;
+$$;
+revoke execute on function public.admin_list_price_list_versions(uuid) from public, anon;
+grant execute on function public.admin_list_price_list_versions(uuid) to authenticated;
+
+-- Per-product old/new price + change type between two versions (typically
+-- the current active version and a draft) -- built once here, reused as-is
+-- by Phase 8's Compare & Publish screen per the plan. A full outer join on
+-- (category, the one non-null panel/track/fixing/sealant id) rather than a
+-- plain id join, since the same product's row has a different id in every
+-- version (price_list_prices.id isn't stable across versions -- each
+-- version's rows are its own copy, see admin_create_draft_version()).
+-- Labels aren't resolved here -- the frontend already holds the full
+-- product catalog client-side (useProductStore()) and can look up
+-- category+product_id against it directly (see itemTitle() in
+-- productCategoryViews.tsx), so this stays a thin numeric diff.
+create or replace function public.admin_diff_price_list_versions(p_from_version_id uuid, p_to_version_id uuid)
+returns table (
+  category text, panel_id uuid, track_id uuid, fixing_id uuid, sealant_id uuid,
+  old_price numeric, new_price numeric, change_type text
+)
+language sql security definer stable
+set search_path = public
+as $$
+  select
+    coalesce(new_v.category, old_v.category),
+    coalesce(new_v.panel_id, old_v.panel_id), coalesce(new_v.track_id, old_v.track_id),
+    coalesce(new_v.fixing_id, old_v.fixing_id), coalesce(new_v.sealant_id, old_v.sealant_id),
+    old_v.price, new_v.price,
+    case
+      when old_v.price is null then 'added'
+      when new_v.price is null then 'removed'
+      when old_v.price is distinct from new_v.price then 'changed'
+      else 'unchanged'
+    end
+  from
+    (select * from price_list_prices where price_list_version_id = p_to_version_id) new_v
+    full outer join
+    (select * from price_list_prices where price_list_version_id = p_from_version_id) old_v
+    on new_v.category = old_v.category
+    and coalesce(new_v.panel_id, new_v.track_id, new_v.fixing_id, new_v.sealant_id)
+      = coalesce(old_v.panel_id, old_v.track_id, old_v.fixing_id, old_v.sealant_id)
+  where public.has_permission('price_lists.read');
+$$;
+revoke execute on function public.admin_diff_price_list_versions(uuid, uuid) from public, anon;
+grant execute on function public.admin_diff_price_list_versions(uuid, uuid) to authenticated;
+
+-- =============================================================================
+-- Pricing: Compare & Publish (Company Accounts & Pricing, Phase 8)
+-- =============================================================================
+-- admin_publish_price_list_version() below is the one real write RPC this
+-- phase adds; everything else here is the "lazy on-read check" scheduled-
+-- activation mechanism the Phase 6 plan flagged as a from-scratch design
+-- call, not a convention to follow -- no pg_cron, no background job. A
+-- future-dated publish sets a version to 'scheduled' and otherwise leaves
+-- the current 'active' version alone (see the RPC's own comment for why);
+-- current_price_list_version_id() below is what "resolves" a scheduled
+-- version into the effective current one once its effective_date arrives,
+-- used everywhere a caller needs pricing to be genuinely correct
+-- (current_price_list_prices()). Deliberately NOT threaded into
+-- admin_list_price_lists()'s product_count or
+-- admin_list_price_list_versions()'s status column -- those keep showing
+-- the literal stored status ('scheduled' stays 'scheduled' in the admin UI
+-- even once its date has passed) rather than duplicating this resolution
+-- logic into every display path; only customer-facing pricing needs to be
+-- lazily correct, not every admin list/count.
+-- =============================================================================
+
+-- Both RLS policies below are the SAME ones Phase 6 wrote (drop+recreate
+-- again here, same "append a new section rather than edit into place"
+-- convention already established for this file's live tables) --
+-- extended with an OR clause admitting a 'scheduled' version whose
+-- effective_date has already arrived, alongside the existing literal
+-- 'active' check.
+drop policy if exists "Active price list versions are readable by any authenticated user" on price_list_versions;
+create policy "Active price list versions are readable by any authenticated user" on price_list_versions
+  for select using (status = 'active' or (status = 'scheduled' and effective_date <= current_date));
+
+drop policy if exists "Company members can read their assigned list's prices" on price_list_prices;
+create policy "Company members can read their assigned list's prices" on price_list_prices
+  for select using (
+    exists (
+      select 1 from price_list_versions plv
+      join companies c on c.price_list_id = plv.price_list_id
+      join company_memberships cm on cm.company_id = c.id
+      where plv.id = price_list_prices.price_list_version_id
+        and (plv.status = 'active' or (plv.status = 'scheduled' and plv.effective_date <= current_date))
+        and cm.user_id = auth.uid() and cm.status = 'active'
+    )
+    or exists (
+      select 1 from price_list_versions plv
+      join price_lists pl on pl.id = plv.price_list_id
+      where plv.id = price_list_prices.price_list_version_id
+        and (plv.status = 'active' or (plv.status = 'scheduled' and plv.effective_date <= current_date))
+        and pl.is_default
+    )
+  );
+
+-- Resolves "the one version currently in effect" for a price list --
+-- literally 'active', or if none, the most recent 'scheduled' version
+-- whose effective_date has arrived. A plain OR filter (matching both RLS
+-- policies above) could return two candidate rows at once during the
+-- window after a scheduled version's date passes but before anything
+-- re-publishes it (the outgoing active version is deliberately left alone
+-- at schedule time, see admin_publish_price_list_version()) -- this
+-- resolves that down to exactly one, deterministically preferring the
+-- due-scheduled version over a stale literal-active one, so
+-- current_price_list_prices() below never blends two versions' prices
+-- together. SECURITY INVOKER, same reasoning as current_price_list_prices()
+-- itself -- relies on the caller's own RLS on price_list_versions (both
+-- policies above), not a privilege-escalation path.
+create or replace function public.current_price_list_version_id(p_price_list_id uuid) returns uuid
+language sql security invoker stable
+set search_path = public
+as $$
+  select id from price_list_versions
+  where price_list_id = p_price_list_id
+    and (status = 'active' or (status = 'scheduled' and effective_date <= current_date))
+  order by (status = 'scheduled') desc, effective_date desc nulls last, version_number desc
+  limit 1;
+$$;
+revoke execute on function public.current_price_list_version_id(uuid) from public, anon;
+grant execute on function public.current_price_list_version_id(uuid) to authenticated;
+
+-- Redefined (not the Phase 6 definition edited in place) for the same
+-- `language sql`-checked-at-CREATE-time reason every other redefinition in
+-- this file follows -- current_price_list_version_id() above must exist
+-- first. Behavior is identical for every list with a literal active
+-- version and no due-scheduled one (the overwhelming common case); only
+-- changes for a list with a scheduled version whose date has passed.
+create or replace function public.current_price_list_prices(p_price_list_id uuid)
+returns setof price_list_prices
+language sql security invoker stable
+set search_path = public
+as $$
+  select plp.* from price_list_prices plp
+  where plp.price_list_version_id = public.current_price_list_version_id(p_price_list_id);
+$$;
+revoke execute on function public.current_price_list_prices(uuid) from public, anon;
+grant execute on function public.current_price_list_prices(uuid) to authenticated;
+
+-- Publishes a draft: reuses the existing price_lists.publish permission key
+-- seeded (unused) back in Phase 6. p_effective_date null or <= today means
+-- publish immediately (the outgoing active version -- if any -- is expired
+-- FIRST, then the target activated second: the price_list_versions_one_active
+-- partial unique index isn't deferrable, so activating the new version
+-- before expiring the old one would momentarily violate it -- 1 active -> 0
+-- -> 1, never 1 -> 2). A future p_effective_date instead leaves the
+-- current active version alone entirely and marks the target 'scheduled' --
+-- current_price_list_version_id() above is what makes it start resolving
+-- as "the" active version once that date arrives, with no further write
+-- needed here or anywhere else (no cron job).
+--
+-- "No concurrent publish in flight": rejects outright if this list already
+-- has a pending 'scheduled' version, regardless of whether the new publish
+-- is itself immediate or another future date -- keeps at most one pending
+-- future activation per list at a time, so there's never ambiguity about
+-- which of two scheduled versions should win.
+--
+-- Audit: log_audit() is inherently per-company (it silently no-ops on a
+-- null company_id), and a price list isn't itself scoped to one company --
+-- so this logs one price_list_version_published row per company currently
+-- assigned to the list (their own Activity Log is exactly where "your
+-- price list changed" belongs), rather than skipping audit logging
+-- entirely or reworking log_audit's shape. A list with zero assigned
+-- companies (e.g. a brand new one) logs nothing, same as log_audit's own
+-- existing "nothing to attribute this to" precedent elsewhere.
+create or replace function public.admin_publish_price_list_version(p_version_id uuid, p_effective_date date default null, p_approval_note text default null) returns void
+language plpgsql security definer set search_path = public as $$
+declare
+  v_price_list_id uuid;
+  v_version_number int;
+  v_effective date := coalesce(p_effective_date, current_date);
+  v_company record;
+begin
+  if not public.has_permission('price_lists.publish') then raise exception 'Not authorized'; end if;
+
+  select price_list_id, version_number into v_price_list_id, v_version_number
+    from price_list_versions where id = p_version_id and status = 'draft';
+  if v_price_list_id is null then raise exception 'Only a draft version can be published'; end if;
+
+  if exists (select 1 from price_list_versions where price_list_id = v_price_list_id and status = 'scheduled') then
+    raise exception 'This price list already has a scheduled publish pending -- resolve it before publishing another';
+  end if;
+
+  if v_effective <= current_date then
+    update price_list_versions set status = 'expired' where price_list_id = v_price_list_id and status = 'active';
+    update price_list_versions set status = 'active', effective_date = v_effective, published_at = now(), published_by = auth.uid()
+      where id = p_version_id;
+  else
+    update price_list_versions set status = 'scheduled', effective_date = v_effective, published_at = now(), published_by = auth.uid()
+      where id = p_version_id;
+  end if;
+
+  for v_company in select id from companies where price_list_id = v_price_list_id loop
+    perform public.log_audit(v_company.id, auth.uid(), 'price_list_version_published', null, null,
+      jsonb_build_object(
+        'price_list_id', v_price_list_id, 'version_id', p_version_id, 'version_number', v_version_number,
+        'effective_date', v_effective, 'immediate', v_effective <= current_date, 'approval_note', p_approval_note
+      ));
+  end loop;
+end;
+$$;
+revoke execute on function public.admin_publish_price_list_version(uuid, date, text) from public, anon;
+grant execute on function public.admin_publish_price_list_version(uuid, date, text) to authenticated;
+
+-- =============================================================================
+-- Company Price Overrides -- Method 2 pricing (Company Accounts & Pricing,
+-- Phase 9)
+-- =============================================================================
+-- The 3rd, highest-priority pricing tier applyEffectivePricing() resolves
+-- (src/export/applyEffectivePricing.ts): override > assigned price list's
+-- active version > default (PL1) list > the deprecated price_per_* column.
+-- Active/Scheduled/Expired is derived from effective_date/expiry_date at
+-- read time, never stored -- only genuinely stateful lifecycles like
+-- price_list_versions.status get an explicit column (matches the mockup's
+-- own description of this screen).
+-- =============================================================================
+create table company_price_overrides (
+  id uuid primary key default gen_random_uuid(),
+  company_id uuid not null references companies (id) on delete cascade,
+  category text not null check (category in ('panel', 'track', 'fixing', 'sealant')),
+  panel_id uuid references panels (id) on delete cascade,
+  track_id uuid references tracks (id) on delete cascade,
+  fixing_id uuid references fixings (id) on delete cascade,
+  sealant_id uuid references sealants (id) on delete cascade,
+  override_price numeric not null,
+  effective_date date not null default current_date,
+  expiry_date date,
+  -- Internal-only (see the column-level grant below, same technique
+  -- order_deliveries.internal_note already established) -- why this
+  -- customer got a special price is staff-facing context, never shown to
+  -- the customer themselves.
+  internal_reason text,
+  created_by uuid not null references auth.users (id),
+  created_at timestamptz not null default now(),
+  -- Audit-only metadata, not a second workflow state (confirmed against the
+  -- spec/mockup: override status shown is only Active/Scheduled/Expired,
+  -- derived from dates -- there's no separate pending-approval gate here).
+  -- Set at creation/edit time by whoever has company_price_overrides.write,
+  -- same as created_by.
+  approved_by uuid references auth.users (id),
+  approved_at timestamptz,
+  check (
+    (category = 'panel'   and panel_id   is not null and track_id is null and fixing_id is null and sealant_id is null) or
+    (category = 'track'   and track_id   is not null and panel_id is null and fixing_id is null and sealant_id is null) or
+    (category = 'fixing'  and fixing_id  is not null and panel_id is null and track_id is null and sealant_id is null) or
+    (category = 'sealant' and sealant_id is not null and panel_id is null and track_id is null and fixing_id is null)
+  ),
+  check (expiry_date is null or expiry_date >= effective_date)
+);
+create index idx_company_price_overrides_company_id on company_price_overrides (company_id);
+create index idx_company_price_overrides_panel_id    on company_price_overrides (panel_id);
+create index idx_company_price_overrides_track_id    on company_price_overrides (track_id);
+create index idx_company_price_overrides_fixing_id   on company_price_overrides (fixing_id);
+create index idx_company_price_overrides_sealant_id  on company_price_overrides (sealant_id);
+
+-- The plan's own sketch called for a partial unique index scoped to
+-- "currently relevant" rows (`where expiry_date is null or expiry_date >=
+-- current_date`) -- confirmed directly against a real Postgres that this
+-- fails outright ("functions in index predicate must be marked IMMUTABLE"):
+-- current_date is stable, not immutable, and index predicates require the
+-- latter. A BEFORE trigger has no such restriction (same reasoning
+-- guard_price_list_prices_immutable/guard_order_delivery_allocation already
+-- rely on triggers for date/status-sensitive checks a plain constraint
+-- can't express) and gives the same "at most one current-or-upcoming
+-- override per product" invariant. admin_set_company_price_override()
+-- below upserts the existing row instead of inserting a second one, so
+-- this trigger is defense-in-depth against that RPC's own logic, not the
+-- primary mechanism -- same relationship the immutability trigger has to
+-- admin_set_draft_price()'s own draft-only pre-check.
+create or replace function public.guard_company_price_overrides_no_overlap() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  if exists (
+    select 1 from company_price_overrides o
+    where o.company_id = new.company_id and o.category = new.category
+      and coalesce(o.panel_id, o.track_id, o.fixing_id, o.sealant_id) = coalesce(new.panel_id, new.track_id, new.fixing_id, new.sealant_id)
+      and o.id <> new.id
+      and (o.expiry_date is null or o.expiry_date >= current_date)
+  ) then
+    raise exception 'This company already has a current or upcoming override for this product -- edit or remove it first';
+  end if;
+  return new;
+end;
+$$;
+create trigger guard_company_price_overrides_no_overlap before insert or update on company_price_overrides
+  for each row execute function public.guard_company_price_overrides_no_overlap();
+
+alter table company_price_overrides enable row level security;
+
+create policy "Staff can read company price overrides" on company_price_overrides
+  for select using (public.has_permission('company_price_overrides.read'));
+
+-- A customer needs to read their OWN company's CURRENTLY active overrides
+-- (never a future-scheduled or already-expired one) so client-side order
+-- pricing (applyEffectivePricing(), via current_company_price_overrides()
+-- below) can apply them without a staff-only RPC in the loop -- same
+-- "assigned list's active version, not everything" scoping
+-- "Company members can read their assigned list's prices" already
+-- establishes for price_list_prices.
+create policy "Company members can read their company's active overrides" on company_price_overrides
+  for select using (
+    exists (select 1 from company_memberships cm where cm.company_id = company_price_overrides.company_id and cm.user_id = auth.uid() and cm.status = 'active')
+    and effective_date <= current_date
+    and (expiry_date is null or expiry_date >= current_date)
+  );
+-- No insert/update/delete policy -- admin_* RPCs only, same convention as
+-- price_lists/price_list_prices.
+
+-- internal_reason (and created_by/approved_by/approved_at, staff-only
+-- audit metadata) excluded from the authenticated column grant -- same
+-- technique order_deliveries.internal_note already uses. Doesn't affect
+-- company_list_price_overrides() below (security definer, reads as the
+-- table owner, bypassing this column restriction the same way it bypasses
+-- RLS) -- only a direct table read (a customer's own RLS-visible row, or
+-- current_company_price_overrides()'s invoker-security select) is narrowed.
+revoke select on company_price_overrides from authenticated;
+grant select (id, company_id, category, panel_id, track_id, fixing_id, sealant_id, override_price, effective_date, expiry_date)
+  on company_price_overrides to authenticated;
+
+insert into public.permissions (key, description, category) values
+  ('company_price_overrides.read', 'Read a company''s item price overrides (staff module)', 'companies'),
+  ('company_price_overrides.write', 'Create/edit/delete a company''s item price overrides (staff module)', 'companies')
+on conflict (key) do nothing;
+
+-- SECURITY INVOKER -- same reasoning as current_price_list_prices(): reads
+-- through the CALLING user's own RLS grants above rather than bypassing
+-- them, and its own column list already excludes internal_reason/
+-- created_by/approved_by/approved_at (redundant with the column-level
+-- grant above, but explicit here since this is the one function customer
+-- pricing code actually calls).
+create or replace function public.current_company_price_overrides(p_company_id uuid)
+returns table (
+  id uuid, category text, panel_id uuid, track_id uuid, fixing_id uuid, sealant_id uuid,
+  override_price numeric, effective_date date, expiry_date date
+)
+language sql security invoker stable
+set search_path = public
+as $$
+  select id, category, panel_id, track_id, fixing_id, sealant_id, override_price, effective_date, expiry_date
+  from company_price_overrides
+  where company_id = p_company_id
+    and effective_date <= current_date
+    and (expiry_date is null or expiry_date >= current_date);
+$$;
+revoke execute on function public.current_company_price_overrides(uuid) from public, anon;
+grant execute on function public.current_company_price_overrides(uuid) to authenticated;
+
+-- Staff-side read -- every override regardless of active/scheduled/expired
+-- status (the admin table shows full history), all columns including
+-- internal_reason/approver -- same display-name-or-email lateral-join
+-- pattern admin_list_companies()/admin_list_price_list_versions() already
+-- use.
+create or replace function public.company_list_price_overrides(p_company_id uuid)
+returns table (
+  id uuid, category text, panel_id uuid, track_id uuid, fixing_id uuid, sealant_id uuid,
+  override_price numeric, effective_date date, expiry_date date, internal_reason text,
+  created_by uuid, created_by_name text, created_at timestamptz,
+  approved_by uuid, approved_by_name text, approved_at timestamptz
+)
+language sql security definer stable
+set search_path = public
+as $$
+  select
+    o.id, o.category, o.panel_id, o.track_id, o.fixing_id, o.sealant_id,
+    o.override_price, o.effective_date, o.expiry_date, o.internal_reason,
+    o.created_by, creator.display_name_or_email, o.created_at,
+    o.approved_by, approver.display_name_or_email, o.approved_at
+  from company_price_overrides o
+  left join lateral (
+    select coalesce(p.display_name, u.email) as display_name_or_email
+    from profiles p join auth.users u on u.id = p.id where p.id = o.created_by
+  ) creator on true
+  left join lateral (
+    select coalesce(p.display_name, u.email) as display_name_or_email
+    from profiles p join auth.users u on u.id = p.id where p.id = o.approved_by
+  ) approver on true
+  where o.company_id = p_company_id and public.has_permission('company_price_overrides.read')
+  order by o.created_at desc;
+$$;
+revoke execute on function public.company_list_price_overrides(uuid) from public, anon;
+grant execute on function public.company_list_price_overrides(uuid) to authenticated;
+
+-- Upsert -- reuses an existing current-or-upcoming override for the same
+-- product if one exists (matching the no-overlap trigger's own definition
+-- of "conflicting"), otherwise creates a new one. approved_by/approved_at
+-- are audit-only metadata (see the table's own comment) set to whoever
+-- calls this, not a separate approval step.
+create or replace function public.admin_set_company_price_override(
+  p_company_id uuid, p_category text, p_product_id uuid, p_override_price numeric,
+  p_effective_date date default current_date, p_expiry_date date default null, p_internal_reason text default null
+) returns uuid
+language plpgsql security definer set search_path = public as $$
+declare
+  v_id uuid;
+  v_event text;
+begin
+  if not public.has_permission('company_price_overrides.write') then raise exception 'Not authorized'; end if;
+  if p_category not in ('panel', 'track', 'fixing', 'sealant') then raise exception 'Invalid category'; end if;
+  if p_expiry_date is not null and p_expiry_date < p_effective_date then raise exception 'Expiry date can''t be before the effective date'; end if;
+
+  select id into v_id from company_price_overrides
+    where company_id = p_company_id and category = p_category
+      and coalesce(panel_id, track_id, fixing_id, sealant_id) = p_product_id
+      and (expiry_date is null or expiry_date >= current_date);
+
+  if v_id is null then
+    insert into company_price_overrides (
+      company_id, category, panel_id, track_id, fixing_id, sealant_id,
+      override_price, effective_date, expiry_date, internal_reason, created_by, approved_by, approved_at
+    ) values (
+      p_company_id, p_category,
+      case when p_category = 'panel' then p_product_id end,
+      case when p_category = 'track' then p_product_id end,
+      case when p_category = 'fixing' then p_product_id end,
+      case when p_category = 'sealant' then p_product_id end,
+      p_override_price, p_effective_date, p_expiry_date, nullif(trim(p_internal_reason), ''), auth.uid(), auth.uid(), now()
+    ) returning id into v_id;
+    v_event := 'item_override_added';
+  else
+    update company_price_overrides set
+      override_price = p_override_price, effective_date = p_effective_date, expiry_date = p_expiry_date,
+      internal_reason = nullif(trim(p_internal_reason), ''), approved_by = auth.uid(), approved_at = now()
+      where id = v_id;
+    v_event := 'item_override_changed';
+  end if;
+
+  perform public.log_audit(p_company_id, auth.uid(), v_event, null, null,
+    jsonb_build_object('override_id', v_id, 'category', p_category, 'override_price', p_override_price));
+  return v_id;
+end;
+$$;
+revoke execute on function public.admin_set_company_price_override(uuid, text, uuid, numeric, date, date, text) from public, anon;
+grant execute on function public.admin_set_company_price_override(uuid, text, uuid, numeric, date, date, text) to authenticated;
+
+create or replace function public.admin_delete_company_price_override(p_id uuid) returns void
+language plpgsql security definer set search_path = public as $$
+declare v_company_id uuid;
+begin
+  if not public.has_permission('company_price_overrides.write') then raise exception 'Not authorized'; end if;
+  delete from company_price_overrides where id = p_id returning company_id into v_company_id;
+  if v_company_id is null then raise exception 'Override not found'; end if;
+  perform public.log_audit(v_company_id, auth.uid(), 'item_override_removed', null, null, jsonb_build_object('override_id', p_id));
+end;
+$$;
+revoke execute on function public.admin_delete_company_price_override(uuid) from public, anon;
+grant execute on function public.admin_delete_company_price_override(uuid) to authenticated;
+
+-- =============================================================================
 -- Delivery request/approval workflow
 -- =============================================================================
 -- Replaces order_deliveries' original "committed on insert, draft-only"
@@ -4475,6 +4964,23 @@ on conflict (role, permission_key) do nothing;
 -- line_items by id once an order reaches 'submitted' (a customer can
 -- request a delivery at any non-draft stage), so a careless revision could
 -- otherwise orphan an allocation silently.
+-- Company Accounts & Pricing Phase 10 update: also stamps priceSource/
+-- priceListVersionId/overrideId per line (via resolve_effective_price(),
+-- defined further below in this file -- plpgsql bodies are only checked at
+-- CALL time, not CREATE time, so the forward reference is fine, same
+-- reasoning every other `language sql security definer`-vs-`plpgsql`
+-- ordering note in this file already covers) -- PURELY for traceability
+-- (feeding Phase 13's future Transaction Price Trace), never overwriting
+-- the staff-supplied unitPriceExGst/lineTotalExGst/qty/etc themselves.
+-- revise_order's whole reason for existing is letting a trusted
+-- orders.revise_order-holding staff member manually correct a submitted
+-- order's price to something the standard resolution chain wouldn't itself
+-- produce (a negotiated one-off, a data-entry fix) -- force-recomputing
+-- price the same way create_order() does would defeat that purpose
+-- entirely. The security gap Phase 10 closes is "a CUSTOMER's client can
+-- lie about price"; an internal_sales staff member deliberately holding
+-- this permission is the trusted party the feature exists for, not the
+-- threat model, so their submitted price stays authoritative here.
 create or replace function public.revise_order(p_order_id uuid, p_line_items jsonb, p_note text)
 returns void
 language plpgsql security definer
@@ -4482,8 +4988,10 @@ set search_path = public
 as $$
 declare
   v_stage text;
+  v_company_id uuid;
   v_gst_rate numeric;
   v_old_total numeric;
+  v_stamped jsonb;
   v_subtotal numeric;
   v_gst numeric;
   v_total numeric;
@@ -4495,7 +5003,7 @@ begin
     raise exception 'Order must have at least one line item';
   end if;
 
-  select stage, gst_rate, total_inc_gst into v_stage, v_gst_rate, v_old_total
+  select stage, company_id, gst_rate, total_inc_gst into v_stage, v_company_id, v_gst_rate, v_old_total
     from orders where id = p_order_id for update;
   if v_stage is null then raise exception 'Order not found'; end if;
   if v_stage not in ('submitted', 'proforma_requested') then
@@ -4521,16 +5029,26 @@ begin
     raise exception 'Cannot reduce a line item below the quantity already allocated to a delivery';
   end if;
 
+  select jsonb_agg(
+    li || jsonb_build_object(
+      'priceSource', r.source, 'priceListVersionId', r.price_list_version_id, 'overrideId', r.override_id
+    )
+  ) into v_stamped
+  from jsonb_array_elements(p_line_items) li
+  left join lateral public.resolve_effective_price(
+    v_company_id, li->>'category', nullif(li->>'productId', '')::uuid
+  ) r on true;
+
   select
     coalesce(round(sum((elem->>'lineTotalExGst')::numeric), 2), 0),
     coalesce(count(*) filter (where (elem->>'matched')::boolean is false), 0)
     into v_subtotal, v_unpriced_count
-    from jsonb_array_elements(p_line_items) as elem;
+    from jsonb_array_elements(v_stamped) as elem;
   v_gst := round(v_subtotal * v_gst_rate, 2);
   v_total := v_subtotal + v_gst;
 
   update orders set
-    line_items = p_line_items,
+    line_items = v_stamped,
     subtotal_ex_gst = v_subtotal,
     gst_amount = v_gst,
     total_inc_gst = v_total,
@@ -4545,6 +5063,518 @@ $$;
 
 revoke execute on function public.revise_order(uuid, jsonb, text) from public, anon;
 grant execute on function public.revise_order(uuid, jsonb, text) to authenticated;
+
+-- =============================================================================
+-- Company Accounts & Pricing Phase 10 -- order price freeze
+-- =============================================================================
+-- Closes the gap revise_order()'s own comment above already flagged:
+-- "createOrder() is a bare insert too" -- order creation had NO server-side
+-- price re-verification at all, so a client that skipped the real UI (a
+-- modified frontend build, or a direct REST call) could submit an order
+-- with an arbitrary, fabricated unitPriceExGst/lineTotalExGst per line and
+-- have it accepted verbatim. This is the actual fix: order creation moves
+-- from a bare RLS insert (see the now-dropped "Project access can create
+-- orders" policy below) to create_order(), a SECURITY DEFINER RPC that
+-- IGNORES whatever price the client sent entirely and recomputes every
+-- line item's price server-side from (category, productId) against the
+-- exact same override -> assigned-list -> PL1 -> catalog-default chain
+-- applyEffectivePricing.ts already implements client-side (for the
+-- pre-submission review UI) -- "reject a mismatch" and "always recompute"
+-- are equivalent in effect here but recomputing needs no float-tolerance
+-- comparison logic and can never be fooled by a client that just resends
+-- whatever price the server would have computed anyway.
+--
+-- Address freezing needed no work at all -- order_deliveries already
+-- freezes addresses as plain text columns with no live FK to unfreeze (see
+-- the phased plan's own corrected-understanding note).
+alter table orders add column if not exists price_list_version_id uuid references price_list_versions (id) on delete set null;
+comment on column orders.price_list_version_id is
+  'The company''s assigned price list''s currently-effective version at order-creation time (or PL1''s, for a solo/no-list project) -- a traceability snapshot, not itself load-bearing for pricing (each line item''s own priceListVersionId/overrideId in line_items records exactly which tier THAT line resolved against, which can legitimately differ line-to-line).';
+
+-- Internal helper only -- explicitly revoked from authenticated right after
+-- its own definition below (Supabase's default privileges would otherwise
+-- grant it broadly, same as every other new function in this file -- see
+-- that revoke statement's own comment). It's SECURITY DEFINER and takes an
+-- arbitrary p_company_id with no
+-- membership check of its own -- safe only because every caller (below) has
+-- ALREADY verified the calling user's own right to see that company's
+-- pricing before invoking it. Granting it to authenticated directly would
+-- let any signed-in user probe another company's override pricing by id.
+--
+-- Mirrors applyEffectivePricing.ts's 4-tier resolve() exactly: a current
+-- company override wins, else the company's assigned list's currently-
+-- effective version (current_price_list_version_id(), Phase 8's lazy
+-- on-read resolver), else PL1 -- Standard's currently-effective version,
+-- else the deprecated panels/tracks/fixings/sealants.price_per_* column.
+-- 'custom_panel' is normalized to 'panel' -- custom-length panels price
+-- against the same panel catalog row as stocked ones (priceEstimateReportData.ts
+-- resolves both the same way), and price_list_prices/company_price_overrides'
+-- own category check constraint only knows 'panel'/'track'/'fixing'/'sealant'.
+create or replace function public.resolve_effective_price(p_company_id uuid, p_category text, p_product_id uuid)
+returns table (price numeric, source text, price_list_version_id uuid, override_id uuid)
+language plpgsql security definer stable
+set search_path = public
+as $$
+declare
+  v_category text := case when p_category = 'custom_panel' then 'panel' else p_category end;
+  v_assigned_list_id uuid;
+  v_default_list_id uuid;
+  v_override_id uuid;
+  v_override_price numeric;
+  v_price numeric;
+  v_plv_id uuid;
+begin
+  if p_product_id is null then
+    return query select null::numeric, null::text, null::uuid, null::uuid;
+    return;
+  end if;
+
+  if p_company_id is not null then
+    select o.id, o.override_price into v_override_id, v_override_price
+      from company_price_overrides o
+      where o.company_id = p_company_id and o.category = v_category
+        and coalesce(o.panel_id, o.track_id, o.fixing_id, o.sealant_id) = p_product_id
+        and o.effective_date <= current_date and (o.expiry_date is null or o.expiry_date >= current_date)
+      limit 1;
+    if v_override_id is not null then
+      return query select v_override_price, 'override'::text, null::uuid, v_override_id;
+      return;
+    end if;
+  end if;
+
+  if p_company_id is not null then
+    select price_list_id into v_assigned_list_id from companies where id = p_company_id;
+    if v_assigned_list_id is not null then
+      select plp.price, plp.price_list_version_id into v_price, v_plv_id
+        from price_list_prices plp
+        where plp.price_list_version_id = public.current_price_list_version_id(v_assigned_list_id)
+          and plp.category = v_category
+          and coalesce(plp.panel_id, plp.track_id, plp.fixing_id, plp.sealant_id) = p_product_id
+        limit 1;
+      if v_price is not null then
+        return query select v_price, 'price_list'::text, v_plv_id, null::uuid;
+        return;
+      end if;
+    end if;
+  end if;
+
+  select id into v_default_list_id from price_lists where is_default limit 1;
+  if v_default_list_id is not null then
+    select plp.price, plp.price_list_version_id into v_price, v_plv_id
+      from price_list_prices plp
+      where plp.price_list_version_id = public.current_price_list_version_id(v_default_list_id)
+        and plp.category = v_category
+        and coalesce(plp.panel_id, plp.track_id, plp.fixing_id, plp.sealant_id) = p_product_id
+      limit 1;
+    if v_price is not null then
+      return query select v_price, 'default'::text, v_plv_id, null::uuid;
+      return;
+    end if;
+  end if;
+
+  v_price := case v_category
+    when 'panel' then (select price_per_panel from panels where id = p_product_id)
+    when 'track' then (select price_per_metre from tracks where id = p_product_id)
+    when 'fixing' then (select price_per_box from fixings where id = p_product_id)
+    when 'sealant' then (select price_per_box from sealants where id = p_product_id)
+  end;
+  return query select v_price, null::text, null::uuid, null::uuid;
+end;
+$$;
+
+-- Explicitly revoked from EVERY role, including authenticated -- Supabase's
+-- default privileges (see this file's own opening ALTER DEFAULT PRIVILEGES)
+-- grant EXECUTE on every new function to anon/authenticated/service_role
+-- automatically, and this one must NOT be directly callable: it's SECURITY
+-- DEFINER with no membership check of its own on p_company_id (by design --
+-- every caller below has ALREADY verified the calling user's own right to
+-- see that company's pricing before invoking it). Granting it to
+-- authenticated would let any signed-in user probe another company's
+-- override pricing by id, bypassing company_price_overrides' own RLS.
+revoke execute on function public.resolve_effective_price(uuid, text, uuid) from public, anon, authenticated;
+
+-- The only remaining way to create an order -- the direct-insert policy
+-- below is gone for good, not just superseded. There is deliberately NO
+-- replacement insert policy: every legitimate write path (a customer's own
+-- new order, and copy_order_to_draft()'s repeat-order/amendment copies)
+-- goes through a SECURITY DEFINER function that bypasses RLS on its own
+-- terms, so plain `authenticated` no longer has ANY direct insert privilege
+-- on this table at all.
+drop policy if exists "Project access can create orders" on orders;
+
+-- p_line_items carries the customer's category/qty/unit/label/productId
+-- choices (all trusted -- they describe WHAT is being ordered, which is
+-- legitimately the customer's call) but unitPriceExGst/lineTotalExGst/
+-- matched/priceSource/priceListVersionId/overrideId are computed fresh here
+-- and the client-submitted values for those fields are silently discarded,
+-- never even inspected -- see this section's own header comment for why
+-- "always recompute" was chosen over "compare and reject a mismatch".
+create or replace function public.create_order(p_project_id uuid, p_line_items jsonb, p_customer_note text default null)
+returns orders
+language plpgsql security definer
+set search_path = public
+as $$
+declare
+  v_owner_id uuid;
+  v_company_id uuid;
+  v_order_plv_id uuid;
+  v_resolved jsonb;
+  v_subtotal numeric;
+  v_gst numeric;
+  v_total numeric;
+  v_unpriced int;
+  v_row orders%rowtype;
+begin
+  if jsonb_typeof(p_line_items) is distinct from 'array' or jsonb_array_length(p_line_items) = 0 then
+    raise exception 'Order must have at least one line item';
+  end if;
+
+  select p.owner_id, p.company_id into v_owner_id, v_company_id from projects p where p.id = p_project_id;
+  if v_owner_id is null then raise exception 'Project not found'; end if;
+  -- Same authorization shape as the dropped RLS policy (auth.uid() becomes
+  -- the order's own owner_id regardless of whose project it is -- a
+  -- company-wide editor can place an order on someone else's project, but
+  -- they're recorded as the one who placed it).
+  if not public.can_edit_project(v_owner_id, v_company_id, p_project_id) then raise exception 'Not authorized'; end if;
+
+  if exists (
+    select 1 from jsonb_array_elements(p_line_items) li
+    where coalesce(li->>'id', '') = ''
+       or (li->>'category') not in ('panel', 'custom_panel', 'track', 'fixing', 'sealant')
+       or coalesce((li->>'qty')::numeric, 0) <= 0
+  ) then
+    raise exception 'Every line item needs an id and a recognized category, and quantity must be positive';
+  end if;
+
+  select public.current_price_list_version_id(price_list_id) into v_order_plv_id
+    from companies where id = v_company_id;
+
+  select
+    jsonb_agg(jsonb_build_object(
+      'id', li->>'id',
+      'category', li->>'category',
+      'label', li->>'label',
+      'qty', (li->>'qty')::numeric,
+      'unit', li->>'unit',
+      'productId', li->>'productId',
+      'unitPriceExGst', r.price,
+      'lineTotalExGst', case when r.price is not null then round(r.price * (li->>'qty')::numeric, 2) else 0 end,
+      'matched', r.price is not null,
+      'priceSource', r.source,
+      'priceListVersionId', r.price_list_version_id,
+      'overrideId', r.override_id
+    )),
+    coalesce(round(sum(case when r.price is not null then r.price * (li->>'qty')::numeric else 0 end), 2), 0),
+    coalesce(count(*) filter (where r.price is null), 0)
+    into v_resolved, v_subtotal, v_unpriced
+  from jsonb_array_elements(p_line_items) li
+  left join lateral public.resolve_effective_price(
+    v_company_id, li->>'category', nullif(li->>'productId', '')::uuid
+  ) r on true;
+
+  v_gst := round(v_subtotal * 0.10, 2);
+  v_total := v_subtotal + v_gst;
+
+  insert into orders (
+    project_id, owner_id, line_items, subtotal_ex_gst, gst_rate, gst_amount, total_inc_gst,
+    unpriced_item_count, customer_note, price_list_version_id
+  ) values (
+    p_project_id, auth.uid(), v_resolved, v_subtotal, 0.10, v_gst, v_total,
+    v_unpriced, nullif(trim(p_customer_note), ''), v_order_plv_id
+  ) returning * into v_row;
+
+  return v_row;
+end;
+$$;
+
+revoke execute on function public.create_order(uuid, jsonb, text) from public, anon;
+grant execute on function public.create_order(uuid, jsonb, text) to authenticated;
+
+-- =============================================================================
+-- Company Accounts & Pricing Phase 11 -- companies.status enforcement
+-- =============================================================================
+-- Makes companies.status (expanded to its 5-state model back in Phase 2)
+-- actually gate something for the first time -- until now every one of
+-- these states was purely informational. On Hold and Suspended are
+-- functionally identical for order-blocking purposes (per the plan's own
+-- resolved decision); On Hold additionally gets the reason/review-date/
+-- hold-details tracking the mockup shows, Suspended does not.
+alter table companies add column if not exists hold_reason text;
+alter table companies add column if not exists hold_applied_by uuid references auth.users (id);
+alter table companies add column if not exists hold_placed_at timestamptz;
+alter table companies add column if not exists hold_review_date date;
+
+-- p_hold_review_date is appended, not inserted among the existing params --
+-- dropped and recreated (not a bare `create or replace`) since appending an
+-- IN parameter changes the function's argument-type signature, same
+-- convention admin_create_company()/admin_list_staff_candidates() already
+-- follow elsewhere in this file. Setting status to 'on_hold' now populates
+-- hold_reason/hold_applied_by/hold_placed_at/hold_review_date; setting it
+-- to anything else clears all four, so a company that cycles on_hold ->
+-- active -> on_hold again always shows only the CURRENT hold's own details,
+-- never a stale one from a previous hold.
+drop function if exists public.admin_set_company_status(uuid, text, text);
+
+create or replace function public.admin_set_company_status(
+  p_company_id uuid, p_status text, p_reason text default null, p_hold_review_date date default null
+) returns void
+language plpgsql security definer
+set search_path = public
+as $$
+declare
+  v_old_status text;
+begin
+  if not public.has_permission('companies.set_status') then raise exception 'Not authorized'; end if;
+  if p_status not in ('pending', 'active', 'on_hold', 'suspended', 'archived') then raise exception 'Invalid status'; end if;
+
+  select status into v_old_status from companies where id = p_company_id;
+  if not found then raise exception 'Company not found'; end if;
+
+  update companies set
+    status = p_status,
+    hold_reason = case when p_status = 'on_hold' then p_reason else null end,
+    hold_applied_by = case when p_status = 'on_hold' then auth.uid() else null end,
+    hold_placed_at = case when p_status = 'on_hold' then now() else null end,
+    hold_review_date = case when p_status = 'on_hold' then p_hold_review_date else null end,
+    updated_at = now()
+  where id = p_company_id;
+  perform public.log_audit(p_company_id, auth.uid(), 'company_status_changed', null, null,
+    jsonb_build_object('from', v_old_status, 'to', p_status, 'reason', p_reason));
+end;
+$$;
+revoke execute on function public.admin_set_company_status(uuid, text, text, date) from public, anon;
+grant execute on function public.admin_set_company_status(uuid, text, text, date) to authenticated;
+
+-- Redefines can_submit_orders() (originally further up this file) with an
+-- early-exit: On Hold/Suspended blocks submission regardless of the
+-- existing owner/admin/company-role checks, UNLESS the caller is Speedpanel
+-- staff (is_admin() bypasses -- staff routinely need to act on a held
+-- company's behalf to help resolve whatever the hold is for, same
+-- "is_admin() overrides company-level restrictions" precedent every other
+-- company-scoped check in this file already follows). p_company_id null
+-- (a solo, company-less project) is never blocked -- there's no company
+-- status to check.
+create or replace function public.can_submit_orders(p_owner_id uuid, p_company_id uuid, p_project_id uuid) returns boolean
+language sql security definer stable
+set search_path = public
+as $$
+  select
+    public.is_admin()
+    or (
+      not exists (select 1 from companies c where c.id = p_company_id and c.status in ('on_hold', 'suspended'))
+      and (
+        auth.uid() = p_owner_id
+        or (p_company_id is not null and exists (
+          select 1 from company_memberships cm
+          where cm.company_id = p_company_id and cm.user_id = auth.uid() and cm.status = 'active'
+            and cm.role in ('owner', 'admin', 'project_manager')
+        ))
+      )
+    );
+$$;
+revoke execute on function public.can_submit_orders(uuid, uuid, uuid) from public, anon;
+grant execute on function public.can_submit_orders(uuid, uuid, uuid) to authenticated;
+
+-- Redefines create_order() (Phase 10, further up this file) with the same
+-- On Hold/Suspended block, checked right after resolving the project's
+-- owner/company -- "block new quote/order creation" from the plan's own
+-- Phase 11 scope note, closing the one order-creation path Phase 10 built
+-- that didn't exist yet when that note was first written. Everything else
+-- is unchanged from the Phase 10 definition.
+create or replace function public.create_order(p_project_id uuid, p_line_items jsonb, p_customer_note text default null)
+returns orders
+language plpgsql security definer
+set search_path = public
+as $$
+declare
+  v_owner_id uuid;
+  v_company_id uuid;
+  v_company_status text;
+  v_order_plv_id uuid;
+  v_resolved jsonb;
+  v_subtotal numeric;
+  v_gst numeric;
+  v_total numeric;
+  v_unpriced int;
+  v_row orders%rowtype;
+begin
+  if jsonb_typeof(p_line_items) is distinct from 'array' or jsonb_array_length(p_line_items) = 0 then
+    raise exception 'Order must have at least one line item';
+  end if;
+
+  select p.owner_id, p.company_id into v_owner_id, v_company_id from projects p where p.id = p_project_id;
+  if v_owner_id is null then raise exception 'Project not found'; end if;
+  if not public.can_edit_project(v_owner_id, v_company_id, p_project_id) then raise exception 'Not authorized'; end if;
+
+  if v_company_id is not null and not public.is_admin() then
+    select status into v_company_status from companies where id = v_company_id;
+    if v_company_status in ('on_hold', 'suspended') then
+      raise exception 'This company''s account is currently % -- new orders can''t be created until it''s reactivated', v_company_status;
+    end if;
+  end if;
+
+  if exists (
+    select 1 from jsonb_array_elements(p_line_items) li
+    where coalesce(li->>'id', '') = ''
+       or (li->>'category') not in ('panel', 'custom_panel', 'track', 'fixing', 'sealant')
+       or coalesce((li->>'qty')::numeric, 0) <= 0
+  ) then
+    raise exception 'Every line item needs an id and a recognized category, and quantity must be positive';
+  end if;
+
+  select public.current_price_list_version_id(price_list_id) into v_order_plv_id
+    from companies where id = v_company_id;
+
+  select
+    jsonb_agg(jsonb_build_object(
+      'id', li->>'id',
+      'category', li->>'category',
+      'label', li->>'label',
+      'qty', (li->>'qty')::numeric,
+      'unit', li->>'unit',
+      'productId', li->>'productId',
+      'unitPriceExGst', r.price,
+      'lineTotalExGst', case when r.price is not null then round(r.price * (li->>'qty')::numeric, 2) else 0 end,
+      'matched', r.price is not null,
+      'priceSource', r.source,
+      'priceListVersionId', r.price_list_version_id,
+      'overrideId', r.override_id
+    )),
+    coalesce(round(sum(case when r.price is not null then r.price * (li->>'qty')::numeric else 0 end), 2), 0),
+    coalesce(count(*) filter (where r.price is null), 0)
+    into v_resolved, v_subtotal, v_unpriced
+  from jsonb_array_elements(p_line_items) li
+  left join lateral public.resolve_effective_price(
+    v_company_id, li->>'category', nullif(li->>'productId', '')::uuid
+  ) r on true;
+
+  v_gst := round(v_subtotal * 0.10, 2);
+  v_total := v_subtotal + v_gst;
+
+  insert into orders (
+    project_id, owner_id, line_items, subtotal_ex_gst, gst_rate, gst_amount, total_inc_gst,
+    unpriced_item_count, customer_note, price_list_version_id
+  ) values (
+    p_project_id, auth.uid(), v_resolved, v_subtotal, 0.10, v_gst, v_total,
+    v_unpriced, nullif(trim(p_customer_note), ''), v_order_plv_id
+  ) returning * into v_row;
+
+  return v_row;
+end;
+$$;
+revoke execute on function public.create_order(uuid, jsonb, text) from public, anon;
+grant execute on function public.create_order(uuid, jsonb, text) to authenticated;
+
+-- Pending Setup checklist (CompanyOverviewPage.tsx, staff-only module) --
+-- a computed function rather than a stored/maintained percentage, so it can
+-- never drift out of sync with the data it's checking. "Pricing set up" is
+-- read as "assigned a price list OTHER than the automatic PL1 default, OR
+-- has at least one item override" -- companies.price_list_id has been NOT
+-- NULL (every company defaults to PL1) since Phase 6, so "has a price
+-- list" alone would trivially always be true and never signal real
+-- completion; this is the from-scratch call needed to make it a genuine
+-- checklist item, not a spec violation (the plan's own text just says "has
+-- a price list or >=1 override").
+create or replace function public.company_onboarding_progress(p_company_id uuid)
+returns table (has_legal_details boolean, has_owner boolean, has_default_address boolean, has_pricing_setup boolean)
+language sql security definer stable
+set search_path = public
+as $$
+  select
+    coalesce(nullif(trim(c.legal_name), ''), null) is not null and coalesce(nullif(trim(c.abn), ''), null) is not null,
+    exists (select 1 from company_memberships cm where cm.company_id = c.id and cm.role = 'owner' and cm.status = 'active'),
+    exists (select 1 from company_addresses a where a.company_id = c.id and a.is_default),
+    (c.price_list_id is not null and c.price_list_id <> (select id from price_lists where is_default))
+      or exists (select 1 from company_price_overrides o where o.company_id = c.id)
+  from companies c
+  where c.id = p_company_id and public.has_permission('companies.list');
+$$;
+revoke execute on function public.company_onboarding_progress(uuid) from public, anon;
+grant execute on function public.company_onboarding_progress(uuid) to authenticated;
+
+-- Redefines admin_list_companies() (originally further up this file) to
+-- also carry the 4 new hold_* columns plus a resolved display name for
+-- hold_applied_by. Unlike every prior SELECT-list-only change to this
+-- function, widening a `returns table(...)` function's OUTPUT COLUMNS is
+-- NOT a compatible `create or replace` -- Postgres rejects it ("cannot
+-- change return type of existing function") since the row type itself
+-- changes, not just the query body. Drop-and-recreate, same as any other
+-- signature-changing redefinition in this file.
+drop function if exists public.admin_list_companies();
+
+create or replace function public.admin_list_companies()
+returns table (
+  id uuid, name text, member_count bigint, created_at timestamptz,
+  legal_name text, trading_name text, abn text, account_code text,
+  billing_email text, phone text, address text, status text,
+  payment_terms text, internal_notes text,
+  price_list_id uuid, price_list_name text,
+  primary_user_name text, primary_user_email text, internal_owner_name text,
+  hold_reason text, hold_applied_by_name text, hold_placed_at timestamptz, hold_review_date date
+)
+language sql security definer stable
+set search_path = public
+as $$
+  select
+    c.id, coalesce(c.trading_name, c.legal_name), count(cm.id) filter (where cm.status = 'active'), c.created_at,
+    c.legal_name, c.trading_name, c.abn, c.customer_account_number,
+    c.billing_email, c.phone, c.address, c.status,
+    c.payment_terms, c.internal_notes,
+    c.price_list_id, pl.name,
+    owner.display_name_or_email, owner.email, creator.display_name_or_email,
+    c.hold_reason, holder.display_name_or_email, c.hold_placed_at, c.hold_review_date
+  from companies c
+  left join company_memberships cm on cm.company_id = c.id
+  left join price_lists pl on pl.id = c.price_list_id
+  left join lateral (
+    select coalesce(p.display_name, u.email) as display_name_or_email, u.email
+    from company_memberships owner_cm
+    join profiles p on p.id = owner_cm.user_id
+    join auth.users u on u.id = owner_cm.user_id
+    where owner_cm.company_id = c.id and owner_cm.role = 'owner' and owner_cm.status = 'active'
+    limit 1
+  ) owner on true
+  left join lateral (
+    select coalesce(p.display_name, u.email) as display_name_or_email
+    from profiles p join auth.users u on u.id = p.id
+    where p.id = c.created_by
+  ) creator on true
+  left join lateral (
+    select coalesce(p.display_name, u.email) as display_name_or_email
+    from profiles p join auth.users u on u.id = p.id
+    where p.id = c.hold_applied_by
+  ) holder on true
+  where public.has_permission('companies.list')
+  group by c.id, c.trading_name, c.legal_name, c.created_at, c.abn, c.customer_account_number,
+    c.billing_email, c.phone, c.address, c.status, c.payment_terms, c.internal_notes,
+    c.price_list_id, pl.name, owner.display_name_or_email, owner.email, creator.display_name_or_email,
+    c.hold_reason, holder.display_name_or_email, c.hold_placed_at, c.hold_review_date
+  order by c.created_at desc;
+$$;
+revoke execute on function public.admin_list_companies() from public, anon;
+grant execute on function public.admin_list_companies() to authenticated;
+
+-- =============================================================================
+-- Company Accounts & Pricing Phase 12 -- companies column-grant restriction
+-- =============================================================================
+-- Security-review finding (Phase 12's own mandated review pass): unlike
+-- order_deliveries/company_price_overrides (both already column-grant-
+-- restricted below), the companies table itself has never had one -- only
+-- the row-level "Company members can read their own company" RLS policy.
+-- RLS is row-level only, so a company member's own raw
+-- `.from("companies").select("*")` could read internal_notes/hold_reason/
+-- hold_applied_by/hold_placed_at/hold_review_date for their own company row
+-- -- all staff-internal fields never meant for a customer, even though no
+-- real frontend call site selects them today (every current caller only
+-- selects narrow safe columns). Same fix, same pattern as the two existing
+-- restrictions: revoke blanket select, grant back only the customer-safe
+-- columns. admin_list_companies() (security definer) is unaffected -- it
+-- bypasses column grants the same way it bypasses RLS.
+revoke select on companies from authenticated;
+grant select (
+  id, legal_name, trading_name, abn, customer_account_number, billing_email, phone, address,
+  status, payment_terms, price_list_id, created_by, created_at, updated_at
+) on companies to authenticated;
 
 -- =============================================================================
 -- Support & Services -- service_requests (minimal: table + read policies)
@@ -6951,3 +7981,166 @@ grant execute on function public.order_completion_check(uuid) to authenticated;
 grant execute on function public.complete_order(uuid, integer) to authenticated;
 grant execute on function public.repeat_order(uuid) to authenticated;
 grant execute on function public.create_order_amendment(uuid, text) to authenticated;
+
+-- =============================================================================
+-- Company Accounts & Pricing Phase 13 -- cross-company Audit History
+-- =============================================================================
+insert into public.permissions (key, description, category) values
+  ('audit.list_all', 'Read the cross-company audit history', 'audit')
+on conflict (key) do nothing;
+-- No default role_permissions row -- super_admin-only via the has_staff_role
+-- grandfather clause, same as companies.list/admin.stage_events.list above
+-- (neither has a role_permissions row either).
+
+-- Cross-company sibling of company_list_audit_log() (further up this file,
+-- deliberately per-company, is_company_admin()-gated, backs a company's own
+-- Users tab Activity Log). This is the staff-facing "every company at once"
+-- version behind AuditHistoryPage.tsx -- optional company_id/event_type
+-- filters double it as that same page's per-company drill-down too, rather
+-- than shipping two near-identical RPCs.
+create or replace function public.admin_list_audit_log(
+  p_company_id uuid default null, p_event_type text default null,
+  p_limit int default 50, p_offset int default 0
+)
+returns table (
+  id uuid, company_id uuid, company_name text, actor_id uuid, actor_email text, event_type text,
+  target_user_id uuid, target_email text, project_id uuid, project_name text,
+  detail jsonb, created_at timestamptz
+)
+language sql security definer stable
+set search_path = public
+as $$
+  select al.id, al.company_id, coalesce(c.trading_name, c.legal_name), al.actor_id, au.email, al.event_type,
+    al.target_user_id, tu.email, al.project_id, pr.name, al.detail, al.created_at
+  from audit_logs al
+  join companies c on c.id = al.company_id
+  left join auth.users au on au.id = al.actor_id
+  left join auth.users tu on tu.id = al.target_user_id
+  left join projects pr on pr.id = al.project_id
+  where public.has_permission('audit.list_all')
+    and (p_company_id is null or al.company_id = p_company_id)
+    and (p_event_type is null or al.event_type = p_event_type)
+  order by al.created_at desc
+  limit p_limit offset p_offset;
+$$;
+revoke execute on function public.admin_list_audit_log(uuid, text, int, int) from public, anon;
+grant execute on function public.admin_list_audit_log(uuid, text, int, int) to authenticated;
+
+-- price_list_assigned event -- fresh redefinition of
+-- admin_set_company_price_list() (originally further up this file) adding
+-- the one log_audit() call the plan names as missing; same "always append a
+-- fresh redefinition, never edit an earlier phase's definition in place"
+-- convention as every other later-phase change in this file. Signature/
+-- return type unchanged, so a plain create-or-replace is compatible.
+create or replace function public.admin_set_company_price_list(p_company_id uuid, p_price_list_id uuid) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if not public.has_permission('price_lists.assign_to_company') then raise exception 'Not authorized'; end if;
+  update companies set price_list_id = p_price_list_id, updated_at = now() where id = p_company_id;
+  if not found then raise exception 'Company not found'; end if;
+  perform public.log_audit(p_company_id, auth.uid(), 'price_list_assigned', null, null, jsonb_build_object('price_list_id', p_price_list_id));
+end;
+$$;
+revoke execute on function public.admin_set_company_price_list(uuid, uuid) from public, anon;
+grant execute on function public.admin_set_company_price_list(uuid, uuid) to authenticated;
+
+-- pricing_used_in_order event -- fresh redefinition of create_order()
+-- (originally further up, most recently redefined in Phase 11) adding one
+-- log_audit() call at the end, backing the Transaction Price Trace -- the
+-- trace reads this event's detail as its anchor rather than re-deriving
+-- everything from a bare orders row scan, consistent with every other
+-- pricing-affecting action in this file already being logged. One row per
+-- order, not per line item -- detail carries a compact summary (price list
+-- version, subtotal, override/unpriced counts), not the full frozen
+-- line_items array (already stored on the order row itself).
+create or replace function public.create_order(p_project_id uuid, p_line_items jsonb, p_customer_note text default null)
+returns orders
+language plpgsql security definer
+set search_path = public
+as $$
+declare
+  v_owner_id uuid;
+  v_company_id uuid;
+  v_company_status text;
+  v_order_plv_id uuid;
+  v_resolved jsonb;
+  v_subtotal numeric;
+  v_gst numeric;
+  v_total numeric;
+  v_unpriced int;
+  v_row orders%rowtype;
+begin
+  if jsonb_typeof(p_line_items) is distinct from 'array' or jsonb_array_length(p_line_items) = 0 then
+    raise exception 'Order must have at least one line item';
+  end if;
+
+  select p.owner_id, p.company_id into v_owner_id, v_company_id from projects p where p.id = p_project_id;
+  if v_owner_id is null then raise exception 'Project not found'; end if;
+  if not public.can_edit_project(v_owner_id, v_company_id, p_project_id) then raise exception 'Not authorized'; end if;
+
+  if v_company_id is not null and not public.is_admin() then
+    select status into v_company_status from companies where id = v_company_id;
+    if v_company_status in ('on_hold', 'suspended') then
+      raise exception 'This company''s account is currently % -- new orders can''t be created until it''s reactivated', v_company_status;
+    end if;
+  end if;
+
+  if exists (
+    select 1 from jsonb_array_elements(p_line_items) li
+    where coalesce(li->>'id', '') = ''
+       or (li->>'category') not in ('panel', 'custom_panel', 'track', 'fixing', 'sealant')
+       or coalesce((li->>'qty')::numeric, 0) <= 0
+  ) then
+    raise exception 'Every line item needs an id and a recognized category, and quantity must be positive';
+  end if;
+
+  select public.current_price_list_version_id(price_list_id) into v_order_plv_id
+    from companies where id = v_company_id;
+
+  select
+    jsonb_agg(jsonb_build_object(
+      'id', li->>'id',
+      'category', li->>'category',
+      'label', li->>'label',
+      'qty', (li->>'qty')::numeric,
+      'unit', li->>'unit',
+      'productId', li->>'productId',
+      'unitPriceExGst', r.price,
+      'lineTotalExGst', case when r.price is not null then round(r.price * (li->>'qty')::numeric, 2) else 0 end,
+      'matched', r.price is not null,
+      'priceSource', r.source,
+      'priceListVersionId', r.price_list_version_id,
+      'overrideId', r.override_id
+    )),
+    coalesce(round(sum(case when r.price is not null then r.price * (li->>'qty')::numeric else 0 end), 2), 0),
+    coalesce(count(*) filter (where r.price is null), 0)
+    into v_resolved, v_subtotal, v_unpriced
+  from jsonb_array_elements(p_line_items) li
+  left join lateral public.resolve_effective_price(
+    v_company_id, li->>'category', nullif(li->>'productId', '')::uuid
+  ) r on true;
+
+  v_gst := round(v_subtotal * 0.10, 2);
+  v_total := v_subtotal + v_gst;
+
+  insert into orders (
+    project_id, owner_id, line_items, subtotal_ex_gst, gst_rate, gst_amount, total_inc_gst,
+    unpriced_item_count, customer_note, price_list_version_id
+  ) values (
+    p_project_id, auth.uid(), v_resolved, v_subtotal, 0.10, v_gst, v_total,
+    v_unpriced, nullif(trim(p_customer_note), ''), v_order_plv_id
+  ) returning * into v_row;
+
+  perform public.log_audit(v_company_id, auth.uid(), 'pricing_used_in_order', null, p_project_id, jsonb_build_object(
+    'order_id', v_row.id,
+    'price_list_version_id', v_order_plv_id,
+    'subtotal_ex_gst', v_subtotal,
+    'override_count', (select count(*) from jsonb_array_elements(v_resolved) li where li->>'priceSource' = 'override'),
+    'unpriced_count', v_unpriced
+  ));
+
+  return v_row;
+end;
+$$;
+revoke execute on function public.create_order(uuid, jsonb, text) from public, anon;
+grant execute on function public.create_order(uuid, jsonb, text) to authenticated;

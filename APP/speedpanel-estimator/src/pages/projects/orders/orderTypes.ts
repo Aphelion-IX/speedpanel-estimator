@@ -65,6 +65,11 @@ export const OrderRowSchema = z.object({
   // Mirrors the parent project's company_id (see supabase/schema.sql's
   // sync_order_company_id trigger) -- null for an ordinary solo order.
   company_id: z.string().nullable(),
+  // Company Accounts & Pricing Phase 10: the company's assigned list's
+  // currently-effective version at order-creation time (set by
+  // create_order()), or null for a solo/no-list project. A traceability
+  // snapshot only -- see the column's own comment in supabase/schema.sql.
+  price_list_version_id: z.string().nullable(),
   // Orders Operations fields (see supabase/schema.sql) -- order_number is
   // server-assigned (assign_order_number()), nullable only because rows
   // created before this column existed have none until backfilled.
