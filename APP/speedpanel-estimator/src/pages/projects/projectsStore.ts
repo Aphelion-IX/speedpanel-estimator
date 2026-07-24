@@ -156,7 +156,8 @@ export function useProjectCompanyNames(companyIds: string[]) {
 
   const fetchNames = useCallback(async (): Promise<{ data: Map<string, string>; error: string | null }> => {
     if (!supabase || stableIds.length === 0) return { data: new Map(), error: null };
-    const { data } = await supabase.from("companies").select("id, legal_name, trading_name").in("id", stableIds);
+    const { data, error } = await supabase.from("companies").select("id, legal_name, trading_name").in("id", stableIds);
+    if (error) return { data: new Map(), error: error.message };
     return { data: new Map((data ?? []).map((c: { id: string; legal_name: string; trading_name: string | null }) => [c.id, c.trading_name || c.legal_name])), error: null };
   }, [stableIds]);
 
