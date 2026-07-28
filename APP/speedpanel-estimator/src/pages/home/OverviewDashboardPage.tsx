@@ -160,18 +160,23 @@ export const OverviewDashboardPage = ({ auth, navigate, isInternalStaff, activeC
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-300">Search help, documents or support.</p>
         </div>
 
-        <label className="flex h-12 items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 focus-within:border-blue-400 dark:border-slate-600 dark:bg-slate-950/70 dark:focus-within:border-blue-500">
+        {/* Neither control is wired to anything yet: the search box has no
+            query state or backing index, and no support destination is
+            configured. Both are disabled rather than accepting input and
+            clicks that go nowhere. */}
+        <label className="flex h-12 items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 opacity-50 dark:border-slate-600 dark:bg-slate-950/70">
           <Search className="h-5 w-5 text-slate-400" />
           <input
-            type="search" placeholder="Search help, documents or support..."
-            className="w-full bg-transparent text-sm outline-none placeholder:text-slate-400 dark:text-white dark:placeholder:text-slate-500"
+            type="search" disabled placeholder="Search help, documents or support..."
+            title="Search isn't available yet."
+            className="w-full bg-transparent text-sm outline-none placeholder:text-slate-400 disabled:cursor-not-allowed dark:text-white dark:placeholder:text-slate-500"
             style={{ color: NAVY }}
           />
         </label>
 
         <button
-          type="button"
-          className="inline-flex h-12 items-center justify-center gap-2 rounded-xl border px-5 text-sm font-semibold transition hover:bg-blue-50 dark:hover:bg-blue-500/10"
+          type="button" disabled title="Contact Support isn't available yet."
+          className="inline-flex h-12 items-center justify-center gap-2 rounded-xl border px-5 text-sm font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed"
           style={{ borderColor: BLUE, color: BLUE }}
         >
           <Headphones className="h-5 w-5" /> Contact Support
