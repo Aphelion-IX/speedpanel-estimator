@@ -38,7 +38,12 @@ export function synthesizeKits(walls: Wall[], cfg: SystemConfig): KitEntry[] {
           entries.push({ id: `corner-${w.id}-${partner.id}`, kind: "corner", wallAId: w.id, wallAName: w.name, wallBId: partner.id, wallBName: partner.name, result });
         }
       }
+      // Mark BOTH members of the pair, not just the wall we arrived from --
+      // an asymmetric link (two walls pointing at the same partner, which a
+      // saved project can still contain) would otherwise bill the same
+      // physical junction a second time.
       seenCorner.add(w.id);
+      seenCorner.add(w.cornerPartnerId);
     }
     if (w.wallSystem === "shaft" && w.shaftPartnerId != null && !seenShaft.has(w.id) && !seenShaft.has(w.shaftPartnerId)) {
       const partner = walls.find(x => x.id === w.shaftPartnerId);
@@ -49,6 +54,7 @@ export function synthesizeKits(walls: Wall[], cfg: SystemConfig): KitEntry[] {
         }
       }
       seenShaft.add(w.id);
+      seenShaft.add(w.shaftPartnerId);
     }
   }
 

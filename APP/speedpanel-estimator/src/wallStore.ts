@@ -303,6 +303,15 @@ export function useWallStore({ dimUnit, onWallAdded, persistLocally = true }: { 
       ...src, id: newId,
       name: `${src.name} copy`,
       forcedStock: projectLock ? projectForcedStock() : src.forcedStock,
+      // Pair links are strictly two-wall and symmetric (CornerLinkSelector
+      // only ever offers unlinked walls as partners), so they can't be
+      // copied: the duplicate would point at the original's partner while
+      // that partner still pointed back at the original, and the shared
+      // corner-post/shaft-junction kit would be billed twice for one
+      // physical junction. The copy starts unlinked instead -- the same
+      // state deleteWallById() leaves a surviving partner in, and one
+      // validateWall() already surfaces as "not linked to a partner".
+      cornerPartnerId: null, shaftPartnerId: null, junctionPartnerId: null,
     }]);
     setNextId(newId + 1);
     setActiveId(newId);

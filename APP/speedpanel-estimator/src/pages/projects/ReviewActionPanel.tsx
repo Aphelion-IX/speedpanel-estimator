@@ -38,13 +38,15 @@ const ServiceRow = ({ label, icon, onClick, disabled }: { label: string; icon: R
   </button>
 );
 
-// Exported so ProjectDetailPage.tsx's Quick Actions grid can gate its own
-// "Request Install Review"/"Request Technical Consult" tiles identically --
-// a single source of truth for when these actions are actually available,
-// rather than a second copy of the same condition drifting out of sync.
-export const canRequestInstallReview = (project: Pick<ProjectRow, "stage" | "install_review_status">): boolean =>
+// Local to this card. These were once exported for ProjectDetailPage.tsx's
+// Quick Actions grid to share, but that grid now gates its tiles on the
+// server-side service-request eligibility map instead (see
+// services/serviceRequestsStore.ts's useServiceEligibility), so there is no
+// second caller to keep in sync -- exporting them only advertised a shared
+// source of truth that no longer exists.
+const canRequestInstallReview = (project: Pick<ProjectRow, "stage" | "install_review_status">): boolean =>
   project.stage === "draft" && project.install_review_status !== "approved";
-export const canRequestTechnicalReview = (project: Pick<ProjectRow, "stage" | "install_review_status">): boolean =>
+const canRequestTechnicalReview = (project: Pick<ProjectRow, "stage" | "install_review_status">): boolean =>
   project.stage === "draft" && project.install_review_status === "approved";
 
 export const ReviewActionPanel = ({ project, onCreateOrder, onRequestInstallReview, onRequestTechnicalReview, onChanged }: {

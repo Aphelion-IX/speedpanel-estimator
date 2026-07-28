@@ -44,16 +44,34 @@ export function useAsyncResource<T>(
     skip ? { data: initialData, loading: false, error: skipError } : { data: initialData, loading: true, error: null },
   );
 
+  // Monotonic request counter, so only the MOST RECENT fetch may write state.
+  // Without it, switching the thing being fetched (project A -> project B,
+  // a new filter, a reload racing the deps-change refetch) lets a slower
+  // earlier response land last and overwrite the newer one -- the page then
+  // shows the previous record's data under the current record's heading, and
+  // a stale error can clobber a successful load. Every hand-written store in
+  // the app already guards this with a `let cancelled` cleanup flag (see
+  // useProjectEditAccess.ts, companyStore.ts, controlRoomStore.ts); this is
+  // the same guard, owned once here for the 13 stores built on this hook.
+  const requestIdRef = useRef(0);
+
   const load = useCallback(async () => {
     if (skip) return;
+    const requestId = ++requestIdRef.current;
     setState(s => ({ ...s, loading: true, error: null }));
     const { data, error } = await fetcher();
+    if (requestIdRef.current !== requestId) return;
     setState(error ? { data: initialData, loading: false, error } : { data, loading: false, error: null });
     // `deps` is the caller's own dependency list (the same values its
     // fetcher closure reads) -- this hook just forwards it to useCallback,
     // exactly the contract a hand-written useCallback would have.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [skip, ...deps]);
+
+  // Unmounting invalidates any in-flight fetch too -- bumping the counter
+  // means its `requestIdRef.current !== requestId` check fails, so it can't
+  // setState on a torn-down hook.
+  useEffect(() => () => { requestIdRef.current++; }, []);
 
   useEffect(() => { load(); }, [load]);
 
