@@ -11,7 +11,7 @@
 // needs one yet.
 // =============================================================================
 import { useEffect, useRef, useState } from "react";
-import { LogIn, LogOut, ChevronDown, ShieldCheck, Building2 } from "lucide-react";
+import { LogIn, LogOut, ChevronDown, ShieldCheck } from "lucide-react";
 import { BLUE, WHITE, NAVY } from "../styleTokens";
 import { IconButton } from "../ui/primitives";
 import type { UseAuth } from "../lib/useAuth";
@@ -88,15 +88,10 @@ export const AuthStatus = ({ auth, onSignInClick, isInternalStaff, staffRole, na
               <ShieldCheck size={15} /> Admin
             </button>
           )}
-          {isInternalStaff && (
-            <button
-              onClick={() => { setOpen(false); navigate({ tab: "accounts", sub: "controlRoom" }); }}
-              className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm font-semibold hover:bg-slate-50 dark:hover:bg-slate-700"
-              style={{ color: NAVY }}
-            >
-              <Building2 size={15} /> Company Accounts & Pricing
-            </button>
-          )}
+          {/* Company Accounts & Pricing is reached from the Admin dashboard's
+              card section (AdminDashboard.tsx), not from here -- it used to be
+              in both places. Its route (#/accounts) is unchanged, so existing
+              links and bookmarks still work. */}
           <button
             onClick={() => { setOpen(false); auth.signOut(); }}
             className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm font-semibold text-red-600 hover:bg-slate-50 dark:text-red-300 dark:hover:bg-slate-700"

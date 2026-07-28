@@ -22,13 +22,15 @@ export type AdminSubPage = "dashboard" | "products" | "systems" | "maths" | "doc
 // retirement note above).
 export type CompanySubPage = "team" | "activity";
 
-// "Company Accounts & Pricing" -- a new top-level internal-staff workspace
-// (see AccountsRoot.tsx), separate from "admin" the same way "admin" itself
-// is its own top-level tab rather than nested under "projects": both are
-// reached via AuthStatus.tsx's account dropdown, never a TOP_NAV_ITEMS entry
-// (see topNav.tsx's header comment for why "admin" is excluded from that
-// list -- same reasoning applies here). "controlRoom" is the landing/
-// dashboard sub-page, same role "dashboard" plays for AdminSubPage above.
+// "Company Accounts & Pricing" -- a top-level internal-staff workspace (see
+// AccountsRoot.tsx) that keeps its own route and sidebar shell rather than
+// being nested under "admin", but is reached FROM Admin: its only entry
+// point is the Admin dashboard's card section (AdminDashboard.tsx). It's
+// never a TOP_NAV_ITEMS entry (see topNav.tsx's header comment for why
+// "admin" is excluded from that list -- same reasoning applies here), and it
+// no longer has an AuthStatus.tsx account-dropdown shortcut, which used to
+// be a second way in. "controlRoom" is the landing/dashboard sub-page, same
+// role "dashboard" plays for AdminSubPage above.
 export type AccountsSubPage = "controlRoom" | "companies" | "companyUsers" | "invitations" | "companyPricing" | "priceLists" | "permissions" | "auditHistory";
 
 export type Route =
