@@ -115,14 +115,14 @@
 .pj-bcopy { display: flex; align-items: flex-start; gap: 11px; }
 .pj-bicon { width: 36px; height: 36px; border-radius: 11px; background: var(--pj-surface); color: var(--pj-blue); display: grid; place-items: center; font-weight: 900; flex: 0 0 auto; }
 .pj-banner strong { display: block; font-size: 13px; color: var(--pj-ink); }
-.pj-banner span { display: block; color: var(--pj-muted); font-size: 11px; margin-top: 2px; }
+.pj-bcopy > div span { display: block; color: var(--pj-muted); font-size: 11px; margin-top: 2px; }
 .pj-primary { height: 38px; border: 0; border-radius: 10px; background: var(--pj-blue); color: #fff; padding: 0 13px; font-size: 11px; font-weight: 850; }
 
 .pj-actiongrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 9px; background: var(--pj-surface); border: 1px solid var(--pj-line); border-radius: 16px; padding: 11px; box-shadow: var(--pj-shadow); margin-bottom: 13px; }
 .pj-paction { min-height: 68px; border: 1px solid var(--pj-line); border-radius: 13px; background: var(--pj-surface-soft); padding: 12px; display: flex; gap: 10px; align-items: center; text-align: left; }
 .pj-paction .pj-qicon { width: 36px; height: 36px; border-radius: 11px; }
 .pj-paction strong { display: block; font-size: 12px; color: var(--pj-ink); }
-.pj-paction span { display: block; color: var(--pj-muted); font-size: 10px; margin-top: 2px; }
+.pj-paction > div span { display: block; color: var(--pj-muted); font-size: 10px; margin-top: 2px; }
 
 .pj-overviewgrid { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(290px, .65fr); gap: 13px; }
 .pj-section { background: var(--pj-surface); border: 1px solid var(--pj-line); border-radius: 16px; padding: 16px; box-shadow: var(--pj-shadow); margin-bottom: 13px; }
@@ -199,7 +199,7 @@
   .pj-banner .pj-primary { width: 100%; }
   .pj-actiongrid { grid-template-columns: 1fr 1fr; }
   .pj-paction { padding: 10px; }
-  .pj-paction span { display: none; }
+  .pj-paction > div span { display: none; }
   .pj-timeline { grid-template-columns: 1fr; padding-left: 4px; }
   .pj-timeline::before { left: 18px; top: 18px; bottom: 18px; width: 3px; height: auto; right: auto; }
   .pj-stage { text-align: left; padding-left: 44px; min-height: 50px; }
