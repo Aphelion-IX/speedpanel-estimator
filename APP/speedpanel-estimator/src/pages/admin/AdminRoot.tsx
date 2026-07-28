@@ -54,7 +54,10 @@ export const AdminRoot = ({ route, navigate, layoutMode, auth }: {
     <div className="mt-6">
       <AdminGate isInternalStaff={isInternalStaff} loading={roleLoading}>
         {route.sub === "dashboard" && (
-          <AdminDashboard onNavigate={sub => navigate({ tab: "admin", sub })} />
+          <AdminDashboard
+            onNavigate={sub => navigate({ tab: "admin", sub })}
+            onOpenAccounts={() => navigate({ tab: "accounts", sub: "controlRoom" })}
+          />
         )}
         {route.sub !== "dashboard" && (
           <>
