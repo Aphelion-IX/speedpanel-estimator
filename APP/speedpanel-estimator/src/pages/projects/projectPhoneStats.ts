@@ -12,18 +12,22 @@
 // =============================================================================
 import { useMemo } from "react";
 import { compute, computeExternal } from "../../estimate/computeWall";
-import { SYSTEMS } from "../../appShell/systems";
 import type { ProjectRow } from "./projectTypes";
 
 export interface ProjectPhoneStats { wallCount: number; area: number; panels: number; warnings: number; }
 
 export function useProjectPhoneStats(item: ProjectRow): ProjectPhoneStats {
   return useMemo(() => {
-    const isExt = SYSTEMS.find(s => s.id === item.data.system)?.ext ?? false;
-    const fn = isExt ? computeExternal : compute;
     let area = 0, panels = 0, warnings = 0;
+    // Dispatch per wall on its own `application`, not on the project-level
+    // legacy `system` field -- a project can mix Internal and External walls
+    // (see CLAUDE.md's "Estimator UI architecture"), so there is no single
+    // system for the whole project to switch on. Same per-wall dispatch
+    // computeProjectReportData.ts and wallStore.ts's useWallResults make.
+    // Rows reaching here are already ProjectRowSchema-validated, which means
+    // patchLegacyProjectRow() has backfilled `application` on pre-merge saves.
     for (const wall of item.data.walls) {
-      const out = fn(wall);
+      const out = (wall.application === "external" ? computeExternal : compute)(wall);
       warnings += out.warnings.length;
       if (out.empty) continue;
       area += out.area ?? 0;

@@ -48,4 +48,29 @@ describe("synthesizeKits", () => {
     expect(kits.filter(k => k.kind === "corner").length).toBe(1);
     expect(kits.filter(k => k.kind === "shaft").length).toBe(1);
   });
+
+  // A pair link is symmetric by construction (the UI's CornerLinkSelector only
+  // offers unlinked walls), but a saved project can still contain an ASYMMETRIC
+  // link -- duplicateWallById used to copy cornerPartnerId/shaftPartnerId onto
+  // the copy, leaving two walls both pointing at the same partner while that
+  // partner points back at only one of them. The seen-set must key on the pair,
+  // not just the wall it was first reached from, or the same physical junction
+  // bills a second corner post / shaft junction kit.
+  it("emits one corner kit even when a third wall points at an already-paired partner", () => {
+    const cornerA = { ...defaultWall(1, "horizontal"), wallSystem: "corner" as const, width: "3", height: "3", name: "Corner A", cornerPartnerId: 2 };
+    const cornerB = { ...defaultWall(2, "horizontal"), wallSystem: "corner" as const, width: "3", height: "3", name: "Corner B", cornerPartnerId: 1 };
+    const cornerACopy = { ...cornerA, id: 3, name: "Corner A copy" };
+
+    const kits = synthesizeKits([cornerA, cornerB, cornerACopy], INT_CONFIG);
+    expect(kits.filter(k => k.kind === "corner").length).toBe(1);
+  });
+
+  it("emits one shaft kit even when a third wall points at an already-paired partner", () => {
+    const shaftA = { ...defaultWall(1, "horizontal"), wallSystem: "shaft" as const, height: "9", floorHeight: "3", name: "Shaft A", shaftPartnerId: 2 };
+    const shaftB = { ...defaultWall(2, "horizontal"), wallSystem: "shaft" as const, height: "9", floorHeight: "3", name: "Shaft B", shaftPartnerId: 1 };
+    const shaftACopy = { ...shaftA, id: 3, name: "Shaft A copy" };
+
+    const kits = synthesizeKits([shaftA, shaftB, shaftACopy], INT_CONFIG);
+    expect(kits.filter(k => k.kind === "shaft").length).toBe(1);
+  });
 });

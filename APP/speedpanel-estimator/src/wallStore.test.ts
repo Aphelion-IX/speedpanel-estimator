@@ -173,3 +173,53 @@ describe("useWallStore's atomic linked-system creation", () => {
     expect(partner.shaftPartnerId).toBe(seededId);
   });
 });
+
+describe("useWallStore's duplicateWallById", () => {
+  // A pair link is two-wall and symmetric. Copying one onto a duplicate would
+  // leave the copy pointing at the original's partner while that partner still
+  // pointed back at the original -- an asymmetric link that bills the shared
+  // corner-post / shaft-junction kit twice for one physical junction (see
+  // synthesizeKits.ts / aggregateInternal.ts's pair-keyed seen sets).
+  it("starts the copy unlinked rather than inheriting the original's corner link", () => {
+    const { result } = renderHook(() => useWallStore({ dimUnit: "m", persistLocally: false }));
+    act(() => result.current.createCornerPair());
+    const [a, b] = result.current.walls.filter(w => w.wallSystem === "corner");
+
+    act(() => result.current.duplicateWallById(a.id));
+    const copy = result.current.walls.find(w => w.name === `${a.name} copy`)!;
+
+    expect(copy).toBeDefined();
+    expect(copy.wallSystem).toBe("corner");
+    expect(copy.cornerPartnerId).toBeNull();
+    // The original pair is left intact and still symmetric.
+    const afterA = result.current.walls.find(w => w.id === a.id)!;
+    const afterB = result.current.walls.find(w => w.id === b.id)!;
+    expect(afterA.cornerPartnerId).toBe(b.id);
+    expect(afterB.cornerPartnerId).toBe(a.id);
+  });
+
+  it("starts the copy unlinked rather than inheriting the original's shaft link", () => {
+    const { result } = renderHook(() => useWallStore({ dimUnit: "m", persistLocally: false }));
+    act(() => result.current.createShaftPair());
+    const [a] = result.current.walls.filter(w => w.wallSystem === "shaft");
+
+    act(() => result.current.duplicateWallById(a.id));
+    const copy = result.current.walls.find(w => w.name === `${a.name} copy`)!;
+
+    expect(copy.shaftPartnerId).toBeNull();
+  });
+
+  it("carries the original's real geometry across to the copy", () => {
+    const { result } = renderHook(() => useWallStore({ dimUnit: "m", persistLocally: false }));
+    const source = result.current.walls[0];
+    act(() => result.current.update({ width: "4.2", height: "2.7", type: 51 }));
+
+    act(() => result.current.duplicateWallById(source.id));
+    const copy = result.current.walls.find(w => w.name === `${source.name} copy`)!;
+
+    expect(copy.width).toBe("4.2");
+    expect(copy.height).toBe("2.7");
+    expect(copy.type).toBe(51);
+    expect(copy.id).not.toBe(source.id);
+  });
+});

@@ -74,3 +74,56 @@ describe("useStableIds", () => {
     expect(result.current).toEqual(["a", "b"]);
   });
 });
+
+describe("useAsyncResource -- out-of-order responses", () => {
+  // Switching the thing being fetched (project A -> project B) re-runs the
+  // fetcher. If A's slower response is allowed to land after B's, the page
+  // renders the previous record's data under the current record's heading.
+  it("ignores a slow earlier response that resolves after a newer one", async () => {
+    const resolvers: ((value: { data: string; error: string | null }) => void)[] = [];
+    const fetcher = vi.fn(() => new Promise<{ data: string; error: string | null }>(res => { resolvers.push(res); }));
+
+    const { result, rerender } = renderHook(
+      ({ id }) => useAsyncResource(fetcher, [id], { initialData: "" }),
+      { initialProps: { id: "A" } },
+    );
+
+    rerender({ id: "B" });
+    expect(resolvers.length).toBe(2);
+
+    // B (the newest request) resolves first, then the stale A resolves.
+    await act(async () => { resolvers[1]({ data: "B-data", error: null }); });
+    await act(async () => { resolvers[0]({ data: "A-data", error: null }); });
+
+    expect(result.current.data).toBe("B-data");
+    expect(result.current.loading).toBe(false);
+  });
+
+  it("does not let a stale error clobber a newer successful load", async () => {
+    const resolvers: ((value: { data: string; error: string | null }) => void)[] = [];
+    const fetcher = vi.fn(() => new Promise<{ data: string; error: string | null }>(res => { resolvers.push(res); }));
+
+    const { result, rerender } = renderHook(
+      ({ id }) => useAsyncResource(fetcher, [id], { initialData: "" }),
+      { initialProps: { id: "A" } },
+    );
+
+    rerender({ id: "B" });
+    await act(async () => { resolvers[1]({ data: "B-data", error: null }); });
+    await act(async () => { resolvers[0]({ data: "", error: "stale boom" }); });
+
+    expect(result.current.error).toBeNull();
+    expect(result.current.data).toBe("B-data");
+  });
+
+  it("ignores a response that arrives after unmount", async () => {
+    const resolvers: ((value: { data: string; error: string | null }) => void)[] = [];
+    const fetcher = vi.fn(() => new Promise<{ data: string; error: string | null }>(res => { resolvers.push(res); }));
+
+    const { result, unmount } = renderHook(() => useAsyncResource(fetcher, [], { initialData: "" }));
+    unmount();
+
+    await act(async () => { resolvers[0]({ data: "late", error: null }); });
+    expect(result.current.data).toBe("");
+  });
+});

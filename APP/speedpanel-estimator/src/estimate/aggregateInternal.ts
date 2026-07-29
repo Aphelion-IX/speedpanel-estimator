@@ -84,7 +84,13 @@ export function aggregate(results: WallResult[], cfg: SystemConfig = INT_CONFIG)
           postStripLM += kit.stripLM;
         }
       }
+      // Mark BOTH members of the pair, not just the wall we arrived from --
+      // an asymmetric link (two walls pointing at the same partner, which a
+      // saved project can still contain) would otherwise bill the same
+      // physical junction a second time, straight into the exported workbook
+      // and the priced order line items.
       seenCornerPairIds.add(w.id);
+      seenCornerPairIds.add(w.cornerPartnerId);
     }
     if (w.wallSystem === "shaft" && w.shaftPartnerId != null && !seenShaftPairIds.has(w.id) && !seenShaftPairIds.has(w.shaftPartnerId)) {
       const partner = results.find(r => r.wall.id === w.shaftPartnerId)?.wall;
@@ -96,6 +102,7 @@ export function aggregate(results: WallResult[], cfg: SystemConfig = INT_CONFIG)
         }
       }
       seenShaftPairIds.add(w.id);
+      seenShaftPairIds.add(w.shaftPartnerId);
     }
   }
 

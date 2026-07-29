@@ -119,10 +119,14 @@ A new top-level, internal-staff-only workspace being built in phases against
 anything under `src/pages/accounts/`, it has the full phased plan plus
 load-bearing research findings (which existing tables/RPCs already satisfy
 which requirement, what's genuinely missing, and several corrected
-assumptions worth not re-deriving). Reached via `AuthStatus.tsx`'s account
-dropdown (`"Company Accounts & Pricing"`, next to `"Admin"`), never a
+assumptions worth not re-deriving). Reached from the Admin dashboard's card
+section (`AdminDashboard.tsx`'s "Company Accounts & Pricing" card), never a
 `TOP_NAV_ITEMS` entry — same "admin-like area, not a top-nav tab" precedent
-`"admin"` itself already follows. `AccountsRoot.tsx` owns one persistent left
+`"admin"` itself already follows. It keeps its own top-level route
+(`#/accounts`) and sidebar shell rather than being nested under `#/admin`;
+only the way in moved. It previously also had an `AuthStatus.tsx`
+account-dropdown shortcut — that was a second entry point for the same
+workspace and has been removed, so the Admin card is now the only one. `AccountsRoot.tsx` owns one persistent left
 sidebar shared by every sub-page (unlike Admin, where each section owns its
 own); `accountsTheme.css`'s `.cap-shell` deliberately does NOT shadow
 `--navy`/`--blue`/etc the way `.pa-shell`/`.est-shell` do, since this

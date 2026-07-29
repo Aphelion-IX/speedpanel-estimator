@@ -164,8 +164,13 @@ export const LandingPage = ({ auth, pendingNote }: { auth: UseAuth; pendingNote?
             <footer className="mt-6 flex flex-col items-center justify-between gap-3 px-2 text-xs text-slate-500 dark:text-slate-400 sm:flex-row">
               <span>&copy; {new Date().getFullYear()} SPEEDPANEL. All rights reserved.</span>
               <div className="flex items-center gap-4">
-                <button className="hover:text-slate-800 dark:hover:text-slate-300">Privacy Policy</button>
-                <button className="hover:text-slate-800 dark:hover:text-slate-300">Terms of Service</button>
+                {/* No policy documents are published in the app yet and no
+                    external URL is configured for either, so these are
+                    disabled rather than looking like live links. */}
+                <button disabled title="Privacy Policy isn't available yet."
+                  className="disabled:opacity-50 disabled:cursor-not-allowed">Privacy Policy</button>
+                <button disabled title="Terms of Service aren't available yet."
+                  className="disabled:opacity-50 disabled:cursor-not-allowed">Terms of Service</button>
               </div>
             </footer>
           </div>

@@ -55,6 +55,9 @@
 .ord-btn.secondary { border: 1px solid var(--ord-line); background: var(--ord-surface); color: var(--ord-muted); }
 .ord-btn.danger { border: 1px solid var(--ord-red-border); background: var(--ord-red50); color: var(--ord-red); }
 .ord-btn.success { border: 0; background: var(--ord-green); color: #fff; }
+/* A disabled .ord-btn must read as inactive -- without this the attribute is
+   honoured by the browser but the button still looks fully live. */
+.ord-btn:disabled { opacity: 0.5; cursor: not-allowed; pointer-events: none; }
 
 .ord-badge { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; padding: 6px 9px; background: var(--ord-blue50); color: var(--ord-blue700); font-size: 10px; font-weight: 850; white-space: nowrap; }
 .ord-badge.green { background: var(--ord-green50); color: var(--ord-green); }

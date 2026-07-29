@@ -60,10 +60,19 @@ export const DocumentDetailPanel = ({ doc, allDocs, tab, onTabChange, onSelectRe
           <a href={doc.fileUrl} target="_blank" rel="noopener noreferrer"
             className="flex-1 rounded-xl py-2.5 text-center text-sm font-bold" style={{ background: BLUE, color: WHITE }}>Open PDF</a>
         ) : (
-          <button className="flex-1 rounded-xl py-2.5 text-sm font-bold" style={{ background: BLUE, color: WHITE }}>Open PDF</button>
+          // No fileUrl on this document -- there is nothing to open, so the
+          // control is disabled rather than rendered as a live primary CTA
+          // that silently does nothing when clicked.
+          <button disabled title="This document has no file attached yet."
+            className="flex-1 rounded-xl py-2.5 text-sm font-bold disabled:opacity-50 disabled:pointer-events-none"
+            style={{ background: BLUE, color: WHITE }}>Open PDF</button>
         )}
-        <button className="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 dark:border-slate-600 text-slate-400 dark:text-slate-400"><Share2 size={15} /></button>
-        <button className="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 dark:border-slate-600 text-slate-400 dark:text-slate-400"><MoreVertical size={15} /></button>
+        {/* No share/overflow behaviour is wired to either control yet, so both
+            are disabled rather than presenting as live actions. */}
+        <button disabled title="Sharing isn't available yet." aria-label="Share document"
+          className="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 dark:border-slate-600 text-slate-400 dark:text-slate-400 disabled:opacity-50 disabled:pointer-events-none"><Share2 size={15} /></button>
+        <button disabled title="More actions aren't available yet." aria-label="More actions"
+          className="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 dark:border-slate-600 text-slate-400 dark:text-slate-400 disabled:opacity-50 disabled:pointer-events-none"><MoreVertical size={15} /></button>
       </div>
     </>
   );

@@ -85,7 +85,10 @@ export const OrdersHubPage = ({ auth, company, layoutMode, navigate }: {
             </button>
           ))}
         </div>
-        <button className="ord-btn secondary">Filters</button>
+        {/* No filter UI is wired to this yet -- the search box and the
+            All/Drafts/Active/Completed segmented control above are the live
+            narrowing controls. Disabled rather than silently doing nothing. */}
+        <button disabled title="Additional filters aren't available yet." className="ord-btn secondary">Filters</button>
       </div>
 
       {loading && <LoadingState className="mt-4" label="Loading orders" />}

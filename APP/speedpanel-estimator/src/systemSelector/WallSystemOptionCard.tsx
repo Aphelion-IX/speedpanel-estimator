@@ -4,9 +4,11 @@
 // "Select System" creates a saved project pre-set to this card's system/
 // wallSystem (see App.tsx's createProjectFromSystem) -- but only for cards
 // with a real `option.system` mapping. Descriptive-only cards (Separation,
-// Cinema, Stair, ...) have no system to seed a project with, so they keep
-// the old inert button (see systemOptions.ts's own comment on why those are
-// left unmapped).
+// Cinema, Stair, ...) have no system to seed a project with (see
+// systemOptions.ts's own comment on why those are left unmapped), so they
+// show a non-interactive "Coming soon" badge instead of a button. They used
+// to render an identical-looking "Select System" button that silently did
+// nothing on click.
 // =============================================================================
 import { useState } from "react";
 import { Check } from "lucide-react";
@@ -83,10 +85,13 @@ export const WallSystemOptionCard = ({ option, selected, onCreateProject }: {
         </button>
       ) : (
         // Descriptive-only card -- no system mapping to create a project with
-        // (see systemOptions.ts), so this stays an inert stub.
-        <button className="mt-auto w-full rounded-xl border-2 border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 py-2.5 text-sm font-bold active:scale-95 transition-all" style={{ color: BLUE }}>
-          Select System
-        </button>
+        // (see systemOptions.ts). Shows a non-interactive "Coming soon" badge
+        // rather than a "Select System" button that can never do anything:
+        // the card stays informative, but nothing on it invites a click that
+        // would silently fail.
+        <div className="mt-auto w-full rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-600 py-2.5 text-center text-sm font-bold" style={{ color: MUTED }}>
+          Coming soon
+        </div>
       )}
     </div>
   );
