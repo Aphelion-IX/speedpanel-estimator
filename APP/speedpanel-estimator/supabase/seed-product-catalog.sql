@@ -86,4 +86,25 @@ insert into sealants (system, product, m2_per_sausage, per_box)
 select 'external', 'Sikaflex 400 Fire PU', 2, 20
 where not exists (select 1 from sealants where system = 'external');
 
+-- --- Colours: not priceable, matched by `code` for idempotency ------------
+insert into colours (label, code, hex)
+select 'Off White', 'OW', '#F5F2EC'
+where not exists (select 1 from colours where code = 'OW');
+
+insert into colours (label, code, hex)
+select 'Gull Grey', 'GG', '#9BA4A8'
+where not exists (select 1 from colours where code = 'GG');
+
+insert into colours (label, code, hex)
+select 'Monolith', 'MO', '#4A4D52'
+where not exists (select 1 from colours where code = 'MO');
+
+insert into colours (label, code, hex)
+select 'Slate Grey', 'SL', '#6B7278'
+where not exists (select 1 from colours where code = 'SL');
+
+insert into colours (label, code, hex)
+select 'Armour Grey', 'AG', '#3D4147'
+where not exists (select 1 from colours where code = 'AG');
+
 commit;

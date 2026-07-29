@@ -35,6 +35,7 @@ import {
   EXT_CTRACK_DIM, EXT_JTRACK_DIM, EXT_ZFLASH_DIM, EXT_HORIZ_COVER_DIM,
   EXT_CTRACK_STOCK, EXT_JTRACK_STOCK, EXT_ZFLASH_STOCK,
   EXT_SEALANT_M2, EXT_SEALANT_PER_BOX,
+  EXT_STOCKED_COLOURS, COLOUR_HEX,
 } from "../src/data";
 
 const q = (s: string) => `'${s.replace(/'/g, "''")}'`;
@@ -145,6 +146,18 @@ for (const s of [
   say();
 }
 
+// Colours aren't priceable (a colour is a finish attribute of a panel, never
+// its own orderable line item -- see schema.sql), so nothing matches on them
+// downstream. They ship empty like the rest of the catalog though, which
+// leaves Admin > Products' Colours tab blank, so they seed here too.
+say("-- --- Colours: not priceable, matched by `code` for idempotency ------------");
+for (const c of EXT_STOCKED_COLOURS) {
+  say(`insert into colours (label, code, hex)`);
+  say(`select ${q(c.label)}, ${q(c.code)}, ${q(COLOUR_HEX[c.code])}`);
+  say(`where not exists (select 1 from colours where code = ${q(c.code)});`);
+  say();
+}
+
 say("commit;");
 say();
 
@@ -155,3 +168,4 @@ console.log(`  panels:   ${PANELS.length}`);
 console.log(`  tracks:   ${tracks.length}`);
 console.log(`  fixings:  2`);
 console.log(`  sealants: 2`);
+console.log(`  colours:  ${EXT_STOCKED_COLOURS.length}`);

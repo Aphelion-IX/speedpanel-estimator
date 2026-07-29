@@ -14,7 +14,7 @@
 //      exactly one row -- otherwise an order line prices as null.
 // =============================================================================
 import { describe, it, expect } from "vitest";
-import { PanelRowSchema, TrackRowSchema, FixingRowSchema, SealantRowSchema } from "./productMappers";
+import { PanelRowSchema, TrackRowSchema, FixingRowSchema, SealantRowSchema, ColourRowSchema } from "./productMappers";
 import seeded from "./__seeded-catalog.fixture.json";
 
 describe("product catalog seed", () => {
@@ -23,6 +23,22 @@ describe("product catalog seed", () => {
     expect(seeded.tracks.length).toBe(9);
     expect(seeded.fixings.length).toBe(2);
     expect(seeded.sealants.length).toBe(2);
+    expect(seeded.colours.length).toBe(5);
+  });
+
+  it("produces colour rows the store's schema accepts", () => {
+    for (const row of seeded.colours) {
+      const parsed = ColourRowSchema.safeParse(row);
+      expect(parsed.success, `colour ${JSON.stringify(row.code)}: ${!parsed.success ? JSON.stringify(parsed.error.issues) : ""}`).toBe(true);
+    }
+  });
+
+  it("seeds every stocked colour the estimator offers", () => {
+    // Mirrors data.ts's EXT_STOCKED_COLOURS -- the swatch grid reads those
+    // codes, so a missing row means a colour with no catalog entry behind it.
+    for (const code of ["OW", "GG", "MO", "SL", "AG"]) {
+      expect(seeded.colours.filter(c => c.code === code).length, `colour ${code}`).toBe(1);
+    }
   });
 
   it("produces panel rows the store's schema accepts", () => {
