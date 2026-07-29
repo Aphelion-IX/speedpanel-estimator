@@ -200,7 +200,7 @@ const ProductPricesTab = ({ priceListId, priceListName, layoutMode, onChanged }:
         // Distinguishes "this category has no products at all" (the price
         // list can't be edited until the catalog is populated) from "your
         // search matched nothing", which the next branch covers.
-        <EmptyState className="mt-3" message={`No ${CATEGORY_LABEL[category].toLowerCase()} in the product catalog yet. Add them under Admin > Products first -- prices are set against catalog items, so there's nothing to price until then.`} />
+        <EmptyState className="mt-3" message={`No ${CATEGORY_LABEL[category].toLowerCase()} in the product catalog yet. Prices are set against catalog items, so there's nothing to price until the catalog is populated -- run supabase/seed-product-catalog.sql, or add them at #/admin/products.`} />
       ) : filtered.length === 0 ? (
         <EmptyState className="mt-3" message={`No ${CATEGORY_LABEL[category].toLowerCase()} match "${query.trim()}".`} />
       ) : (
