@@ -93,7 +93,13 @@ const ProductPricesTab = ({ priceListId, priceListName, layoutMode, onChanged }:
   // stale state until told to refetch; this is that signal.
   onChanged: () => void;
 }) => {
-  const { catalog, loading: catalogLoading } = useProductStore();
+  // catalogError/reloadCatalog were previously discarded, so a catalog that
+  // failed to load rendered an indistinguishable "Panels (0)" with no error,
+  // no retry and no explanation -- the prices fetch surfaced its error right
+  // below but the product fetch silently didn't. The product list IS the
+  // editable surface here (a price is entered against a catalog item), so an
+  // empty catalog means the whole price list is uneditable.
+  const { catalog, loading: catalogLoading, error: catalogError, reload: reloadCatalog } = useProductStore();
   const { prices, versionStatus, loading: pricesLoading, error: pricesError, setPrice, setPrices, deletePrice } = useAdminPriceListPrices(priceListId);
   const [category, setCategory] = useState<PriceableCategory>("panel");
   const [query, setQuery] = useState("");
@@ -188,6 +194,15 @@ const ProductPricesTab = ({ priceListId, priceListName, layoutMode, onChanged }:
 
       {catalogLoading || pricesLoading ? (
         <LoadingState className="mt-3" label="Loading products" />
+      ) : catalogError ? (
+        <ErrorState className="mt-3" message={`Couldn't load the product catalog, so there's nothing to price: ${catalogError}`} onRetry={() => reloadCatalog()} />
+      ) : list.length === 0 ? (
+        // Distinguishes "this category has no products at all" (the price
+        // list can't be edited until the catalog is populated) from "your
+        // search matched nothing", which the next branch covers.
+        <EmptyState className="mt-3" message={`No ${CATEGORY_LABEL[category].toLowerCase()} in the product catalog yet. Add them under Admin > Products first -- prices are set against catalog items, so there's nothing to price until then.`} />
+      ) : filtered.length === 0 ? (
+        <EmptyState className="mt-3" message={`No ${CATEGORY_LABEL[category].toLowerCase()} match "${query.trim()}".`} />
       ) : (
         <CardGrid layoutMode={layoutMode} minWidth={280}>
           {filtered.map(item => {
